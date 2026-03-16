@@ -2,6 +2,12 @@ document.addEventListener('DOMContentLoaded', () => {
   const recordBtn = document.getElementById('recordBtn');
   const screenshotBtn = document.getElementById('screenshotBtn');
   const settingsBtn = document.getElementById('settingsBtn');
+  const captureCountBadge = document.getElementById('captureCountBadge');
+
+  // Load capture count from local storage
+  chrome.storage.local.get(['captureCount'], (result) => {
+    captureCountBadge.textContent = `Captures: ${result.captureCount || 0}`;
+  });
 
   recordBtn.addEventListener('click', () => {
     console.log('Record started');

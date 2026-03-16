@@ -1,0 +1,20 @@
+document.addEventListener('DOMContentLoaded', () => {
+  const recordBtn = document.getElementById('recordBtn');
+  const screenshotBtn = document.getElementById('screenshotBtn');
+  const settingsBtn = document.getElementById('settingsBtn');
+
+  recordBtn.addEventListener('click', () => {
+    console.log('Record started');
+    // We will implement chrome.desktopCapture here
+    chrome.runtime.sendMessage({ action: 'START_RECORDING' });
+  });
+
+  screenshotBtn.addEventListener('click', () => {
+    console.log('Screenshot taken');
+    chrome.runtime.sendMessage({ action: 'TAKE_SCREENSHOT' });
+  });
+
+  settingsBtn.addEventListener('click', () => {
+    chrome.runtime.openOptionsPage();
+  });
+});

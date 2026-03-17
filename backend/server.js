@@ -7,6 +7,14 @@ const stream = require('stream');
 
 dotenv.config();
 
+const requiredEnv = ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'GOOGLE_REDIRECT_URI'];
+const missingEnv = requiredEnv.filter(key => !process.env[key]);
+
+if (missingEnv.length > 0) {
+    console.warn('\x1b[33m%s\x1b[0m', '⚠️ WARNING: Missing OAuth environment variables (Google Auth will fail):');
+    missingEnv.forEach(env => console.warn(`  - ${env}`));
+}
+
 const app = express();
 app.use(cors());
 app.use(express.json());
@@ -80,5 +88,6 @@ app.post('/upload/drive', upload.single('file'), async (req, res) => {
 
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`\n\x1b[32m%s\x1b[0m`, `✨ Backend server is running!`);
+  console.log(`👉 Access it at: http://localhost:${PORT}\n`);
 });

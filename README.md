@@ -82,3 +82,88 @@ cd web-ui
 npm install
 npm run dev
 ```
+
+# Extension
+
+## 1. Logic
+- **Screenshot** – Saleh  
+- **Video Recording / Audio Capture** – Brother  
+
+## 2. UI
+- Design and implement the extension popup / toolbar - Saleh
+
+- Buttons for **Screenshot**, **Start/Stop Recording**, 
+
+**Audio toggle** - Brother
+
+- Feedback / notifications to the user - Saleh 
+  - Example: if storage drive is full, user will be notified via email
+
+## 3. Backend Integration
+- Connect frontend to backend **via API**  
+- Endpoints:
+  - `/auth/google` → Google OAuth  
+  - `/upload/drive` → Upload captured content  
+    - Google Console setup: Saleh  
+    - Implementation: Brother  
+  - `/videos` → Optional: store metadata  
+
+## 4. Authentication / Token Storage
+
+### Frontend (Extension)
+- Handle OAuth login flow - Saleh 
+- Receive access code after login (`/auth/callback`) - Saleh 
+- Send code securely to backend  - Brother
+
+- Optionally store **short-lived tokens in memory/sessionStorage** for current session  
+
+### Backend
+- Exchange OAuth code for **access + refresh tokens** - Saleh
+- Store tokens securely in **database or encrypted file** - Brother 
+- Handle **automatic token refresh**  
+- Respond to frontend requests without exposing secret keys  
+
+## 5. Optional / Nice-to-have
+- History of uploaded content  
+- Preview before uploading  
+- Error handling & user notifications  
+  - Example: notify user if upload fails or token expires
+
+
+# Web UI
+
+## 1. Logic
+- Display uploaded content (videos/screenshots)  
+- Preview/playback functionality  
+- Show metadata: date, size, type  
+
+## 2. UI
+- Design and implement **dashboard / web page**  
+- Buttons / controls for:
+  - Playback  
+  - Download  
+  - Delete content  
+- Feedback / notifications to the user  
+  - Example: if upload fails or storage limit is reached  
+
+## 3. Backend Integration
+- Connect Web UI to backend **via API**  
+- Endpoints:
+  - `/auth/google` → Google OAuth  
+  - `/upload/drive` → Fetch uploaded content / manage uploads  
+  - `/videos` → Retrieve video metadata/history  
+
+## 4. Authentication / Token Storage
+- Handle OAuth login flow  
+- Receive and store access tokens securely (sessionStorage or localStorage)  
+- Refresh tokens automatically when expired  
+- Manage login/logout flow properly  
+
+## 5. Optional / Nice-to-have
+- Show history of all uploaded content  
+- Filter and search uploaded content  
+- Display real-time upload progress  
+- Analytics (number of uploads, storage usage)  
+- Responsive design for mobile / different screen sizes  
+- Email notifications for errors or full storage
+

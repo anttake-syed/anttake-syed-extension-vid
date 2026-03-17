@@ -30,6 +30,38 @@ app.get('/', (req, res) => {
   res.status(200).send('✨ AntCapture Backend is running and accessible!');
 });
 
+// Experimental Test Data storage (In-memory)
+let testData = [];
+
+// GET endpoint to retrieve test data
+app.get('/test-data', (req, res) => {
+  res.status(200).json({
+    status: 'success',
+    data: testData,
+    count: testData.length
+  });
+});
+
+// POST endpoint to add data for verification
+app.post('/test-data', (req, res) => {
+  const { message } = req.body;
+  if (!message) {
+    return res.status(400).json({ error: 'Please provide a message' });
+  }
+
+  const newItem = {
+    id: Date.now(),
+    message,
+    timestamp: new Date().toISOString()
+  };
+
+  testData.push(newItem);
+  res.status(201).json({
+    status: 'success',
+    itemAdded: newItem
+  });
+});
+
 const upload = multer({ storage: multer.memoryStorage() });
 
 const oauth2Client = new google.auth.OAuth2(

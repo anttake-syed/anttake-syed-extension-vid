@@ -92,7 +92,15 @@ npm run dev
 ## 2. UI
 - Design and implement the extension popup / toolbar - Saleh
 
-- Buttons for **Screenshot**, **Start/Stop Recording**, 
+- Buttons for **Screensho
+￼
+￼
+0:55 / 2:32
+￼
+￼
+￼
+￼
+t**, **Start/Stop Recording**, 
 
 **Audio toggle** - Brother
 

@@ -15,7 +15,8 @@
     "offscreen"
   ],
   "host_permissions": [
-    "https://www.googleapis.com/*"
+    "https://www.googleapis.com/*",
+    "<all_urls>"
   ],
   "action": {
     "default_popup": "popup.html",
@@ -26,7 +27,8 @@
     }
   },
   "background": {
-    "service_worker": "background.js"
+    "service_worker": "background.js",
+    "type": "module"
   },
   "content_scripts": [
     {

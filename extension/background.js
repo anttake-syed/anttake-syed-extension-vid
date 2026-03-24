@@ -13,12 +13,30 @@ chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
       });
     });
   } else if (message.action === 'TAKE_SCREENSHOT') {
-    const dataUrl = await chrome.tabs.captureVisibleTab(null, { format: 'png' });
-    // Handle screenshot: download or upload to Drive
-    chrome.downloads.download({
-      url: dataUrl,
-      filename: `screenshot-${Date.now()}.png`
-    });
+    try {
+      const dataUrl = await chrome.tabs.captureVisibleTab(null, { format: 'png' });
+      
+      // Convert dataUrl to blob
+      const response = await fetch(dataUrl);
+      const blob = await response.blob();
+      
+      // Save locally for cloud sync
+      await saveMediaLocally(blob, 'image');
+
+      // Handle screenshot: download
+      chrome.downloads.download({
+        url: dataUrl,
+        filename: `screenshot-${Date.now()}.png`
+      });
+
+      // Increment capture count
+      chrome.storage.local.get(['captureCount'], (result) => {
+        const count = (result.captureCount || 0) + 1;
+        chrome.storage.local.set({ captureCount: count });
+      });
+    } catch (error) {
+      console.error('Screenshot failed:', error);
+    }
   }
 });
 

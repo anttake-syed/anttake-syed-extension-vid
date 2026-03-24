@@ -11,6 +11,13 @@ document.addEventListener('DOMContentLoaded', () => {
     captureCountBadge.textContent = `Captures: ${result.captureCount || 0}`;
   });
 
+  // Listen for storage changes to update UI automatically
+  chrome.storage.onChanged.addListener((changes, namespace) => {
+    if (namespace === 'local' && changes.captureCount) {
+      captureCountBadge.textContent = `Captures: ${changes.captureCount.newValue}`;
+    }
+  });
+
   recordBtn.addEventListener('click', () => {
     console.log('Record started');
     // We will implement chrome.desktopCapture here

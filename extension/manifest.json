@@ -10,7 +10,7 @@
     "unlimitedStorage",
     "identity",
     "scripting",
-    "desktopCapture",
+    "tabCapture",
     "downloads",
     "offscreen"
   ],
@@ -28,13 +28,9 @@
     "service_worker": "background.js",
     "type": "module"
   },
-  "content_scripts": [
-    {
-      "matches": ["<all_urls>"],
-      "js": ["content.js"]
-    }
-  ],
   "icons": {
     "16": "icons/icon16.png"
   }
+
+
 }

@@ -1,4 +1,7 @@
 // background.js
+// This background script handles all tab/screen recording, screenshots, 
+// saving to local storage, syncing pending uploads, and coordinating with offscreen.
+
 // FIX #1: Removed async from the top-level listener.
 // Chrome's onMessage listener does NOT support async functions natively —
 // an async function returns a Promise, which Chrome ignores, causing
@@ -13,6 +16,7 @@ import {
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
+  // START_RECORDING: initiate a tab recording session
   if (message.action === "START_RECORDING") {
     // FIX #2: tabCapture now lives entirely in the background script.
     // Previously popup.js and offscreen.js both tried to call tabCapture,
@@ -21,13 +25,30 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true; // FIX #3: Keep message channel open for async sendResponse
   }
 
+  // STOP_RECORDING: stop current recording session
   if (message.action === "STOP_RECORDING") {
     handleStopRecording(sendResponse);
     return true;
   }
 
+  // TAKE_SCREENSHOT: capture visible tab image
   if (message.action === "TAKE_SCREENSHOT") {
     handleScreenshot(sendResponse);
+    return true;
+  }
+
+  // RECORDING_COMPLETE: handles full workflow after offscreen finishes recording
+  // Includes saving to disk, updating capture count, resetting state, and closing offscreen
+  if (message.action === "RECORDING_COMPLETE") {
+    handleRecordingComplete(message.dataUrl, message.filename);
+    return true;
+  }
+
+  // RECORDING_FAILED: reset state if recording could not start
+  // Ensures next recording attempt starts cleanly
+  if (message.action === "RECORDING_FAILED") {
+    chrome.storage.local.set({ isRecording: false });
+    closeOffscreen();
     return true;
   }
 });
@@ -56,7 +77,7 @@ async function handleStartRecording(sendResponse) {
     await chrome.runtime.sendMessage({
       target: "offscreen",
       action: "START_RECORDING",
-      streamId: streamId,
+      streamId,
     });
 
     // FIX #7: Persist recording state so popup reflects correct state on
@@ -67,22 +88,19 @@ async function handleStartRecording(sendResponse) {
     sendResponse({ success: true });
   } catch (err) {
     console.error("Failed to start recording:", err);
+    // Clean up offscreen if startup failed partway through
+    await closeOffscreen();
     sendResponse({ success: false, error: err.message });
   }
 }
 
 async function handleStopRecording(sendResponse) {
   try {
-    await ensureOffscreen();
-
-    // FIX #5 (same): Consistent action naming
+    // Just tell offscreen to stop — the rest happens in RECORDING_COMPLETE
     await chrome.runtime.sendMessage({
       target: "offscreen",
       action: "STOP_RECORDING",
     });
-
-    // FIX #7: Clear persisted recording state on stop
-    await chrome.storage.local.set({ isRecording: false });
 
     sendResponse({ success: true });
   } catch (err) {
@@ -91,20 +109,49 @@ async function handleStopRecording(sendResponse) {
   }
 }
 
+async function handleRecordingComplete(dataUrl, filename) {
+  // Open Save As dialog so user can choose where to save on their Mac
+  chrome.downloads.download({
+    url: dataUrl,
+    filename,
+    saveAs: true,
+  }, (downloadId) => {
+    if (chrome.runtime.lastError) {
+      console.error("Save As failed:", chrome.runtime.lastError.message);
+    } else {
+      console.log("Save As dialog opened, download ID:", downloadId);
+    }
+  });
+
+  // Update capture count badge
+  chrome.storage.local.get(["captureCount"], (result) => {
+    const count = (result.captureCount || 0) + 1;
+    chrome.storage.local.set({ captureCount: count });
+  });
+
+  // Reset recording state
+  await chrome.storage.local.set({ isRecording: false });
+
+  // FIX: Close and destroy the offscreen document after every recording.
+  // Chrome only allows one offscreen document at a time, and it keeps the
+  // tab's media stream alive as long as the document exists. Closing it
+  // ensures a clean slate for the next recording session.
+  await closeOffscreen();
+}
+
 async function handleScreenshot(sendResponse) {
   try {
-    const dataUrl = await chrome.tabs.captureVisibleTab(null, {
-      format: "png",
-    });
-
+    const dataUrl = await chrome.tabs.captureVisibleTab(null, { format: "png" });
     const response = await fetch(dataUrl);
     const blob = await response.blob();
 
     await saveMediaLocally(blob, "image");
 
+    // Screenshots also use saveAs: true so the user can choose where to save
     chrome.downloads.download({
       url: dataUrl,
       filename: `screenshot-${Date.now()}.png`,
+      saveAs: true,
     });
 
     chrome.storage.local.get(["captureCount"], (result) => {
@@ -119,23 +166,33 @@ async function handleScreenshot(sendResponse) {
   }
 }
 
-// FIX #8: Deduplicated offscreen creation into one reusable function.
-// Previously there were two copies of this logic: one inline inside the
-// message listener, and one named function that was defined but never called.
+// Creates offscreen document if one doesn't already exist
 async function ensureOffscreen() {
   if (await chrome.offscreen.hasDocument()) return;
   await chrome.offscreen.createDocument({
     url: "offscreen.html",
-    // FIX #9: Changed reason from USER_MEDIA to DISPLAY_MEDIA.
-    // tabCapture / screen recording requires DISPLAY_MEDIA, not USER_MEDIA.
-    // Using the wrong reason causes the offscreen document to be rejected.
     reasons: ["DISPLAY_MEDIA"],
     justification: "Tab screen recording via tabCapture",
   });
 }
 
-// --- Sync Manager (was already correct, no changes) ---
+// Closes and destroys the offscreen document after recording ends
+// Chrome keeps the tab's media stream alive as long as the document exists.
+// Closing it ensures a clean slate for the next recording.
+async function closeOffscreen() {
+  try {
+    if (await chrome.offscreen.hasDocument()) {
+      await chrome.offscreen.closeDocument();
+      console.log("Offscreen document closed");
+    }
+  } catch (err) {
+    console.error("Failed to close offscreen document:", err);
+  }
+}
 
+// --- Sync Manager ---
+// Handles pending uploads saved in IndexedDB (from screenshots or videos)
+// Tries to sync them to backend when online
 chrome.runtime.onStartup.addListener(checkAndSync);
 chrome.runtime.onInstalled.addListener(checkAndSync);
 self.addEventListener("online", checkAndSync);
@@ -172,9 +229,6 @@ async function uploadToBackend(blob, type) {
     body: formData,
   });
 
-  if (!response.ok) {
-    throw new Error("Upload to backend failed");
-  }
-
+  if (!response.ok) throw new Error("Upload to backend failed");
   return response.json();
 }

@@ -86,92 +86,72 @@ npm run dev
 # Extension
 
 ## 1. Logic
-- **Screenshot** – Saleh  
-- **Video Recording / Audio Capture** – Brother  
+- **Screenshot Logic & Implementation** – Saleh
+- **Video Recording & Audio Capture Logic** – Brother  
 
 ## 2. UI
-- Design and implement the extension popup / toolbar - Saleh
-
-- Buttons for **Screensho
-￼
-￼
-0:55 / 2:32
-￼
-￼
-￼
-￼
-t**, **Start/Stop Recording**, 
-
-**Audio toggle** - Brother
-
-- Feedback / notifications to the user - Saleh 
-  - Example: if storage drive is full, user will be notified via email
+*(Note: To prevent AI merge conflicts, maintain separate components/files for your respective UI sections).*
+- Design and implement the primary extension popup/toolbar framework – Saleh
+- Integrate buttons for **Screenshot, Start/Stop Recording, Audio toggle** – Brother
+- Build the Feedback / Toast notifications system – Saleh
+  - Example: Notify user via email if drive is full
 
 ## 3. Backend Integration
-- Connect frontend to backend **via API**  
-- Endpoints:
-  - `/auth/google` → Google OAuth  
-  - `/upload/drive` → Upload captured content  
-    - Google Console setup: Saleh  
-    - Implementation: Brother  
-  - `/videos` → Optional: store metadata  
+- Connect frontend to backend **via API**:
+  - `/auth/google` → Trigger Google OAuth flow – Saleh
+  - `/upload/drive` → Upload captured content – Brother
+    - Google Console Setup: Saleh
+    - Drive API Implementation: Brother
+  - `/videos` → Optional: store/sync metadata – Saleh
 
 ## 4. Authentication / Token Storage
 
 ### Frontend (Extension)
-- Handle OAuth login flow - Saleh 
-- Receive access code after login (`/auth/callback`) - Saleh 
-- Send code securely to backend  - Brother
-
-- Optionally store **short-lived tokens in memory/sessionStorage** for current session  
+- Handle the frontend OAuth login sequence – Saleh 
+- Receive and process access code (`/auth/callback`) – Saleh 
+- Securely transmit the code to the backend – Brother
+- Manage and store **short-lived tokens** in memory/sessionStorage – Brother
 
 ### Backend
-- Exchange OAuth code for **access + refresh tokens** - Saleh
-- Store tokens securely in **database or encrypted file** - Brother 
-- Handle **automatic token refresh**  
-- Respond to frontend requests without exposing secret keys  
+- Exchange OAuth code for **access + refresh tokens** – Saleh
+- Securely store tokens in the **database / encrypted config** – Brother 
+- Develop **automatic token refresh** middleware – Brother
+- Respond to frontend requests securely without exposing secret keys – Shared Architecture
 
 ## 5. Optional / Nice-to-have
-- History of uploaded content  
-- Preview before uploading  
-- Error handling & user notifications  
-  - Example: notify user if upload fails or token expires
+- History of uploaded content state management – Saleh
+- Pre-upload media preview component – Brother
+- Global error handling & alerts – Saleh
 
 
 # Web UI
 
 ## 1. Logic
-- Display uploaded content (videos/screenshots)  
-- Preview/playback functionality  
-- Show metadata: date, size, type  
+- Develop logic to display the grid of uploaded videos/screenshots – Saleh
+- Develop preview and media playback logic – Brother
+- Fetch and display precise metadata (date, size, type) – Saleh
 
 ## 2. UI
-- Design and implement **dashboard / web page**  
-- Buttons / controls for:
-  - Playback  
-  - Download  
-  - Delete content  
-- Feedback / notifications to the user  
-  - Example: if upload fails or storage limit is reached  
+*(Note: Build modular React/UI components to avoid git merge conflicts).*
+- Design and implement the **core Dashboard / web page layout** – Saleh
+- Build buttons and controls for Playback, Download, and Delete – Brother
+- Implement user feedback alerts (e.g., upload failures, storage limits) – Saleh
 
 ## 3. Backend Integration
-- Connect Web UI to backend **via API**  
-- Endpoints:
-  - `/auth/google` → Google OAuth  
-  - `/upload/drive` → Fetch uploaded content / manage uploads  
-  - `/videos` → Retrieve video metadata/history  
+- Connect Web UI to backend **via API**:
+  - `/auth/google` → Web OAuth session management – Saleh  
+  - `/upload/drive` → Fetch uploaded content / manage cloud files – Brother  
+  - `/videos` → Retrieve video metadata and user history – Saleh  
 
 ## 4. Authentication / Token Storage
-- Handle OAuth login flow  
-- Receive and store access tokens securely (sessionStorage or localStorage)  
-- Refresh tokens automatically when expired  
-- Manage login/logout flow properly  
+- Handle the Web UI OAuth login/logout transitions – Saleh  
+- Securely receive and store access tokens in sessionStorage or localStorage – Brother  
+- Automatically intercept expired tokens and trigger refresh – Brother  
 
 ## 5. Optional / Nice-to-have
-- Show history of all uploaded content  
-- Filter and search uploaded content  
-- Display real-time upload progress  
-- Analytics (number of uploads, storage usage)  
-- Responsive design for mobile / different screen sizes  
-- Email notifications for errors or full storage
-
+- Build history timeline of all uploaded content – Saleh
+- Filter and search uploaded content – Brother
+- Display real-time video upload progress bars – Brother
+- Dashboard Analytics (number of uploads, storage usage) – Saleh
+- Complete responsive design for mobile / different screens – Saleh
+- Automated email notifications for errors or full storage – Brother

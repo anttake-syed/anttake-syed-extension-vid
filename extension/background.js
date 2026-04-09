@@ -30,6 +30,27 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     handleScreenshot(sendResponse);
     return true;
   }
+
+  // NEW: Handle save request from offscreen.
+  // Offscreen documents cannot call chrome.downloads directly — only the
+  // background service worker has access to that API. Offscreen sends the
+  // finished recording as a base64 data URL and we trigger the download here
+  // with saveAs: true, which opens the native Mac "Save As" dialog so the
+  // user can choose exactly where to save their recording.
+  if (message.action === "SAVE_RECORDING") {
+    chrome.downloads.download({
+      url: message.dataUrl,
+      filename: message.filename,
+      saveAs: true, // <-- this is what opens the "Save As" dialog on Mac
+    }, (downloadId) => {
+      if (chrome.runtime.lastError) {
+        console.error("Save As failed:", chrome.runtime.lastError.message);
+      } else {
+        console.log("Save As dialog opened, download ID:", downloadId);
+      }
+    });
+    return true;
+  }
 });
 
 async function handleStartRecording(sendResponse) {
@@ -102,9 +123,11 @@ async function handleScreenshot(sendResponse) {
 
     await saveMediaLocally(blob, "image");
 
+    // Screenshots also use saveAs: true so the user can choose where to save
     chrome.downloads.download({
       url: dataUrl,
       filename: `screenshot-${Date.now()}.png`,
+      saveAs: true,
     });
 
     chrome.storage.local.get(["captureCount"], (result) => {
@@ -172,9 +195,7 @@ async function uploadToBackend(blob, type) {
     body: formData,
   });
 
-  if (!response.ok) {
-    throw new Error("Upload to backend failed");
-  }
+  if (!response.ok) throw new Error("Upload to backend failed");
 
   return response.json();
 }

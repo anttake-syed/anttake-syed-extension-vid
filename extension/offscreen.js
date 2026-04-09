@@ -1,26 +1,15 @@
 // offscreen.js
-// FIX #1: Removed chrome.tabCapture.capture() call entirely from here.
-// tabCapture does NOT work in offscreen documents — only in the background
-// service worker. The background now calls getMediaStreamId() and passes
-// the ID here via message. We use getUserMedia() with chromeMediaSourceId
-// to reconstruct the stream from that ID.
+// Handles recording logic inside offscreen document
+// Receives streamId from background and records video
+// Sends final dataUrl to background for saving and cleanup
 
-// FIX #2: Removed `async` from the message listener.
-// Same issue as background.js — async listeners don't keep the channel open.
-// We dispatch to async handlers manually instead.
-
-// FIX #10: Added saveMediaLocally import to wire video into the sync pipeline.
-// Previously, recorded video was only downloaded locally and never saved to
-// IndexedDB, meaning it was completely excluded from the cloud sync pipeline
-// that screenshots used. Now video goes through the same path.
 import { saveMediaLocally } from "./storage.js";
 
 chrome.runtime.onMessage.addListener((message) => {
-  // FIX #3: Guard correctly — ignore messages not targeting offscreen
+  // Only handle messages targeting offscreen
   if (message.target !== "offscreen") return;
 
-  // FIX #4: Listen for `action` field consistently (was previously checking
-  // both `message.action` and `message.type` inconsistently across files).
+  // Dispatch to appropriate handler
   if (message.action === "START_RECORDING") {
     startRecording(message.streamId);
   } else if (message.action === "STOP_RECORDING") {
@@ -39,15 +28,15 @@ async function startRecording(streamId) {
   }
 
   if (!streamId) {
-    console.error("No streamId provided to offscreen — cannot start recording");
+    console.error("No streamId provided — cannot start recording");
+    chrome.runtime.sendMessage({ action: "RECORDING_FAILED" });
     return;
   }
 
   try {
-    // FIX #5: Use getUserMedia with chromeMediaSourceId to reconstruct stream.
+    // Use getUserMedia with chromeMediaSourceId to reconstruct stream.
     // This is the correct way to consume a transferable stream ID from
-    // getMediaStreamId(). The old code tried to call tabCapture.capture()
-    // here which is not allowed in offscreen documents.
+    // getMediaStreamId(). Offscreen cannot call tabCapture.capture().
     const stream = await navigator.mediaDevices.getUserMedia({
       audio: {
         mandatory: {
@@ -64,7 +53,7 @@ async function startRecording(streamId) {
     });
 
     currentStream = stream;
-    data = []; // Reset data buffer for new recording session
+    data = [];
 
     recorder = new MediaRecorder(stream, { mimeType: "video/webm" });
 
@@ -75,9 +64,7 @@ async function startRecording(streamId) {
     recorder.onstop = async () => {
       const blob = new Blob(data, { type: "video/webm" });
 
-      // FIX #10: Save video to IndexedDB so sync manager picks it up.
-      // Previously video was only downloaded — it never entered the upload
-      // pipeline. Now it matches the same flow as screenshots.
+      // Save to IndexedDB for sync
       try {
         await saveMediaLocally(blob, "video");
         console.log("Video saved locally for sync");
@@ -85,44 +72,28 @@ async function startRecording(streamId) {
         console.error("Failed to save video locally:", err);
       }
 
-      // NEW: Trigger "Save As" dialog via background.
-      // Offscreen documents don't have access to chrome.downloads, so we
-      // convert the blob to a base64 data URL and send it to the background
-      // service worker, which calls chrome.downloads.download({ saveAs: true })
-      // to open the native Mac "Save As" dialog for the user to pick a location.
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        chrome.runtime.sendMessage({
-          action: "SAVE_RECORDING",
-          dataUrl: reader.result,
-          filename: `recording-${Date.now()}.webm`,
-        });
-      };
-      reader.readAsDataURL(blob);
+      // Convert blob to base64 for background to handle Save As dialog
+      const dataUrl = await blobToDataUrl(blob);
 
-      // FIX #11: Increment captureCount for video too, not just screenshots.
-      // Previously only screenshots updated the badge count in the popup.
-      chrome.storage.local.get(["captureCount"], (result) => {
-        const count = (result.captureCount || 0) + 1;
-        chrome.storage.local.set({ captureCount: count });
-      });
-
-      // Clean up
+      // Stop tracks & cleanup before messaging background
       currentStream.getTracks().forEach((t) => t.stop());
       data = [];
       currentStream = null;
+      recorder = null;
 
-      // FIX #12: Update persisted recording state when recording actually ends.
-      // The stop can happen internally (e.g. stream ends), not just via button.
-      chrome.storage.local.set({ isRecording: false });
+      // Send completed recording to background
+      chrome.runtime.sendMessage({
+        action: "RECORDING_COMPLETE",
+        dataUrl,
+        filename: `recording-${Date.now()}.webm`,
+      });
     };
 
     recorder.start();
     console.log("Recording started");
   } catch (err) {
     console.error("Failed to start recording:", err);
-    // Clean up state if startup failed
-    chrome.storage.local.set({ isRecording: false });
+    chrome.runtime.sendMessage({ action: "RECORDING_FAILED" });
   }
 }
 
@@ -138,4 +109,14 @@ function stopRecording() {
   } catch (err) {
     console.error("Failed to stop recording:", err);
   }
+}
+
+// Helper: convert Blob to base64 data URL via Promise
+function blobToDataUrl(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
 }

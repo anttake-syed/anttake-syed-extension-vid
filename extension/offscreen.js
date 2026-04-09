@@ -85,12 +85,20 @@ async function startRecording(streamId) {
         console.error("Failed to save video locally:", err);
       }
 
-      // Also trigger a direct download as before
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `capture-${Date.now()}.webm`;
-      a.click();
+      // NEW: Trigger "Save As" dialog via background.
+      // Offscreen documents don't have access to chrome.downloads, so we
+      // convert the blob to a base64 data URL and send it to the background
+      // service worker, which calls chrome.downloads.download({ saveAs: true })
+      // to open the native Mac "Save As" dialog for the user to pick a location.
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        chrome.runtime.sendMessage({
+          action: "SAVE_RECORDING",
+          dataUrl: reader.result,
+          filename: `recording-${Date.now()}.webm`,
+        });
+      };
+      reader.readAsDataURL(blob);
 
       // FIX #11: Increment captureCount for video too, not just screenshots.
       // Previously only screenshots updated the badge count in the popup.

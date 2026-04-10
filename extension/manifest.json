@@ -12,8 +12,7 @@
     "scripting",
     "tabCapture",
     "downloads",
-    "offscreen",
-    "notifications"
+    "offscreen"
   ],
   "host_permissions": [
     "https://www.googleapis.com/*",
@@ -24,10 +23,6 @@
     "default_icon": {
       "16": "icons/icon16.png"
     }
-  },
-  "options_ui": {
-    "page": "options.html",
-    "open_in_tab": true
   },
   "background": {
     "service_worker": "background.js",

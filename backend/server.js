@@ -76,20 +76,43 @@ const SCOPES = [
 ];
 
 app.get('/auth/google', (req, res) => {
+  const source = req.query.source || 'web';
+  const extId = req.query.extId || '';
+  const state = Buffer.from(JSON.stringify({ source, extId })).toString('base64');
+
   const url = oauth2Client.generateAuthUrl({
     access_type: 'offline',
     scope: SCOPES,
+    state: state,
+    prompt: 'consent' // Force consent to get a refresh token
   });
   res.redirect(url);
 });
 
 app.get('/auth/callback', async (req, res) => {
-  const { code } = req.query;
+  const { code, state } = req.query;
   try {
     const { tokens } = await oauth2Client.getToken(code);
     oauth2Client.setCredentials(tokens);
     // In a production app, store tokens securely (e.g., in a database)
-    res.send('Authentication successful! You can now close this window.');
+
+    let source = 'web';
+    let extId = '';
+    if (state) {
+      try {
+        const decodedState = JSON.parse(Buffer.from(state, 'base64').toString('ascii'));
+        source = decodedState.source || 'web';
+        extId = decodedState.extId || '';
+      } catch (err) {
+        console.error('Failed to parse state:', err);
+      }
+    }
+
+    if (source === 'extension' && extId) {
+      res.redirect(`https://${extId}.chromiumapp.org/?token=${tokens.access_token}`);
+    } else {
+      res.redirect(`http://localhost:5173/?token=${tokens.access_token}`);
+    }
   } catch (error) {
     console.error('Error retrieving access token', error);
     res.status(500).send('Authentication failed');

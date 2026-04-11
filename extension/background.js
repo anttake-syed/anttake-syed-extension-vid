@@ -19,7 +19,7 @@ chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
     chrome.desktopCapture.chooseDesktopMedia(['screen', 'window', 'tab'], async (streamId) => {
       if (!streamId) return;
       
-      await createOffscreen();
+      await ensureOffscreen();
       chrome.runtime.sendMessage({
         target: 'offscreen',
         type: 'start-recording',

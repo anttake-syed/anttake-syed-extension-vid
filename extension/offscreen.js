@@ -1,3 +1,5 @@
+import { saveMediaLocally } from "./storage.js";
+
 chrome.runtime.onMessage.addListener(async (message) => {
   if (message.target !== 'offscreen') return;
 
@@ -31,12 +33,19 @@ async function startRecording(streamId) {
     if (event.data.size > 0) data.push(event.data);
   };
 
-  recorder.onstop = () => {
+  recorder.onstop = async () => {
     const blob = new Blob(data, { type: 'video/webm' });
     const url = URL.createObjectURL(blob);
     
-    // In a real app, we'd upload this to Drive
-    // For now, we'll download it for verification
+    // Save locally for cloud sync
+    try {
+      await saveMediaLocally(blob, 'video');
+      console.log('Video saved locally for sync');
+    } catch (err) {
+      console.error('Failed to save video locally:', err);
+    }
+
+    // Also download for immediate verification
     const a = document.createElement('a');
     a.href = url;
     a.download = `capture-${Date.now()}.webm`;

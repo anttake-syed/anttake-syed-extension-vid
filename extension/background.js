@@ -14,10 +14,23 @@ import {
   deleteLocalMedia,
 } from "./storage.js";
 
-chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === 'START_RECORDING') {
+    handleStartRecording(message, sendResponse);
+    return true;
+  } else if (message.action === 'TAKE_SCREENSHOT') {
+    handleTakeScreenshot(message, sendResponse);
+    return true;
+  }
+});
+
+async function handleStartRecording(message, sendResponse) {
+  try {
     chrome.desktopCapture.chooseDesktopMedia(['screen', 'window', 'tab'], async (streamId) => {
-      if (!streamId) return;
+      if (!streamId) {
+        sendResponse({ success: false, error: 'No stream selected' });
+        return;
+      }
       
       await ensureOffscreen();
       chrome.runtime.sendMessage({
@@ -25,34 +38,43 @@ chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
         type: 'start-recording',
         streamId
       });
+      sendResponse({ success: true });
     });
-  } else if (message.action === 'TAKE_SCREENSHOT') {
-    try {
-      const dataUrl = await chrome.tabs.captureVisibleTab(null, { format: 'png' });
-      
-      // Convert dataUrl to blob
-      const response = await fetch(dataUrl);
-      const blob = await response.blob();
-      
-      // Save locally for cloud sync
-      await saveMediaLocally(blob, 'image');
-
-      // Handle screenshot: download
-      chrome.downloads.download({
-        url: dataUrl,
-        filename: `screenshot-${Date.now()}.png`
-      });
-
-      // Increment capture count
-      chrome.storage.local.get(['captureCount'], (result) => {
-        const count = (result.captureCount || 0) + 1;
-        chrome.storage.local.set({ captureCount: count });
-      });
-    } catch (error) {
-      console.error('Screenshot failed:', error);
-    }
+  } catch (error) {
+    console.error('Start recording failed:', error);
+    sendResponse({ success: false, error: error.message });
   }
-});
+}
+
+async function handleTakeScreenshot(message, sendResponse) {
+  try {
+    const dataUrl = await chrome.tabs.captureVisibleTab(null, { format: 'png' });
+    
+    // Convert dataUrl to blob
+    const response = await fetch(dataUrl);
+    const blob = await response.blob();
+    
+    // Save locally for cloud sync
+    await saveMediaLocally(blob, 'image');
+
+    // Handle screenshot: download
+    chrome.downloads.download({
+      url: dataUrl,
+      filename: `screenshot-${Date.now()}.png`
+    });
+
+    // Increment capture count
+    chrome.storage.local.get(['captureCount'], (result) => {
+      const count = (result.captureCount || 0) + 1;
+      chrome.storage.local.set({ captureCount: count });
+    });
+    
+    sendResponse({ success: true, dataUrl });
+  } catch (error) {
+    console.error('Screenshot failed:', error);
+    sendResponse({ success: false, error: error.message });
+  }
+}
 
 // Creates offscreen document if one doesn't already exist
 async function ensureOffscreen() {

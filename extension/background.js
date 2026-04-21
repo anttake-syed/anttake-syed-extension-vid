@@ -18,37 +18,64 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === 'START_RECORDING') {
     handleStartRecording(message, sendResponse);
     return true;
+  } else if (message.action === 'STOP_RECORDING') {
+    handleStopRecording(message, sendResponse);
+    return true;
   } else if (message.action === 'TAKE_SCREENSHOT') {
     handleTakeScreenshot(message, sendResponse);
+    return true;
+  } else if (message.action === 'OPEN_DOWNLOAD_TAB') {
+    chrome.tabs.create({ url: `download.html?id=${message.id}`, active: true });
+    
+    chrome.storage.local.get(['captureCount'], (result) => {
+      chrome.storage.local.set({ captureCount: (result.captureCount || 0) + 1 });
+    });
+    return true;
+  } else if (message.action === 'EXTERNAL_STOP_RECORDING') {
+    chrome.storage.local.set({ isRecording: false });
     return true;
   }
 });
 
 async function handleStartRecording(message, sendResponse) {
   try {
-    chrome.desktopCapture.chooseDesktopMedia(['screen', 'window', 'tab'], async (streamId) => {
-      if (!streamId) {
-        sendResponse({ success: false, error: 'No stream selected' });
-        return;
-      }
-      
-      await ensureOffscreen();
-      chrome.runtime.sendMessage({
-        target: 'offscreen',
-        type: 'start-recording',
-        streamId
-      });
-      sendResponse({ success: true });
+    await ensureOffscreen();
+    
+    // Tell offscreen to initiate the capture flow
+    chrome.runtime.sendMessage({
+      target: 'offscreen',
+      type: 'start-recording'
     });
+    
+    await chrome.storage.local.set({ isRecording: true });
+    sendResponse({ success: true });
   } catch (error) {
     console.error('Start recording failed:', error);
     sendResponse({ success: false, error: error.message });
   }
 }
 
+async function handleStopRecording(message, sendResponse) {
+  try {
+    await ensureOffscreen();
+    await chrome.runtime.sendMessage({
+      target: 'offscreen',
+      type: 'stop-recording'
+    });
+    
+    await chrome.storage.local.set({ isRecording: false });
+    sendResponse({ success: true });
+  } catch (error) {
+    console.error('Stop recording failed:', error);
+    sendResponse({ success: false, error: error.message });
+  }
+}
+
 async function handleTakeScreenshot(message, sendResponse) {
   try {
-    const dataUrl = await chrome.tabs.captureVisibleTab(null, { format: 'png' });
+    const tabs = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+    const windowId = tabs.length > 0 ? tabs[0].windowId : chrome.windows.WINDOW_ID_CURRENT;
+    const dataUrl = await chrome.tabs.captureVisibleTab(windowId, { format: 'png' });
     
     // Convert dataUrl to blob
     const response = await fetch(dataUrl);
@@ -81,7 +108,7 @@ async function ensureOffscreen() {
   if (await chrome.offscreen.hasDocument()) return;
   await chrome.offscreen.createDocument({
     url: 'offscreen.html',
-    reasons: ['USER_MEDIA'],
+    reasons: ['DISPLAY_MEDIA'],
     justification: 'Media recording'
   });
 }

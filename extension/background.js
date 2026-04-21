@@ -15,153 +15,90 @@ import {
 } from "./storage.js";
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-
-  // START_RECORDING: initiate a tab recording session
-  if (message.action === "START_RECORDING") {
-    // FIX #2: tabCapture now lives entirely in the background script.
-    // Previously popup.js and offscreen.js both tried to call tabCapture,
-    // which only works here in the service worker. We centralize it here.
-    handleStartRecording(sendResponse);
-    return true; // FIX #3: Keep message channel open for async sendResponse
-  }
-
-  // STOP_RECORDING: stop current recording session
-  if (message.action === "STOP_RECORDING") {
-    handleStopRecording(sendResponse);
+  if (message.action === 'START_RECORDING') {
+    handleStartRecording(message, sendResponse);
     return true;
-  }
-
-  // TAKE_SCREENSHOT: capture visible tab image
-  if (message.action === "TAKE_SCREENSHOT") {
-    handleScreenshot(sendResponse);
+  } else if (message.action === 'STOP_RECORDING') {
+    handleStopRecording(message, sendResponse);
     return true;
-  }
-
-  // RECORDING_COMPLETE: handles full workflow after offscreen finishes recording
-  // Includes saving to disk, updating capture count, resetting state, and closing offscreen
-  if (message.action === "RECORDING_COMPLETE") {
-    handleRecordingComplete(message.dataUrl, message.filename);
+  } else if (message.action === 'TAKE_SCREENSHOT') {
+    handleTakeScreenshot(message, sendResponse);
     return true;
-  }
-
-  // RECORDING_FAILED: reset state if recording could not start
-  // Ensures next recording attempt starts cleanly
-  if (message.action === "RECORDING_FAILED") {
+  } else if (message.action === 'OPEN_DOWNLOAD_TAB') {
+    chrome.tabs.create({ url: `download.html?id=${message.id}`, active: true });
+    
+    chrome.storage.local.get(['captureCount'], (result) => {
+      chrome.storage.local.set({ captureCount: (result.captureCount || 0) + 1 });
+    });
+    return true;
+  } else if (message.action === 'EXTERNAL_STOP_RECORDING') {
     chrome.storage.local.set({ isRecording: false });
-    closeOffscreen();
     return true;
   }
 });
 
-async function handleStartRecording(sendResponse) {
+async function handleStartRecording(message, sendResponse) {
   try {
-    // FIX #4: Use getMediaStreamId() instead of capture().
-    // capture() returns a MediaStream object which cannot be transferred
-    // between contexts. getMediaStreamId() returns a string ID that CAN
-    // be passed to offscreen and used with getUserMedia with chromeMediaSourceId.
-    const streamId = await new Promise((resolve, reject) => {
-      chrome.tabCapture.getMediaStreamId({}, (id) => {
-        if (chrome.runtime.lastError) return reject(chrome.runtime.lastError);
-        resolve(id);
-      });
-    });
-
-    // Ensure offscreen document exists before messaging it
     await ensureOffscreen();
-
-    // FIX #5: Standardized message shape — using `action` consistently.
-    // Previously background sent `type: "start-recording"` but offscreen
-    // was listening for `action: "START_RECORDING"`. Now both sides match.
-    // FIX #6: streamId is now properly passed to offscreen.
-    // Previously no streamId was included in the forwarded message at all.
-    await chrome.runtime.sendMessage({
-      target: "offscreen",
-      action: "START_RECORDING",
-      streamId,
+    
+    // Tell offscreen to initiate the capture flow
+    chrome.runtime.sendMessage({
+      target: 'offscreen',
+      type: 'start-recording'
     });
-
-    // FIX #7: Persist recording state so popup reflects correct state on
-    // reopen. Previously isRecording was only in popup memory and reset
-    // every time the popup was closed and reopened.
+    
     await chrome.storage.local.set({ isRecording: true });
-
     sendResponse({ success: true });
-  } catch (err) {
-    console.error("Failed to start recording:", err);
-    // Clean up offscreen if startup failed partway through
-    await closeOffscreen();
-    sendResponse({ success: false, error: err.message });
+  } catch (error) {
+    console.error('Start recording failed:', error);
+    sendResponse({ success: false, error: error.message });
   }
 }
 
-async function handleStopRecording(sendResponse) {
+async function handleStopRecording(message, sendResponse) {
   try {
-    // Just tell offscreen to stop — the rest happens in RECORDING_COMPLETE
+    await ensureOffscreen();
     await chrome.runtime.sendMessage({
-      target: "offscreen",
-      action: "STOP_RECORDING",
+      target: 'offscreen',
+      type: 'stop-recording'
     });
-
+    
+    await chrome.storage.local.set({ isRecording: false });
     sendResponse({ success: true });
-  } catch (err) {
-    console.error("Failed to stop recording:", err);
-    sendResponse({ success: false, error: err.message });
+  } catch (error) {
+    console.error('Stop recording failed:', error);
+    sendResponse({ success: false, error: error.message });
   }
 }
 
-async function handleRecordingComplete(dataUrl, filename) {
-  // Open Save As dialog so user can choose where to save on their Mac
-  chrome.downloads.download({
-    url: dataUrl,
-    filename,
-    saveAs: true,
-  }, (downloadId) => {
-    if (chrome.runtime.lastError) {
-      console.error("Save As failed:", chrome.runtime.lastError.message);
-    } else {
-      console.log("Save As dialog opened, download ID:", downloadId);
-    }
-  });
-
-  // Update capture count badge
-  chrome.storage.local.get(["captureCount"], (result) => {
-    const count = (result.captureCount || 0) + 1;
-    chrome.storage.local.set({ captureCount: count });
-  });
-
-  // Reset recording state
-  await chrome.storage.local.set({ isRecording: false });
-
-  // FIX: Close and destroy the offscreen document after every recording.
-  // Chrome only allows one offscreen document at a time, and it keeps the
-  // tab's media stream alive as long as the document exists. Closing it
-  // ensures a clean slate for the next recording session.
-  await closeOffscreen();
-}
-
-async function handleScreenshot(sendResponse) {
+async function handleTakeScreenshot(message, sendResponse) {
   try {
-    const dataUrl = await chrome.tabs.captureVisibleTab(null, { format: "png" });
+    const tabs = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+    const windowId = tabs.length > 0 ? tabs[0].windowId : chrome.windows.WINDOW_ID_CURRENT;
+    const dataUrl = await chrome.tabs.captureVisibleTab(windowId, { format: 'png' });
+    
+    // Convert dataUrl to blob
     const response = await fetch(dataUrl);
     const blob = await response.blob();
+    
+    // Save locally for cloud sync
+    await saveMediaLocally(blob, 'image');
 
-    await saveMediaLocally(blob, "image");
-
-    // Screenshots also use saveAs: true so the user can choose where to save
+    // Handle screenshot: download
     chrome.downloads.download({
       url: dataUrl,
-      filename: `screenshot-${Date.now()}.png`,
-      saveAs: true,
+      filename: `screenshot-${Date.now()}.png`
     });
 
-    chrome.storage.local.get(["captureCount"], (result) => {
+    // Increment capture count
+    chrome.storage.local.get(['captureCount'], (result) => {
       const count = (result.captureCount || 0) + 1;
       chrome.storage.local.set({ captureCount: count });
     });
-
-    sendResponse({ success: true });
+    
+    sendResponse({ success: true, dataUrl });
   } catch (error) {
-    console.error("Screenshot failed:", error);
+    console.error('Screenshot failed:', error);
     sendResponse({ success: false, error: error.message });
   }
 }
@@ -170,24 +107,10 @@ async function handleScreenshot(sendResponse) {
 async function ensureOffscreen() {
   if (await chrome.offscreen.hasDocument()) return;
   await chrome.offscreen.createDocument({
-    url: "offscreen.html",
-    reasons: ["DISPLAY_MEDIA"],
-    justification: "Tab screen recording via tabCapture",
+    url: 'offscreen.html',
+    reasons: ['DISPLAY_MEDIA'],
+    justification: 'Media recording'
   });
-}
-
-// Closes and destroys the offscreen document after recording ends
-// Chrome keeps the tab's media stream alive as long as the document exists.
-// Closing it ensures a clean slate for the next recording.
-async function closeOffscreen() {
-  try {
-    if (await chrome.offscreen.hasDocument()) {
-      await chrome.offscreen.closeDocument();
-      console.log("Offscreen document closed");
-    }
-  } catch (err) {
-    console.error("Failed to close offscreen document:", err);
-  }
 }
 
 // --- Sync Manager ---
@@ -202,7 +125,7 @@ async function checkAndSync() {
 
   const pending = await getPendingUploads();
   if (pending.length === 0) return;
-
+  
   console.log(`Syncing ${pending.length} pending items...`);
 
   for (const item of pending) {

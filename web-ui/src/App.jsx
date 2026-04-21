@@ -62,6 +62,40 @@ function LoginModal({ onClose }) {
   );
 }
 
+// ─── Media Player Modal ──────────────────────────────────────────────────────
+function MediaModal({ item, onClose }) {
+  if (!item) return null;
+  return (
+    <div className="modal-overlay" onClick={onClose} style={{ zIndex: 1000, background: 'rgba(0,0,0,0.85)' }}>
+      <div className="modal-card" onClick={e => e.stopPropagation()} style={{ width: '80%', maxWidth: '900px', background: '#0f172a', border: '1px solid #334155', padding: '0', overflow: 'hidden' }}>
+        <button className="modal-close" onClick={onClose} aria-label="Close" style={{ zIndex: 10, top: '15px', right: '15px' }}>✕</button>
+        <div className="modal-brand" style={{ padding: '20px', paddingBottom: '15px', textAlign: 'left', borderBottom: '1px solid #1e293b' }}>
+          <h2 style={{ margin: 0, fontSize: '18px', color: '#f8fafc' }}>{item.title}{item.ext}</h2>
+          <p style={{ margin: '4px 0 0', color: '#94a3b8', fontSize: '13px' }}>{item.date} • {item.size}</p>
+        </div>
+        <div style={{ padding: '20px', display: 'flex', justifyContent: 'center', alignItems: 'center', background: '#000', minHeight: '300px' }}>
+          {item.type === 'video' ? (
+            <video 
+              controls 
+              autoPlay 
+              style={{ width: '100%', maxHeight: '60vh', outline: 'none', background: '#000' }}
+              src={item.src || "https://www.w3schools.com/html/mov_bbb.mp4"}
+            >
+              Your browser does not support the video tag.
+            </video>
+          ) : (
+             <img 
+               src={item.src || "https://via.placeholder.com/800x450/0f172a/6366f1?text=Image+Preview"} 
+               style={{ maxWidth: '100%', maxHeight: '60vh', objectFit: 'contain' }} 
+               alt={item.title} 
+             />
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main App ─────────────────────────────────────────────────────────────────
 // ─── Main App ─────────────────────────────────────────────────────────────────
 const mockCaptures = [
@@ -83,6 +117,7 @@ export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [activeNav, setActiveNav] = useState('Dashboard');
+  const [activeMedia, setActiveMedia] = useState(null);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -124,6 +159,7 @@ export default function App() {
   return (
     <div className="layout">
       {showModal && <LoginModal onClose={() => setShowModal(false)} />}
+      {activeMedia && <MediaModal item={activeMedia} onClose={() => setActiveMedia(null)} />}
 
       {/* ── Sidebar ── */}
       <aside className="sidebar">
@@ -272,7 +308,11 @@ export default function App() {
                   <div className="overlay-actions">
                     {isAuthenticated ? (
                       <>
-                        <button className="media-action-btn play-btn">▶</button>
+                        <button 
+                          className="media-action-btn play-btn"
+                          onClick={(e) => { e.stopPropagation(); setActiveMedia(item); }}
+                          title="Play"
+                        >▶</button>
                         <button 
                           className="media-action-btn download-btn" 
                           onClick={(e) => { e.stopPropagation(); handleDownload(item); }}

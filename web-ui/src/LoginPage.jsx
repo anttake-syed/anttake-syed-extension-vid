@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import './login.css';
 
-const BACKEND_URL = 'http://localhost:3001';
+const BACKEND_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001';
 
 export default function LoginPage() {
   const [loading, setLoading] = useState(false);
@@ -10,9 +10,8 @@ export default function LoginPage() {
   const handleGoogleLogin = () => {
     setLoading(true);
     setError(null);
-    // Redirect the browser to the backend OAuth flow.
-    // The backend will redirect back to /auth/callback with an access code.
-    window.location.href = `${BACKEND_URL}/auth/google?source=web`;
+    const origin = window.location.origin;
+    window.location.href = `${BACKEND_URL}/auth/google?source=web&origin=${encodeURIComponent(origin)}`;
   };
 
   return (

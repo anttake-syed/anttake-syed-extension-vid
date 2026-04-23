@@ -73,6 +73,54 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
+  const googleLoginBtn = document.getElementById('googleLoginBtn');
+  const logoutBtn = document.getElementById('logoutBtn');
+  const profileContainer = document.getElementById('profileContainer');
+  const userAvatar = document.getElementById('userAvatar');
+  const userName = document.getElementById('userName');
+  const userEmail = document.getElementById('userEmail');
+
+  const BACKEND_URL = 'http://localhost:3001';
+
+  function updateAuthUI(user) {
+    if (user) {
+      googleLoginBtn.style.display = 'none';
+      profileContainer.style.display = 'flex';
+      userName.textContent = user.name || 'User';
+      userEmail.textContent = user.email || '';
+      userAvatar.src = user.picture || '';
+    } else {
+      googleLoginBtn.style.display = 'flex';
+      profileContainer.style.display = 'none';
+    }
+  }
+
+  // Load user data on startup
+  chrome.runtime.sendMessage({ action: 'GET_USER' }, (response) => {
+    if (response?.user) {
+      updateAuthUI(response.user);
+    }
+  });
+
+  // Listen for storage changes to sync UI
+  chrome.storage.onChanged.addListener((changes, namespace) => {
+    if (namespace === 'local' && changes.user) {
+      updateAuthUI(changes.user.newValue);
+    }
+  });
+
+  googleLoginBtn.addEventListener('click', () => {
+    chrome.tabs.create({ url: `${BACKEND_URL}/auth/google?source=extension` });
+  });
+
+  logoutBtn.addEventListener('click', () => {
+    chrome.runtime.sendMessage({ action: 'LOGOUT' }, (response) => {
+      if (response?.success) {
+        updateAuthUI(null);
+      }
+    });
+  });
+
   settingsBtn.addEventListener('click', () => {
     chrome.runtime.openOptionsPage();
   });

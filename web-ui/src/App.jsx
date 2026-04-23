@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import './index.css';
 
-const BACKEND_URL = 'http://localhost:3001';
+const BACKEND_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001';
 
 // ─── Login Modal ─────────────────────────────────────────────────────────────
 function LoginModal({ onClose }) {
@@ -9,7 +9,20 @@ function LoginModal({ onClose }) {
 
   const handleGoogleLogin = () => {
     setLoading(true);
-    window.location.href = `${BACKEND_URL}/auth/google?source=web`;
+    const width = 500;
+    const height = 600;
+    const left = window.screenX + (window.outerWidth - width) / 2;
+    const top = window.screenY + (window.outerHeight - height) / 2;
+    
+    const origin = window.location.origin;
+    window.open(
+      `${BACKEND_URL}/auth/google?source=web&mode=popup&origin=${encodeURIComponent(origin)}`,
+      'Google Login',
+      `width=${width},height=${height},left=${left},top=${top}`
+    );
+    
+    // Fallback if the user closes the popup manually
+    setTimeout(() => setLoading(false), 5000);
   };
 
   return (
@@ -115,18 +128,63 @@ const stats = [
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [user, setUser] = useState(null);
   const [showModal, setShowModal] = useState(false);
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [activeNav, setActiveNav] = useState('Dashboard');
   const [activeMedia, setActiveMedia] = useState(null);
 
+  // Helper to handle authentication data
+  const processAuthData = (authData) => {
+    try {
+      console.log('✨ Processing Auth Data...');
+      const base64Url = authData.split('.')[1];
+      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+      const jsonPayload = decodeURIComponent(window.atob(base64).split('').map(function(c) {
+          return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+      }).join(''));
+      
+      const userData = JSON.parse(jsonPayload);
+      
+      localStorage.setItem('antcapture_user', JSON.stringify(userData));
+      setUser(userData);
+      setIsAuthenticated(true);
+      setShowModal(false);
+    } catch (e) {
+      console.error('Auth parse error:', e);
+    }
+  };
+
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const token = params.get('token') || sessionStorage.getItem('antcapture_token');
-    if (token) {
-      sessionStorage.setItem('antcapture_token', token);
-      window.history.replaceState({}, document.title, window.location.pathname);
+    // 1. Check for stored user (Persistence)
+    const storedUser = localStorage.getItem('antcapture_user');
+    if (storedUser) {
+      const userData = JSON.parse(storedUser);
+      setUser(userData);
       setIsAuthenticated(true);
     }
+
+    // 2. Handle Redirect Fallback (Legacy/Extension)
+    const params = new URLSearchParams(window.location.search);
+    const authData = params.get('auth_data');
+    if (authData) {
+      processAuthData(authData);
+      const newUrl = window.location.origin + window.location.pathname;
+      window.history.replaceState({}, document.title, newUrl);
+    }
+
+    // 3. LISTEN FOR POPUP SUCCESS (Professional Move)
+    const handleMessage = (event) => {
+      // Security check: only trust our backend
+      if (event.origin !== BACKEND_URL) return;
+      
+      if (event.data?.type === 'AUTH_SUCCESS' && event.data.auth_data) {
+        processAuthData(event.data.auth_data);
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
   }, []);
 
   const requireAuth = (fn) => {
@@ -135,8 +193,10 @@ export default function App() {
   };
 
   const handleLogout = () => {
-    sessionStorage.removeItem('antcapture_token');
+    localStorage.removeItem('antcapture_user');
+    setUser(null);
     setIsAuthenticated(false);
+    setShowProfileMenu(false);
   };
 
   const handleDownload = (item) => {
@@ -157,7 +217,7 @@ export default function App() {
   };
 
   return (
-    <div className="layout">
+    <div className={`layout ${isAuthenticated ? 'isAuthenticated' : ''}`}>
       {showModal && <LoginModal onClose={() => setShowModal(false)} />}
       {activeMedia && <MediaModal item={activeMedia} onClose={() => setActiveMedia(null)} />}
 
@@ -215,16 +275,41 @@ export default function App() {
             <p>Your recordings and screenshots, synced across all devices.</p>
           </div>
           <div className="header-actions">
-            {isAuthenticated ? (
-              <>
-                <div className="user-pill">
-                  <div className="user-avatar">S</div>
-                  <span>Saleh</span>
+            {isAuthenticated && user ? (
+              <div className="profile-container">
+                <div 
+                  className="user-pill animated fadeIn" 
+                  onClick={() => setShowProfileMenu(!showProfileMenu)}
+                >
+                  {user.picture ? (
+                    <img src={user.picture} className="user-avatar profile-circle" alt="Profile" />
+                  ) : (
+                    <div className="user-avatar profile-circle">{user.name?.charAt(0) || 'U'}</div>
+                  )}
+                  <span className="user-name">{user.name}</span>
+                  <span className="chevron">▼</span>
                 </div>
+
+                {showProfileMenu && (
+                  <div className="profile-dropdown animated fadeInScale">
+                    <div className="dropdown-header">
+                      <strong>{user.name}</strong>
+                      <span>{user.email}</span>
+                    </div>
+                    <div className="dropdown-divider"></div>
+                    <button className="dropdown-item" onClick={() => setActiveNav('Settings')}>
+                       <span className="item-icon">⚙</span> Settings
+                    </button>
+                    <button className="dropdown-item logout" onClick={handleLogout}>
+                       <span className="item-icon">🚪</span> Sign Out
+                    </button>
+                  </div>
+                )}
+
                 <button className="btn-primary" onClick={() => requireAuth()}>
                   + New Capture
                 </button>
-              </>
+              </div>
             ) : (
               <>
                 <button className="btn-ghost" onClick={() => setShowModal(true)}>Sign In</button>
@@ -236,26 +321,21 @@ export default function App() {
           </div>
         </header>
 
-        {/* Hero Banner — shown only when logged out */}
+        {/* Hero Banner — shown only when logged out, with slideOut support */}
         {!isAuthenticated && (
-          <section className="hero-banner">
+          <section className="hero-banner slideIn">
             <div className="hero-text">
               <h2>Record. Screenshot. Sync.</h2>
               <p>Capture anything on your screen and automatically back it up to Google Drive. Works as a Chrome extension — no account needed to start.</p>
               <div className="hero-pills">
                 <span className="pill">✓ Tab & window recording</span>
-                <span className="pill">✓ Auto cloud sync</span>
-                <span className="pill">✓ Zero file size limits</span>
+                <span className="pill">✓ One-click screenshots</span>
+                <span className="pill">✓ 5GB Free Storage</span>
               </div>
             </div>
             <button className="btn-hero" onClick={() => setShowModal(true)}>
-              <svg className="google-icon" viewBox="0 0 24 24" width="18" height="18">
-                <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
-                <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-                <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
-                <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
-              </svg>
-              Sign in with Google — it's free
+              <img src="https://www.gstatic.com/images/branding/product/1x/gsa_512dp.png" alt="G" className="google-icon" />
+              Sign in with Google
             </button>
           </section>
         )}

@@ -33,11 +33,22 @@
       </button>
     </div>
 
-    <!-- Add Login Button -->
-    <button class="btn" id="googleLoginBtn" style="margin-top: 12px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);">
-      <span class="btn-icon">☁️</span>
-      <span class="btn-text">Sign in with Google</span>
-    </button>
+    <!-- Auth Section -->
+    <div id="authSection" style="margin-top: 12px;">
+      <button class="btn" id="googleLoginBtn" style="width: 100%; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);">
+        <span class="btn-icon">☁️</span>
+        <span class="btn-text">Sign in with Google</span>
+      </button>
+
+      <div id="profileContainer" class="card" style="display: none; padding: 12px; margin-top: 0; align-items: center; gap: 12px; flex-direction: row; cursor: default;">
+        <img id="userAvatar" src="" style="width: 32px; height: 32px; border-radius: 50%; background: #1e293b; border: 1px solid rgba(255,255,255,0.1);" />
+        <div style="flex: 1; overflow: hidden;">
+          <div id="userName" style="font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">User Name</div>
+          <div id="userEmail" style="font-size: 11px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">user@example.com</div>
+        </div>
+        <button id="logoutBtn" style="background: none; border: none; color: #f87171; cursor: pointer; font-size: 16px; padding: 4px;" title="Sign Out">🚪</button>
+      </div>
+    </div>
 
     <div class="footer">
       <div id="captureCountBadge">Captures: 0</div>

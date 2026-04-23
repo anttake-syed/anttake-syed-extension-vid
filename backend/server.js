@@ -4,15 +4,19 @@ const dotenv = require('dotenv');
 const cors = require('cors');
 const multer = require('multer');
 const stream = require('stream');
+const jwt = require('jsonwebtoken');
 
 dotenv.config();
 
-const requiredEnv = ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'GOOGLE_REDIRECT_URI'];
+const requiredEnv = ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'GOOGLE_REDIRECT_URI', 'JWT_SECRET'];
 const missingEnv = requiredEnv.filter(key => !process.env[key]);
 
 if (missingEnv.length > 0) {
-    console.warn('\x1b[33m%s\x1b[0m', '⚠️ WARNING: Missing OAuth environment variables (Google Auth will fail):');
-    missingEnv.forEach(env => console.warn(`  - ${env}`));
+    console.warn('\n\x1b[33m%s\x1b[0m', '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.warn('\x1b[33m%s\x1b[0m', '⚠️  WARNING: Missing required environment variables:');
+    missingEnv.forEach(env => console.warn(`   - ${env}`));
+    console.warn('\x1b[33m%s\x1b[0m', '   Google Auth or JWT security will not work properly!');
+    console.warn('\x1b[33m%s\x1b[0m', '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
 }
 
 const app = express();
@@ -72,28 +76,123 @@ const oauth2Client = new google.auth.OAuth2(
 
 const SCOPES = [
   'https://www.googleapis.com/auth/drive.file',
-  'https://www.googleapis.com/auth/youtube.upload'
+  'https://www.googleapis.com/auth/youtube.upload',
+  'https://www.googleapis.com/auth/userinfo.profile',
+  'https://www.googleapis.com/auth/userinfo.email'
 ];
 
 app.get('/auth/google', (req, res) => {
+  const { source, mode, origin } = req.query;
+  // Combine source, mode, and origin into state
+  const stateData = { 
+    source: source || 'web', 
+    mode: mode || 'redirect',
+    origin: origin || 'http://localhost:3000' // Default to 3000 but allow override
+  };
+  
+  const state = JSON.stringify(stateData);
+  
   const url = oauth2Client.generateAuthUrl({
     access_type: 'offline',
     scope: SCOPES,
+    state: state,
+    prompt: 'consent'
   });
   res.redirect(url);
 });
 
 app.get('/auth/callback', async (req, res) => {
-  const { code } = req.query;
+  const { code, state, error } = req.query;
+
+  if (error) {
+    console.error('Google Auth Error:', error);
+    return res.status(400).send(`Authentication failed: ${error}`);
+  }
+
+  if (!code) {
+    return res.status(400).send('No authorization code provided');
+  }
+
   try {
+    console.log('Exchanging code for tokens...');
     const { tokens } = await oauth2Client.getToken(code);
     oauth2Client.setCredentials(tokens);
-    // In a production app, store tokens securely (e.g., in a database)
-    res.send('Authentication successful! You can now close this window.');
+    
+    // FETCH REAL USER DATA FROM GOOGLE
+    const oauth2 = google.oauth2({ auth: oauth2Client, version: 'v2' });
+    const userInfoResponse = await oauth2.userinfo.get();
+    const userInfo = userInfoResponse.data;
+
+    console.log(`✨ Authenticated as: ${userInfo.email}`);
+
+    // Parse dynamic state
+    let source = 'web';
+    let mode = 'redirect';
+    let origin = 'http://localhost:3000';
+
+    try {
+      if (state) {
+        // Handle potential simple string state or JSON
+        if (state.startsWith('{')) {
+          const parsedState = JSON.parse(state);
+          source = parsedState.source;
+          mode = parsedState.mode;
+          origin = parsedState.origin || origin;
+        } else {
+          // It's a simple string, treat it as 'source'
+          source = state;
+        }
+      }
+    } catch (e) { 
+      console.error('State parse error, continuing with defaults:', e.message); 
+    }
+
+    // Create a secure JWT with user profile
+    const userPayload = {
+      name: userInfo.name,
+      email: userInfo.email,
+      picture: userInfo.picture,
+      token: tokens.access_token
+    };
+
+    const secret = process.env.JWT_SECRET || 'fallback_secret';
+    const encodedUser = jwt.sign(userPayload, secret);
+
+    if (mode === 'popup') {
+      // PRO MODE: Send message back to main window and close
+      return res.send(`
+        <html>
+          <body style="background: #0f172a; color: white; display: flex; align-items: center; justify-content: center; height: 100vh; font-family: sans-serif;">
+            <div style="text-align: center;">
+              <h1 style="color: #6366f1;">✨ Success!</h1>
+              <p>Authenticated as ${userInfo.name}. Closing window...</p>
+              <script>
+                const authData = "${encodedUser}";
+                window.opener.postMessage({ type: 'AUTH_SUCCESS', auth_data: authData }, "${origin}");
+                setTimeout(() => window.close(), 1000);
+              </script>
+            </div>
+          </body>
+        </html>
+      `);
+    }
+
+    // Extension flow: Redirect to a success page with the token that the extension can catch
+    if (source === 'extension') {
+      return res.redirect(`${process.env.BACKEND_URL || 'http://localhost:3001'}/auth/success?auth_data=${encodedUser}`);
+    }
+
+    // FALLBACK: Redirect back to the UI with the encoded data
+    const redirectUrl = `${origin}?auth_data=${encodedUser}`;
+    res.redirect(redirectUrl);
   } catch (error) {
-    console.error('Error retrieving access token', error);
-    res.status(500).send('Authentication failed');
+    console.error('Detailed OAuth Error:', error.response ? error.response.data : error.message);
+    res.status(500).send(`Authentication failed: ${error.message}`);
   }
+});
+
+app.get('/auth/success', (req, res) => {
+  res.send('<h1>✨ Authentication Successful!</h1><p>You can now close this window and return to AntCapture.</p>');
 });
 
 app.post('/upload/drive', upload.single('file'), async (req, res) => {

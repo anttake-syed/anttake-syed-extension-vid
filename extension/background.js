@@ -34,6 +34,48 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   } else if (message.action === 'EXTERNAL_STOP_RECORDING') {
     chrome.storage.local.set({ isRecording: false });
     return true;
+  } else if (message.action === 'GET_USER') {
+    chrome.storage.local.get(['user'], (result) => {
+      sendResponse({ user: result.user || null });
+    });
+    return true;
+  } else if (message.action === 'LOGOUT') {
+    chrome.storage.local.remove(['user'], () => {
+      sendResponse({ success: true });
+    });
+    return true;
+  }
+});
+
+// --- Auth Listener ---
+// Catch the redirect to /auth/success?auth_data=...
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+  if (changeInfo.url && changeInfo.url.includes('/auth/success?auth_data=')) {
+    try {
+      const url = new URL(changeInfo.url);
+      const authData = url.searchParams.get('auth_data');
+      if (authData) {
+        // Parse the JWT payload
+        const base64Url = authData.split('.')[1];
+        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+        const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+            return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+        }).join(''));
+        
+        const userData = JSON.parse(jsonPayload);
+        userData.jwt = authData; // Store the original JWT for auth headers
+
+        chrome.storage.local.set({ user: userData }, () => {
+          console.log('✨ User authenticated in extension:', userData.email);
+          // Briefly show success then close tab
+          setTimeout(() => {
+            chrome.tabs.remove(tabId);
+          }, 1500);
+        });
+      }
+    } catch (e) {
+      console.error('Failed to parse extension auth data:', e);
+    }
   }
 });
 
@@ -147,8 +189,15 @@ async function uploadToBackend(blob, type) {
     `capture-${Date.now()}.${type === "video" ? "webm" : "png"}`
   );
 
+  const { user } = await chrome.storage.local.get(['user']);
+  const headers = {};
+  if (user && user.jwt) {
+    headers['Authorization'] = `Bearer ${user.jwt}`;
+  }
+
   const response = await fetch("http://localhost:3001/upload/drive", {
     method: "POST",
+    headers: headers,
     body: formData,
   });
 

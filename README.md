@@ -62,26 +62,40 @@ To ensure both developers (You & Your Brother) can showcase deep technical "core
 
 ## 📦 Getting Started
 
-### 1. Backend Setup
+### 1. Environment Configuration (Standard Practice)
+Each component (Backend, Web UI) requires environment variables to function. For security, **do not push .env files to GitHub.**
+
+*   **Sharing with Collaborators:** Share the actual `.env` values privately via secure messaging.
+*   **Local Setup:** Copy the `.env.example` in each directory to a new file named `.env` and fill in the values.
+
+### 2. Backend Setup
 ```bash
 cd backend
 npm install
-# Create a .env file based on .env.example
+# 1. Create .env from .env.example
+# 2. Fill in Google OAuth credentials
 npm start
-```
-
-### 2. Extension Setup
-```bash
-cd extension
-# Load the 'extension' folder as an Unpacked Extension in Chrome
 ```
 
 ### 3. Web UI Setup
 ```bash
 cd web-ui
 npm install
+# 1. Create .env from .env.example
+# 2. VITE_API_BASE_URL should point to your backend (default: http://localhost:3001)
 npm run dev
 ```
+
+### 4. Extension Setup
+1. Open Chrome and go to `chrome://extensions/`.
+2. Enable **"Developer mode"** (top right).
+3. Click **"Load unpacked"** and select the `extension` folder from this repository.
+
+---
+
+## 🔒 Security & Collaboration
+- **.gitignore**: The `skills/` folder and all `.env` files are ignored by Git to keep your development history and secrets private.
+- **Google Cloud Console**: Ensure your `GOOGLE_REDIRECT_URI` is set to `http://localhost:3001/auth/callback` for local development.
 
 # Extension
 
@@ -175,3 +189,4 @@ t**, **Start/Stop Recording**,
 - Responsive design for mobile / different screen sizes  
 - Email notifications for errors or full storage
 
+Like that thing will automatically delete in WordViewi the video will automatically delete from local if we select that in settings then that will store in cloud then that don't consume both sides of the space

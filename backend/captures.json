@@ -1,0 +1,34 @@
+{
+  "xayanmay@gmail.com": [
+    {
+      "id": "capture-1777998697575.png",
+      "title": "Capture 5/5/2026, 12:31:37 PM",
+      "ext": ".png",
+      "type": "image",
+      "size": "343.2 KB",
+      "date": "2026-05-05T16:31:37.576Z",
+      "src": "http://localhost:3001/uploads/capture-1777998697575.png",
+      "driveUrl": null
+    },
+    {
+      "id": "capture-1777994854864.webm",
+      "title": "Capture 5/5/2026, 11:27:34 AM",
+      "ext": ".webm",
+      "type": "video",
+      "size": "1.1 MB",
+      "date": "2026-05-05T15:27:34.866Z",
+      "src": "http://localhost:3001/uploads/capture-1777994854864.webm",
+      "driveUrl": null
+    },
+    {
+      "id": "capture-1777994854424.webm",
+      "title": "Capture 5/5/2026, 11:27:34 AM",
+      "ext": ".webm",
+      "type": "video",
+      "size": "92.9 KB",
+      "date": "2026-05-05T15:27:34.437Z",
+      "src": "http://localhost:3001/uploads/capture-1777994854424.webm",
+      "driveUrl": null
+    }
+  ]
+}

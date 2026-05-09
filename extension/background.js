@@ -1,13 +1,4 @@
 // background.js
-// This background script handles all tab/screen recording, screenshots, 
-// saving to local storage, syncing pending uploads, and coordinating with offscreen.
-
-// FIX #1: Removed async from the top-level listener.
-// Chrome's onMessage listener does NOT support async functions natively —
-// an async function returns a Promise, which Chrome ignores, causing
-// sendResponse to be called after the channel closes. We handle async
-// logic inside manually and return `true` to keep the channel open.
-
 import {
   saveMediaLocally,
   getPendingUploads,
@@ -26,13 +17,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   } else if (message.action === 'OPEN_DOWNLOAD_TAB') {
     chrome.tabs.create({ url: `download.html?id=${message.id}`, active: true });
-    
     chrome.storage.local.get(['captureCount'], (result) => {
       chrome.storage.local.set({ captureCount: (result.captureCount || 0) + 1 });
     });
     return true;
   } else if (message.action === 'EXTERNAL_STOP_RECORDING') {
     chrome.storage.local.set({ isRecording: false });
+    return true;
+  } else if (message.action === 'VIDEO_SAVED_LOCALLY') {
+    // Offscreen finished saving the video blob — now sync it
+    checkAndSync();
     return true;
   } else if (message.action === 'GET_USER') {
     chrome.storage.local.get(['user'], (result) => {
@@ -48,29 +42,27 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 });
 
 // --- Auth Listener ---
-// Catch the redirect to /auth/success?auth_data=...
+// Catches the redirect to /auth/success?auth_data=...
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   if (changeInfo.url && changeInfo.url.includes('/auth/success?auth_data=')) {
     try {
       const url = new URL(changeInfo.url);
       const authData = url.searchParams.get('auth_data');
       if (authData) {
-        // Parse the JWT payload
         const base64Url = authData.split('.')[1];
         const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
         const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
-            return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+          return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
         }).join(''));
-        
+
         const userData = JSON.parse(jsonPayload);
-        userData.jwt = authData; // Store the original JWT for auth headers
+        userData.jwt = authData;
 
         chrome.storage.local.set({ user: userData }, () => {
           console.log('✨ User authenticated in extension:', userData.email);
-          // Briefly show success then close tab
-          setTimeout(() => {
-            chrome.tabs.remove(tabId);
-          }, 1500);
+          setTimeout(() => chrome.tabs.remove(tabId), 1500);
+          // Sync any captures that were taken before login
+          checkAndSync();
         });
       }
     } catch (e) {
@@ -82,13 +74,7 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 async function handleStartRecording(message, sendResponse) {
   try {
     await ensureOffscreen();
-    
-    // Tell offscreen to initiate the capture flow
-    chrome.runtime.sendMessage({
-      target: 'offscreen',
-      type: 'start-recording'
-    });
-    
+    chrome.runtime.sendMessage({ target: 'offscreen', type: 'start-recording' });
     await chrome.storage.local.set({ isRecording: true });
     sendResponse({ success: true });
   } catch (error) {
@@ -100,11 +86,7 @@ async function handleStartRecording(message, sendResponse) {
 async function handleStopRecording(message, sendResponse) {
   try {
     await ensureOffscreen();
-    await chrome.runtime.sendMessage({
-      target: 'offscreen',
-      type: 'stop-recording'
-    });
-    
+    await chrome.runtime.sendMessage({ target: 'offscreen', type: 'stop-recording' });
     await chrome.storage.local.set({ isRecording: false });
     sendResponse({ success: true });
   } catch (error) {
@@ -118,26 +100,26 @@ async function handleTakeScreenshot(message, sendResponse) {
     const tabs = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
     const windowId = tabs.length > 0 ? tabs[0].windowId : chrome.windows.WINDOW_ID_CURRENT;
     const dataUrl = await chrome.tabs.captureVisibleTab(windowId, { format: 'png' });
-    
-    // Convert dataUrl to blob
+
     const response = await fetch(dataUrl);
     const blob = await response.blob();
-    
-    // Save locally for cloud sync
+
+    // Save to IndexedDB
     await saveMediaLocally(blob, 'image');
 
-    // Handle screenshot: download
+    // Save locally to computer (unchanged)
     chrome.downloads.download({
       url: dataUrl,
       filename: `screenshot-${Date.now()}.png`
     });
 
-    // Increment capture count
     chrome.storage.local.get(['captureCount'], (result) => {
-      const count = (result.captureCount || 0) + 1;
-      chrome.storage.local.set({ captureCount: count });
+      chrome.storage.local.set({ captureCount: (result.captureCount || 0) + 1 });
     });
-    
+
+    // Immediately try to sync to backend
+    checkAndSync();
+
     sendResponse({ success: true, dataUrl });
   } catch (error) {
     console.error('Screenshot failed:', error);
@@ -145,7 +127,6 @@ async function handleTakeScreenshot(message, sendResponse) {
   }
 }
 
-// Creates offscreen document if one doesn't already exist
 async function ensureOffscreen() {
   if (await chrome.offscreen.hasDocument()) return;
   await chrome.offscreen.createDocument({
@@ -156,8 +137,6 @@ async function ensureOffscreen() {
 }
 
 // --- Sync Manager ---
-// Handles pending uploads saved in IndexedDB (from screenshots or videos)
-// Tries to sync them to backend when online
 chrome.runtime.onStartup.addListener(checkAndSync);
 chrome.runtime.onInstalled.addListener(checkAndSync);
 self.addEventListener("online", checkAndSync);
@@ -165,42 +144,48 @@ self.addEventListener("online", checkAndSync);
 async function checkAndSync() {
   if (!navigator.onLine) return;
 
+  const { user } = await chrome.storage.local.get(['user']);
+  if (!user || !user.jwt) {
+    console.log('No user logged in — skipping sync');
+    return;
+  }
+
   const pending = await getPendingUploads();
   if (pending.length === 0) return;
-  
+
   console.log(`Syncing ${pending.length} pending items...`);
 
   for (const item of pending) {
     try {
-      await uploadToBackend(item.blob, item.type);
-      console.log(`Successfully synced item ${item.id}`);
+      await uploadToBackend(item.blob, item.type, user.jwt);
+      console.log(`✅ Synced item ${item.id}`);
       await deleteLocalMedia(item.id);
     } catch (error) {
-      console.error(`Failed to sync item ${item.id}`, error);
+      console.error(`Sync failed for ${item.id}:`, error.message);
+      // Stop trying if server is down — don't burn through all items
+      break;
     }
   }
 }
 
-async function uploadToBackend(blob, type) {
+async function uploadToBackend(blob, type, jwt) {
   const formData = new FormData();
   formData.append(
-    "file",
+    'file',
     blob,
-    `capture-${Date.now()}.${type === "video" ? "webm" : "png"}`
+    `capture-${Date.now()}.${type === 'video' ? 'webm' : 'png'}`
   );
 
-  const { user } = await chrome.storage.local.get(['user']);
-  const headers = {};
-  if (user && user.jwt) {
-    headers['Authorization'] = `Bearer ${user.jwt}`;
-  }
-
-  const response = await fetch("http://localhost:3001/upload/drive", {
-    method: "POST",
-    headers: headers,
+  const response = await fetch('http://localhost:3001/upload', {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${jwt}` },
     body: formData,
   });
 
-  if (!response.ok) throw new Error("Upload to backend failed");
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Upload failed: ${response.status} - ${text}`);
+  }
+
   return response.json();
 }

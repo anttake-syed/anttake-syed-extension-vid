@@ -1,73 +1,65 @@
+// server.js — AntCapture Backend
+// Endpoints:
+//   GET  /                  → health check
+//   GET  /auth/google       → start Google OAuth
+//   GET  /auth/callback     → Google OAuth callback
+//   GET  /auth/success      → extension auth landing page
+//   GET  /auth/me           → verify JWT, return user info
+//   POST /upload            → upload file, save to disk + Prisma DB
+//   GET  /captures          → get all captures for logged-in user
+
 const express = require('express');
 const { google } = require('googleapis');
 const dotenv = require('dotenv');
 const cors = require('cors');
 const multer = require('multer');
-const stream = require('stream');
 const jwt = require('jsonwebtoken');
+const fs = require('fs');
+const path = require('path');
+const { PrismaClient } = require('@prisma/client');
 
 dotenv.config();
 
-const requiredEnv = ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'GOOGLE_REDIRECT_URI', 'JWT_SECRET'];
-const missingEnv = requiredEnv.filter(key => !process.env[key]);
-
-if (missingEnv.length > 0) {
-    console.warn('\n\x1b[33m%s\x1b[0m', '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.warn('\x1b[33m%s\x1b[0m', '⚠️  WARNING: Missing required environment variables:');
-    missingEnv.forEach(env => console.warn(`   - ${env}`));
-    console.warn('\x1b[33m%s\x1b[0m', '   Google Auth or JWT security will not work properly!');
-    console.warn('\x1b[33m%s\x1b[0m', '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
-}
-
+const prisma = new PrismaClient();
 const app = express();
-app.use(cors());
+
+// ── CORS ───────────────────────────────────────────────────────────────────────
+// Explicitly allow web UI, Vite dev server, and Chrome extensions.
+// Without this, extension requests get blocked because they come from
+// chrome-extension:// origins which the default cors() can reject.
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow requests with no origin (curl, Postman) and chrome-extension://
+    if (!origin || origin.startsWith('chrome-extension://')) {
+      return callback(null, true);
+    }
+    const allowed = [
+      'http://localhost:3000',
+      'http://localhost:5173',
+    ];
+    if (allowed.includes(origin)) return callback(null, true);
+    callback(new Error(`CORS blocked: ${origin}`));
+  },
+  credentials: true,
+}));
+
 app.use(express.json());
 
-// Request logging middleware
+// Request logger
 app.use((req, res, next) => {
-  console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
+  console.log(`${new Date().toISOString()}  ${req.method}  ${req.url}`);
   next();
 });
 
-// Root route for health check
-app.get('/', (req, res) => {
-  res.status(200).send('✨ AntCapture Backend is running and accessible!');
-});
+// ── Static uploads folder ─────────────────────────────────────────────────────
+const UPLOADS_DIR = path.join(__dirname, 'uploads');
+if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR);
+app.use('/uploads', express.static(UPLOADS_DIR));
 
-// Experimental Test Data storage (In-memory)
-let testData = [];
-
-// GET endpoint to retrieve test data
-app.get('/test-data', (req, res) => {
-  res.status(200).json({
-    status: 'success',
-    data: testData,
-    count: testData.length
-  });
-});
-
-// POST endpoint to add data for verification
-app.post('/test-data', (req, res) => {
-  const { message } = req.body;
-  if (!message) {
-    return res.status(400).json({ error: 'Please provide a message' });
-  }
-
-  const newItem = {
-    id: Date.now(),
-    message,
-    timestamp: new Date().toISOString()
-  };
-
-  testData.push(newItem);
-  res.status(201).json({
-    status: 'success',
-    itemAdded: newItem
-  });
-});
-
+// ── Multer (in-memory so we can write the file ourselves) ─────────────────────
 const upload = multer({ storage: multer.memoryStorage() });
 
+// ── Google OAuth client ───────────────────────────────────────────────────────
 const oauth2Client = new google.auth.OAuth2(
   process.env.GOOGLE_CLIENT_ID,
   process.env.GOOGLE_CLIENT_SECRET,
@@ -75,101 +67,132 @@ const oauth2Client = new google.auth.OAuth2(
 );
 
 const SCOPES = [
-  'https://www.googleapis.com/auth/drive.file',
-  'https://www.googleapis.com/auth/youtube.upload',
   'https://www.googleapis.com/auth/userinfo.profile',
-  'https://www.googleapis.com/auth/userinfo.email'
+  'https://www.googleapis.com/auth/userinfo.email',
 ];
 
+// ── Auth middleware ───────────────────────────────────────────────────────────
+// Validates JWT from "Authorization: Bearer <token>" header.
+// Attaches decoded payload to req.user for use in route handlers.
+function requireAuth(req, res, next) {
+  const header = req.headers['authorization'];
+  if (!header?.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Missing Authorization header' });
+  }
+  try {
+    const token = header.split(' ')[1];
+    req.user = jwt.verify(token, process.env.JWT_SECRET);
+    next();
+  } catch (err) {
+    return res.status(401).json({ error: 'Invalid or expired token' });
+  }
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function formatBytes(bytes) {
+  if (!bytes || bytes === 0) return '0 B';
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / 1048576).toFixed(1) + ' MB';
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ROUTES
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Health check
+app.get('/', (req, res) => {
+  res.json({
+    status: 'ok',
+    message: '✨ AntCapture backend running',
+    routes: ['GET /auth/google', 'GET /auth/me', 'POST /upload', 'GET /captures'],
+  });
+});
+
+// ── Start Google OAuth flow ───────────────────────────────────────────────────
+// Both web UI and extension call this to begin login.
+// Query params:
+//   source: 'web' | 'extension'
+//   mode:   'popup' | 'redirect'  (web UI uses popup, extension uses redirect)
+//   origin: URL to send the JWT back to after auth
 app.get('/auth/google', (req, res) => {
-  const { source, mode, origin } = req.query;
-  // Combine source, mode, and origin into state
-  const stateData = { 
-    source: source || 'web', 
-    mode: mode || 'redirect',
-    origin: origin || 'http://localhost:3000' // Default to 3000 but allow override
-  };
-  
-  const state = JSON.stringify(stateData);
-  
+  const {
+    source = 'web',
+    mode = 'redirect',
+    origin = 'http://localhost:3000',
+  } = req.query;
+
+  const state = JSON.stringify({ source, mode, origin });
+
   const url = oauth2Client.generateAuthUrl({
     access_type: 'offline',
     scope: SCOPES,
-    state: state,
-    prompt: 'consent'
+    state,
+    prompt: 'consent',
   });
+
   res.redirect(url);
 });
 
+// ── Google OAuth callback ─────────────────────────────────────────────────────
+// Google redirects here after user approves.
+// Exchanges the code for tokens, fetches user profile, signs a JWT,
+// then sends the result back to whoever initiated the login.
 app.get('/auth/callback', async (req, res) => {
   const { code, state, error } = req.query;
 
-  if (error) {
-    console.error('Google Auth Error:', error);
-    return res.status(400).send(`Authentication failed: ${error}`);
-  }
-
-  if (!code) {
-    return res.status(400).send('No authorization code provided');
-  }
+  if (error) return res.status(400).send(`Auth failed: ${error}`);
+  if (!code) return res.status(400).send('No code received');
 
   try {
-    console.log('Exchanging code for tokens...');
     const { tokens } = await oauth2Client.getToken(code);
     oauth2Client.setCredentials(tokens);
-    
-    // FETCH REAL USER DATA FROM GOOGLE
+
+    // Fetch real user profile from Google
     const oauth2 = google.oauth2({ auth: oauth2Client, version: 'v2' });
-    const userInfoResponse = await oauth2.userinfo.get();
-    const userInfo = userInfoResponse.data;
+    const { data: userInfo } = await oauth2.userinfo.get();
+    console.log(`✨ Authenticated: ${userInfo.email}`);
 
-    console.log(`✨ Authenticated as: ${userInfo.email}`);
-
-    // Parse dynamic state
-    let source = 'web';
-    let mode = 'redirect';
-    let origin = 'http://localhost:3000';
-
+    // Parse state
+    let source = 'web', mode = 'redirect', origin = 'http://localhost:3000';
     try {
-      if (state) {
-        // Handle potential simple string state or JSON
-        if (state.startsWith('{')) {
-          const parsedState = JSON.parse(state);
-          source = parsedState.source;
-          mode = parsedState.mode;
-          origin = parsedState.origin || origin;
-        } else {
-          // It's a simple string, treat it as 'source'
-          source = state;
-        }
+      if (state?.startsWith('{')) {
+        const parsed = JSON.parse(state);
+        source = parsed.source || source;
+        mode = parsed.mode || mode;
+        origin = parsed.origin || origin;
       }
-    } catch (e) { 
-      console.error('State parse error, continuing with defaults:', e.message); 
+    } catch (e) {
+      console.warn('State parse failed, using defaults');
     }
 
-    // Create a secure JWT with user profile
-    const userPayload = {
-      name: userInfo.name,
-      email: userInfo.email,
-      picture: userInfo.picture,
-      token: tokens.access_token
-    };
+    // Sign a JWT with user info — expires in 7 days
+    const jwtToken = jwt.sign(
+      {
+        name: userInfo.name,
+        email: userInfo.email,
+        picture: userInfo.picture,
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: '7d' }
+    );
 
-    const secret = process.env.JWT_SECRET || 'fallback_secret';
-    const encodedUser = jwt.sign(userPayload, secret);
-
+    // ── Web UI popup mode ─────────────────────────────────────────────────────
+    // Posts the JWT back to the opener window then closes itself.
     if (mode === 'popup') {
-      // PRO MODE: Send message back to main window and close
       return res.send(`
+        <!DOCTYPE html>
         <html>
-          <body style="background: #0f172a; color: white; display: flex; align-items: center; justify-content: center; height: 100vh; font-family: sans-serif;">
-            <div style="text-align: center;">
-              <h1 style="color: #6366f1;">✨ Success!</h1>
-              <p>Authenticated as ${userInfo.name}. Closing window...</p>
+          <body style="background:#0f172a;color:white;display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;margin:0;">
+            <div style="text-align:center;">
+              <h1 style="color:#6366f1;">✨ Signed in!</h1>
+              <p style="color:#94a3b8;">Welcome, ${userInfo.name}. Closing window...</p>
               <script>
-                const authData = "${encodedUser}";
-                window.opener.postMessage({ type: 'AUTH_SUCCESS', auth_data: authData }, "${origin}");
-                setTimeout(() => window.close(), 1000);
+                window.opener.postMessage(
+                  { type: 'AUTH_SUCCESS', auth_data: '${jwtToken}' },
+                  '${origin}'
+                );
+                setTimeout(() => window.close(), 800);
               </script>
             </div>
           </body>
@@ -177,59 +200,134 @@ app.get('/auth/callback', async (req, res) => {
       `);
     }
 
-    // Extension flow: Redirect to a success page with the token that the extension can catch
+    // ── Extension mode ────────────────────────────────────────────────────────
+    // Redirects to /auth/success with the JWT in the URL.
+    // background.js watches for this URL and extracts the token.
     if (source === 'extension') {
-      return res.redirect(`${process.env.BACKEND_URL || 'http://localhost:3001'}/auth/success?auth_data=${encodedUser}`);
+      const backendUrl = process.env.BACKEND_URL || 'http://localhost:3001';
+      return res.redirect(`${backendUrl}/auth/success?auth_data=${jwtToken}`);
     }
 
-    // FALLBACK: Redirect back to the UI with the encoded data
-    const redirectUrl = `${origin}?auth_data=${encodedUser}`;
-    res.redirect(redirectUrl);
-  } catch (error) {
-    console.error('Detailed OAuth Error:', error.response ? error.response.data : error.message);
-    res.status(500).send(`Authentication failed: ${error.message}`);
+    // ── Web UI redirect fallback ──────────────────────────────────────────────
+    return res.redirect(`${origin}?auth_data=${jwtToken}`);
+
+  } catch (err) {
+    console.error('OAuth callback error:', err.message);
+    res.status(500).send(`Authentication failed: ${err.message}`);
   }
 });
 
+// ── Auth success page (extension landing) ─────────────────────────────────────
+// background.js intercepts the URL before the user even sees this page,
+// extracts auth_data, stores it, and closes the tab automatically.
+// This page is just a human-readable fallback in case that fails.
 app.get('/auth/success', (req, res) => {
-  res.send('<h1>✨ Authentication Successful!</h1><p>You can now close this window and return to AntCapture.</p>');
+  res.send(`
+    <!DOCTYPE html>
+    <html>
+      <body style="background:#0f172a;color:white;display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;margin:0;">
+        <div style="text-align:center;">
+          <h1 style="color:#6366f1;">✨ Signed in to AntCapture!</h1>
+          <p style="color:#94a3b8;">You can close this tab and return to the extension.</p>
+        </div>
+      </body>
+    </html>
+  `);
 });
 
-app.post('/upload/drive', upload.single('file'), async (req, res) => {
-  if (!req.file) {
-    return res.status(400).send('No file uploaded.');
-  }
+// ── Verify token / get current user ──────────────────────────────────────────
+// Web UI and extension call this on load to check if a stored JWT is valid.
+// Returns 401 if missing, invalid, or expired.
+app.get('/auth/me', requireAuth, (req, res) => {
+  res.json({
+    user: {
+      name: req.user.name,
+      email: req.user.email,
+      picture: req.user.picture,
+    }
+  });
+});
 
+// ── Upload file ───────────────────────────────────────────────────────────────
+// Saves the file to /uploads on disk AND creates a Prisma DB record.
+// Both steps are needed: disk = the actual file, DB = what the UI queries.
+// Previously files were being saved to disk but the DB record was
+// missing when the extension uploaded, so /captures returned nothing.
+app.post('/upload', requireAuth, upload.single('file'), async (req, res) => {
   try {
-    const drive = google.drive({ version: 'v3', auth: oauth2Client });
-    const bufferStream = new stream.PassThrough();
-    bufferStream.end(req.file.buffer);
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file received' });
+    }
 
-    const fileMetadata = {
-      name: req.file.originalname || `capture-${Date.now()}`,
-      parents: [] // You can specify a folder ID here
-    };
+    const isVideo = req.file.mimetype.startsWith('video');
+    const ext = isVideo ? 'webm' : 'png';
+    const filename = `capture-${Date.now()}.${ext}`;
+    const filepath = path.join(UPLOADS_DIR, filename);
 
-    const media = {
-      mimeType: req.file.mimetype,
-      body: bufferStream
-    };
+    // Write file to disk
+    fs.writeFileSync(filepath, req.file.buffer);
 
-    const response = await drive.files.create({
-      resource: fileMetadata,
-      media: media,
-      fields: 'id'
+    const fileUrl = `http://localhost:3001/uploads/${filename}`;
+
+    // Save record to Prisma DB — this is what GET /captures reads
+    const record = await prisma.capture.create({
+      data: {
+        email: req.user.email,
+        title: `Capture ${new Date().toLocaleString()}`,
+        type: isVideo ? 'video' : 'image',
+        size: formatBytes(req.file.size),
+        fileUrl,
+      }
     });
 
-    res.status(200).json({ fileId: response.data.id });
-  } catch (error) {
-    console.error('Error uploading to Drive', error);
-    res.status(500).send('Upload failed');
+    console.log(`✅ Saved: ${filename} for ${req.user.email} (DB id: ${record.id})`);
+
+    res.json({ success: true, record });
+
+  } catch (err) {
+    console.error('Upload error:', err);
+    res.status(500).json({ error: 'Upload failed', detail: err.message });
   }
 });
 
+// ── Get user's captures ───────────────────────────────────────────────────────
+// Returns all captures for the logged-in user from Prisma DB, newest first.
+// The web UI maps fileUrl → src to display thumbnails and play videos.
+app.get('/captures', requireAuth, async (req, res) => {
+  try {
+    const captures = await prisma.capture.findMany({
+      where: { email: req.user.email },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    // Shape the response to match what App.jsx expects
+    const shaped = captures.map(c => ({
+      id: c.id,
+      title: c.title,
+      type: c.type,
+      size: c.size,
+      date: c.createdAt,
+      fileUrl: c.fileUrl,
+      src: c.fileUrl,      // App.jsx uses item.src for video/image src
+      ext: c.type === 'video' ? '.webm' : '.png',
+    }));
+
+    res.json({ captures: shaped });
+
+  } catch (err) {
+    console.error('Fetch captures error:', err);
+    res.status(500).json({ error: 'Failed to fetch captures' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// START
+// ─────────────────────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
-  console.log(`\n\x1b[32m%s\x1b[0m`, `✨ Backend server is running!`);
-  console.log(`👉 Access it at: http://localhost:${PORT}\n`);
+  console.log(`\n\x1b[32m✨ AntCapture backend running at http://localhost:${PORT}\x1b[0m`);
+  console.log(`\x1b[36m   GET  /auth/google\x1b[0m`);
+  console.log(`\x1b[36m   GET  /auth/me\x1b[0m`);
+  console.log(`\x1b[36m   POST /upload\x1b[0m`);
+  console.log(`\x1b[36m   GET  /captures\x1b[0m\n`);
 });

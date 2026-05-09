@@ -38,7 +38,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       sendResponse({ success: true });
     });
     return true;
-  }
+  } else if (message.action === 'OPEN_POPUP') {
+  chrome.action.openPopup();
+  sendResponse({ success: true });
+  return true;
+}
 });
 
 // --- Auth Listener ---

@@ -13,15 +13,14 @@ function LoginModal({ onClose }) {
     const height = 600;
     const left = window.screenX + (window.outerWidth - width) / 2;
     const top = window.screenY + (window.outerHeight - height) / 2;
-    
+
     const origin = window.location.origin;
     window.open(
       `${BACKEND_URL}/auth/google?source=web&mode=popup&origin=${encodeURIComponent(origin)}`,
       'Google Login',
       `width=${width},height=${height},left=${left},top=${top}`
     );
-    
-    // Fallback if the user closes the popup manually
+
     setTimeout(() => setLoading(false), 5000);
   };
 
@@ -29,7 +28,6 @@ function LoginModal({ onClose }) {
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-card" onClick={e => e.stopPropagation()}>
         <button className="modal-close" onClick={onClose} aria-label="Close">✕</button>
-
         <div className="modal-brand">
           <div className="brand-icon-sm">
             <svg viewBox="0 0 32 32" width="32" height="32" fill="none">
@@ -45,7 +43,6 @@ function LoginModal({ onClose }) {
           <h2>Sign in to AntCapture</h2>
           <p>Connect your Google account to upload recordings, sync across devices, and access your library.</p>
         </div>
-
         <button
           id="google-signin-btn"
           className={`google-btn ${loading ? 'loading' : ''}`}
@@ -66,7 +63,6 @@ function LoginModal({ onClose }) {
             </>
           )}
         </button>
-
         <p className="modal-footer">
           By signing in you authorize AntCapture to store recordings in your Google Drive.
         </p>
@@ -75,7 +71,7 @@ function LoginModal({ onClose }) {
   );
 }
 
-// ─── Media Player Modal ──────────────────────────────────────────────────────
+// ─── Media Player Modal ───────────────────────────────────────────────────────
 function MediaModal({ item, onClose }) {
   if (!item) return null;
   return (
@@ -84,24 +80,26 @@ function MediaModal({ item, onClose }) {
         <button className="modal-close" onClick={onClose} aria-label="Close" style={{ zIndex: 10, top: '15px', right: '15px' }}>✕</button>
         <div className="modal-brand" style={{ padding: '20px', paddingBottom: '15px', textAlign: 'left', borderBottom: '1px solid #1e293b' }}>
           <h2 style={{ margin: 0, fontSize: '18px', color: '#f8fafc' }}>{item.title}{item.ext}</h2>
-          <p style={{ margin: '4px 0 0', color: '#94a3b8', fontSize: '13px' }}>{item.date} • {item.size}</p>
+          <p style={{ margin: '4px 0 0', color: '#94a3b8', fontSize: '13px' }}>
+            {item.date ? new Date(item.date).toLocaleDateString() : ''} • {item.size}
+          </p>
         </div>
         <div style={{ padding: '20px', display: 'flex', justifyContent: 'center', alignItems: 'center', background: '#000', minHeight: '300px' }}>
           {item.type === 'video' ? (
-            <video 
-              controls 
-              autoPlay 
+            <video
+              controls
+              autoPlay
               style={{ width: '100%', maxHeight: '60vh', outline: 'none', background: '#000' }}
-              src={item.src || "https://www.w3schools.com/html/mov_bbb.mp4"}
+              src={item.src}
             >
               Your browser does not support the video tag.
             </video>
           ) : (
-             <img 
-               src={item.src || "https://via.placeholder.com/800x450/0f172a/6366f1?text=Image+Preview"} 
-               style={{ maxWidth: '100%', maxHeight: '60vh', objectFit: 'contain' }} 
-               alt={item.title} 
-             />
+            <img
+              src={item.src}
+              style={{ maxWidth: '100%', maxHeight: '60vh', objectFit: 'contain' }}
+              alt={item.title}
+            />
           )}
         </div>
       </div>
@@ -110,22 +108,6 @@ function MediaModal({ item, onClose }) {
 }
 
 // ─── Main App ─────────────────────────────────────────────────────────────────
-// ─── Main App ─────────────────────────────────────────────────────────────────
-const mockCaptures = [
-  { id: 1, title: 'Product Demo v2', type: 'video', ext: '.mp4', date: '2 hours ago', size: '12.4 MB', duration: '2:34' },
-  { id: 2, title: 'Bug Report — Checkout UI', type: 'image', ext: '.png', date: '5 hours ago', size: '2.1 MB', duration: null },
-  { id: 3, title: 'Feature Walkthrough', type: 'video', ext: '.mp4', date: 'Yesterday', size: '45.8 MB', duration: '8:12' },
-  { id: 4, title: 'Onboarding Flow', type: 'video', ext: '.mp4', date: '2 days ago', size: '28.3 MB', duration: '5:01' },
-  { id: 5, title: 'Dashboard Screenshot', type: 'image', ext: '.jpg', date: '3 days ago', size: '1.7 MB', duration: null },
-  { id: 6, title: 'Sprint Review Recording', type: 'video', ext: '.mp4', date: 'Last week', size: '91.2 MB', duration: '22:48' },
-];
-
-const stats = [
-  { label: 'Total Captures', value: '128',  icon: '📁' },
-  { label: 'Storage Used',   value: '3.2 GB', icon: '☁️' },
-  { label: 'This Week',      value: '14',   icon: '📈' },
-];
-
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState(null);
@@ -134,50 +116,116 @@ export default function App() {
   const [activeNav, setActiveNav] = useState('Dashboard');
   const [activeMedia, setActiveMedia] = useState(null);
 
-  // Helper to handle authentication data
+  // ── Real captures state (replaces mockCaptures) ───────────────────────────
+  const [captures, setCaptures] = useState([]);
+  const [loadingCaptures, setLoadingCaptures] = useState(false);
+  const [filter, setFilter] = useState('All');
+
+  // ── Derived stats from real data ──────────────────────────────────────────
+  const stats = [
+    { label: 'Total Captures', value: captures.length.toString(), icon: '📁' },
+    {
+      label: 'Storage Used',
+      value: captures.length === 0 ? '0 MB' : captures.reduce((acc, c) => {
+        const mb = parseFloat(c.size) || 0;
+        return acc + mb;
+      }, 0).toFixed(1) + ' MB',
+      icon: '☁️'
+    },
+    {
+      label: 'This Week',
+      value: captures.filter(c => {
+        if (!c.date) return false;
+        return new Date(c.date) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+      }).length.toString(),
+      icon: '📈'
+    },
+  ];
+
+  // ── Filtered captures ─────────────────────────────────────────────────────
+  const filteredCaptures = captures.filter(c => {
+    if (filter === 'Videos') return c.type === 'video';
+    if (filter === 'Screenshots') return c.type === 'image';
+    return true;
+  });
+
+  // ── Fetch captures when user logs in ─────────────────────────────────────
+const fetchCaptures = async (jwt) => {
+  setLoadingCaptures(true);
+
+  try {
+    const res = await fetch(`${BACKEND_URL}/captures`, {
+      headers: {
+        Authorization: `Bearer ${jwt}`,
+      },
+    });
+
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+    const data = await res.json();
+
+    // ✅ FIX: map fileUrl → src so UI works
+    const normalized = (data.captures || []).map((c) => ({
+      ...c,
+      src: c.fileUrl,
+    }));
+
+    setCaptures(normalized);
+  } catch (err) {
+    console.error('Failed to fetch captures:', err);
+  } finally {
+    setLoadingCaptures(false);
+  }
+};
+
+  // ── Auth helpers ──────────────────────────────────────────────────────────
+  // IMPORTANT: stores the raw JWT string on userData so fetch calls can use it
   const processAuthData = (authData) => {
     try {
       console.log('✨ Processing Auth Data...');
       const base64Url = authData.split('.')[1];
       const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
       const jsonPayload = decodeURIComponent(window.atob(base64).split('').map(function(c) {
-          return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
       }).join(''));
-      
+
       const userData = JSON.parse(jsonPayload);
-      
+      userData.jwt = authData; // ← critical: store raw JWT for API calls
+
       localStorage.setItem('antcapture_user', JSON.stringify(userData));
       setUser(userData);
       setIsAuthenticated(true);
       setShowModal(false);
+
+      // Fetch captures immediately after login
+      fetchCaptures(authData);
     } catch (e) {
       console.error('Auth parse error:', e);
     }
   };
 
   useEffect(() => {
-    // 1. Check for stored user (Persistence)
+    // 1. Restore session from localStorage
     const storedUser = localStorage.getItem('antcapture_user');
     if (storedUser) {
       const userData = JSON.parse(storedUser);
       setUser(userData);
       setIsAuthenticated(true);
+      // Fetch captures for restored session
+      if (userData.jwt) fetchCaptures(userData.jwt);
     }
 
-    // 2. Handle Redirect Fallback (Legacy/Extension)
+    // 2. Handle redirect fallback (legacy / extension)
     const params = new URLSearchParams(window.location.search);
     const authData = params.get('auth_data');
     if (authData) {
       processAuthData(authData);
-      const newUrl = window.location.origin + window.location.pathname;
-      window.history.replaceState({}, document.title, newUrl);
+      window.history.replaceState({}, document.title, window.location.origin + window.location.pathname);
     }
 
-    // 3. LISTEN FOR POPUP SUCCESS (Professional Move)
+    // 3. Listen for popup auth success
     const handleMessage = (event) => {
-      // Security check: only trust our backend
       if (event.origin !== BACKEND_URL) return;
-      
       if (event.data?.type === 'AUTH_SUCCESS' && event.data.auth_data) {
         processAuthData(event.data.auth_data);
       }
@@ -196,24 +244,8 @@ export default function App() {
     localStorage.removeItem('antcapture_user');
     setUser(null);
     setIsAuthenticated(false);
+    setCaptures([]);
     setShowProfileMenu(false);
-  };
-
-  const handleDownload = (item) => {
-    requireAuth(() => {
-      console.log(`Downloading ${item.title}${item.ext}...`);
-      // Simulate download
-      const content = `Mock content for ${item.title}`;
-      const blob = new Blob([content], { type: item.type === 'video' ? 'video/mp4' : 'image/png' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${item.title.replace(/\s+/g, '_')}${item.ext}`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    });
   };
 
   return (
@@ -277,8 +309,8 @@ export default function App() {
           <div className="header-actions">
             {isAuthenticated && user ? (
               <div className="profile-container">
-                <div 
-                  className="user-pill animated fadeIn" 
+                <div
+                  className="user-pill animated fadeIn"
                   onClick={() => setShowProfileMenu(!showProfileMenu)}
                 >
                   {user.picture ? (
@@ -298,10 +330,10 @@ export default function App() {
                     </div>
                     <div className="dropdown-divider"></div>
                     <button className="dropdown-item" onClick={() => setActiveNav('Settings')}>
-                       <span className="item-icon">⚙</span> Settings
+                      <span className="item-icon">⚙</span> Settings
                     </button>
                     <button className="dropdown-item logout" onClick={handleLogout}>
-                       <span className="item-icon">🚪</span> Sign Out
+                      <span className="item-icon">🚪</span> Sign Out
                     </button>
                   </div>
                 )}
@@ -321,7 +353,7 @@ export default function App() {
           </div>
         </header>
 
-        {/* Hero Banner — shown only when logged out, with slideOut support */}
+        {/* Hero Banner — logged out only */}
         {!isAuthenticated && (
           <section className="hero-banner slideIn">
             <div className="hero-text">
@@ -343,7 +375,11 @@ export default function App() {
         {/* Stats Row */}
         <section className="stats-row">
           {stats.map(s => (
-            <div key={s.label} className={`stat-card ${!isAuthenticated ? 'blurred' : ''}`} onClick={() => !isAuthenticated && setShowModal(true)}>
+            <div
+              key={s.label}
+              className={`stat-card ${!isAuthenticated ? 'blurred' : ''}`}
+              onClick={() => !isAuthenticated && setShowModal(true)}
+            >
               <div className="stat-icon">{s.icon}</div>
               <div className="stat-value">{isAuthenticated ? s.value : '—'}</div>
               <div className="stat-label">{s.label}</div>
@@ -354,74 +390,130 @@ export default function App() {
 
         {/* Section header */}
         <div className="section-header">
-          <h3>Recent Captures <span className="count-badge">{mockCaptures.length}</span></h3>
+          <h3>
+            Recent Captures{' '}
+            <span className="count-badge">{isAuthenticated ? filteredCaptures.length : 0}</span>
+          </h3>
           {isAuthenticated && (
             <div className="filter-row">
-              <button className="filter-btn active">All</button>
-              <button className="filter-btn">Videos</button>
-              <button className="filter-btn">Screenshots</button>
+              {['All', 'Videos', 'Screenshots'].map(f => (
+                <button
+                  key={f}
+                  className={`filter-btn ${filter === f ? 'active' : ''}`}
+                  onClick={() => setFilter(f)}
+                >
+                  {f}
+                </button>
+              ))}
             </div>
           )}
         </div>
 
         {/* Media Grid */}
         <section className="media-grid">
-          {mockCaptures.map(item => (
-            <div
-              key={item.id}
-              className={`media-card ${!isAuthenticated ? 'card-preview' : ''}`}
-              onClick={(e) => {
-                if (e.target.closest('.media-action-btn')) return;
-                requireAuth();
-              }}
-            >
-              <div className="media-preview">
-                <div className="media-thumb-icon">
-                  {item.type === 'video' ? (
-                    <svg viewBox="0 0 24 24" width="40" height="40" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" style={{opacity: 0.5}}><rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"></rect><line x1="7" y1="2" x2="7" y2="22"></line><line x1="17" y1="2" x2="17" y2="22"></line><line x1="2" y1="12" x2="22" y2="12"></line><line x1="2" y1="7" x2="7" y2="7"></line><line x1="2" y1="17" x2="7" y2="17"></line><line x1="17" y1="17" x2="22" y2="17"></line><line x1="17" y1="7" x2="22" y2="7"></line></svg>
-                  ) : (
-                    <svg viewBox="0 0 24 24" width="40" height="40" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" style={{opacity: 0.5}}><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
-                  )}
-                </div>
-                {item.duration && <div className="duration-badge">{item.duration}</div>}
-                <div className="media-overlay">
-                  <div className="overlay-actions">
-                    {isAuthenticated ? (
-                      <>
-                        <button 
-                          className="media-action-btn play-btn"
-                          onClick={(e) => { e.stopPropagation(); setActiveMedia(item); }}
-                          title="Play"
-                        >▶</button>
-                        <button 
-                          className="media-action-btn download-btn" 
-                          onClick={(e) => { e.stopPropagation(); handleDownload(item); }}
-                          title="Download"
-                        >
-                          <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-                        </button>
-                      </>
-                    ) : (
+          {!isAuthenticated ? (
+            // Logged out: show 3 blurred placeholder cards
+            Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="media-card card-preview" onClick={() => setShowModal(true)}>
+                <div className="media-preview">
+                  <div className="media-thumb-icon">
+                    <svg viewBox="0 0 24 24" width="40" height="40" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" style={{opacity:0.3}}>
+                      <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>
+                    </svg>
+                  </div>
+                  <div className="media-overlay">
+                    <div className="overlay-actions">
                       <button className="media-action-btn locked" onClick={() => setShowModal(true)}>🔒</button>
-                    )}
+                    </div>
+                  </div>
+                </div>
+                <div className="media-info">
+                  <div className="media-title" style={{filter:'blur(6px)'}}>Capture title here</div>
+                  <div className="media-meta" style={{filter:'blur(4px)'}}>
+                    <span>Just now · 0 MB</span>
+                    <span className="tag image">image</span>
                   </div>
                 </div>
               </div>
-              <div className="media-info">
-                <div className="media-title">
-                  {item.title}
-                  <span className="file-ext">{item.ext}</span>
+            ))
+          ) : loadingCaptures ? (
+            // Loading state
+            <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: '60px 0', color: '#94a3b8' }}>
+              <div style={{ fontSize: '32px', marginBottom: '12px' }}>⏳</div>
+              <p>Loading your captures...</p>
+            </div>
+          ) : filteredCaptures.length === 0 ? (
+            // Empty state
+            <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: '60px 0', color: '#94a3b8' }}>
+              <div style={{ fontSize: '40px', marginBottom: '12px' }}>📭</div>
+              <p style={{ marginBottom: '6px' }}>No captures yet.</p>
+              <p style={{ fontSize: '13px' }}>Use the Chrome extension to record or take a screenshot — it'll show up here automatically.</p>
+            </div>
+          ) : (
+            // Real captures
+            filteredCaptures.map(item => (
+              <div
+                key={item.id}
+                className="media-card"
+                onClick={(e) => {
+                  if (e.target.closest('.media-action-btn')) return;
+                  setActiveMedia(item);
+                }}
+              >
+                <div className="media-preview">
+                  {/* Show real thumbnail for images */}
+                  {item.type === 'image' && item.src ? (
+                    <img
+                      src={item.src}
+                      style={{ width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', top: 0, left: 0 }}
+                      alt={item.title}
+                      onError={e => { e.target.style.display = 'none'; }}
+                    />
+                  ) : (
+                    <div className="media-thumb-icon">
+                      <svg viewBox="0 0 24 24" width="40" height="40" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" style={{opacity:0.5}}>
+                        <rect x="2" y="2" width="20" height="20" rx="2.18"/><line x1="7" y1="2" x2="7" y2="22"/><line x1="17" y1="2" x2="17" y2="22"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="2" y1="7" x2="7" y2="7"/><line x1="2" y1="17" x2="7" y2="17"/><line x1="17" y1="17" x2="22" y2="17"/><line x1="17" y1="7" x2="22" y2="7"/>
+                      </svg>
+                    </div>
+                  )}
+                  {item.duration && <div className="duration-badge">{item.duration}</div>}
+                  <div className="media-overlay">
+                    <div className="overlay-actions">
+                      <button
+                        className="media-action-btn play-btn"
+                        onClick={(e) => { e.stopPropagation(); setActiveMedia(item); }}
+                        title="Preview"
+                      >▶</button>
+                      <button
+                        className="media-action-btn download-btn"
+                        onClick={(e) => { e.stopPropagation(); window.open(item.driveUrl, '_blank'); }}
+                        title="Open in Drive"
+                      >
+                        <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
                 </div>
-                <div className="media-meta">
-                  <span>{item.date} · {item.size}</span>
-                  <span className={`tag ${item.type}`}>{item.type}</span>
+                <div className="media-info">
+                  <div className="media-title">
+                    {item.title}
+                    <span className="file-ext">{item.ext}</span>
+                  </div>
+                  <div className="media-meta">
+                    <span>
+                      {item.date ? new Date(item.date).toLocaleDateString() : 'Just now'} · {item.size}
+                    </span>
+                    <span className={`tag ${item.type}`}>{item.type}</span>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            ))
+          )}
         </section>
 
-        {/* CTA banner at bottom for logged out users */}
+        {/* CTA banner — logged out only */}
         {!isAuthenticated && (
           <div className="cta-banner">
             <div>
@@ -431,6 +523,7 @@ export default function App() {
             <button className="btn-primary" onClick={() => setShowModal(true)}>Sign in with Google →</button>
           </div>
         )}
+
       </main>
     </div>
   );

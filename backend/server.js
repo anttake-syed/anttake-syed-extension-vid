@@ -129,7 +129,8 @@ app.get('/auth/callback', async (req, res) => {
         email: userInfo.email,
         picture: userInfo.picture,
         access_token: tokens.access_token,
-        refresh_token: tokens.refresh_token
+        refresh_token: tokens.refresh_token,
+        expiry_date: tokens.expiry_date
       },
       process.env.JWT_SECRET,
       { expiresIn: '7d' }
@@ -243,7 +244,8 @@ app.get('/stats', requireAuth, async (req, res) => {
         );
         userOauth2Client.setCredentials({
           access_token: req.user.access_token,
-          refresh_token: req.user.refresh_token
+          refresh_token: req.user.refresh_token,
+          expiry_date: req.user.expiry_date
         });
         const drive = google.drive({ version: 'v3', auth: userOauth2Client });
         const aboutRes = await drive.about.get({ fields: 'storageQuota' });
@@ -304,7 +306,8 @@ app.post('/upload', requireAuth, upload.single('file'), async (req, res) => {
         );
         userOauth2Client.setCredentials({
           access_token: req.user.access_token,
-          refresh_token: req.user.refresh_token
+          refresh_token: req.user.refresh_token,
+          expiry_date: req.user.expiry_date
         });
 
         const drive = google.drive({ version: 'v3', auth: userOauth2Client });
@@ -323,8 +326,8 @@ app.post('/upload', requireAuth, upload.single('file'), async (req, res) => {
         driveSuccess = true;
         console.log(`☁️  Saved to Google Drive for ${req.user.email}`);
       } catch (driveErr) {
-        console.error('Google Drive upload error:', driveErr.message);
-        return res.status(500).json({ error: 'Google Drive Upload Failed', detail: driveErr.message });
+        console.error('Google Drive upload error, falling back to local DB:', driveErr.message);
+        storagePreference = 'local';
       }
     }
 
@@ -410,7 +413,7 @@ app.get('/captures/:id/file', async (req, res) => {
 app.post('/captures/:id/sync-to-drive', requireAuth, async (req, res) => {
   try {
     if (!req.user.access_token) return res.status(401).json({ error: 'No Google token' });
-    
+
     const record = await prisma.capture.findUnique({
       where: { id: parseInt(req.params.id, 10), email: req.user.email }
     });
@@ -424,7 +427,8 @@ app.post('/captures/:id/sync-to-drive', requireAuth, async (req, res) => {
     );
     userOauth2Client.setCredentials({
       access_token: req.user.access_token,
-      refresh_token: req.user.refresh_token
+      refresh_token: req.user.refresh_token,
+      expiry_date: req.user.expiry_date
     });
 
     const drive = google.drive({ version: 'v3', auth: userOauth2Client });
@@ -459,7 +463,7 @@ app.post('/captures/:id/sync-to-drive', requireAuth, async (req, res) => {
 app.post('/captures/:id/sync-to-local', requireAuth, async (req, res) => {
   try {
     if (!req.user.access_token) return res.status(401).json({ error: 'No Google token' });
-    
+
     const record = await prisma.capture.findUnique({
       where: { id: parseInt(req.params.id, 10), email: req.user.email }
     });
@@ -477,11 +481,12 @@ app.post('/captures/:id/sync-to-local', requireAuth, async (req, res) => {
     );
     userOauth2Client.setCredentials({
       access_token: req.user.access_token,
-      refresh_token: req.user.refresh_token
+      refresh_token: req.user.refresh_token,
+      expiry_date: req.user.expiry_date
     });
 
     const drive = google.drive({ version: 'v3', auth: userOauth2Client });
-    
+
     const response = await drive.files.get(
       { fileId: fileId, alt: 'media' },
       { responseType: 'arraybuffer' }
@@ -525,7 +530,7 @@ app.post('/captures/:id/remove-local', requireAuth, async (req, res) => {
 app.post('/captures/:id/remove-drive', requireAuth, async (req, res) => {
   try {
     if (!req.user.access_token) return res.status(401).json({ error: 'No Google token' });
-    
+
     const record = await prisma.capture.findUnique({
       where: { id: parseInt(req.params.id, 10), email: req.user.email }
     });
@@ -544,11 +549,12 @@ app.post('/captures/:id/remove-drive', requireAuth, async (req, res) => {
     );
     userOauth2Client.setCredentials({
       access_token: req.user.access_token,
-      refresh_token: req.user.refresh_token
+      refresh_token: req.user.refresh_token,
+      expiry_date: req.user.expiry_date
     });
 
     const drive = google.drive({ version: 'v3', auth: userOauth2Client });
-    
+
     // Delete from Google Drive
     await drive.files.delete({ fileId: fileId });
 
@@ -596,6 +602,36 @@ app.delete('/account', requireAuth, async (req, res) => {
   } catch (err) {
     console.error('Delete account error:', err);
     res.status(500).json({ error: 'Failed to delete account' });
+  }
+});
+
+// ── Submit Feedback ───────────────────────────────────────────────────────────
+app.post('/feedback', requireAuth, async (req, res) => {
+  const { message } = req.body;
+  if (!message || !message.trim()) {
+    return res.status(400).json({ error: 'Feedback message is required' });
+  }
+  try {
+    const feedback = await prisma.feedback.create({
+      data: { email: req.user.email, message: message.trim() },
+    });
+    console.log(`💬 Feedback received from ${req.user.email}`);
+    res.json({ success: true, id: feedback.id });
+  } catch (err) {
+    console.error('Feedback error:', err);
+    res.status(500).json({ error: 'Failed to save feedback' });
+  }
+});
+
+// ── View All Feedback ─────────────────────────────────────────────────────────
+app.get('/feedback', requireAuth, async (req, res) => {
+  try {
+    const feedbacks = await prisma.feedback.findMany({
+      orderBy: { createdAt: 'desc' },
+    });
+    res.json({ feedbacks });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch feedback' });
   }
 });
 

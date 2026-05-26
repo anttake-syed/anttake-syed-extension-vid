@@ -136,8 +136,8 @@ document.addEventListener('DOMContentLoaded', () => {
       profileContainer.style.display = 'none';
       
       if (statusDot) statusDot.style.background = '#64748b'; // Gray/Offline
-      if (statusText) statusText.textContent = 'Offline (Pending Sync)';
-      if (storageInfo) storageInfo.textContent = 'Local Sync Only';
+      if (statusText) statusText.textContent = 'Please sign in to sync with Web Dashboard';
+      if (storageInfo) storageInfo.textContent = 'Local DB Only';
     }
   }
 

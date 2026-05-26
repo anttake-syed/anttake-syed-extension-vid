@@ -84,12 +84,12 @@ body {
 }
 
 .nav-item:hover {
-  background: var(--glass);
+  background: #1e293b;
   color: var(--text-main);
 }
 
 .nav-item.active {
-  background: rgba(99, 102, 241, 0.1);
+  background: rgba(99, 102, 241, 0.15);
   color: var(--primary);
 }
 
@@ -309,6 +309,13 @@ body {
   padding: 8px;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
   z-index: 100;
+  transform-origin: top right;
+  animation: dropdownSlide 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes dropdownSlide {
+  from { opacity: 0; transform: translateY(-8px) scale(0.95); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 .dropdown-header {

@@ -1,9 +1,14 @@
-// background.js
+// background.js — AntCapture
+// Flow: screenshot/video → upload directly to backend (Prisma/SQLite) → show on Web UI
+// No local machine downloads. IndexedDB is only used as a fallback queue when offline or not logged in.
+
 import {
   saveMediaLocally,
   getPendingUploads,
   deleteLocalMedia,
 } from "./storage.js";
+
+const BACKEND_URL = 'http://localhost:3001';
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === 'START_RECORDING') {
@@ -15,18 +20,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   } else if (message.action === 'TAKE_SCREENSHOT') {
     handleTakeScreenshot(message, sendResponse);
     return true;
-  } else if (message.action === 'OPEN_DOWNLOAD_TAB') {
-    chrome.tabs.create({ url: `download.html?id=${message.id}`, active: true });
-    chrome.storage.local.get(['captureCount'], (result) => {
-      chrome.storage.local.set({ captureCount: (result.captureCount || 0) + 1 });
-    });
+  } else if (message.action === 'VIDEO_BLOB_READY') {
+    // Offscreen has finished recording — upload the blob to the backend
+    handleVideoBlobReady(message, sendResponse);
     return true;
   } else if (message.action === 'EXTERNAL_STOP_RECORDING') {
     chrome.storage.local.set({ isRecording: false });
-    return true;
-  } else if (message.action === 'VIDEO_SAVED_LOCALLY') {
-    // Offscreen finished saving the video blob — now sync it
-    checkAndSync();
     return true;
   } else if (message.action === 'GET_USER') {
     chrome.storage.local.get(['user'], (result) => {
@@ -38,11 +37,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       sendResponse({ success: true });
     });
     return true;
-  } else if (message.action === 'OPEN_POPUP') {
-  chrome.action.openPopup();
-  sendResponse({ success: true });
-  return true;
-}
+  }
 });
 
 // --- Auth Listener ---
@@ -65,8 +60,8 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
         chrome.storage.local.set({ user: userData }, () => {
           console.log('✨ User authenticated in extension:', userData.email);
           setTimeout(() => chrome.tabs.remove(tabId), 1500);
-          // Sync any captures that were taken before login
-          checkAndSync();
+          // Sync any offline-queued captures
+          syncPendingUploads();
         });
       }
     } catch (e) {
@@ -74,6 +69,8 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     }
   }
 });
+
+// --- Recording Handlers ---
 
 async function handleStartRecording(message, sendResponse) {
   try {
@@ -99,35 +96,81 @@ async function handleStopRecording(message, sendResponse) {
   }
 }
 
+// --- Screenshot: take it and upload directly to backend ---
 async function handleTakeScreenshot(message, sendResponse) {
   try {
     const tabs = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
-    const windowId = tabs.length > 0 ? tabs[0].windowId : chrome.windows.WINDOW_ID_CURRENT;
-    const dataUrl = await chrome.tabs.captureVisibleTab(windowId, { format: 'png' });
+    const tab = tabs[0];
 
-    const response = await fetch(dataUrl);
-    const blob = await response.blob();
+    // Chrome blocks screenshots on chrome://, extension pages, and new tab pages
+    if (!tab || !tab.url ||
+        tab.url.startsWith('chrome://') ||
+        tab.url.startsWith('chrome-extension://') ||
+        tab.url === 'about:blank' ||
+        tab.url === 'about:newtab') {
+      sendResponse({ success: false, error: 'Cannot screenshot this page. Navigate to a real website first.' });
+      return;
+    }
 
-    // Save to IndexedDB
-    await saveMediaLocally(blob, 'image');
+    const dataUrl = await chrome.tabs.captureVisibleTab(tab.windowId, { format: 'png' });
+    const blob = dataURItoBlob(dataUrl);
 
-    // Save locally to computer (unchanged)
-    chrome.downloads.download({
-      url: dataUrl,
-      filename: `screenshot-${Date.now()}.png`
-    });
-
-    chrome.storage.local.get(['captureCount'], (result) => {
-      chrome.storage.local.set({ captureCount: (result.captureCount || 0) + 1 });
-    });
-
-    // Immediately try to sync to backend
-    checkAndSync();
-
-    sendResponse({ success: true, dataUrl });
+    const { user } = await chrome.storage.local.get(['user']);
+    if (user && user.jwt && navigator.onLine) {
+      try {
+        await uploadToBackend(blob, 'image', user.jwt);
+        console.log('✅ Screenshot uploaded to backend (Prisma DB)');
+        chrome.storage.local.get(['captureCount'], (result) => {
+          chrome.storage.local.set({ captureCount: (result.captureCount || 0) + 1 });
+        });
+        sendResponse({ success: true, dataUrl });
+      } catch (uploadErr) {
+        console.error('Upload failed, saving locally:', uploadErr.message);
+        await saveMediaLocally(blob, 'image');
+        sendResponse({ success: true, dataUrl, queued: true, warning: uploadErr.message });
+      }
+    } else {
+      console.log('Not logged in or offline — queuing screenshot');
+      await saveMediaLocally(blob, 'image');
+      sendResponse({ success: true, dataUrl, queued: true });
+    }
   } catch (error) {
     console.error('Screenshot failed:', error);
     sendResponse({ success: false, error: error.message });
+  }
+}
+
+// --- Video: offscreen sends the blob here, we upload to backend ---
+async function handleVideoBlobReady(message, sendResponse) {
+  try {
+    const { blobDataUrl, mimeType } = message;
+
+    // Convert data URL back to blob
+    const fetchRes = await fetch(blobDataUrl);
+    const blob = await fetchRes.blob();
+
+    const { user } = await chrome.storage.local.get(['user']);
+    if (user && user.jwt && navigator.onLine) {
+      try {
+        await uploadToBackend(blob, 'video', user.jwt);
+        console.log('✅ Video uploaded to backend');
+        chrome.storage.local.get(['captureCount'], (result) => {
+          chrome.storage.local.set({ captureCount: (result.captureCount || 0) + 1 });
+        });
+      } catch (uploadErr) {
+        console.error('Direct upload failed, queueing for later:', uploadErr.message);
+        await saveMediaLocally(blob, 'video');
+        if (sendResponse) sendResponse({ success: true, queued: true, warning: uploadErr.message });
+        return;
+      }
+    } else {
+      console.log('Not logged in or offline — queuing video');
+      await saveMediaLocally(blob, 'video');
+    }
+    if (sendResponse) sendResponse({ success: true });
+  } catch (error) {
+    console.error('Video upload failed:', error);
+    if (sendResponse) sendResponse({ success: false, error: error.message });
   }
 }
 
@@ -140,12 +183,12 @@ async function ensureOffscreen() {
   });
 }
 
-// --- Sync Manager ---
-chrome.runtime.onStartup.addListener(checkAndSync);
-chrome.runtime.onInstalled.addListener(checkAndSync);
-self.addEventListener("online", checkAndSync);
+// --- Offline Sync: upload anything queued while offline/logged-out ---
+chrome.runtime.onStartup.addListener(syncPendingUploads);
+chrome.runtime.onInstalled.addListener(syncPendingUploads);
+self.addEventListener("online", syncPendingUploads);
 
-async function checkAndSync() {
+async function syncPendingUploads() {
   if (!navigator.onLine) return;
 
   const { user } = await chrome.storage.local.get(['user']);
@@ -166,8 +209,7 @@ async function checkAndSync() {
       await deleteLocalMedia(item.id);
     } catch (error) {
       console.error(`Sync failed for ${item.id}:`, error.message);
-      // Stop trying if server is down — don't burn through all items
-      break;
+      break; // Don't keep trying if server is down
     }
   }
 }
@@ -180,16 +222,34 @@ async function uploadToBackend(blob, type, jwt) {
     `capture-${Date.now()}.${type === 'video' ? 'webm' : 'png'}`
   );
 
-  const response = await fetch('http://localhost:3001/upload', {
+  const response = await fetch(`${BACKEND_URL}/upload`, {
     method: 'POST',
     headers: { 'Authorization': `Bearer ${jwt}` },
     body: formData,
   });
 
   if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`Upload failed: ${response.status} - ${text}`);
+    let errorMsg = `Upload failed: ${response.status}`;
+    try {
+      const errorData = await response.json();
+      errorMsg = errorData.detail || errorData.error || errorMsg;
+    } catch (e) {
+      errorMsg += ` - ${await response.text()}`;
+    }
+    throw new Error(errorMsg);
   }
 
   return response.json();
+}
+
+// Convert dataUrl to Blob without using fetch() (fetch on data: fails in MV3 service workers)
+function dataURItoBlob(dataURI) {
+  const byteString = atob(dataURI.split(',')[1]);
+  const mimeString = dataURI.split(',')[0].split(':')[1].split(';')[0];
+  const ab = new ArrayBuffer(byteString.length);
+  const ia = new Uint8Array(ab);
+  for (let i = 0; i < byteString.length; i++) {
+    ia[i] = byteString.charCodeAt(i);
+  }
+  return new Blob([ab], {type: mimeString});
 }

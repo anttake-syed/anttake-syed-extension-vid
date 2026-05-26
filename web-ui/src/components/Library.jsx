@@ -94,9 +94,20 @@ function MediaCard({ item, onOpen, viewMode }) {
         <div style={{ position: 'absolute', top: '8px', left: '8px', background: 'rgba(0,0,0,0.6)', borderRadius: '6px', padding: '2px 8px', fontSize: '11px', fontWeight: 600, color: item.type === 'video' ? '#a5b4fc' : '#6ee7b7' }}>
           {item.type === 'video' ? 'Video' : 'Screenshot'}
         </div>
-        {item.storageLocation === 'drive' && (
-          <div style={{ position: 'absolute', top: '8px', right: '8px' }}><DriveLogoSVG size={14} /></div>
-        )}
+        
+        {/* Storage badges */}
+        <div style={{ position: 'absolute', top: '8px', right: '8px', display: 'flex', gap: '4px' }}>
+          {(item.storageLocation === 'local' || item.storageLocation === 'both') && (
+            <div style={{ background: 'rgba(0,0,0,0.6)', borderRadius: '6px', padding: '4px', display: 'flex', alignItems: 'center' }} title="Saved locally">
+              <span className="material-symbols-rounded" style={{ fontSize: '14px', color: '#818cf8' }}>hard_drive</span>
+            </div>
+          )}
+          {(item.storageLocation === 'drive' || item.storageLocation === 'both') && (
+            <div style={{ background: 'rgba(0,0,0,0.6)', borderRadius: '6px', padding: '4px', display: 'flex', alignItems: 'center' }} title="Saved in Google Drive">
+              <DriveLogoSVG size={14} />
+            </div>
+          )}
+        </div>
       </div>
       {/* Footer */}
       <div style={{ padding: '10px 12px' }}>

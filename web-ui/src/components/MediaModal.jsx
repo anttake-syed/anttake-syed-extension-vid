@@ -102,14 +102,25 @@ export default function MediaModal({ item, onClose, user, onSyncSuccess }) {
         {/* Media */}
         <div style={{ padding: '20px', display: 'flex', justifyContent: 'center', alignItems: 'center', background: '#000', minHeight: '300px' }}>
           {item.storageLocation === 'drive' ? (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px' }}>
-              <div style={{ fontSize: '64px' }}>☁️</div>
-              <div style={{ color: '#94a3b8', fontSize: '14px' }}>This file is stored exclusively in Google Drive.</div>
-              <a href={item.driveUrl} target="_blank" rel="noopener noreferrer" className="btn-primary" style={{ textDecoration: 'none' }}>
-                Open in Google Drive ↗
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '18px' }}>
+              <svg viewBox="0 0 87.3 78" width="64" height="64" xmlns="http://www.w3.org/2000/svg">
+                <path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8H.97c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/>
+                <path d="M43.65 25 29.9 1.2C28.55 2 27.4 3.1 26.6 4.5L1.2 48.4C.4 49.8 0 51.35 0 52.9h27.45z" fill="#00ac47"/>
+                <path d="M73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5H59.85l5.65 9.5z" fill="#ea4335"/>
+                <path d="M43.65 25 57.4 1.2C56.05.4 54.5 0 52.9 0H34.4c-1.55 0-3.1.45-4.5 1.2z" fill="#00832d"/>
+                <path d="M59.85 52.9h27.45c0-1.55-.4-3.1-1.2-4.5L60.7 4.5C59.9 3.1 58.75 2 57.4 1.2L43.65 25 59.85 52.9z" fill="#2684fc"/>
+                <path d="M27.45 52.9H0l13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2L59.85 52.9z" fill="#ffba00"/>
+              </svg>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ color: '#f8fafc', fontSize: '15px', fontWeight: '600', marginBottom: '6px' }}>Private image on Drive</div>
+                <div style={{ color: '#64748b', fontSize: '13px' }}>Google restricts direct preview of private Drive files for your security.</div>
+              </div>
+              <a href={item.driveUrl} target="_blank" rel="noopener noreferrer" className="btn-primary" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span className="material-symbols-rounded" style={{ fontSize: '18px' }}>open_in_new</span>
+                Open in Google Drive
               </a>
-              <div style={{ color: '#64748b', fontSize: '12px', marginTop: '10px' }}>
-                Tip: Click "⬇️ Save to Local DB" above to enable native preview.
+              <div style={{ color: '#475569', fontSize: '12px' }}>
+                Tip: Click "⬇️ Save to Local DB" above to enable native preview inside AntCapture.
               </div>
             </div>
           ) : item.type === 'video' ? (

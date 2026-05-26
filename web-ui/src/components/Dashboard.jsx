@@ -35,11 +35,25 @@ export default function Dashboard({
       <section className="stats-row">
         {stats.map((s) => (
           <div key={s.label} className={`stat-card ${!isAuthenticated ? 'blurred' : ''}`} onClick={() => !isAuthenticated && onSignIn()}>
-            <div className="stat-icon">{s.icon}</div>
+            <div className="stat-icon">
+              {s.icon === 'drive' ? (
+                /* Official Google Drive colour logo SVG */
+                <svg viewBox="0 0 87.3 78" width="28" height="28" xmlns="http://www.w3.org/2000/svg">
+                  <path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8H.97c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/>
+                  <path d="M43.65 25 29.9 1.2C28.55 2 27.4 3.1 26.6 4.5L1.2 48.4C.4 49.8 0 51.35 0 52.9h27.45z" fill="#00ac47"/>
+                  <path d="M73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5H59.85l5.65 9.5z" fill="#ea4335"/>
+                  <path d="M43.65 25 57.4 1.2C56.05.4 54.5 0 52.9 0H34.4c-1.55 0-3.1.45-4.5 1.2z" fill="#00832d"/>
+                  <path d="M59.85 52.9h27.45c0-1.55-.4-3.1-1.2-4.5L60.7 4.5C59.9 3.1 58.75 2 57.4 1.2L43.65 25 59.85 52.9z" fill="#2684fc"/>
+                  <path d="M27.45 52.9H0l13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2L59.85 52.9z" fill="#ffba00"/>
+                </svg>
+              ) : (
+                <span className="material-symbols-rounded" style={{ fontSize: '28px' }}>{s.icon}</span>
+              )}
+            </div>
             <div className="stat-value">{isAuthenticated ? s.value : '—'}</div>
             <div className="stat-label">{s.label}</div>
             {isAuthenticated && s.sub && <div style={{ fontSize: '11px', color: '#475569', marginTop: '4px' }}>{s.sub}</div>}
-            {!isAuthenticated && <div className="lock-overlay"><span>🔒 Sign in to view</span></div>}
+            {!isAuthenticated && <div className="lock-overlay"><span className="material-symbols-rounded" style={{ fontSize: '18px', verticalAlign: 'middle' }}>lock</span> Sign in to view</div>}
           </div>
         ))}
       </section>
@@ -105,9 +119,16 @@ export default function Dashboard({
             <div key={item.id} className="media-card" onClick={(e) => { if (e.target.closest('.media-action-btn')) return; onOpenMedia(item); }}>
               <div className="media-preview">
                 {item.storageLocation === 'drive' ? (
-                  <div className="media-thumb-icon" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
-                    <span style={{ fontSize: '36px' }}>☁️</span>
-                    <span style={{ fontSize: '11px', fontWeight: '600', color: '#94a3b8', letterSpacing: '0.05em', textTransform: 'uppercase' }}>Drive File</span>
+                  <div className="media-thumb-icon" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
+                    <svg viewBox="0 0 87.3 78" width="36" height="36" xmlns="http://www.w3.org/2000/svg">
+                      <path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8H.97c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/>
+                      <path d="M43.65 25 29.9 1.2C28.55 2 27.4 3.1 26.6 4.5L1.2 48.4C.4 49.8 0 51.35 0 52.9h27.45z" fill="#00ac47"/>
+                      <path d="M73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5H59.85l5.65 9.5z" fill="#ea4335"/>
+                      <path d="M43.65 25 57.4 1.2C56.05.4 54.5 0 52.9 0H34.4c-1.55 0-3.1.45-4.5 1.2z" fill="#00832d"/>
+                      <path d="M59.85 52.9h27.45c0-1.55-.4-3.1-1.2-4.5L60.7 4.5C59.9 3.1 58.75 2 57.4 1.2L43.65 25 59.85 52.9z" fill="#2684fc"/>
+                      <path d="M27.45 52.9H0l13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2L59.85 52.9z" fill="#ffba00"/>
+                    </svg>
+                    <span style={{ fontSize: '10px', fontWeight: '600', color: '#64748b', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Private on Drive</span>
                   </div>
                 ) : item.type === 'image' && item.src ? (
                   <img src={item.src} style={{ width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', top: 0, left: 0 }} alt={item.title} onError={(e) => { e.target.style.display = 'none'; }} />

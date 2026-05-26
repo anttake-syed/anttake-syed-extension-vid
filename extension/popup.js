@@ -1,3 +1,8 @@
+// ── Configuration ─────────────────────────────────────────────────────────────
+// Change this to your deployed domain when going to production.
+const WEB_UI_URL = 'http://localhost:5173';
+// ──────────────────────────────────────────────────────────────────────────────
+
 document.addEventListener('DOMContentLoaded', () => {
   const recordBtn = document.getElementById('recordBtn');
   const screenshotBtn = document.getElementById('screenshotBtn');
@@ -165,32 +170,44 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // Open Dashboard — auto-login to Web UI using stored JWT
+  // Open Dashboard — smart: focus existing tab or open new one
   const openDashboardBtn = document.getElementById('openDashboardBtn');
   if (openDashboardBtn) {
     openDashboardBtn.addEventListener('click', () => {
       chrome.storage.local.get(['user'], (result) => {
-        const WEB_UI_URL = 'http://localhost:5173';
-        if (result.user?.jwt) {
-          // Pass JWT so Web UI logs in automatically
-          chrome.tabs.create({ url: `${WEB_UI_URL}?auth_data=${result.user.jwt}` });
-        } else {
-          chrome.tabs.create({ url: WEB_UI_URL });
-        }
-        window.close();
+        const targetUrl = result.user?.jwt
+          ? `${WEB_UI_URL}?auth_data=${result.user.jwt}`
+          : WEB_UI_URL;
+
+        chrome.tabs.query({ url: `${WEB_UI_URL}/*` }, (tabs) => {
+          if (tabs.length > 0) {
+            chrome.tabs.update(tabs[0].id, { active: true, url: targetUrl });
+            chrome.windows.update(tabs[0].windowId, { focused: true });
+          } else {
+            chrome.tabs.create({ url: targetUrl });
+          }
+          window.close();
+        });
       });
     });
   }
 
   settingsBtn.addEventListener('click', () => {
     chrome.storage.local.get(['user'], (result) => {
-      const WEB_UI_URL = 'http://localhost:5173';
-      if (result.user?.jwt) {
-        chrome.tabs.create({ url: `${WEB_UI_URL}?nav=Settings&auth_data=${result.user.jwt}` });
-      } else {
-        chrome.tabs.create({ url: `${WEB_UI_URL}?nav=Settings` });
-      }
-      window.close();
+      const settingsUrl = result.user?.jwt
+        ? `${WEB_UI_URL}?nav=Settings&auth_data=${result.user.jwt}`
+        : `${WEB_UI_URL}?nav=Settings`;
+
+      // Focus existing Dashboard tab if open, otherwise open new one
+      chrome.tabs.query({ url: `${WEB_UI_URL}/*` }, (tabs) => {
+        if (tabs.length > 0) {
+          chrome.tabs.update(tabs[0].id, { active: true, url: settingsUrl });
+          chrome.windows.update(tabs[0].windowId, { focused: true });
+        } else {
+          chrome.tabs.create({ url: settingsUrl });
+        }
+        window.close();
+      });
     });
   });
 });

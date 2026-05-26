@@ -3,13 +3,13 @@ const MAIN_NAV = ['Dashboard', 'My Library', 'Settings', 'Feedback'];
 const SECONDARY_NAV = ['Privacy', 'Security', 'Documentation'];
 
 const NAV_ICONS = {
-  Dashboard:     '⊞',
-  'My Library':  '🗂',
-  Settings:      '⚙️',
-  Feedback:      '💬',
-  Privacy:       '🛡️',
-  Security:      '🔒',
-  Documentation: '📖',
+  Dashboard:     'dashboard',
+  'My Library':  'photo_library',
+  Settings:      'settings',
+  Feedback:      'chat_bubble',
+  Privacy:       'shield',
+  Security:      'lock',
+  Documentation: 'article',
 };
 
 // Items that don't require login
@@ -26,12 +26,12 @@ export default function Sidebar({ activeNav, isAuthenticated, onNavClick, onSign
         else onSignIn();
       }}
     >
-      <span className="nav-icon" style={secondary ? { fontSize: '13px' } : {}}>
+      <span className="nav-icon material-symbols-rounded" style={{ fontSize: secondary ? '18px' : '20px', fontWeight: '300' }}>
         {NAV_ICONS[item]}
       </span>
       {item}
       {!isAuthenticated && !PUBLIC_ITEMS.includes(item) && (
-        <span className="nav-lock">🔒</span>
+        <span className="nav-lock material-symbols-rounded" style={{ fontSize: '14px', marginLeft: 'auto', color: '#475569' }}>lock</span>
       )}
     </li>
   );

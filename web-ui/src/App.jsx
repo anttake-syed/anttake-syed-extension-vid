@@ -100,8 +100,105 @@ function LoginModal({ onClose }) {
 }
 
 // ─── Media Player Modal ───────────────────────────────────────────────────────
-function MediaModal({ item, onClose }) {
+function MediaModal({ item, onClose, user, onSyncSuccess }) {
   if (!item) return null;
+  const [syncingDrive, setSyncingDrive] = useState(false);
+  const [syncingLocal, setSyncingLocal] = useState(false);
+  const [syncError, setSyncError] = useState(null);
+
+  const handleSyncToDrive = async (e) => {
+    e.stopPropagation();
+    if (!user?.jwt) return;
+    setSyncingDrive(true);
+    setSyncError(null);
+    try {
+      const res = await fetch(`${BACKEND_URL}/captures/${item.id}/sync-to-drive`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${user.jwt}` }
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error((data.error || 'Failed to sync to Drive') + (data.detail ? ': ' + data.detail : ''));
+      if (onSyncSuccess) onSyncSuccess();
+    } catch (err) {
+      setSyncError(err.message);
+    } finally {
+      setSyncingDrive(false);
+    }
+  };
+
+  const handleSyncToLocal = async (e) => {
+    e.stopPropagation();
+    if (!user?.jwt) return;
+    setSyncingLocal(true);
+    setSyncError(null);
+    try {
+      const res = await fetch(`${BACKEND_URL}/captures/${item.id}/sync-to-local`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${user.jwt}` }
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error((data.error || 'Failed to sync to Local DB') + (data.detail ? ': ' + data.detail : ''));
+      if (onSyncSuccess) onSyncSuccess();
+    } catch (err) {
+      setSyncError(err.message);
+    } finally {
+      setSyncingLocal(false);
+    }
+  };
+
+  const [removingLocal, setRemovingLocal] = useState(false);
+  const [removingDrive, setRemovingDrive] = useState(false);
+
+  const handleRemoveLocal = async (e) => {
+    e.stopPropagation();
+    if (!user?.jwt) return;
+    setRemovingLocal(true);
+    setSyncError(null);
+    try {
+      const res = await fetch(`${BACKEND_URL}/captures/${item.id}/remove-local`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${user.jwt}` }
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error((data.error || 'Failed to remove from Local DB') + (data.detail ? ': ' + data.detail : ''));
+      if (onSyncSuccess) onSyncSuccess();
+    } catch (err) {
+      setSyncError(err.message);
+    } finally {
+      setRemovingLocal(false);
+    }
+  };
+
+  const handleRemoveDrive = async (e) => {
+    e.stopPropagation();
+    if (!user?.jwt) return;
+    setRemovingDrive(true);
+    setSyncError(null);
+    try {
+      const res = await fetch(`${BACKEND_URL}/captures/${item.id}/remove-drive`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${user.jwt}` }
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error((data.error || 'Failed to remove from Google Drive') + (data.detail ? ': ' + data.detail : ''));
+      if (onSyncSuccess) onSyncSuccess();
+    } catch (err) {
+      setSyncError(err.message);
+    } finally {
+      setRemovingDrive(false);
+    }
+  };
+
+  const loc = item.storageLocation || 'local';
+
+  const badges = [];
+  if (loc === 'local' || loc === 'both') {
+    badges.push({ label: '🗄️ Local Database', color: '#818cf8', bg: 'rgba(99,102,241,0.1)', border: 'rgba(99,102,241,0.25)' });
+  }
+  if (loc === 'drive' || loc === 'both') {
+    badges.push({ label: '☁️ Google Drive', color: '#34d399', bg: 'rgba(52,211,153,0.1)', border: 'rgba(52,211,153,0.25)' });
+  }
+
   return (
     <div
       className="modal-overlay"
@@ -138,14 +235,83 @@ function MediaModal({ item, onClose }) {
           }}
         >
           <h2 style={{ margin: 0, fontSize: "18px", color: "#f8fafc" }}>
-            {item.title}
-            {item.ext}
+            {item.title}{item.ext}
           </h2>
-          <p style={{ margin: "4px 0 0", color: "#94a3b8", fontSize: "13px" }}>
-            {item.date ? new Date(item.date).toLocaleDateString() : ""} •{" "}
-            {item.size}
-          </p>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "8px", flexWrap: "wrap" }}>
+            <span style={{ color: "#94a3b8", fontSize: "13px" }}>
+              {item.date ? new Date(item.date).toLocaleDateString() : ""} • {item.size}
+            </span>
+            {badges.map((b) => (
+              <span key={b.label} style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "5px",
+                background: b.bg,
+                border: `1px solid ${b.border}`,
+                borderRadius: "999px",
+                padding: "3px 10px",
+                fontSize: "12px",
+                fontWeight: 600,
+                color: b.color,
+              }}>
+                {b.label}
+              </span>
+            ))}
+            {item.driveUrl && (
+              <a
+                href={item.driveUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ fontSize: "12px", color: "#60a5fa", textDecoration: "none" }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                Open in Drive ↗
+              </a>
+            )}
+            
+            {/* Sync buttons */}
+            <div style={{ marginLeft: "auto", display: "flex", gap: "8px" }}>
+              {loc === 'local' && (
+                <button
+                  onClick={handleSyncToDrive}
+                  disabled={syncingDrive}
+                  style={{ background: "#4f46e5", color: "white", border: "none", borderRadius: "4px", padding: "4px 8px", fontSize: "12px", cursor: syncingDrive ? "not-allowed" : "pointer" }}
+                >
+                  {syncingDrive ? "Syncing..." : "⬆️ Backup to Drive"}
+                </button>
+              )}
+              {loc === 'drive' && (
+                <button
+                  onClick={handleSyncToLocal}
+                  disabled={syncingLocal}
+                  style={{ background: "#4f46e5", color: "white", border: "none", borderRadius: "4px", padding: "4px 8px", fontSize: "12px", cursor: syncingLocal ? "not-allowed" : "pointer" }}
+                >
+                  {syncingLocal ? "Syncing..." : "⬇️ Save to Local DB"}
+                </button>
+              )}
+              {loc === 'both' && (
+                <>
+                  <button
+                    onClick={handleRemoveLocal}
+                    disabled={removingLocal}
+                    style={{ background: "transparent", color: "#f87171", border: "1px solid #f87171", borderRadius: "4px", padding: "3px 8px", fontSize: "12px", cursor: removingLocal ? "not-allowed" : "pointer" }}
+                  >
+                    {removingLocal ? "Removing..." : "🗑️ Remove Local"}
+                  </button>
+                  <button
+                    onClick={handleRemoveDrive}
+                    disabled={removingDrive}
+                    style={{ background: "transparent", color: "#f87171", border: "1px solid #f87171", borderRadius: "4px", padding: "3px 8px", fontSize: "12px", cursor: removingDrive ? "not-allowed" : "pointer" }}
+                  >
+                    {removingDrive ? "Removing..." : "🗑️ Remove Drive"}
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+          {syncError && <div style={{ color: "#ef4444", fontSize: "12px", marginTop: "8px" }}>Error: {syncError}</div>}
         </div>
+
         <div
           style={{
             padding: "20px",
@@ -197,6 +363,9 @@ function SettingsPanel({
   onNameUpdate,
   onDeleteAllCaptures,
   onDeleteAccount,
+  storagePreference,
+  saveStoragePreference,
+  savingPref,
 }) {
   const [newName, setNewName] = useState(user?.name || "");
   const [nameStatus, setNameStatus] = useState(null); // 'saving' | 'saved' | 'error'
@@ -511,33 +680,71 @@ function SettingsPanel({
         </div>
       </div>
 
-      {/* ── Preferences ── */}
+      {/* ── Storage Destination ── */}
       <div style={sectionStyle}>
-        <h3
-          style={{
-            margin: "0 0 20px",
-            fontSize: "16px",
-            color: "#f1f5f9",
-            fontWeight: "600",
-          }}
-        >
-          Preferences
+        <h3 style={{ margin: "0 0 6px", fontSize: "16px", color: "#f1f5f9", fontWeight: "600" }}>
+          Storage Destination
         </h3>
-        {[
-          {
-            label: "Auto-sync to Web UI",
-            sublabel:
-              "Automatically upload captures from extension to your library",
-            defaultOn: true,
-          },
-          {
-            label: "Save to local computer",
-            sublabel: "Also download captures to your device when recording",
-            defaultOn: true,
-          },
-        ].map((pref) => (
-          <PreferenceToggle key={pref.label} {...pref} />
-        ))}
+        <p style={{ margin: "0 0 20px", fontSize: "13px", color: "#64748b" }}>
+          Choose where your screenshots and recordings are saved. Changes apply to all future captures.
+        </p>
+        {savingPref && <p style={{ fontSize: "12px", color: "#818cf8", marginBottom: "12px" }}>Saving...</p>}
+        <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+          {[
+            {
+              value: "local",
+              label: "🗄️ Local Database (SQLite)",
+              desc: "Files stored on your server's local database only. Fast, works offline.",
+              color: "#818cf8",
+            },
+            {
+              value: "drive",
+              label: "☁️ Google Drive Only",
+              desc: "Files saved directly to your Google Drive. Nothing stored locally.",
+              color: "#34d399",
+            },
+          ].map((opt) => {
+            const isActive = storagePreference === opt.value;
+            return (
+              <div
+                key={opt.value}
+                onClick={() => saveStoragePreference(opt.value)}
+                style={{
+                  display: "flex",
+                  alignItems: "flex-start",
+                  gap: "14px",
+                  padding: "16px",
+                  background: isActive ? `rgba(99,102,241,0.08)` : "#1e293b",
+                  border: `1px solid ${isActive ? "rgba(99,102,241,0.4)" : "#334155"}`,
+                  borderRadius: "10px",
+                  cursor: "pointer",
+                  transition: "all 0.2s",
+                }}
+              >
+                <div style={{
+                  width: "18px",
+                  height: "18px",
+                  borderRadius: "50%",
+                  border: `2px solid ${isActive ? opt.color : "#475569"}`,
+                  background: isActive ? opt.color : "transparent",
+                  flexShrink: 0,
+                  marginTop: "2px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}>
+                  {isActive && <div style={{ width: "6px", height: "6px", borderRadius: "50%", background: "white" }} />}
+                </div>
+                <div>
+                  <div style={{ color: isActive ? "#f1f5f9" : "#94a3b8", fontWeight: "600", fontSize: "14px", marginBottom: "3px" }}>
+                    {opt.label}
+                  </div>
+                  <div style={{ color: "#475569", fontSize: "12px" }}>{opt.desc}</div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
 
       {/* ── Danger Zone ── */}
@@ -712,10 +919,49 @@ function PreferenceToggle({ label, sublabel, defaultOn }) {
     </div>
   );
 }
+// ─── Static Pages & Feedback ──────────────────────────────────────────────────
+function StaticPage({ title, content }) {
+  return (
+    <div style={{ background: "#0f172a", border: "1px solid #1e293b", borderRadius: "12px", padding: "24px", color: "#f1f5f9" }}>
+      <h2 style={{ marginTop: 0 }}>{title}</h2>
+      <div style={{ lineHeight: "1.6", color: "#cbd5e1", whiteSpace: "pre-wrap" }}>{content}</div>
+    </div>
+  );
+}
+
+function FeedbackForm() {
+  const [text, setText] = useState("");
+  const [submitted, setSubmitted] = useState(false);
+  
+  if (submitted) return <StaticPage title="Thank you!" content="Your feedback has been submitted successfully." />;
+
+  return (
+    <div style={{ background: "#0f172a", border: "1px solid #1e293b", borderRadius: "12px", padding: "24px", color: "#f1f5f9" }}>
+      <h2 style={{ marginTop: 0 }}>Submit Feedback</h2>
+      <textarea 
+        value={text} 
+        onChange={e => setText(e.target.value)}
+        placeholder="Describe the issue or feedback..."
+        style={{ width: "100%", height: "120px", background: "#1e293b", border: "1px solid #334155", borderRadius: "8px", padding: "12px", color: "white", marginBottom: "16px", outline: "none", resize: "vertical", boxSizing: "border-box" }}
+      />
+      <label style={{ display: "block", marginBottom: "16px" }}>
+        <span style={{ display: "block", marginBottom: "8px" }}>Optional Screenshot:</span>
+        <input type="file" accept="image/*" />
+      </label>
+      <button 
+        onClick={() => setSubmitted(true)}
+        style={{ background: "linear-gradient(135deg,#6366f1,#a855f7)", border: "none", color: "white", borderRadius: "8px", padding: "10px 18px", cursor: "pointer", fontWeight: "600" }}
+      >
+        Submit
+      </button>
+    </div>
+  );
+}
 
 // ─── Main App ─────────────────────────────────────────────────────────────────
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isInitializing, setIsInitializing] = useState(true);
   const [user, setUser] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
@@ -724,18 +970,23 @@ export default function App() {
   const [captures, setCaptures] = useState([]);
   const [loadingCaptures, setLoadingCaptures] = useState(false);
   const [filter, setFilter] = useState("All");
+  const [dbStats, setDbStats] = useState(null);
+  const [storagePreference, setStoragePreference] = useState('local');
+  const [savingPref, setSavingPref] = useState(false);
 
   const stats = [
-    { label: "Total Captures", value: captures.length.toString(), icon: "📁" },
+    { label: "Total Captures", value: (dbStats?.total ?? captures.length).toString(), icon: "📁" },
     {
-      label: "Storage Used",
-      value:
-        captures.length === 0
-          ? "0 MB"
-          : captures
-              .reduce((acc, c) => acc + (parseFloat(c.size) || 0), 0)
-              .toFixed(1) + " MB",
+      label: "Local Storage Used",
+      value: dbStats?.dbSizeFormatted ?? "0 B",
+      icon: "🗄️",
+      sub: dbStats ? `${dbStats.localCount} files local` : null,
+    },
+    {
+      label: "Google Drive Used",
+      value: dbStats?.appDriveFormatted ?? "0 B",
       icon: "☁️",
+      sub: dbStats ? `${dbStats.driveCount} files on Drive${dbStats.driveLimitBytes > 0 ? ` (Overall: ${dbStats.driveUsageFormatted} / ${dbStats.driveLimitFormatted})` : ''}` : null,
     },
     {
       label: "This Week",
@@ -756,8 +1007,8 @@ export default function App() {
     return true;
   });
 
-  const fetchCaptures = async (jwt) => {
-    setLoadingCaptures(true);
+  const fetchCaptures = async (jwt, background = false) => {
+    if (!background) setLoadingCaptures(true);
     try {
       const res = await fetch(`${BACKEND_URL}/captures`, {
         headers: { Authorization: `Bearer ${jwt}` },
@@ -768,9 +1019,56 @@ export default function App() {
     } catch (err) {
       console.error("Failed to fetch captures:", err);
     } finally {
-      setLoadingCaptures(false);
+      if (!background) setLoadingCaptures(false);
     }
   };
+
+  const fetchStats = async (jwt) => {
+    try {
+      const res = await fetch(`${BACKEND_URL}/stats`, {
+        headers: { Authorization: `Bearer ${jwt}` },
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      setDbStats(data);
+    } catch (err) {
+      console.error("Failed to fetch stats:", err);
+    }
+  };
+
+  const fetchSettings = async (jwt) => {
+    try {
+      const res = await fetch(`${BACKEND_URL}/settings`, {
+        headers: { Authorization: `Bearer ${jwt}` },
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      setStoragePreference(data.storagePreference || 'both');
+    } catch (err) {
+      console.error("Failed to fetch settings:", err);
+    }
+  };
+
+  const saveStoragePreference = async (pref) => {
+    const storedUser = localStorage.getItem("antcapture_user");
+    if (!storedUser) return;
+    const userData = JSON.parse(storedUser);
+    if (!userData.jwt) return;
+    setSavingPref(true);
+    try {
+      const res = await fetch(`${BACKEND_URL}/settings`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${userData.jwt}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ storagePreference: pref }),
+      });
+      if (res.ok) setStoragePreference(pref);
+    } catch (err) {
+      console.error("Failed to save setting:", err);
+    } finally {
+      setSavingPref(false);
+    }
+  };
+
 
   const processAuthData = (authData) => {
     try {
@@ -790,6 +1088,8 @@ export default function App() {
       setIsAuthenticated(true);
       setShowModal(false);
       fetchCaptures(authData);
+      fetchStats(authData);
+      fetchSettings(authData);
     } catch (e) {
       console.error("Auth parse error:", e);
     }
@@ -797,11 +1097,12 @@ export default function App() {
 
   useEffect(() => {
     const storedUser = localStorage.getItem("antcapture_user");
+    let jwtToFetch = null;
     if (storedUser) {
       const userData = JSON.parse(storedUser);
       setUser(userData);
       setIsAuthenticated(true);
-      if (userData.jwt) fetchCaptures(userData.jwt);
+      if (userData.jwt) jwtToFetch = userData.jwt;
     }
     const params = new URLSearchParams(window.location.search);
     const authData = params.get("auth_data");
@@ -812,7 +1113,13 @@ export default function App() {
         document.title,
         window.location.origin + window.location.pathname,
       );
+      jwtToFetch = authData;
+    } else if (jwtToFetch) {
+      fetchCaptures(jwtToFetch);
+      fetchStats(jwtToFetch);
+      fetchSettings(jwtToFetch);
     }
+
     const handleMessage = (event) => {
       if (event.origin !== BACKEND_URL) return;
       if (event.data?.type === "AUTH_SUCCESS" && event.data.auth_data) {
@@ -820,7 +1127,28 @@ export default function App() {
       }
     };
     window.addEventListener("message", handleMessage);
-    return () => window.removeEventListener("message", handleMessage);
+
+    // Auto-refresh polling
+    let interval;
+    const handleFocus = () => {
+      if (jwtToFetch) { fetchCaptures(jwtToFetch, true); fetchStats(jwtToFetch); }
+    };
+    if (jwtToFetch) {
+      interval = setInterval(() => {
+        fetchCaptures(jwtToFetch, true);
+        fetchStats(jwtToFetch);
+      }, 5000);
+      window.addEventListener('focus', handleFocus);
+    }
+    
+    // Done initializing
+    setTimeout(() => setIsInitializing(false), 300);
+
+    return () => {
+      window.removeEventListener("message", handleMessage);
+      if (interval) clearInterval(interval);
+      window.removeEventListener('focus', handleFocus);
+    };
   }, []);
 
   const requireAuth = (fn) => {
@@ -877,11 +1205,19 @@ export default function App() {
     handleLogout(); // Sign out after deletion
   };
 
+  if (isInitializing) {
+    return (
+      <div style={{ height: "100vh", display: "flex", justifyContent: "center", alignItems: "center", background: "#0f172a" }}>
+        <div className="btn-spinner" style={{ width: "32px", height: "32px", borderTopColor: "#6366f1", borderRightColor: "#6366f1" }}></div>
+      </div>
+    );
+  }
+
   return (
     <div className={`layout ${isAuthenticated ? "isAuthenticated" : ""}`}>
       {showModal && <LoginModal onClose={() => setShowModal(false)} />}
       {activeMedia && (
-        <MediaModal item={activeMedia} onClose={() => setActiveMedia(null)} />
+        <MediaModal item={activeMedia} onClose={() => setActiveMedia(null)} user={user} onSyncSuccess={() => { fetchCaptures(user.jwt); fetchStats(user.jwt); setActiveMedia(null); }} />
       )}
 
       {/* ── Sidebar ── */}
@@ -914,12 +1250,18 @@ export default function App() {
         </div>
         <nav>
           <ul className="nav-list">
-            {["Dashboard", "My Library", "Settings", "Cloud Connect"].map(
+            {["Dashboard", "My Library", "Settings", "Feedback", "Privacy", "Security", "Documentation"].map(
               (item) => (
                 <li
                   key={item}
                   className={`nav-item ${activeNav === item ? "active" : ""}`}
-                  onClick={() => requireAuth(() => setActiveNav(item))}
+                  onClick={() => {
+                     if (item === "Dashboard" || item === "Privacy" || item === "Security" || item === "Documentation") {
+                       setActiveNav(item);
+                     } else {
+                       requireAuth(() => setActiveNav(item));
+                     }
+                  }}
                 >
                   <span className="nav-icon">
                     {item === "Dashboard"
@@ -928,10 +1270,12 @@ export default function App() {
                         ? "🗂"
                         : item === "Settings"
                           ? "⚙"
-                          : "☁"}
+                          : item === "Feedback"
+                            ? "💬"
+                            : "📄"}
                   </span>
                   {item}
-                  {!isAuthenticated && item !== "Dashboard" && (
+                  {!isAuthenticated && item !== "Dashboard" && item !== "Privacy" && item !== "Security" && item !== "Documentation" && (
                     <span className="nav-lock">🔒</span>
                   )}
                 </li>
@@ -960,11 +1304,15 @@ export default function App() {
         {/* Header */}
         <header className="header">
           <div className="title-section">
-            <h1>{activeNav === "Settings" ? "Settings" : "Capture Library"}</h1>
+            <h1>{activeNav === "Settings" ? "Settings" : activeNav === "Feedback" ? "Feedback" : activeNav === "Privacy" ? "Privacy Policy" : activeNav === "Security" ? "Security" : activeNav === "Documentation" ? "Documentation" : "Capture Library"}</h1>
             <p>
               {activeNav === "Settings"
                 ? "Manage your account and preferences."
-                : "Your recordings and screenshots, synced across all devices."}
+                : activeNav === "Feedback" 
+                  ? "We'd love to hear from you."
+                  : activeNav === "Privacy" || activeNav === "Security" || activeNav === "Documentation" 
+                    ? "Important information about AntCapture."
+                    : "Your recordings and screenshots, synced across all devices."}
             </p>
           </div>
           <div className="header-actions">
@@ -1012,22 +1360,6 @@ export default function App() {
                     </button>
                   </div>
                 )}
-                <button
-                  className="btn-primary"
-                  onClick={() => {
-                    const EXTENSION_ID = import.meta.env.VITE_EXTENSION_ID;
-                    if (!EXTENSION_ID) {
-                      alert("Extension not configured.");
-                      return;
-                    }
-                    const a = document.createElement("a");
-                    a.href = `chrome-extension://${EXTENSION_ID}/popup.html`;
-                    a.target = "_blank";
-                    a.click();
-                  }}
-                >
-                  + New Capture
-                </button>
               </div>
             ) : (
               <>
@@ -1056,7 +1388,18 @@ export default function App() {
             onNameUpdate={handleNameUpdate}
             onDeleteAllCaptures={handleDeleteAllCaptures}
             onDeleteAccount={handleDeleteAccount}
+            storagePreference={storagePreference}
+            saveStoragePreference={saveStoragePreference}
+            savingPref={savingPref}
           />
+        ) : activeNav === "Feedback" && isAuthenticated ? (
+          <FeedbackForm />
+        ) : activeNav === "Privacy" ? (
+          <StaticPage title="Privacy Policy" content="This is the Privacy Policy for AntCapture. We do not store your data on our servers; it is stored safely in your Google Drive." />
+        ) : activeNav === "Security" ? (
+          <StaticPage title="Security" content="We use industry standard encryption and best practices. Your authentication tokens are secure." />
+        ) : activeNav === "Documentation" ? (
+          <StaticPage title="Documentation" content={"Welcome to AntCapture!\n\n1. Click 'Record Screen' to start recording.\n2. Click 'Take Screenshot' to capture your screen.\n3. Everything syncs to Google Drive automatically."} />
         ) : (
           <>
             {/* Hero — logged out only */}
@@ -1099,6 +1442,9 @@ export default function App() {
                     {isAuthenticated ? s.value : "—"}
                   </div>
                   <div className="stat-label">{s.label}</div>
+                  {isAuthenticated && s.sub && (
+                    <div style={{ fontSize: "11px", color: "#475569", marginTop: "4px" }}>{s.sub}</div>
+                  )}
                   {!isAuthenticated && (
                     <div className="lock-overlay">
                       <span>🔒 Sign in to view</span>
@@ -1245,33 +1591,32 @@ export default function App() {
                             e.target.style.display = "none";
                           }}
                         />
+                      ) : item.type === "video" && item.src ? (
+                        <video
+                          src={item.src}
+                          style={{
+                            width: "100%",
+                            height: "100%",
+                            objectFit: "cover",
+                            position: "absolute",
+                            top: 0,
+                            left: 0,
+                          }}
+                          muted
+                          loop
+                          onMouseOver={(e) => e.target.play()}
+                          onMouseOut={(e) => {
+                            e.target.pause();
+                            e.target.currentTime = 0;
+                          }}
+                        />
                       ) : (
                         <div className="media-thumb-icon">
-                          <svg
-                            viewBox="0 0 24 24"
-                            width="40"
-                            height="40"
-                            stroke="currentColor"
-                            strokeWidth="1.5"
-                            fill="none"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            style={{ opacity: 0.5 }}
-                          >
-                            <rect
-                              x="2"
-                              y="2"
-                              width="20"
-                              height="20"
-                              rx="2.18"
-                            />
-                            <line x1="7" y1="2" x2="7" y2="22" />
-                            <line x1="17" y1="2" x2="17" y2="22" />
-                            <line x1="2" y1="12" x2="22" y2="12" />
-                            <line x1="2" y1="7" x2="7" y2="7" />
-                            <line x1="2" y1="17" x2="7" y2="17" />
-                            <line x1="17" y1="17" x2="22" y2="17" />
-                            <line x1="17" y1="7" x2="22" y2="7" />
+                          {/* Generic Icon Fallback */}
+                          <svg viewBox="0 0 24 24" width="40" height="40" stroke="currentColor" strokeWidth="1.5" fill="none" style={{ opacity: 0.5 }}>
+                            <rect x="2" y="2" width="20" height="20" rx="2.18" />
+                            <circle cx="8.5" cy="8.5" r="1.5" />
+                            <polyline points="21 15 16 10 5 21" />
                           </svg>
                         </div>
                       )}
@@ -1280,39 +1625,18 @@ export default function App() {
                       )}
                       <div className="media-overlay">
                         <div className="overlay-actions">
-                          <button
-                            className="media-action-btn play-btn"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setActiveMedia(item);
-                            }}
-                            title="Preview"
-                          >
-                            ▶
-                          </button>
-                          <button
-                            className="media-action-btn download-btn"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              window.open(item.src, "_blank");
-                            }}
-                            title="Download"
-                          >
-                            <svg
-                              viewBox="0 0 24 24"
-                              width="16"
-                              height="16"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              fill="none"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
+                          {item.type === "video" && (
+                            <button
+                              className="media-action-btn play-btn"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setActiveMedia(item);
+                              }}
+                              title="Preview"
                             >
-                              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                              <polyline points="7 10 12 15 17 10" />
-                              <line x1="12" y1="15" x2="12" y2="3" />
-                            </svg>
-                          </button>
+                              ▶
+                            </button>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -1337,13 +1661,12 @@ export default function App() {
             </section>
 
             {!isAuthenticated && (
-              <div className="cta-banner">
+              <div className="cta-banner" style={{ background: "rgba(255, 171, 0, 0.1)", border: "1px solid rgba(255, 171, 0, 0.2)" }}>
                 <div>
-                  <strong>Ready to sync your captures?</strong>
-                  <span>
+                  <strong style={{ color: "#ffab00" }}>⚠️ Extension Sync Required</strong>
+                  <span style={{ color: "#94a3b8" }}>
                     {" "}
-                    Sign in to unlock your cloud library, Drive backup, and
-                    more.
+                    Make sure you log into the AntCapture Chrome Extension with the same email to sync your recordings here.
                   </span>
                 </div>
                 <button

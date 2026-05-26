@@ -63,13 +63,25 @@ document.addEventListener('DOMContentLoaded', () => {
     chrome.runtime.sendMessage({ action: 'TAKE_SCREENSHOT' }, (response) => {
       screenshotBtn.disabled = false;
       if (chrome.runtime.lastError || !response?.success) {
+        const errMsg = response?.error || chrome.runtime.lastError?.message || 'Unknown error';
         screenshotBtn.querySelector(".btn-text").textContent = "Failed!";
+        screenshotBtn.title = errMsg;
+      } else if (response.queued) {
+        if (response.warning) {
+          screenshotBtn.querySelector(".btn-text").textContent = "Drive Error!";
+          screenshotBtn.title = response.warning;
+          // Show alert so user doesn't miss the Google Drive API error
+          alert("Could not save to Drive. Saved locally instead.\n\nError: " + response.warning);
+        } else {
+          screenshotBtn.querySelector(".btn-text").textContent = "Saved locally!";
+        }
       } else {
-        screenshotBtn.querySelector(".btn-text").textContent = "Saved!";
+        screenshotBtn.querySelector(".btn-text").textContent = "Saved to cloud!";
       }
       setTimeout(() => {
         screenshotBtn.querySelector(".btn-text").textContent = originalText;
-      }, 1500);
+        screenshotBtn.title = "";
+      }, 2000);
     });
   });
 

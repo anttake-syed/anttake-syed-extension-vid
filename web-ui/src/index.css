@@ -58,14 +58,8 @@ body {
   display: flex;
   align-items: center;
   gap: 10px;
-  font-size: 20px;
-  font-weight: 700;
-  background: linear-gradient(135deg, var(--primary), var(--accent-purple));
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-  letter-spacing: -0.3px;
   padding: 4px 8px;
+  margin-bottom: 8px;
 }
 
 .nav-list {
@@ -156,11 +150,28 @@ body {
   cursor: pointer;
   transition: all 0.2s;
   font-family: 'Outfit', sans-serif;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
 }
 
 .btn-logout:hover {
   background: rgba(239, 68, 68, 0.1);
   border-color: rgba(239, 68, 68, 0.5);
+}
+
+/* ── Skeleton Loading ────────────────────────────────────── */
+@keyframes shimmer {
+  0% { background-position: -1000px 0; }
+  100% { background-position: 1000px 0; }
+}
+
+.skeleton-box {
+  background: #1e293b;
+  background-image: linear-gradient(90deg, #1e293b 0px, rgba(51, 65, 85, 0.5) 40px, #1e293b 80px);
+  background-size: 1000px 100%;
+  animation: shimmer 2s infinite linear forwards;
 }
 
 /* ── Main Content ────────────────────────────────────────── */

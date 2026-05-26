@@ -48,10 +48,10 @@ export default function Header({ activeNav, isAuthenticated, user, showProfileMe
                 </div>
                 <div className="dropdown-divider" />
                 <button className="dropdown-item" onClick={() => { onNavClick('Settings'); setShowProfileMenu(false); }}>
-                  <span className="item-icon">⚙️</span> Settings
+                  <span className="item-icon material-symbols-rounded">settings</span> Settings
                 </button>
                 <button className="dropdown-item logout" onClick={onLogout}>
-                  <span className="item-icon">🚪</span> Sign Out
+                  <span className="item-icon material-symbols-rounded">logout</span> Sign Out
                 </button>
               </div>
             )}

@@ -70,6 +70,20 @@ function MediaThumb({ item, onOpen }) {
         {item.type === 'video' ? 'Video' : 'Screenshot'}
       </div>
 
+      {/* Storage badges */}
+      <div style={{ position: 'absolute', top: '8px', right: '8px', display: 'flex', gap: '4px' }}>
+        {(item.storageLocation === 'local' || item.storageLocation === 'both') && (
+          <div style={{ background: 'rgba(0,0,0,0.6)', borderRadius: '6px', padding: '4px', display: 'flex', alignItems: 'center' }} title="Saved locally">
+            <span className="material-symbols-rounded" style={{ fontSize: '14px', color: '#818cf8' }}>hard_drive</span>
+          </div>
+        )}
+        {(item.storageLocation === 'drive' || item.storageLocation === 'both') && (
+          <div style={{ background: 'rgba(0,0,0,0.6)', borderRadius: '6px', padding: '4px', display: 'flex', alignItems: 'center' }} title="Saved in Google Drive">
+            <DriveLogoSVG size={14} />
+          </div>
+        )}
+      </div>
+
       {/* Hover overlay */}
       <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0)', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background 0.15s' }}
         onMouseEnter={e => e.currentTarget.style.background = 'rgba(0,0,0,0.4)'}

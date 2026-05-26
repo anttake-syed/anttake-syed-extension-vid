@@ -48,10 +48,10 @@ export default function MediaModal({ item, onClose, user, onSyncSuccess }) {
   if (loc === 'drive' || loc === 'both')
     badges.push({ label: 'Google Drive', icon: 'drive', color: '#34d399', bg: 'rgba(52,211,153,0.1)', border: 'rgba(52,211,153,0.25)' });
 
-  const syncBtnStyle = (color = '#4f46e5') => ({
-    background: color, color: 'white', border: 'none',
-    borderRadius: '6px', padding: '6px 12px', fontSize: '12px', cursor: 'pointer',
-    display: 'flex', alignItems: 'center', gap: '6px', fontWeight: '600'
+  const syncBtnStyle = (textColor, bgColor, borderColor) => ({
+    background: bgColor, color: textColor, border: `1px solid ${borderColor}`,
+    borderRadius: '6px', padding: '5px 12px', fontSize: '12px', cursor: 'pointer',
+    display: 'flex', alignItems: 'center', gap: '6px', fontWeight: '600', transition: 'all 0.2s'
   });
   const removeBtnStyle = {
     background: 'rgba(239, 68, 68, 0.1)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)',
@@ -98,14 +98,14 @@ export default function MediaModal({ item, onClose, user, onSyncSuccess }) {
             {/* Sync / Remove buttons */}
             <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px' }}>
               {loc === 'local' && (
-                <button onClick={(e) => { e.stopPropagation(); callApi('sync-to-drive', setSyncingDrive); }} disabled={syncingDrive} style={syncBtnStyle('#3b82f6')}>
-                  {syncingDrive ? <span className="btn-spinner" style={{ width: '12px', height: '12px' }} /> : <DriveLogoSVG size={16} />}
+                <button onClick={(e) => { e.stopPropagation(); callApi('sync-to-drive', setSyncingDrive); }} disabled={syncingDrive} style={syncBtnStyle('#60a5fa', 'rgba(59,130,246,0.1)', 'rgba(59,130,246,0.3)')}>
+                  {syncingDrive ? <span className="btn-spinner" style={{ width: '12px', height: '12px', borderColor: '#60a5fa', borderTopColor: 'transparent' }} /> : <DriveLogoSVG size={16} />}
                   {syncingDrive ? 'Syncing...' : 'Backup to Drive'}
                 </button>
               )}
               {loc === 'drive' && (
-                <button onClick={(e) => { e.stopPropagation(); callApi('sync-to-local', setSyncingLocal); }} disabled={syncingLocal} style={syncBtnStyle('#6366f1')}>
-                  {syncingLocal ? <span className="btn-spinner" style={{ width: '12px', height: '12px' }} /> : <span className="material-symbols-rounded" style={{ fontSize: '16px' }}>download</span>}
+                <button onClick={(e) => { e.stopPropagation(); callApi('sync-to-local', setSyncingLocal); }} disabled={syncingLocal} style={syncBtnStyle('#818cf8', 'rgba(99,102,241,0.1)', 'rgba(99,102,241,0.3)')}>
+                  {syncingLocal ? <span className="btn-spinner" style={{ width: '12px', height: '12px', borderColor: '#818cf8', borderTopColor: 'transparent' }} /> : <span className="material-symbols-rounded" style={{ fontSize: '16px' }}>download</span>}
                   {syncingLocal ? 'Syncing...' : 'Save to Local DB'}
                 </button>
               )}
@@ -135,7 +135,10 @@ export default function MediaModal({ item, onClose, user, onSyncSuccess }) {
                 <div style={{ color: '#f8fafc', fontSize: '18px', fontWeight: '600', marginBottom: '8px' }}>Private image on Drive</div>
                 <div style={{ color: '#94a3b8', fontSize: '14px' }}>Google restricts direct preview of private Drive files for your security.</div>
               </div>
-              <a href={item.driveUrl} target="_blank" rel="noopener noreferrer" className="btn-primary" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 24px' }}>
+              <a href={item.driveUrl} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 24px', background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.3)', color: '#60a5fa', borderRadius: '8px', fontWeight: '600', transition: 'all 0.2s' }}
+                onMouseEnter={e => e.currentTarget.style.background = 'rgba(59,130,246,0.15)'}
+                onMouseLeave={e => e.currentTarget.style.background = 'rgba(59,130,246,0.1)'}
+              >
                 <span className="material-symbols-rounded" style={{ fontSize: '20px' }}>open_in_new</span>
                 Open in Google Drive
               </a>

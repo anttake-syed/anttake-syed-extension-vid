@@ -3,16 +3,27 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider = "sqlite"
+  url      = "file:./dev.db"
 }
 
 model Capture {
-  id        Int      @id @default(autoincrement())
-  email     String
-  title     String?
-  type      String
-  size      String?
-  fileUrl   String
-  createdAt DateTime @default(now())
+  id              Int      @id @default(autoincrement())
+  email           String
+  title           String?
+  type            String
+  size            String?
+  mimeType        String?
+  data            Bytes?
+  fileUrl         String
+  driveUrl        String?
+  storageLocation String   @default("local")
+  createdAt       DateTime @default(now())
+}
+
+model UserSettings {
+  id                Int      @id @default(autoincrement())
+  email             String   @unique
+  storagePreference String   @default("both")
+  updatedAt         DateTime @updatedAt
 }

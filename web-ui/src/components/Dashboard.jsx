@@ -118,7 +118,9 @@ export default function Dashboard({ isAuthenticated, stats, captures, loadingCap
             <div style={{ fontSize: '13px', color: '#818cf8', fontWeight: 600, letterSpacing: '0.05em', marginBottom: '6px', textTransform: 'uppercase' }}>
               {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
             </div>
-            <h2 style={{ margin: 0, fontSize: '26px', fontWeight: 700, color: '#f8fafc' }}>{greeting} 👋</h2>
+            <h2 style={{ margin: 0, fontSize: '26px', fontWeight: 700, color: '#f8fafc', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              {greeting} <span className="material-symbols-rounded" style={{ fontSize: '28px', color: '#f59e0b' }}>waving_hand</span>
+            </h2>
             <p style={{ margin: '6px 0 0', color: '#94a3b8', fontSize: '14px' }}>
               {captures.length === 0
                 ? 'No captures yet — open the extension to start recording.'

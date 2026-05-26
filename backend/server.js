@@ -129,7 +129,8 @@ app.get('/auth/callback', async (req, res) => {
         email: userInfo.email,
         picture: userInfo.picture,
         access_token: tokens.access_token,
-        refresh_token: tokens.refresh_token
+        refresh_token: tokens.refresh_token,
+        expiry_date: tokens.expiry_date
       },
       process.env.JWT_SECRET,
       { expiresIn: '7d' }
@@ -243,7 +244,8 @@ app.get('/stats', requireAuth, async (req, res) => {
         );
         userOauth2Client.setCredentials({
           access_token: req.user.access_token,
-          refresh_token: req.user.refresh_token
+          refresh_token: req.user.refresh_token,
+          expiry_date: req.user.expiry_date
         });
         const drive = google.drive({ version: 'v3', auth: userOauth2Client });
         const aboutRes = await drive.about.get({ fields: 'storageQuota' });
@@ -304,7 +306,8 @@ app.post('/upload', requireAuth, upload.single('file'), async (req, res) => {
         );
         userOauth2Client.setCredentials({
           access_token: req.user.access_token,
-          refresh_token: req.user.refresh_token
+          refresh_token: req.user.refresh_token,
+          expiry_date: req.user.expiry_date
         });
 
         const drive = google.drive({ version: 'v3', auth: userOauth2Client });
@@ -323,8 +326,8 @@ app.post('/upload', requireAuth, upload.single('file'), async (req, res) => {
         driveSuccess = true;
         console.log(`☁️  Saved to Google Drive for ${req.user.email}`);
       } catch (driveErr) {
-        console.error('Google Drive upload error:', driveErr.message);
-        return res.status(500).json({ error: 'Google Drive Upload Failed', detail: driveErr.message });
+        console.error('Google Drive upload error, falling back to local DB:', driveErr.message);
+        storagePreference = 'local';
       }
     }
 
@@ -424,7 +427,8 @@ app.post('/captures/:id/sync-to-drive', requireAuth, async (req, res) => {
     );
     userOauth2Client.setCredentials({
       access_token: req.user.access_token,
-      refresh_token: req.user.refresh_token
+      refresh_token: req.user.refresh_token,
+      expiry_date: req.user.expiry_date
     });
 
     const drive = google.drive({ version: 'v3', auth: userOauth2Client });
@@ -477,7 +481,8 @@ app.post('/captures/:id/sync-to-local', requireAuth, async (req, res) => {
     );
     userOauth2Client.setCredentials({
       access_token: req.user.access_token,
-      refresh_token: req.user.refresh_token
+      refresh_token: req.user.refresh_token,
+      expiry_date: req.user.expiry_date
     });
 
     const drive = google.drive({ version: 'v3', auth: userOauth2Client });
@@ -544,7 +549,8 @@ app.post('/captures/:id/remove-drive', requireAuth, async (req, res) => {
     );
     userOauth2Client.setCredentials({
       access_token: req.user.access_token,
-      refresh_token: req.user.refresh_token
+      refresh_token: req.user.refresh_token,
+      expiry_date: req.user.expiry_date
     });
 
     const drive = google.drive({ version: 'v3', auth: userOauth2Client });

@@ -62,27 +62,33 @@ To ensure both developers (You & Your Brother) can showcase deep technical "core
 
 ## 📦 Getting Started
 
-### 1. Environment Configuration (Standard Practice)
-Each component (Backend, Web UI) requires environment variables to function. For security, **do not push .env files to GitHub.**
+### 1. Environment Configuration
+Each component requires environment variables. **Never push `.env` files to GitHub.**
 
-*   **Sharing with Collaborators:** Share the actual `.env` values privately via secure messaging.
-*   **Local Setup:** Copy the `.env.example` in each directory to a new file named `.env` and fill in the values.
+Copy `.env.example` → `.env` and fill in the real values (ask Saleh for the Google credentials).
 
 ### 2. Backend Setup
 ```bash
 cd backend
-npm install
-# 1. Create .env from .env.example
-# 2. Fill in Google OAuth credentials
+npm install              # installs deps + auto-generates Prisma client
+
+# Copy env file and fill in your values
+cp .env.example .env
+
+# Create the local SQLite database (REQUIRED on first run!)
+npm run setup            # runs: prisma generate && prisma db push
+
+# Start the server
 npm start
 ```
+
+> ⚠️ **If you skip `npm run setup`, the database tables won't exist and the backend will crash.**
 
 ### 3. Web UI Setup
 ```bash
 cd web-ui
 npm install
-# 1. Create .env from .env.example
-# 2. VITE_API_BASE_URL should point to your backend (default: http://localhost:3001)
+# VITE_API_BASE_URL should point to your backend (default: http://localhost:3001)
 npm run dev
 ```
 

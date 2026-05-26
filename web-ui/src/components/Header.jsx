@@ -6,6 +6,8 @@ const PAGE_TITLES = {
   Privacy: 'Privacy Policy',
   Security: 'Security',
   Documentation: 'Documentation',
+  Dashboard: 'Command Center',
+  'My Library': 'Capture Library',
 };
 
 const PAGE_SUBTITLES = {
@@ -14,11 +16,13 @@ const PAGE_SUBTITLES = {
   Privacy: 'Important information about AntCapture.',
   Security: 'Important information about AntCapture.',
   Documentation: 'Important information about AntCapture.',
+  Dashboard: 'Overview of your captures and cloud storage health.',
+  'My Library': 'Your recordings and screenshots, synced across all devices.',
 };
 
 export default function Header({ activeNav, isAuthenticated, user, showProfileMenu, setShowProfileMenu, onSignIn, onLogout, onNavClick }) {
-  const title = PAGE_TITLES[activeNav] || 'Capture Library';
-  const subtitle = PAGE_SUBTITLES[activeNav] || 'Your recordings and screenshots, synced across all devices.';
+  const title = PAGE_TITLES[activeNav] || activeNav;
+  const subtitle = PAGE_SUBTITLES[activeNav] || '';
 
   return (
     <header className="header">

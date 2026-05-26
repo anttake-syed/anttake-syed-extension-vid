@@ -1,6 +1,7 @@
-import React from 'react';
-
 // Icon map — proper icons per nav item
+const MAIN_NAV = ['Dashboard', 'My Library', 'Settings', 'Feedback'];
+const SECONDARY_NAV = ['Privacy', 'Security', 'Documentation'];
+
 const NAV_ICONS = {
   Dashboard:     '⊞',
   'My Library':  '🗂',
@@ -15,6 +16,26 @@ const NAV_ICONS = {
 const PUBLIC_ITEMS = ['Dashboard', 'Privacy', 'Security', 'Documentation'];
 
 export default function Sidebar({ activeNav, isAuthenticated, onNavClick, onSignIn, onLogout }) {
+  const renderNavItem = (item, secondary = false) => (
+    <li
+      key={item}
+      className={`nav-item ${activeNav === item ? 'active' : ''} ${secondary ? 'nav-item-secondary' : ''}`}
+      onClick={() => {
+        if (PUBLIC_ITEMS.includes(item)) onNavClick(item);
+        else if (isAuthenticated) onNavClick(item);
+        else onSignIn();
+      }}
+    >
+      <span className="nav-icon" style={secondary ? { fontSize: '13px' } : {}}>
+        {NAV_ICONS[item]}
+      </span>
+      {item}
+      {!isAuthenticated && !PUBLIC_ITEMS.includes(item) && (
+        <span className="nav-lock">🔒</span>
+      )}
+    </li>
+  );
+
   return (
     <aside className="sidebar">
       <div className="logo">
@@ -31,29 +52,37 @@ export default function Sidebar({ activeNav, isAuthenticated, onNavClick, onSign
         AntCapture
       </div>
 
-      <nav>
+      <nav style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+        {/* ── Main navigation ── */}
         <ul className="nav-list">
-          {Object.keys(NAV_ICONS).map((item) => (
-            <li
-              key={item}
-              className={`nav-item ${activeNav === item ? 'active' : ''}`}
-              onClick={() => {
-                if (PUBLIC_ITEMS.includes(item)) {
-                  onNavClick(item);
-                } else {
-                  // requireAuth — opens login modal if not authenticated
-                  if (isAuthenticated) onNavClick(item);
-                  else onSignIn();
-                }
-              }}
-            >
-              <span className="nav-icon">{NAV_ICONS[item]}</span>
-              {item}
-              {!isAuthenticated && !PUBLIC_ITEMS.includes(item) && (
-                <span className="nav-lock">🔒</span>
-              )}
-            </li>
-          ))}
+          {MAIN_NAV.map((item) => renderNavItem(item, false))}
+        </ul>
+
+        {/* ── Divider ── */}
+        <div style={{
+          margin: '10px 16px 6px',
+          borderTop: '1px solid rgba(255,255,255,0.06)',
+          position: 'relative',
+        }}>
+          <span style={{
+            position: 'absolute',
+            top: '-9px',
+            left: '8px',
+            background: '#0f172a',
+            padding: '0 6px',
+            fontSize: '10px',
+            fontWeight: '600',
+            color: '#334155',
+            textTransform: 'uppercase',
+            letterSpacing: '0.08em',
+          }}>
+            Info
+          </span>
+        </div>
+
+        {/* ── Secondary navigation ── */}
+        <ul className="nav-list" style={{ marginTop: '4px' }}>
+          {SECONDARY_NAV.map((item) => renderNavItem(item, true))}
         </ul>
       </nav>
 
@@ -69,3 +98,4 @@ export default function Sidebar({ activeNav, isAuthenticated, onNavClick, onSign
     </aside>
   );
 }
+

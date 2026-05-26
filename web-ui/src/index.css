@@ -99,6 +99,17 @@ body {
   color: var(--primary);
 }
 
+.nav-item-secondary {
+  color: var(--text-muted);
+  font-size: 13px;
+  padding: 8px 14px;
+}
+
+.nav-item-secondary:hover {
+  background: rgba(255, 255, 255, 0.02);
+  color: var(--text-dim);
+}
+
 .nav-icon {
   font-size: 15px;
 }

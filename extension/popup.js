@@ -94,6 +94,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const BACKEND_URL = 'http://localhost:3001';
 
+  const statusDot = document.getElementById('statusDot');
+  const statusText = document.getElementById('statusText');
+
   function updateAuthUI(user) {
     if (user) {
       googleLoginBtn.style.display = 'none';
@@ -101,17 +104,21 @@ document.addEventListener('DOMContentLoaded', () => {
       userName.textContent = user.name || 'User';
       userEmail.textContent = user.email || '';
       userAvatar.src = user.picture || '';
+      
+      if (statusDot) statusDot.style.background = '#10b981'; // Green
+      if (statusText) statusText.textContent = 'Cloud Sync Active';
     } else {
       googleLoginBtn.style.display = 'flex';
       profileContainer.style.display = 'none';
+      
+      if (statusDot) statusDot.style.background = '#64748b'; // Gray/Offline
+      if (statusText) statusText.textContent = 'Offline (Pending Sync)';
     }
   }
 
   // Load user data on startup
   chrome.runtime.sendMessage({ action: 'GET_USER' }, (response) => {
-    if (response?.user) {
-      updateAuthUI(response.user);
-    }
+    updateAuthUI(response?.user || null);
   });
 
   // Listen for storage changes to sync UI

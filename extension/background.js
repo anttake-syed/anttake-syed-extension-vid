@@ -207,6 +207,11 @@ async function syncPendingUploads() {
       await uploadToBackend(item.blob, item.type, user.jwt);
       console.log(`✅ Synced item ${item.id}`);
       await deleteLocalMedia(item.id);
+      
+      // Update local capture count so UI reflects the synced files
+      chrome.storage.local.get(['captureCount'], (result) => {
+        chrome.storage.local.set({ captureCount: (result.captureCount || 0) + 1 });
+      });
     } catch (error) {
       console.error(`Sync failed for ${item.id}:`, error.message);
       break; // Don't keep trying if server is down

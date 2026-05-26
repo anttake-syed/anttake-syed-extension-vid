@@ -101,7 +101,18 @@ export default function MediaModal({ item, onClose, user, onSyncSuccess }) {
 
         {/* Media */}
         <div style={{ padding: '20px', display: 'flex', justifyContent: 'center', alignItems: 'center', background: '#000', minHeight: '300px' }}>
-          {item.type === 'video' ? (
+          {item.storageLocation === 'drive' ? (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px' }}>
+              <div style={{ fontSize: '64px' }}>☁️</div>
+              <div style={{ color: '#94a3b8', fontSize: '14px' }}>This file is stored exclusively in Google Drive.</div>
+              <a href={item.driveUrl} target="_blank" rel="noopener noreferrer" className="btn-primary" style={{ textDecoration: 'none' }}>
+                Open in Google Drive ↗
+              </a>
+              <div style={{ color: '#64748b', fontSize: '12px', marginTop: '10px' }}>
+                Tip: Click "⬇️ Save to Local DB" above to enable native preview.
+              </div>
+            </div>
+          ) : item.type === 'video' ? (
             <video controls autoPlay style={{ width: '100%', maxHeight: '60vh', outline: 'none', background: '#000' }} src={item.src}>
               Your browser does not support the video tag.
             </video>

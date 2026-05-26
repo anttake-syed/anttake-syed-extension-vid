@@ -133,6 +133,23 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
+  // Open Dashboard — auto-login to Web UI using stored JWT
+  const openDashboardBtn = document.getElementById('openDashboardBtn');
+  if (openDashboardBtn) {
+    openDashboardBtn.addEventListener('click', () => {
+      chrome.storage.local.get(['user'], (result) => {
+        const WEB_UI_URL = 'http://localhost:5173';
+        if (result.user?.jwt) {
+          // Pass JWT so Web UI logs in automatically
+          chrome.tabs.create({ url: `${WEB_UI_URL}?auth_data=${result.user.jwt}` });
+        } else {
+          chrome.tabs.create({ url: WEB_UI_URL });
+        }
+        window.close();
+      });
+    });
+  }
+
   settingsBtn.addEventListener('click', () => {
     chrome.runtime.openOptionsPage();
   });

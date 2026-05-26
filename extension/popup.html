@@ -40,13 +40,19 @@
         <span class="btn-text">Sign in with Google</span>
       </button>
 
-      <div id="profileContainer" class="card" style="display: none; padding: 12px; margin-top: 0; align-items: center; gap: 12px; flex-direction: row; cursor: default;">
-        <img id="userAvatar" src="" style="width: 32px; height: 32px; border-radius: 50%; background: #1e293b; border: 1px solid rgba(255,255,255,0.1);" />
-        <div style="flex: 1; overflow: hidden;">
-          <div id="userName" style="font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">User Name</div>
-          <div id="userEmail" style="font-size: 11px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">user@example.com</div>
+      <div id="profileContainer" class="card" style="display: none; padding: 12px; margin-top: 0; align-items: center; gap: 12px; flex-direction: column; cursor: default;">
+        <div style="display: flex; align-items: center; gap: 12px; width: 100%;">
+          <img id="userAvatar" src="" style="width: 32px; height: 32px; border-radius: 50%; background: #1e293b; border: 1px solid rgba(255,255,255,0.1);" />
+          <div style="flex: 1; overflow: hidden;">
+            <div id="userName" style="font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">User Name</div>
+            <div id="userEmail" style="font-size: 11px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">user@example.com</div>
+          </div>
+          <button id="logoutBtn" style="background: none; border: none; color: #f87171; cursor: pointer; font-size: 16px; padding: 4px;" title="Sign Out">🚪</button>
         </div>
-        <button id="logoutBtn" style="background: none; border: none; color: #f87171; cursor: pointer; font-size: 16px; padding: 4px;" title="Sign Out">🚪</button>
+        <!-- Open Dashboard button — auto-logs into Web UI -->
+        <button id="openDashboardBtn" style="width: 100%; background: linear-gradient(135deg,#6366f1,#a855f7); border: none; color: white; borderRadius: 8px; padding: 9px 14px; cursor: pointer; font-size: 13px; font-weight: 600; border-radius: 8px; display: flex; align-items: center; justify-content: center; gap: 6px;">
+          <span>🌐</span> Open Dashboard
+        </button>
       </div>
     </div>
 

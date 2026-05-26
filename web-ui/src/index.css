@@ -739,13 +739,15 @@ body {
 }
 
 .media-info {
-  padding: 16px 18px;
+  padding: 14px 18px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .media-title {
   font-weight: 600;
   font-size: 14px;
-  margin-bottom: 6px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -776,6 +778,8 @@ body {
   background: rgba(168, 85, 247, 0.12);
   color: #c084fc;
 }
+
+
 
 /* ── CTA Banner ──────────────────────────────────────────── */
 .cta-banner {

@@ -97,6 +97,23 @@ document.addEventListener('DOMContentLoaded', () => {
   const statusDot = document.getElementById('statusDot');
   const statusText = document.getElementById('statusText');
 
+  const storageInfo = document.getElementById('storageInfo');
+
+  async function fetchStats(user) {
+    try {
+      const res = await fetch(`${BACKEND_URL}/stats`, {
+        headers: { Authorization: `Bearer ${user.jwt}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        // e.g. Local: 2MB | Drive: 1GB
+        if (storageInfo) storageInfo.textContent = `Local: ${data.dbSizeFormatted} | Drive: ${data.appDriveFormatted}`;
+      }
+    } catch (e) {
+      console.error('Failed to fetch stats for popup', e);
+    }
+  }
+
   function updateAuthUI(user) {
     if (user) {
       googleLoginBtn.style.display = 'none';
@@ -107,12 +124,15 @@ document.addEventListener('DOMContentLoaded', () => {
       
       if (statusDot) statusDot.style.background = '#10b981'; // Green
       if (statusText) statusText.textContent = 'Cloud Sync Active';
+      
+      fetchStats(user);
     } else {
       googleLoginBtn.style.display = 'flex';
       profileContainer.style.display = 'none';
       
       if (statusDot) statusDot.style.background = '#64748b'; // Gray/Offline
       if (statusText) statusText.textContent = 'Offline (Pending Sync)';
+      if (storageInfo) storageInfo.textContent = 'Local Sync Only';
     }
   }
 
@@ -163,6 +183,14 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   settingsBtn.addEventListener('click', () => {
-    chrome.runtime.openOptionsPage();
+    chrome.storage.local.get(['user'], (result) => {
+      const WEB_UI_URL = 'http://localhost:5173';
+      if (result.user?.jwt) {
+        chrome.tabs.create({ url: `${WEB_UI_URL}?nav=Settings&auth_data=${result.user.jwt}` });
+      } else {
+        chrome.tabs.create({ url: `${WEB_UI_URL}?nav=Settings` });
+      }
+      window.close();
+    });
   });
 });

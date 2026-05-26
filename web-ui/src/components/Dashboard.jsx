@@ -104,7 +104,12 @@ export default function Dashboard({
           filteredCaptures.map((item) => (
             <div key={item.id} className="media-card" onClick={(e) => { if (e.target.closest('.media-action-btn')) return; onOpenMedia(item); }}>
               <div className="media-preview">
-                {item.type === 'image' && item.src ? (
+                {item.storageLocation === 'drive' ? (
+                  <div className="media-thumb-icon" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontSize: '36px' }}>☁️</span>
+                    <span style={{ fontSize: '11px', fontWeight: '600', color: '#94a3b8', letterSpacing: '0.05em', textTransform: 'uppercase' }}>Drive File</span>
+                  </div>
+                ) : item.type === 'image' && item.src ? (
                   <img src={item.src} style={{ width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', top: 0, left: 0 }} alt={item.title} onError={(e) => { e.target.style.display = 'none'; }} />
                 ) : item.type === 'video' && item.src ? (
                   <video src={item.src} style={{ width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', top: 0, left: 0 }} muted loop onMouseOver={(e) => e.target.play()} onMouseOut={(e) => { e.target.pause(); e.target.currentTime = 0; }} />
@@ -138,14 +143,23 @@ export default function Dashboard({
         )}
       </section>
 
-      {/* CTA banner */}
+      {/* Connection Guidance Banner */}
       {!isAuthenticated && (
-        <div className="cta-banner" style={{ background: 'rgba(255,171,0,0.1)', border: '1px solid rgba(255,171,0,0.2)' }}>
-          <div>
-            <strong style={{ color: '#ffab00' }}>⚠️ Extension Sync Required</strong>
-            <span style={{ color: '#94a3b8' }}>{' '}Make sure you log into the AntCapture Chrome Extension with the same email to sync your recordings here.</span>
+        <div className="cta-banner" style={{ background: 'rgba(16, 185, 129, 0.05)', border: '1px solid rgba(16, 185, 129, 0.2)', alignItems: 'flex-start' }}>
+          <div style={{ display: 'flex', gap: '16px' }}>
+            <div style={{ fontSize: '24px', padding: '10px', background: 'rgba(16, 185, 129, 0.1)', borderRadius: '12px', height: 'fit-content' }}>
+              🛡️
+            </div>
+            <div>
+              <strong style={{ color: '#34d399', fontSize: '15px', display: 'block', marginBottom: '4px' }}>Secure Account Architecture</strong>
+              <span style={{ color: '#94a3b8', fontSize: '13px', lineHeight: '1.5', display: 'block', maxWidth: '600px' }}>
+                For your security, Google isolates authentication between browser extensions and web applications. To enable automatic background syncing and dashboard access, please sign in to both the AntCapture Extension and this Dashboard using the same Google account.
+              </span>
+            </div>
           </div>
-          <button className="btn-primary" onClick={onSignIn}>Sign in with Google →</button>
+          <button className="btn-primary" onClick={onSignIn} style={{ whiteSpace: 'nowrap', marginTop: '10px' }}>
+            Connect Web Dashboard
+          </button>
         </div>
       )}
     </>

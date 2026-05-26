@@ -26,7 +26,10 @@ export default function App() {
     saveStoragePreference, refresh,
   } = useCaptures(user, isAuthenticated);
 
-  const [activeNav, setActiveNav] = useState('Dashboard');
+  const [activeNav, setActiveNav] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('nav') || 'Dashboard';
+  });
   const [activeMedia, setActiveMedia] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);

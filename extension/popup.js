@@ -122,7 +122,12 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   googleLoginBtn.addEventListener('click', () => {
-    chrome.tabs.create({ url: `${BACKEND_URL}/auth/google?source=extension` });
+    chrome.windows.create({
+      url: `${BACKEND_URL}/auth/google?source=extension`,
+      type: 'popup',
+      width: 500,
+      height: 600
+    });
   });
 
   logoutBtn.addEventListener('click', () => {

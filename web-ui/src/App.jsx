@@ -40,23 +40,23 @@ export default function App() {
 
   // Stats derived from captures + dbStats
   const stats = [
-    { label: 'Total Captures', value: (dbStats?.total ?? captures.length).toString(), icon: '📁' },
+    { label: 'Total Captures', value: (dbStats?.total ?? captures.length).toString(), icon: 'folder' },
     {
       label: 'Local Storage Used',
       value: dbStats?.dbSizeFormatted ?? '0 B',
-      icon: '🗄️',
+      icon: 'hard_drive',
       sub: dbStats ? `${dbStats.localCount} files local` : null,
     },
     {
       label: 'Google Drive Used',
       value: dbStats?.appDriveFormatted ?? '0 B',
-      icon: '☁️',
+      icon: 'drive',
       sub: dbStats ? `${dbStats.driveCount} files on Drive${dbStats.driveLimitBytes > 0 ? ` (Overall: ${dbStats.driveUsageFormatted} / ${dbStats.driveLimitFormatted})` : ''}` : null,
     },
     {
       label: 'This Week',
       value: captures.filter((c) => c.date && new Date(c.date) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)).length.toString(),
-      icon: '📈',
+      icon: 'trending_up',
     },
   ];
 

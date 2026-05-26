@@ -1,6 +1,23 @@
 import React, { useState } from 'react';
 import { BACKEND_URL } from '../config';
 
+const S = {
+  section: { background: '#1e293b', border: '1px solid #334155', borderRadius: '16px', padding: '32px', maxWidth: '620px' },
+  label: { fontSize: '11px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '8px', display: 'block' },
+};
+
+const SectionHeader = ({ icon, title, subtitle }) => (
+  <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '24px' }}>
+    <div style={{ width: '44px', height: '44px', borderRadius: '12px', background: 'rgba(99,102,241,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+      <span className="material-symbols-rounded" style={{ fontSize: '22px', color: '#818cf8' }}>{icon}</span>
+    </div>
+    <div>
+      <h2 style={{ margin: 0, fontWeight: '700', fontSize: '18px', color: '#f1f5f9' }}>{title}</h2>
+      {subtitle && <div style={{ fontSize: '13px', color: '#64748b', marginTop: '2px' }}>{subtitle}</div>}
+    </div>
+  </div>
+);
+
 export default function FeedbackForm({ user }) {
   const [text, setText] = useState('');
   const [submitted, setSubmitted] = useState(false);
@@ -9,15 +26,19 @@ export default function FeedbackForm({ user }) {
 
   if (submitted) {
     return (
-      <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px', padding: '40px 24px', color: '#f1f5f9', textAlign: 'center' }}>
-        <div style={{ fontSize: '48px', marginBottom: '16px' }}>🎉</div>
-        <h2 style={{ marginTop: 0, color: '#a5b4fc' }}>Thank you for your feedback!</h2>
-        <p style={{ color: '#94a3b8' }}>We've received your message and will review it shortly.</p>
+      <div style={{ ...S.section, textAlign: 'center', padding: '48px 24px' }} className="fadeInScale">
+        <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: 'rgba(52,211,153,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
+          <span className="material-symbols-rounded" style={{ fontSize: '32px', color: '#34d399' }}>check_circle</span>
+        </div>
+        <h2 style={{ margin: '0 0 12px', color: '#f8fafc', fontSize: '22px' }}>Thank you!</h2>
+        <p style={{ color: '#94a3b8', fontSize: '15px', marginBottom: '24px' }}>Your feedback has been received. We review every message carefully.</p>
         <button
           onClick={() => { setText(''); setSubmitted(false); setError(null); }}
-          style={{ marginTop: '16px', background: 'linear-gradient(135deg,#6366f1,#a855f7)', border: 'none', color: 'white', borderRadius: '8px', padding: '10px 20px', cursor: 'pointer', fontWeight: '600' }}
+          style={{ background: '#0f172a', border: '1px solid #334155', color: '#f1f5f9', borderRadius: '10px', padding: '10px 24px', cursor: 'pointer', fontWeight: '600', fontSize: '14px', transition: 'all 0.2s', display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+          onMouseEnter={e => e.currentTarget.style.background = '#1e293b'}
+          onMouseLeave={e => e.currentTarget.style.background = '#0f172a'}
         >
-          Send Another
+          <span className="material-symbols-rounded" style={{ fontSize: '18px' }}>refresh</span> Send Another
         </button>
       </div>
     );
@@ -47,50 +68,49 @@ export default function FeedbackForm({ user }) {
   };
 
   return (
-    <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px', padding: '24px', color: '#f1f5f9', maxWidth: '600px' }}>
-      <h2 style={{ marginTop: 0 }}>Submit Feedback</h2>
-      <p style={{ color: '#94a3b8', marginTop: 0, marginBottom: '20px', fontSize: '14px' }}>
-        Found a bug? Have a feature idea? We read every message.
-      </p>
+    <div style={S.section} className="fadeInScale">
+      <SectionHeader icon="chat_bubble" title="Submit Feedback" subtitle="Found a bug or have a feature idea? We want to hear it." />
 
-      <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px' }}>
-        Your Message
-      </label>
+      <label style={S.label}>Your Message</label>
       <textarea
         value={text}
         onChange={(e) => setText(e.target.value)}
         placeholder="Describe the issue or share your idea..."
         rows={6}
         style={{
-          width: '100%', background: '#1e293b', border: '1px solid #334155',
-          borderRadius: '8px', padding: '12px', color: 'white', marginBottom: '16px',
+          width: '100%', background: '#0f172a', border: '1px solid #334155',
+          borderRadius: '12px', padding: '16px', color: '#f1f5f9', marginBottom: '20px',
           outline: 'none', resize: 'vertical', boxSizing: 'border-box', fontSize: '14px',
-          fontFamily: 'inherit',
+          fontFamily: 'inherit', transition: 'border-color 0.2s'
         }}
+        onFocus={e => e.target.style.borderColor = '#6366f1'}
+        onBlur={e => e.target.style.borderColor = '#334155'}
       />
 
       {error && (
-        <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '8px', padding: '10px 14px', color: '#f87171', fontSize: '13px', marginBottom: '16px' }}>
-          ⚠️ {error}
+        <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '10px', padding: '12px 16px', color: '#f87171', fontSize: '13px', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span className="material-symbols-rounded" style={{ fontSize: '18px' }}>error</span> {error}
         </div>
       )}
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
         <button
-          id="feedback-submit-btn"
           onClick={handleSubmit}
           disabled={loading || !text.trim()}
           style={{
             background: loading || !text.trim() ? '#334155' : 'linear-gradient(135deg,#6366f1,#a855f7)',
-            border: 'none', color: 'white', borderRadius: '8px',
-            padding: '10px 24px', cursor: loading || !text.trim() ? 'not-allowed' : 'pointer',
-            fontWeight: '600', fontSize: '14px', transition: 'background 0.2s',
+            border: 'none', color: 'white', borderRadius: '10px',
+            padding: '12px 28px', cursor: loading || !text.trim() ? 'not-allowed' : 'pointer',
+            fontWeight: '600', fontSize: '14px', transition: 'all 0.2s', display: 'flex', alignItems: 'center', gap: '8px',
+            opacity: loading || !text.trim() ? 0.7 : 1
           }}
         >
+          <span className="material-symbols-rounded" style={{ fontSize: '18px' }}>send</span>
           {loading ? 'Sending...' : 'Send Feedback'}
         </button>
-        <span style={{ fontSize: '12px', color: '#475569' }}>
-          Sent as <strong style={{ color: '#94a3b8' }}>{user?.email}</strong>
+        <span style={{ fontSize: '13px', color: '#475569', display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <span className="material-symbols-rounded" style={{ fontSize: '16px' }}>account_circle</span>
+          Sent as <strong style={{ color: '#94a3b8', fontWeight: '500' }}>{user?.email}</strong>
         </span>
       </div>
     </div>

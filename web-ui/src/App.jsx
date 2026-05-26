@@ -12,6 +12,7 @@ import Header from './components/Header';
 import LoginModal from './components/LoginModal';
 import MediaModal from './components/MediaModal';
 import Dashboard from './components/Dashboard';
+import Library from './components/Library';
 import Settings from './components/Settings';
 import FeedbackForm from './components/FeedbackForm';
 import StaticPage from './components/StaticPage';
@@ -20,9 +21,9 @@ export default function App() {
   const { user, isAuthenticated, isInitializing, logout, updateUser } = useAuth();
 
   const {
-    captures, setCaptures, filteredCaptures, dbStats,
+    captures, setCaptures, dbStats,
     storagePreference, loadingCaptures, savingPref,
-    filter, setFilter, fetchCaptures, fetchStats,
+    fetchCaptures, fetchStats,
     saveStoragePreference, refresh,
   } = useCaptures(user, isAuthenticated);
 
@@ -165,16 +166,24 @@ export default function App() {
             title="Documentation"
             content={"Welcome to AntCapture!\n\n1. Install the Chrome Extension and click 'Load Unpacked' in chrome://extensions.\n2. Sign in with Google in the extension popup.\n3. Click 'Record Screen' to start recording or 'Take Screenshot' to capture.\n4. Everything syncs automatically — open this dashboard to view your library."}
           />
+        ) : activeNav === 'My Library' ? (
+          <Library
+            captures={captures}
+            loadingCaptures={loadingCaptures}
+            onOpenMedia={setActiveMedia}
+            isAuthenticated={isAuthenticated}
+            onSignIn={() => setShowModal(true)}
+          />
         ) : (
           <Dashboard
             isAuthenticated={isAuthenticated}
             stats={stats}
-            filteredCaptures={filteredCaptures}
+            captures={captures}
             loadingCaptures={loadingCaptures}
-            filter={filter}
-            setFilter={setFilter}
+            dbStats={dbStats}
             onSignIn={() => setShowModal(true)}
             onOpenMedia={setActiveMedia}
+            onGoToLibrary={() => setActiveNav('My Library')}
           />
         )}
       </main>

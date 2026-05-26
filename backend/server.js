@@ -68,6 +68,35 @@ function formatBytes(bytes) {
   if (bytes < 1073741824) return (bytes / 1048576).toFixed(1) + ' MB';
   return (bytes / 1073741824).toFixed(1) + ' GB';
 }
+async function getValidOAuthClient(user) {
+  const userOauth2Client = new google.auth.OAuth2(
+    process.env.GOOGLE_CLIENT_ID,
+    process.env.GOOGLE_CLIENT_SECRET,
+    process.env.GOOGLE_REDIRECT_URI
+  );
+
+  userOauth2Client.setCredentials({
+    access_token: user.access_token,
+    refresh_token: user.refresh_token,
+    expiry_date: user.expiry_date
+  });
+
+  // If token is expired or expiring in next 5 minutes, refresh it
+  const isExpired = !user.expiry_date || Date.now() >= (user.expiry_date - 5 * 60 * 1000);
+  
+  if (isExpired && user.refresh_token) {
+    try {
+      const { credentials } = await userOauth2Client.refreshAccessToken();
+      userOauth2Client.setCredentials(credentials);
+      console.log(`🔄 Token refreshed for user`);
+    } catch (err) {
+      console.error('Token refresh failed:', err.message);
+      throw new Error('Google session expired. Please log in again.');
+    }
+  }
+
+  return userOauth2Client;
+}
 
 function parseBytes(sizeStr) {
   if (!sizeStr) return 0;
@@ -237,16 +266,9 @@ app.get('/stats', requireAuth, async (req, res) => {
 
     if (req.user.access_token) {
       try {
-        const userOauth2Client = new google.auth.OAuth2(
-          process.env.GOOGLE_CLIENT_ID,
-          process.env.GOOGLE_CLIENT_SECRET,
-          process.env.GOOGLE_REDIRECT_URI
-        );
-        userOauth2Client.setCredentials({
-          access_token: req.user.access_token,
-          refresh_token: req.user.refresh_token,
-          expiry_date: req.user.expiry_date
-        });
+       const userOauth2Client = await getValidOAuthClient(req.user);
+
+       
         const drive = google.drive({ version: 'v3', auth: userOauth2Client });
         const aboutRes = await drive.about.get({ fields: 'storageQuota' });
         if (aboutRes.data.storageQuota) {
@@ -299,16 +321,9 @@ app.post('/upload', requireAuth, upload.single('file'), async (req, res) => {
     // Upload to Google Drive if preference is drive AND user has OAuth token
     if (storagePreference === 'drive' && req.user.access_token) {
       try {
-        const userOauth2Client = new google.auth.OAuth2(
-          process.env.GOOGLE_CLIENT_ID,
-          process.env.GOOGLE_CLIENT_SECRET,
-          process.env.GOOGLE_REDIRECT_URI
-        );
-        userOauth2Client.setCredentials({
-          access_token: req.user.access_token,
-          refresh_token: req.user.refresh_token,
-          expiry_date: req.user.expiry_date
-        });
+        const userOauth2Client = await getValidOAuthClient(req.user);
+
+      
 
         const drive = google.drive({ version: 'v3', auth: userOauth2Client });
         const { Readable } = require('stream');
@@ -420,16 +435,9 @@ app.post('/captures/:id/sync-to-drive', requireAuth, async (req, res) => {
     if (!record || !record.data) return res.status(404).json({ error: 'Local file data not found' });
     if (record.driveUrl) return res.status(400).json({ error: 'Already synced to Drive' });
 
-    const userOauth2Client = new google.auth.OAuth2(
-      process.env.GOOGLE_CLIENT_ID,
-      process.env.GOOGLE_CLIENT_SECRET,
-      process.env.GOOGLE_REDIRECT_URI
-    );
-    userOauth2Client.setCredentials({
-      access_token: req.user.access_token,
-      refresh_token: req.user.refresh_token,
-      expiry_date: req.user.expiry_date
-    });
+   const userOauth2Client = await getValidOAuthClient(req.user);
+
+   
 
     const drive = google.drive({ version: 'v3', auth: userOauth2Client });
     const { Readable } = require('stream');
@@ -474,17 +482,9 @@ app.post('/captures/:id/sync-to-local', requireAuth, async (req, res) => {
     if (!fileIdMatch) return res.status(400).json({ error: 'Invalid Drive URL format' });
     const fileId = fileIdMatch[0];
 
-    const userOauth2Client = new google.auth.OAuth2(
-      process.env.GOOGLE_CLIENT_ID,
-      process.env.GOOGLE_CLIENT_SECRET,
-      process.env.GOOGLE_REDIRECT_URI
-    );
-    userOauth2Client.setCredentials({
-      access_token: req.user.access_token,
-      refresh_token: req.user.refresh_token,
-      expiry_date: req.user.expiry_date
-    });
+    const userOauth2Client = await getValidOAuthClient(req.user);
 
+   
     const drive = google.drive({ version: 'v3', auth: userOauth2Client });
 
     const response = await drive.files.get(
@@ -542,16 +542,9 @@ app.post('/captures/:id/remove-drive', requireAuth, async (req, res) => {
     if (!fileIdMatch) return res.status(400).json({ error: 'Invalid Drive URL format' });
     const fileId = fileIdMatch[0];
 
-    const userOauth2Client = new google.auth.OAuth2(
-      process.env.GOOGLE_CLIENT_ID,
-      process.env.GOOGLE_CLIENT_SECRET,
-      process.env.GOOGLE_REDIRECT_URI
-    );
-    userOauth2Client.setCredentials({
-      access_token: req.user.access_token,
-      refresh_token: req.user.refresh_token,
-      expiry_date: req.user.expiry_date
-    });
+    const userOauth2Client = await getValidOAuthClient(req.user);
+
+   
 
     const drive = google.drive({ version: 'v3', auth: userOauth2Client });
 

@@ -39,7 +39,7 @@ export default function Sidebar({ activeNav, isAuthenticated, onNavClick, onSign
   return (
     <aside className="sidebar">
       <div className="logo">
-        <svg viewBox="0 0 20 20" width="20" height="20" fill="none" style={{ flexShrink: 0 }}>
+        <svg viewBox="0 0 20 20" width="22" height="22" fill="none" style={{ flexShrink: 0 }}>
           <circle cx="10" cy="10" r="10" fill="url(#sl)" />
           <circle cx="10" cy="10" r="4" fill="white" opacity="0.9" />
           <defs>
@@ -49,7 +49,9 @@ export default function Sidebar({ activeNav, isAuthenticated, onNavClick, onSign
             </linearGradient>
           </defs>
         </svg>
-        AntCapture
+        <span style={{ color: '#f8fafc', fontWeight: '700', letterSpacing: '-0.02em', fontSize: '19px' }}>
+          Ant<span style={{ color: '#94a3b8', fontWeight: '500' }}>Capture</span>
+        </span>
       </div>
 
       <nav style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
@@ -88,7 +90,9 @@ export default function Sidebar({ activeNav, isAuthenticated, onNavClick, onSign
 
       <div className="sidebar-footer">
         {isAuthenticated ? (
-          <button className="btn-logout" onClick={onLogout}>Sign Out</button>
+          <button className="btn-logout" onClick={onLogout}>
+            <span className="material-symbols-rounded" style={{ fontSize: '18px' }}>logout</span> Sign Out
+          </button>
         ) : (
           <button className="btn-signin-sidebar" onClick={onSignIn}>
             Sign in with Google

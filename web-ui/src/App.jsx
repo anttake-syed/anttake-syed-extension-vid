@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import './index.css';
 import { BACKEND_URL } from './config';
 
@@ -33,6 +33,10 @@ export default function App() {
   const [activeMedia, setActiveMedia] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+
+  useEffect(() => {
+    document.title = `${activeNav} - AntCapture`;
+  }, [activeNav]);
 
   // Stats derived from captures + dbStats
   const stats = [

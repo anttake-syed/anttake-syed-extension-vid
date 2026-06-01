@@ -172,17 +172,99 @@ export default function App() {
         ) : activeNav === 'Privacy' ? (
           <StaticPage
             title="Privacy Policy"
-            content="This is the Privacy Policy for AntCapture. We do not store your data on our servers; it is stored safely in your Google Drive."
+            content={`Last updated: June 2025
+
+AntCapture is built with your privacy as the foundation. Here's exactly what we do and don't do with your data.
+
+DATA WE COLLECT
+- Your Google account name, email, and profile picture — used only to identify your account
+- Screenshots and recordings you capture — stored in your chosen location (local database or your personal Google Drive)
+- Storage preferences you set in Settings
+
+DATA WE DON'T COLLECT
+- We never sell your data to third parties
+- We never use your captures for advertising or analytics
+- We never access files in your Google Drive beyond what you explicitly upload through AntCapture
+- We don't track your browsing activity
+
+WHERE YOUR FILES LIVE
+When you choose "Local" storage, your files are stored in our database and served only to you when you're logged in. When you choose "Google Drive", files go directly to your personal Google Drive — we don't keep a copy.
+
+GOOGLE OAUTH
+We use Google OAuth 2.0 for authentication. We request only the minimum permissions needed: your profile info and access to files created by AntCapture. We never request access to your existing Drive files.
+
+DATA DELETION
+You can delete all your captures or your entire account at any time from the Settings page. Deletion is immediate and permanent.
+
+CONTACT
+Questions about privacy? Reach us through the Feedback page.`}
           />
         ) : activeNav === 'Security' ? (
           <StaticPage
             title="Security"
-            content="We use industry standard encryption and best practices. Your authentication tokens are secure and never exposed."
+            content={`Last updated: June 2025
+
+AntCapture takes security seriously. Here's how we protect your account and data.
+
+AUTHENTICATION
+- All authentication is handled via Google OAuth 2.0 — we never store your Google password
+- Sessions are secured with signed JWT tokens that expire after 7 days
+- Tokens are stored locally in your browser and never transmitted except to our backend
+
+DATA IN TRANSIT
+- All communication between the extension, web UI, and backend uses HTTPS in production
+- API requests require a valid JWT — unauthenticated requests are rejected
+
+DATA AT REST
+- Files stored locally in our database are tied to your account email
+- Only you can access your captures — each request is verified against your JWT
+- Google Drive files are stored in your own Drive under your own Google account
+
+EXTENSION SECURITY
+- The Chrome extension only communicates with our backend (localhost in development, your domain in production)
+- No third-party scripts or tracking are included in the extension
+- The extension requests only the permissions it needs — no broad host access
+
+REPORTING ISSUES
+If you discover a security vulnerability, please report it responsibly through the Feedback page rather than publicly disclosing it.`}
           />
         ) : activeNav === 'Documentation' ? (
           <StaticPage
             title="Documentation"
-            content={"Welcome to AntCapture!\n\n1. Install the Chrome Extension and click 'Load Unpacked' in chrome://extensions.\n2. Sign in with Google in the extension popup.\n3. Click 'Record Screen' to start recording or 'Take Screenshot' to capture.\n4. Everything syncs automatically — open this dashboard to view your library."}
+            content={`Welcome to AntCapture — your screen capture and cloud sync tool.
+
+GETTING STARTED
+1. Sign In
+   Click the AntCapture icon in your Chrome toolbar and sign in with Google. You only need to sign in once — the extension remembers your session.
+
+2. Sign In to the Web Dashboard
+   Visit this dashboard and sign in with the same Google account. Your captures will appear automatically.
+
+TAKING SCREENSHOTS
+- Click the AntCapture extension icon
+- Click "Take Screenshot"
+- The screenshot saves to your computer and syncs to your dashboard automatically
+
+RECORDING YOUR SCREEN
+- Click the AntCapture extension icon
+- Click "Record Screen" and choose what to share (tab, window, or entire screen)
+- Click "Stop Recording" when finished
+- The recording saves locally and syncs to your dashboard
+
+STORAGE OPTIONS
+In Settings you can choose where your captures are stored:
+- Local — stored securely in our database, accessible from any browser
+- Google Drive — uploaded directly to your personal Google Drive
+
+You can also sync individual captures between Local and Drive from the capture card menu.
+
+YOUR LIBRARY
+The My Library page shows all your captures. You can filter by videos or screenshots, preview any capture, and download or open it in Google Drive.
+
+TROUBLESHOOTING
+- Captures not appearing? Make sure you're signed in to both the extension and the dashboard with the same Google account.
+- Upload failing? Check that your backend is running on port 3001.
+- Extension not recording? Make sure you've granted screen share permission when prompted by Chrome.`}
           />
         ) : activeNav === 'My Library' ? (
           <Library

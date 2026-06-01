@@ -27,3 +27,9 @@ model UserSettings {
   storagePreference String   @default("both")
   updatedAt         DateTime @updatedAt
 }
+model Feedback {
+  id        Int      @id @default(autoincrement())
+  email     String
+  message   String
+  createdAt DateTime @default(now())
+}

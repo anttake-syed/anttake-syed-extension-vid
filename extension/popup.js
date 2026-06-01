@@ -1,6 +1,6 @@
 // ── Configuration ─────────────────────────────────────────────────────────────
 // Change this to your deployed domain when going to production.
-const WEB_UI_URL = 'http://localhost:5173';
+const WEB_UI_URL = 'http://localhost:3000';
 // ──────────────────────────────────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', () => {

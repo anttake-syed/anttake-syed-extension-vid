@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import './login.css';
 
-const BACKEND_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001';
+const BACKEND_URL = import.meta.env.VITE_API_BASE_URL || 'https://api.antcapture.anttake.com';
 
 export default function LoginPage() {
   const [loading, setLoading] = useState(false);

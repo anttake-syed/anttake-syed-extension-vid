@@ -1,6 +1,5 @@
 // ── Configuration ─────────────────────────────────────────────────────────────
-// Change this to your deployed domain when going to production.
-const WEB_UI_URL = 'http://localhost:3000';
+const WEB_UI_URL = 'https://antcapture.anttake.com';
 // ──────────────────────────────────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -97,7 +96,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const userName = document.getElementById('userName');
   const userEmail = document.getElementById('userEmail');
 
-  const BACKEND_URL = 'http://localhost:3001';
+  const BACKEND_URL = 'https://api.antcapture.anttake.com';
 
   const statusDot = document.getElementById('statusDot');
   const statusText = document.getElementById('statusText');

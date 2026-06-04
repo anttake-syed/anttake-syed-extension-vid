@@ -50,7 +50,7 @@ exports.uploadCapture = async (req, res) => {
     const isVideo = req.file.mimetype.startsWith('video');
     const ext = isVideo ? 'webm' : 'png';
     const filename = `capture-${Date.now()}.${ext}`;
-    const backendBase = process.env.BACKEND_URL || `http://localhost:${process.env.PORT || 3001}`;
+    const backendBase = process.env.BACKEND_URL || 'https://api.antcapture.anttake.com';
 
     const settings = await prisma.userSettings.findUnique({ where: { email: req.user.email } });
     let storagePreference = settings?.storagePreference || 'local';

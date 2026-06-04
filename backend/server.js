@@ -31,12 +31,16 @@ app.use('/settings', settingsRoutes);
 app.use('/user', userRoutes);
 app.use('/feedback', feedbackRoutes);
 
-const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => {
-  console.log(`\n\x1b[32m✨ AntCapture backend running at http://localhost:${PORT}\x1b[0m`);
-  console.log(`\x1b[36m GET/POST /settings — storage preference\x1b[0m`);
-  console.log(`\x1b[36m GET /stats — DB usage breakdown\x1b[0m`);
-  console.log(`\x1b[36m PATCH /user/name\x1b[0m`);
-  console.log(`\x1b[36m DELETE /captures/all\x1b[0m`);
-  console.log(`\x1b[36m DELETE /account\x1b[0m\n`);
-});
+if (process.env.NODE_ENV !== 'production') {
+  const PORT = process.env.PORT || 3001;
+  app.listen(PORT, () => {
+    console.log(`\n\x1b[32m✨ AntCapture backend running at http://localhost:${PORT}\x1b[0m`);
+    console.log(`\x1b[36m GET/POST /settings — storage preference\x1b[0m`);
+    console.log(`\x1b[36m GET /stats — DB usage breakdown\x1b[0m`);
+    console.log(`\x1b[36m PATCH /user/name\x1b[0m`);
+    console.log(`\x1b[36m DELETE /captures/all\x1b[0m`);
+    console.log(`\x1b[36m DELETE /account\x1b[0m\n`);
+  });
+}
+
+module.exports = app;

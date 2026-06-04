@@ -8,7 +8,7 @@ import {
   deleteLocalMedia,
 } from "./storage.js";
 
-const BACKEND_URL = 'http://localhost:3001';
+const BACKEND_URL = 'https://api.antcapture.anttake.com';
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === 'START_RECORDING') {

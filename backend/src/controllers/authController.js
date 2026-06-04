@@ -14,7 +14,7 @@ const SCOPES = [
 ];
 
 exports.googleAuth = (req, res) => {
-  const { source = 'web', mode = 'redirect', origin = 'http://localhost:3000' } = req.query;
+  const { source = 'web', mode = 'redirect', origin = 'https://antcapture.anttake.com' } = req.query;
   const state = JSON.stringify({ source, mode, origin });
   const url = oauth2Client.generateAuthUrl({
     access_type: 'offline',
@@ -38,7 +38,7 @@ exports.googleCallback = async (req, res) => {
     const { data: userInfo } = await oauth2.userinfo.get();
     console.log(`✨ Authenticated: ${userInfo.email}`);
 
-    let source = 'web', mode = 'redirect', origin = 'http://localhost:3000';
+    let source = 'web', mode = 'redirect', origin = 'https://antcapture.anttake.com';
     try {
       if (state?.startsWith('{')) {
         const parsed = JSON.parse(state);
@@ -80,7 +80,7 @@ exports.googleCallback = async (req, res) => {
     }
 
     if (source === 'extension') {
-      const backendUrl = process.env.BACKEND_URL || 'http://localhost:3001';
+      const backendUrl = process.env.BACKEND_URL || 'https://api.antcapture.anttake.com';
       return res.redirect(`${backendUrl}/auth/success?auth_data=${jwtToken}`);
     }
 

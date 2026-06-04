@@ -1,0 +1,39 @@
+# AntCapture Architecture & Sync Logic
+
+This document explains the core logic of the AntCapture application for future developers and maintainers.
+
+## Data Flow & Sync Architecture
+
+AntCapture consists of three main components:
+1. **Chrome Extension (Frontend/Capture)**
+2. **Web UI (Frontend/Dashboard)**
+3. **Node.js Express Server (Backend)**
+
+### 1. Cloud-First Storage
+All media (screenshots and video recordings) are **cloud-first**.
+When a user takes a screenshot or finishes recording a video:
+- The extension directly uploads the binary data to the backend (`POST /upload`).
+- The backend stores the binary data inside the local SQLite database (`dev.db` via Prisma).
+- If the user has granted Google Drive permissions, the backend *also* uploads a copy to their Google Drive.
+- There are **no local computer downloads**. The browser's default download feature is intentionally bypassed to provide a seamless, cloud-synced experience (like Loom).
+
+### 2. Cross-Login Requirement
+Because the Chrome Extension and Web UI run in entirely different contexts, they do not share `localStorage`. 
+- **The Sync Rule:** A user **MUST** log into both the Chrome Extension and the Web UI using the exact same Google account (email address).
+- **Why?** When the extension uploads a file, it attaches the user's JWT containing their email. The backend associates the file with that email in Prisma. When the Web UI fetches recent captures (`GET /captures`), it only receives captures matching its own logged-in email. If the emails don't match (or if one side isn't logged in), the data will not sync.
+
+### 3. Offline Queueing
+If the user takes a screenshot or video while offline, or while logged out of the extension, the extension will temporarily save the media to the browser's `IndexedDB`. The next time the user logs in or comes online, `background.js` will automatically sync the pending items to the backend and delete the local cache.
+
+### 4. Real-Time UI Updates
+The Web UI does not need manual refreshing. It automatically polls the backend `/captures` endpoint every 5 seconds. As soon as a video or image finishes uploading from the extension, it will magically appear on the Web UI dashboard.
+
+---
+
+## Past Tasks Completed
+- ✅ Remove "Record" button from Web UI (Extension is the only source of truth).
+- ✅ Remove Local Downloads (Everything goes to Prisma).
+- ✅ Convert PostgreSQL to SQLite for easy local development without complex environments.
+- ✅ Fix Extension cancellation states (stopping recording updates UI immediately).
+- ✅ Web UI Polish (Play button hover states, Media Viewers).
+- ✅ Added Privacy, Security, Documentation, and Feedback routes.

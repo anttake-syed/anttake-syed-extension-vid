@@ -39,11 +39,11 @@ export default function Sidebar({ activeNav, isAuthenticated, onNavClick, onSign
   return (
     <aside className="sidebar">
       <div className="logo">
-        <svg viewBox="0 0 20 20" width="22" height="22" fill="none" style={{ flexShrink: 0 }}>
-          <circle cx="10" cy="10" r="10" fill="url(#sl)" />
-          <circle cx="10" cy="10" r="4" fill="white" opacity="0.9" />
+        <svg viewBox="0 0 40 40" width="24" height="24" fill="none" style={{ flexShrink: 0 }}>
+          <circle cx="20" cy="20" r="20" fill="url(#sidebar-grad)" />
+          <path d="M14 20a6 6 0 1 1 12 0 6 6 0 0 1-12 0z" fill="white" opacity="0.9"/>
           <defs>
-            <linearGradient id="sl" x1="0" y1="0" x2="20" y2="20" gradientUnits="userSpaceOnUse">
+            <linearGradient id="sidebar-grad" x1="0" y1="0" x2="40" y2="40" gradientUnits="userSpaceOnUse">
               <stop stopColor="#6366f1" />
               <stop offset="1" stopColor="#a855f7" />
             </linearGradient>

@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "AntCapture - Media Recorder & Cloud Sync",
+  "name": "AntCapture: Record & Sync to Google Drive",
   "version": "1.0.0",
-  "description": "Premium screen recording and screenshot tool with auto-upload to your AntCapture library.",
+  "description": "Record your screen, capture screenshots, and automatically sync media to Google Drive via your personal web dashboard.",
   "permissions": [
     "activeTab",
     "tabs",
@@ -21,7 +21,7 @@
   ],
   "externally_connectable": {
     "matches": [
-      "http://localhost:3000/*",
+      "http://localhost:5175/*",
       "http://localhost:5173/*",
       "https://antcapture.anttake.com/*"
     ]

@@ -4,3 +4,6 @@ skills/
 
 # Built extension packages — never commit these
 *.zip
+
+# Marketing screenshots — local only, never commit
+marketing/

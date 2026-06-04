@@ -4,7 +4,7 @@ module.exports = cors({
   origin: (origin, callback) => {
     if (!origin || origin.startsWith('chrome-extension://')) return callback(null, true);
     const allowed = [
-      'http://localhost:3000',
+      'http://localhost:5175',
       'http://localhost:5173',
       'https://antcapture.anttake.com',
     ];

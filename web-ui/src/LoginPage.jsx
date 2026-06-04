@@ -27,7 +27,6 @@ export default function LoginPage() {
             <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" width="40" height="40">
               <circle cx="20" cy="20" r="20" fill="url(#grad)" />
               <path d="M14 20a6 6 0 1 1 12 0 6 6 0 0 1-12 0z" fill="white" opacity="0.9"/>
-              <path d="M20 10v4M20 26v4M10 20h4M26 20h4" stroke="white" strokeWidth="2" strokeLinecap="round" opacity="0.5"/>
               <defs>
                 <linearGradient id="grad" x1="0" y1="0" x2="40" y2="40" gradientUnits="userSpaceOnUse">
                   <stop stopColor="#6366f1"/>

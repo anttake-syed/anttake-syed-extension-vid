@@ -2,4 +2,12 @@ node_modules
 # Keep environment variables out of version control
 .env
 
+# Prisma generated client
 /generated/prisma
+
+# SQLite database file (each machine creates their own)
+prisma/dev.db
+prisma/*.db
+
+# Uploaded files (local media, not for version control)
+uploads/

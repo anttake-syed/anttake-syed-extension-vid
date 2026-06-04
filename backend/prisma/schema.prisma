@@ -8,11 +8,28 @@ datasource db {
 }
 
 model Capture {
+  id              Int      @id @default(autoincrement())
+  email           String
+  title           String?
+  type            String
+  size            String?
+  mimeType        String?
+  data            Bytes?
+  fileUrl         String
+  driveUrl        String?
+  storageLocation String   @default("local")
+  createdAt       DateTime @default(now())
+}
+
+model UserSettings {
+  id                Int      @id @default(autoincrement())
+  email             String   @unique
+  storagePreference String   @default("both")
+  updatedAt         DateTime @updatedAt
+}
+model Feedback {
   id        Int      @id @default(autoincrement())
   email     String
-  title     String?
-  type      String
-  size      String?
-  fileUrl   String
+  message   String
   createdAt DateTime @default(now())
 }

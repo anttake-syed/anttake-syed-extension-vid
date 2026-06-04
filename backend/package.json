@@ -6,7 +6,9 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "node --watch server.js",
-    "start": "node server.js"
+    "start": "node server.js",
+    "setup": "prisma generate && prisma db push",
+    "postinstall": "prisma generate"
   },
   "keywords": [],
   "author": "",
@@ -20,7 +22,8 @@
     "express": "^5.2.1",
     "googleapis": "^171.4.0",
     "jsonwebtoken": "^9.0.3",
-    "multer": "^2.1.1"
+    "multer": "^2.1.1",
+    "resend": "^6.12.4"
   },
   "devDependencies": {
     "nodemon": "^3.1.14",

@@ -42,10 +42,6 @@ body {
 .header h1 {
   font-size: 18px;
   font-weight: 700;
-  background: linear-gradient(to right, #818cf8, #c084fc);
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
 }
 
 .card {
@@ -90,13 +86,14 @@ body {
 }
 
 .btn.primary {
-  background: var(--primary);
-  border: none;
+  background: rgba(99, 102, 241, 0.1);
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  color: #818cf8;
 }
 
 .btn.primary:hover {
-  background: var(--primary-hover);
-  box-shadow: 0 0 20px rgba(99, 102, 241, 0.4);
+  background: rgba(99, 102, 241, 0.2);
+  border-color: rgba(99, 102, 241, 0.5);
 }
 
 .btn-icon {

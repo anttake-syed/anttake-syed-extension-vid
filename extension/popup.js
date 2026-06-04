@@ -1,3 +1,7 @@
+// ── Configuration ─────────────────────────────────────────────────────────────
+const WEB_UI_URL = 'https://antcapture.anttake.com';
+// ──────────────────────────────────────────────────────────────────────────────
+
 document.addEventListener('DOMContentLoaded', () => {
   const recordBtn = document.getElementById('recordBtn');
   const screenshotBtn = document.getElementById('screenshotBtn');
@@ -63,13 +67,25 @@ document.addEventListener('DOMContentLoaded', () => {
     chrome.runtime.sendMessage({ action: 'TAKE_SCREENSHOT' }, (response) => {
       screenshotBtn.disabled = false;
       if (chrome.runtime.lastError || !response?.success) {
+        const errMsg = response?.error || chrome.runtime.lastError?.message || 'Unknown error';
         screenshotBtn.querySelector(".btn-text").textContent = "Failed!";
+        screenshotBtn.title = errMsg;
+      } else if (response.queued) {
+        if (response.warning) {
+          screenshotBtn.querySelector(".btn-text").textContent = "Drive Error!";
+          screenshotBtn.title = response.warning;
+          // Show alert so user doesn't miss the Google Drive API error
+          alert("Could not save to Drive. Saved locally instead.\n\nError: " + response.warning);
+        } else {
+          screenshotBtn.querySelector(".btn-text").textContent = "Saved locally!";
+        }
       } else {
-        screenshotBtn.querySelector(".btn-text").textContent = "Saved!";
+        screenshotBtn.querySelector(".btn-text").textContent = "Saved to cloud!";
       }
       setTimeout(() => {
         screenshotBtn.querySelector(".btn-text").textContent = originalText;
-      }, 1500);
+        screenshotBtn.title = "";
+      }, 2000);
     });
   });
 
@@ -80,7 +96,27 @@ document.addEventListener('DOMContentLoaded', () => {
   const userName = document.getElementById('userName');
   const userEmail = document.getElementById('userEmail');
 
-  const BACKEND_URL = 'http://localhost:3001';
+  const BACKEND_URL = 'https://api.antcapture.anttake.com';
+
+  const statusDot = document.getElementById('statusDot');
+  const statusText = document.getElementById('statusText');
+
+  const storageInfo = document.getElementById('storageInfo');
+
+  async function fetchStats(user) {
+    try {
+      const res = await fetch(`${BACKEND_URL}/stats`, {
+        headers: { Authorization: `Bearer ${user.jwt}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        // e.g. Local: 2MB | Drive: 1GB
+        if (storageInfo) storageInfo.textContent = `Local: ${data.dbSizeFormatted} | Drive: ${data.appDriveFormatted}`;
+      }
+    } catch (e) {
+      console.error('Failed to fetch stats for popup', e);
+    }
+  }
 
   function updateAuthUI(user) {
     if (user) {
@@ -89,17 +125,24 @@ document.addEventListener('DOMContentLoaded', () => {
       userName.textContent = user.name || 'User';
       userEmail.textContent = user.email || '';
       userAvatar.src = user.picture || '';
+      
+      if (statusDot) statusDot.style.background = '#10b981'; // Green
+      if (statusText) statusText.textContent = 'Cloud Sync Active';
+      
+      fetchStats(user);
     } else {
       googleLoginBtn.style.display = 'flex';
       profileContainer.style.display = 'none';
+      
+      if (statusDot) statusDot.style.background = '#64748b'; // Gray/Offline
+      if (statusText) statusText.textContent = 'Please sign in to sync with Web Dashboard';
+      if (storageInfo) storageInfo.textContent = 'Local DB Only';
     }
   }
 
   // Load user data on startup
   chrome.runtime.sendMessage({ action: 'GET_USER' }, (response) => {
-    if (response?.user) {
-      updateAuthUI(response.user);
-    }
+    updateAuthUI(response?.user || null);
   });
 
   // Listen for storage changes to sync UI
@@ -110,7 +153,12 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   googleLoginBtn.addEventListener('click', () => {
-    chrome.tabs.create({ url: `${BACKEND_URL}/auth/google?source=extension` });
+    chrome.windows.create({
+      url: `${BACKEND_URL}/auth/google?source=extension`,
+      type: 'popup',
+      width: 500,
+      height: 600
+    });
   });
 
   logoutBtn.addEventListener('click', () => {
@@ -121,7 +169,44 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
+  // Open Dashboard — smart: focus existing tab or open new one
+  const openDashboardBtn = document.getElementById('openDashboardBtn');
+  if (openDashboardBtn) {
+    openDashboardBtn.addEventListener('click', () => {
+      chrome.storage.local.get(['user'], (result) => {
+        const targetUrl = result.user?.jwt
+          ? `${WEB_UI_URL}?auth_data=${result.user.jwt}`
+          : WEB_UI_URL;
+
+        chrome.tabs.query({ url: `${WEB_UI_URL}/*` }, (tabs) => {
+          if (tabs.length > 0) {
+            chrome.tabs.update(tabs[0].id, { active: true, url: targetUrl });
+            chrome.windows.update(tabs[0].windowId, { focused: true });
+          } else {
+            chrome.tabs.create({ url: targetUrl });
+          }
+          window.close();
+        });
+      });
+    });
+  }
+
   settingsBtn.addEventListener('click', () => {
-    chrome.runtime.openOptionsPage();
+    chrome.storage.local.get(['user'], (result) => {
+      const settingsUrl = result.user?.jwt
+        ? `${WEB_UI_URL}?nav=Settings&auth_data=${result.user.jwt}`
+        : `${WEB_UI_URL}?nav=Settings`;
+
+      // Focus existing Dashboard tab if open, otherwise open new one
+      chrome.tabs.query({ url: `${WEB_UI_URL}/*` }, (tabs) => {
+        if (tabs.length > 0) {
+          chrome.tabs.update(tabs[0].id, { active: true, url: settingsUrl });
+          chrome.windows.update(tabs[0].windowId, { focused: true });
+        } else {
+          chrome.tabs.create({ url: settingsUrl });
+        }
+        window.close();
+      });
+    });
   });
 });

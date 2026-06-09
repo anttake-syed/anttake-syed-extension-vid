@@ -27,7 +27,24 @@ export default function App() {
     saveStoragePreference, refresh,
   } = useCaptures(user, isAuthenticated);
 
+  const NAV_TO_PATH = {
+    'Dashboard': '/',
+    'My Library': '/library',
+    'Settings': '/settings',
+    'Feedback': '/feedback',
+    'Privacy': '/privacy-policy',
+    'Security': '/security',
+    'Documentation': '/documentation'
+  };
+
+  const PATH_TO_NAV = Object.fromEntries(Object.entries(NAV_TO_PATH).map(([k, v]) => [v, k]));
+
   const [activeNav, setActiveNav] = useState(() => {
+    const path = window.location.pathname;
+    // Check path first
+    if (PATH_TO_NAV[path]) return PATH_TO_NAV[path];
+    
+    // Fallback to query params for legacy links
     const params = new URLSearchParams(window.location.search);
     return params.get('nav') || 'Dashboard';
   });
@@ -35,9 +52,37 @@ export default function App() {
   const [showModal, setShowModal] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
 
+  // Sync state to URL and Document Title
   useEffect(() => {
     document.title = `${activeNav} - AntCapture`;
+    
+    const targetPath = NAV_TO_PATH[activeNav] || '/';
+    if (window.location.pathname !== targetPath) {
+      window.history.pushState(null, '', targetPath);
+    }
   }, [activeNav]);
+
+  // Close login modal automatically on successful login
+  useEffect(() => {
+    if (isAuthenticated) {
+      setShowModal(false);
+    }
+  }, [isAuthenticated]);
+
+  // Handle browser back/forward buttons
+  useEffect(() => {
+    const handlePopState = () => {
+      const path = window.location.pathname;
+      if (PATH_TO_NAV[path]) {
+        setActiveNav(PATH_TO_NAV[path]);
+      } else {
+        setActiveNav('Dashboard');
+      }
+    };
+    
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   // Stats derived from captures + dbStats
   const stats = [

@@ -8,16 +8,12 @@
     "tabs",
     "storage",
     "unlimitedStorage",
-    "identity",
-    "scripting",
-    "tabCapture",
     "offscreen",
-    "notifications",
-    "desktopCapture"
+    "downloads"
   ],
   "host_permissions": [
-    "https://www.googleapis.com/*",
-    "<all_urls>"
+    "https://api.antcapture.anttake.com/*",
+    "https://antcapture.anttake.com/*"
   ],
   "externally_connectable": {
     "matches": [

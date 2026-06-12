@@ -10,5 +10,6 @@ router.post('/:id/sync-to-local', requireAuth, captureController.syncToLocal);
 router.post('/:id/remove-local', requireAuth, captureController.removeLocal);
 router.post('/:id/remove-drive', requireAuth, captureController.removeDrive);
 router.delete('/all', requireAuth, captureController.deleteAll);
+router.delete('/:id', requireAuth, captureController.deleteCapture);
 
 module.exports = router;

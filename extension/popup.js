@@ -1,5 +1,16 @@
 // ── Configuration ─────────────────────────────────────────────────────────────
-const WEB_UI_URL = 'https://antcapture.anttake.com';
+const PROD_BACKEND_URL = 'https://api.antcapture.anttake.com';
+const PROD_WEB_UI_URL  = 'https://antcapture.anttake.com';
+const DEV_BACKEND_URL  = 'http://localhost:3001';
+const DEV_WEB_UI_URL   = 'http://localhost:3000';
+
+async function getConfig() {
+  const { devMode } = await chrome.storage.local.get(['devMode']);
+  return {
+    backendUrl: devMode ? DEV_BACKEND_URL : PROD_BACKEND_URL,
+    webUiUrl:   devMode ? DEV_WEB_UI_URL  : PROD_WEB_UI_URL,
+  };
+}
 // ──────────────────────────────────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -65,22 +76,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const originalText = screenshotBtn.querySelector(".btn-text").textContent;
 
     chrome.runtime.sendMessage({ action: 'TAKE_SCREENSHOT' }, (response) => {
+      void chrome.runtime.lastError; // consume to prevent unchecked-error warning
       screenshotBtn.disabled = false;
-      if (chrome.runtime.lastError || !response?.success) {
-        const errMsg = response?.error || chrome.runtime.lastError?.message || 'Unknown error';
+      if (!response?.success) {
+        const errMsg = response?.error || 'Could not capture this page.';
         screenshotBtn.querySelector(".btn-text").textContent = "Failed!";
         screenshotBtn.title = errMsg;
       } else if (response.queued) {
-        if (response.warning) {
-          screenshotBtn.querySelector(".btn-text").textContent = "Drive Error!";
-          screenshotBtn.title = response.warning;
-          // Show alert so user doesn't miss the Google Drive API error
-          alert("Could not save to Drive. Saved locally instead.\n\nError: " + response.warning);
-        } else {
-          screenshotBtn.querySelector(".btn-text").textContent = "Saved locally!";
-        }
+        screenshotBtn.querySelector(".btn-text").textContent = "Saved locally!";
       } else {
-        screenshotBtn.querySelector(".btn-text").textContent = "Saved to cloud!";
+        screenshotBtn.querySelector(".btn-text").textContent = "Saved!";
       }
       setTimeout(() => {
         screenshotBtn.querySelector(".btn-text").textContent = originalText;
@@ -96,8 +101,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const userName = document.getElementById('userName');
   const userEmail = document.getElementById('userEmail');
 
-  const BACKEND_URL = 'https://api.antcapture.anttake.com';
-
   const statusDot = document.getElementById('statusDot');
   const statusText = document.getElementById('statusText');
 
@@ -105,7 +108,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   async function fetchStats(user) {
     try {
-      const res = await fetch(`${BACKEND_URL}/stats`, {
+      const { backendUrl } = await getConfig();
+      const res = await fetch(`${backendUrl}/stats`, {
         headers: { Authorization: `Bearer ${user.jwt}` }
       });
       if (res.ok) {
@@ -152,9 +156,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  googleLoginBtn.addEventListener('click', () => {
+  googleLoginBtn.addEventListener('click', async () => {
+    const { backendUrl } = await getConfig();
     chrome.windows.create({
-      url: `${BACKEND_URL}/auth/google?source=extension`,
+      url: `${backendUrl}/auth/google?source=extension`,
       type: 'popup',
       width: 500,
       height: 600
@@ -172,13 +177,14 @@ document.addEventListener('DOMContentLoaded', () => {
   // Open Dashboard — smart: focus existing tab or open new one
   const openDashboardBtn = document.getElementById('openDashboardBtn');
   if (openDashboardBtn) {
-    openDashboardBtn.addEventListener('click', () => {
+    openDashboardBtn.addEventListener('click', async () => {
+      const { webUiUrl } = await getConfig();
       chrome.storage.local.get(['user'], (result) => {
         const targetUrl = result.user?.jwt
-          ? `${WEB_UI_URL}?auth_data=${result.user.jwt}`
-          : WEB_UI_URL;
+          ? `${webUiUrl}?auth_data=${result.user.jwt}`
+          : webUiUrl;
 
-        chrome.tabs.query({ url: `${WEB_UI_URL}/*` }, (tabs) => {
+        chrome.tabs.query({ url: `${webUiUrl}/*` }, (tabs) => {
           if (tabs.length > 0) {
             chrome.tabs.update(tabs[0].id, { active: true, url: targetUrl });
             chrome.windows.update(tabs[0].windowId, { focused: true });
@@ -191,14 +197,15 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  settingsBtn.addEventListener('click', () => {
+  settingsBtn.addEventListener('click', async () => {
+    const { webUiUrl } = await getConfig();
     chrome.storage.local.get(['user'], (result) => {
       const settingsUrl = result.user?.jwt
-        ? `${WEB_UI_URL}?nav=Settings&auth_data=${result.user.jwt}`
-        : `${WEB_UI_URL}?nav=Settings`;
+        ? `${webUiUrl}?nav=Settings&auth_data=${result.user.jwt}`
+        : `${webUiUrl}?nav=Settings`;
 
       // Focus existing Dashboard tab if open, otherwise open new one
-      chrome.tabs.query({ url: `${WEB_UI_URL}/*` }, (tabs) => {
+      chrome.tabs.query({ url: `${webUiUrl}/*` }, (tabs) => {
         if (tabs.length > 0) {
           chrome.tabs.update(tabs[0].id, { active: true, url: settingsUrl });
           chrome.windows.update(tabs[0].windowId, { focused: true });

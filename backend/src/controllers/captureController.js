@@ -192,6 +192,35 @@ exports.removeDrive = async (req, res) => {
   }
 };
 
+exports.deleteCapture = async (req, res) => {
+  try {
+    const record = await prisma.capture.findUnique({
+      where: { id: parseInt(req.params.id, 10) },
+    });
+    if (!record || record.email !== req.user.email)
+      return res.status(404).json({ error: 'Not found' });
+
+    if (record.driveUrl && req.user.access_token) {
+      try {
+        const fileIdMatch = record.driveUrl.match(/[-\w]{25,}/);
+        if (fileIdMatch) {
+          const userOauth2Client = await getValidOAuthClient(req.user);
+          const drive = google.drive({ version: 'v3', auth: userOauth2Client });
+          await drive.files.delete({ fileId: fileIdMatch[0] });
+        }
+      } catch (driveErr) {
+        console.error('Drive delete failed (continuing):', driveErr.message);
+      }
+    }
+
+    await prisma.capture.delete({ where: { id: record.id } });
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Delete capture error:', err);
+    res.status(500).json({ error: 'Failed to delete capture' });
+  }
+};
+
 exports.deleteAll = async (req, res) => {
   try {
     const { count } = await prisma.capture.deleteMany({ where: { email: req.user.email } });

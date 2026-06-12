@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { BACKEND_URL } from '../config';
+import { BACKEND_URL, EXTENSION_ID } from '../config';
 
 export function useAuth() {
   const [user, setUser] = useState(null);
@@ -70,7 +70,18 @@ export function useAuth() {
     };
     window.addEventListener('message', handleMessage);
 
-    setTimeout(() => setIsInitializing(false), 300);
+    // Auto-login from extension if not already authenticated
+    if (!stored && !authData && EXTENSION_ID && typeof chrome !== 'undefined' && chrome.runtime?.sendMessage) {
+      chrome.runtime.sendMessage(EXTENSION_ID, { action: 'GET_USER' }, (response) => {
+        void chrome.runtime.lastError;
+        if (response?.user?.jwt) {
+          login(response.user.jwt);
+        }
+        setIsInitializing(false);
+      });
+    } else {
+      setTimeout(() => setIsInitializing(false), 300);
+    }
 
     return () => window.removeEventListener('message', handleMessage);
   }, []);

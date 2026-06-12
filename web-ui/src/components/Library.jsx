@@ -12,6 +12,7 @@ const DriveLogoSVG = ({ size = 20 }) => (
 );
 
 function MediaCard({ item, onOpen, viewMode }) {
+  const [videoHovered, setVideoHovered] = useState(false);
   if (viewMode === 'list') {
     return (
       <div
@@ -82,8 +83,22 @@ function MediaCard({ item, onOpen, viewMode }) {
         ) : item.type === 'image' && item.src ? (
           <img src={item.src} alt={item.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
         ) : item.type === 'video' && item.src ? (
-          <video src={item.src} style={{ width: '100%', height: '100%', objectFit: 'cover' }} muted
-            onMouseOver={e => e.target.play()} onMouseOut={e => { e.target.pause(); e.target.currentTime = 0; }} />
+          <div style={{ position: 'relative', width: '100%', height: '100%' }}
+            onMouseEnter={() => setVideoHovered(true)}
+            onMouseLeave={() => setVideoHovered(false)}
+          >
+            <video src={item.src} style={{ width: '100%', height: '100%', objectFit: 'cover' }} muted
+              onMouseOver={e => e.target.play()} onMouseOut={e => { e.target.pause(); e.target.currentTime = 0; }} />
+            <div style={{
+              position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              pointerEvents: 'none', transition: 'opacity 0.2s',
+              opacity: videoHovered ? 0 : 1,
+            }}>
+              <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(2px)' }}>
+                <span className="material-symbols-rounded" style={{ fontSize: '22px', color: 'white', marginLeft: '3px' }}>play_arrow</span>
+              </div>
+            </div>
+          </div>
         ) : (
           <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <span className="material-symbols-rounded" style={{ fontSize: '36px', color: '#334155' }}>

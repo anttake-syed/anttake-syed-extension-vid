@@ -12,13 +12,14 @@ const DriveLogoSVG = ({ size = 18 }) => (
   </svg>
 );
 
-export default function MediaModal({ item, onClose, user, onSyncSuccess }) {
+export default function MediaModal({ item, onClose, user, onSyncSuccess, onDelete }) {
   if (!item) return null;
 
   const [syncingDrive, setSyncingDrive] = useState(false);
   const [syncingLocal, setSyncingLocal] = useState(false);
   const [removingLocal, setRemovingLocal] = useState(false);
   const [removingDrive, setRemovingDrive] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [syncError, setSyncError] = useState(null);
 
   const callApi = async (path, setter) => {
@@ -37,6 +38,23 @@ export default function MediaModal({ item, onClose, user, onSyncSuccess }) {
       setSyncError(err.message);
     } finally {
       setter(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!user?.jwt || !window.confirm('Delete this capture? This cannot be undone.')) return;
+    setDeleting(true);
+    setSyncError(null);
+    try {
+      const res = await fetch(`${BACKEND_URL}/captures/${item.id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${user.jwt}` },
+      });
+      if (!res.ok) { const d = await res.json(); throw new Error(d.error || 'Delete failed'); }
+      if (onDelete) onDelete(item.id);
+    } catch (err) {
+      setSyncError(err.message);
+      setDeleting(false);
     }
   };
 
@@ -96,7 +114,7 @@ export default function MediaModal({ item, onClose, user, onSyncSuccess }) {
             )}
             
             {/* Sync / Remove buttons */}
-            <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px' }}>
+            <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
               {loc === 'local' && (
                 <button onClick={(e) => { e.stopPropagation(); callApi('sync-to-drive', setSyncingDrive); }} disabled={syncingDrive} style={syncBtnStyle('#60a5fa', 'rgba(59,130,246,0.1)', 'rgba(59,130,246,0.3)')}>
                   {syncingDrive ? <span className="btn-spinner" style={{ width: '12px', height: '12px', borderColor: '#60a5fa', borderTopColor: 'transparent' }} /> : <DriveLogoSVG size={16} />}
@@ -112,15 +130,19 @@ export default function MediaModal({ item, onClose, user, onSyncSuccess }) {
               {loc === 'both' && (
                 <>
                   <button onClick={(e) => { e.stopPropagation(); callApi('remove-local', setRemovingLocal); }} disabled={removingLocal} style={removeBtnStyle}>
-                    {removingLocal ? <span className="btn-spinner" style={{ width: '12px', height: '12px', borderColor: '#f87171', borderTopColor: 'transparent' }} /> : <span className="material-symbols-rounded" style={{ fontSize: '16px' }}>delete</span>}
+                    {removingLocal ? <span className="btn-spinner" style={{ width: '12px', height: '12px', borderColor: '#f87171', borderTopColor: 'transparent' }} /> : <span className="material-symbols-rounded" style={{ fontSize: '16px' }}>hard_drive</span>}
                     {removingLocal ? 'Removing...' : 'Remove Local'}
                   </button>
                   <button onClick={(e) => { e.stopPropagation(); callApi('remove-drive', setRemovingDrive); }} disabled={removingDrive} style={removeBtnStyle}>
-                    {removingDrive ? <span className="btn-spinner" style={{ width: '12px', height: '12px', borderColor: '#f87171', borderTopColor: 'transparent' }} /> : <span className="material-symbols-rounded" style={{ fontSize: '16px' }}>delete_forever</span>}
+                    {removingDrive ? <span className="btn-spinner" style={{ width: '12px', height: '12px', borderColor: '#f87171', borderTopColor: 'transparent' }} /> : <DriveLogoSVG size={16} />}
                     {removingDrive ? 'Removing...' : 'Remove from Drive'}
                   </button>
                 </>
               )}
+              <button onClick={(e) => { e.stopPropagation(); handleDelete(); }} disabled={deleting} style={{ ...removeBtnStyle, marginLeft: loc === 'local' || loc === 'drive' ? 0 : '4px' }}>
+                {deleting ? <span className="btn-spinner" style={{ width: '12px', height: '12px', borderColor: '#f87171', borderTopColor: 'transparent' }} /> : <span className="material-symbols-rounded" style={{ fontSize: '16px' }}>delete_forever</span>}
+                {deleting ? 'Deleting...' : 'Delete'}
+              </button>
             </div>
           </div>
           {syncError && <div style={{ color: '#ef4444', fontSize: '12px', marginTop: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}><span className="material-symbols-rounded" style={{ fontSize: '14px' }}>error</span> {syncError}</div>}

@@ -24,7 +24,7 @@ export default function App() {
     captures, setCaptures, dbStats,
     storagePreference, loadingCaptures, savingPref,
     fetchCaptures, fetchStats,
-    saveStoragePreference, refresh,
+    saveStoragePreference, deleteCapture, refresh,
   } = useCaptures(user, isAuthenticated);
 
   const NAV_TO_PATH = {
@@ -177,6 +177,7 @@ export default function App() {
           onClose={() => setActiveMedia(null)}
           user={user}
           onSyncSuccess={() => { refresh(); setActiveMedia(null); }}
+          onDelete={(id) => { deleteCapture(id); setActiveMedia(null); }}
         />
       )}
 

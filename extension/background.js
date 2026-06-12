@@ -8,7 +8,13 @@ import {
   deleteLocalMedia,
 } from "./storage.js";
 
-const BACKEND_URL = 'https://api.antcapture.anttake.com';
+const PROD_BACKEND_URL = 'https://api.antcapture.anttake.com';
+const DEV_BACKEND_URL  = 'http://localhost:3001';
+
+async function getBackendUrl() {
+  const { devMode } = await chrome.storage.local.get(['devMode']);
+  return devMode ? DEV_BACKEND_URL : PROD_BACKEND_URL;
+}
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === 'START_RECORDING') {
@@ -72,11 +78,22 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 
 // --- Recording Handlers ---
 
+function notify(id, title, message) {
+  chrome.notifications.create(id, {
+    type: 'basic',
+    iconUrl: 'icons/icon48.png',
+    title,
+    message,
+    priority: 1,
+  });
+}
+
 async function handleStartRecording(message, sendResponse) {
   try {
     await ensureOffscreen();
     chrome.runtime.sendMessage({ target: 'offscreen', type: 'start-recording' });
     await chrome.storage.local.set({ isRecording: true });
+    notify('recording-started', 'AntCapture', 'Recording started');
     sendResponse({ success: true });
   } catch (error) {
     console.error('Start recording failed:', error);
@@ -89,6 +106,7 @@ async function handleStopRecording(message, sendResponse) {
     await ensureOffscreen();
     await chrome.runtime.sendMessage({ target: 'offscreen', type: 'stop-recording' });
     await chrome.storage.local.set({ isRecording: false });
+    notify('recording-stopped', 'Recording stopped', 'Processing and saving your video...');
     sendResponse({ success: true });
   } catch (error) {
     console.error('Stop recording failed:', error);
@@ -123,15 +141,18 @@ async function handleTakeScreenshot(message, sendResponse) {
         chrome.storage.local.get(['captureCount'], (result) => {
           chrome.storage.local.set({ captureCount: (result.captureCount || 0) + 1 });
         });
+        notify('screenshot-saved', 'Screenshot saved', 'Uploaded to your AntCapture library.');
         sendResponse({ success: true, dataUrl });
       } catch (uploadErr) {
         console.error('Upload failed, saving locally:', uploadErr.message);
         await saveMediaLocally(blob, 'image');
-        sendResponse({ success: true, dataUrl, queued: true, warning: uploadErr.message });
+        notify('screenshot-queued', 'Screenshot saved locally', 'Will sync when back online.');
+        sendResponse({ success: true, dataUrl, queued: true });
       }
     } else {
       console.log('Not logged in or offline — queuing screenshot');
       await saveMediaLocally(blob, 'image');
+      notify('screenshot-queued', 'Screenshot saved locally', 'Sign in to sync to your library.');
       sendResponse({ success: true, dataUrl, queued: true });
     }
   } catch (error) {
@@ -157,15 +178,18 @@ async function handleVideoBlobReady(message, sendResponse) {
         chrome.storage.local.get(['captureCount'], (result) => {
           chrome.storage.local.set({ captureCount: (result.captureCount || 0) + 1 });
         });
+        notify('video-saved', 'Recording saved', 'Video uploaded to your AntCapture library.');
       } catch (uploadErr) {
         console.error('Direct upload failed, queueing for later:', uploadErr.message);
         await saveMediaLocally(blob, 'video');
-        if (sendResponse) sendResponse({ success: true, queued: true, warning: uploadErr.message });
+        notify('video-queued', 'Recording saved locally', 'Will sync when back online.');
+        if (sendResponse) sendResponse({ success: true, queued: true });
         return;
       }
     } else {
       console.log('Not logged in or offline — queuing video');
       await saveMediaLocally(blob, 'video');
+      notify('video-queued', 'Recording saved locally', 'Sign in to sync to your library.');
     }
     if (sendResponse) sendResponse({ success: true });
   } catch (error) {
@@ -220,6 +244,7 @@ async function syncPendingUploads() {
 }
 
 async function uploadToBackend(blob, type, jwt) {
+  const backendUrl = await getBackendUrl();
   const formData = new FormData();
   formData.append(
     'file',
@@ -227,7 +252,7 @@ async function uploadToBackend(blob, type, jwt) {
     `capture-${Date.now()}.${type === 'video' ? 'webm' : 'png'}`
   );
 
-  const response = await fetch(`${BACKEND_URL}/upload`, {
+  const response = await fetch(`${backendUrl}/upload`, {
     method: 'POST',
     headers: { 'Authorization': `Bearer ${jwt}` },
     body: formData,

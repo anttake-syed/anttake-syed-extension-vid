@@ -74,6 +74,16 @@ export function useCaptures(user, isAuthenticated) {
     }
   };
 
+  const deleteCapture = useCallback(async (id) => {
+    if (!user?.jwt) return;
+    const res = await fetch(`${BACKEND_URL}/captures/${id}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${user.jwt}` },
+    });
+    if (!res.ok) throw new Error('Failed to delete');
+    setCaptures((prev) => prev.filter((c) => c.id !== id));
+  }, [user]);
+
   const refresh = useCallback(() => {
     if (!user?.jwt) return;
     fetchCaptures(user.jwt, true);
@@ -128,6 +138,7 @@ export function useCaptures(user, isAuthenticated) {
     fetchCaptures,
     fetchStats,
     saveStoragePreference,
+    deleteCapture,
     refresh,
   };
 }

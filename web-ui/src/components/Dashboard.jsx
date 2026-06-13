@@ -1,5 +1,91 @@
 import React from 'react';
 
+// Update this once the extension is approved on the Chrome Web Store
+const CHROME_STORE_URL = '#';
+
+function GetExtensionBanner() {
+  const steps = [
+    { n: '1', text: 'Click the button below to go to the Chrome Web Store' },
+    { n: '2', text: 'Search "AntCapture" and open the extension page' },
+    { n: '3', text: 'Click "Add to Chrome" then confirm — done!' },
+  ];
+
+  return (
+    <div style={{
+      background: 'linear-gradient(135deg, rgba(99,102,241,0.07) 0%, rgba(168,85,247,0.07) 100%)',
+      border: '1px solid rgba(99,102,241,0.2)',
+      borderRadius: '20px',
+      padding: '32px',
+      marginBottom: '24px',
+      display: 'flex',
+      gap: '32px',
+      alignItems: 'center',
+      flexWrap: 'wrap',
+    }}>
+      {/* Left: icon + text */}
+      <div style={{ flex: 1, minWidth: '260px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '14px' }}>
+          <div style={{ width: '44px', height: '44px', borderRadius: '12px', background: 'rgba(99,102,241,0.15)', border: '1px solid rgba(99,102,241,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <span className="material-symbols-rounded" style={{ fontSize: '24px', color: '#818cf8' }}>extension</span>
+          </div>
+          <div>
+            <div style={{ fontSize: '11px', fontWeight: 700, color: '#818cf8', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '2px' }}>Step 1 to get started</div>
+            <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: '#f1f5f9' }}>Get the AntCapture Extension</h3>
+          </div>
+        </div>
+
+        <p style={{ margin: '0 0 20px', color: '#94a3b8', fontSize: '14px', lineHeight: '1.6' }}>
+          All recording and screenshots happen through the Chrome extension. Install it in seconds — it's free.
+        </p>
+
+        {/* Steps */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          {steps.map(s => (
+            <div key={s.n} style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+              <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: 'rgba(99,102,241,0.2)', border: '1px solid rgba(99,102,241,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: '11px', fontWeight: 700, color: '#a5b4fc' }}>
+                {s.n}
+              </div>
+              <span style={{ fontSize: '13px', color: '#94a3b8', lineHeight: '1.5', paddingTop: '2px' }}>{s.text}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Right: CTA */}
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
+        <a
+          href={CHROME_STORE_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            display: 'flex', alignItems: 'center', gap: '10px',
+            background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+            color: 'white', borderRadius: '12px', padding: '14px 24px',
+            fontWeight: 700, fontSize: '15px', textDecoration: 'none',
+            boxShadow: '0 4px 24px rgba(99,102,241,0.35)',
+            transition: 'opacity 0.15s, transform 0.15s',
+            whiteSpace: 'nowrap',
+          }}
+          onMouseEnter={e => { e.currentTarget.style.opacity = '0.9'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
+          onMouseLeave={e => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.transform = 'translateY(0)'; }}
+        >
+          <svg width="20" height="20" viewBox="0 0 48 48" style={{ flexShrink: 0 }}>
+            <circle cx="24" cy="24" r="10" fill="white"/>
+            <path d="M24 14h18.7A24 24 0 0 0 5.3 14z" fill="#ef4444"/>
+            <path d="M14 24A10 10 0 0 1 24 14H5.3A24 24 0 0 0 14 40.4z" fill="#34a853"/>
+            <path d="M24 34a10 10 0 0 1-10-10L5.3 40.4A24 24 0 0 0 42.7 14H24z" fill="#fbbc05"/>
+            <circle cx="24" cy="24" r="7" fill="#4285f4"/>
+          </svg>
+          Add to Chrome
+        </a>
+        <span style={{ fontSize: '11px', color: '#475569', textAlign: 'center' }}>
+          Free · Chrome Web Store
+        </span>
+      </div>
+    </div>
+  );
+}
+
 const DriveLogoSVG = ({ size = 22 }) => (
   <svg viewBox="0 0 87.3 78" width={size} height={size} xmlns="http://www.w3.org/2000/svg">
     <path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8H.97c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/>
@@ -134,21 +220,24 @@ export default function Dashboard({ isAuthenticated, stats, captures, loadingCap
           </div>
         </div>
       ) : (
-        <section className="hero-banner slideIn">
-          <div className="hero-text">
-            <h2>Record. Screenshot. Sync.</h2>
-            <p>Capture anything on your screen and automatically back it up to Google Drive. Works as a Chrome extension — no account needed to start.</p>
-            <div className="hero-pills">
-              <span className="pill">✓ Tab &amp; window recording</span>
-              <span className="pill">✓ One-click screenshots</span>
-              <span className="pill">✓ Cloud sync</span>
+        <>
+          <section className="hero-banner slideIn">
+            <div className="hero-text">
+              <h2>Record. Screenshot. Sync.</h2>
+              <p>Capture anything on your screen and automatically back it up to Google Drive. Works as a Chrome extension — no account needed to start.</p>
+              <div className="hero-pills">
+                <span className="pill">✓ Tab &amp; window recording</span>
+                <span className="pill">✓ One-click screenshots</span>
+                <span className="pill">✓ Cloud sync</span>
+              </div>
             </div>
-          </div>
-          <button className="btn-hero" onClick={onSignIn}>
-            <img src="https://www.gstatic.com/images/branding/product/1x/gsa_512dp.png" alt="G" className="google-icon" />
-            Sign in with Google
-          </button>
-        </section>
+            <button className="btn-hero" onClick={onSignIn}>
+              <img src="https://www.gstatic.com/images/branding/product/1x/gsa_512dp.png" alt="G" className="google-icon" />
+              Sign in with Google
+            </button>
+          </section>
+          <GetExtensionBanner />
+        </>
       )}
 
       {/* ── Stats Row ── */}

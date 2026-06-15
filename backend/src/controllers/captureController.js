@@ -32,7 +32,9 @@ exports.getCaptures = async (req, res) => {
 
 exports.serveFile = async (req, res) => {
   try {
-    const record = await prisma.capture.findUnique({ where: { id: parseInt(req.params.id, 10) } });
+    const id = parseInt(req.params.id, 10);
+    if (isNaN(id)) return res.status(400).send('Invalid ID');
+    const record = await prisma.capture.findUnique({ where: { id } });
     if (!record || !record.data) return res.status(404).send('File not found');
     res.setHeader('Content-Type', record.mimeType || 'application/octet-stream');
     res.setHeader('Cache-Control', 'public, max-age=31536000');

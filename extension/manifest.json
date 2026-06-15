@@ -9,7 +9,8 @@
     "storage",
     "unlimitedStorage",
     "offscreen",
-    "downloads"
+    "downloads",
+    "notifications"
   ],
   "host_permissions": [
     "https://api.antcapture.anttake.com/*",
@@ -17,8 +18,6 @@
   ],
   "externally_connectable": {
     "matches": [
-      "http://localhost:5175/*",
-      "http://localhost:5173/*",
       "https://antcapture.anttake.com/*"
     ]
   },

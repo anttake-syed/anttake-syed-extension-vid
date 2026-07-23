@@ -1,4 +1,4 @@
-import { DEV_BACKEND_URL, PROD_BACKEND_URL, DEV_WEB_UI_URL, PROD_WEB_UI_URL } from './config.js';
+import { DEV_SERVER_URL, PROD_SERVER_URL, DEV_WEB_UI_URL, PROD_WEB_UI_URL } from './config.js';
 
 const select = document.getElementById('storageModeSelect');
 const status = document.getElementById('status');
@@ -18,9 +18,9 @@ select.addEventListener('change', () => {
 });
 
 function updateLabels(mode) {
-  document.getElementById('backendLabel').textContent = mode === 'localhost'
-    ? DEV_BACKEND_URL
-    : (mode === 'cloud' ? PROD_BACKEND_URL : 'N/A (Direct Download)');
+  document.getElementById('serverLabel').textContent = mode === 'localhost'
+    ? DEV_SERVER_URL
+    : (mode === 'cloud' ? PROD_SERVER_URL : 'N/A (Direct Download)');
   document.getElementById('webUiLabel').textContent = mode === 'localhost'
     ? DEV_WEB_UI_URL
     : (mode === 'cloud' ? PROD_WEB_UI_URL : 'N/A (Direct Download)');

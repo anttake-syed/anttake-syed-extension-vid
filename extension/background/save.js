@@ -5,7 +5,7 @@
 
 import { saveMediaLocally, getPendingUploads, deleteLocalMedia } from '../storage.js';
 import { notify } from './notify.js';
-import { uploadToBackend } from './upload.js';
+import { uploadToServer } from './upload.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // dataURItoBlob — convert a base64 data URL into a Blob
@@ -40,15 +40,15 @@ export async function saveCapture(blob, type = 'image', resolution = null, forma
   // ── MODE 2: Self-Hosted (localhost) ───────────────────────────────────────
   if (storageMode === 'localhost') {
     try {
-      await uploadToBackend(blob, type, 'local-mode', resolution, format);
+      await uploadToServer(blob, type, 'local-mode', resolution, format);
       chrome.storage.local.get(['captureCount'], (r) =>
         chrome.storage.local.set({ captureCount: (r.captureCount || 0) + 1 })
       );
       notify('capture-local', `${label} saved`, 'Stored in your self-hosted library.');
       return { success: true };
     } catch {
-      notify('capture-local-fail', 'Local Backend Offline', 'Run: node server.js  to start your local backend.');
-      return { success: false, backend_offline: true };
+      notify('capture-local-fail', 'Local Server Offline', 'Run: node server.js  to start your local server.');
+      return { success: false, server_offline: true };
     }
   }
 
@@ -56,7 +56,7 @@ export async function saveCapture(blob, type = 'image', resolution = null, forma
   const { user } = await chrome.storage.local.get(['user']);
   if (user && user.jwt && navigator.onLine) {
     try {
-      await uploadToBackend(blob, type, user.jwt, resolution, format);
+      await uploadToServer(blob, type, user.jwt, resolution, format);
       chrome.storage.local.get(['captureCount'], (r) =>
         chrome.storage.local.set({ captureCount: (r.captureCount || 0) + 1 })
       );
@@ -97,7 +97,7 @@ export async function syncPendingUploads() {
 
   for (const item of pending) {
     try {
-      await uploadToBackend(item.blob, item.type, user.jwt, item.resolution, item.format);
+      await uploadToServer(item.blob, item.type, user.jwt, item.resolution, item.format);
       console.log(`✅ Synced item ${item.id}`);
       await deleteLocalMedia(item.id);
       synced++;

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { BACKEND_URL } from '../config';
+import { SERVER_URL } from '../config';
 
 export function useCaptures(user, isAuthenticated) {
   const [captures, setCaptures] = useState([]);
@@ -13,7 +13,7 @@ export function useCaptures(user, isAuthenticated) {
     if (!jwt) {return;}
     if (!background) {setLoadingCaptures(true);}
     try {
-      const res = await fetch(`${BACKEND_URL}/captures`, {
+      const res = await fetch(`${SERVER_URL}/captures`, {
         headers: { Authorization: `Bearer ${jwt}` },
       });
       if (!res.ok) {throw new Error(`HTTP ${res.status}`);}
@@ -30,7 +30,7 @@ export function useCaptures(user, isAuthenticated) {
   const fetchStats = useCallback(async (jwt) => {
     if (!jwt) {return;}
     try {
-      const res = await fetch(`${BACKEND_URL}/stats`, {
+      const res = await fetch(`${SERVER_URL}/stats`, {
         headers: { Authorization: `Bearer ${jwt}` },
       });
       if (!res.ok) {return;}
@@ -44,7 +44,7 @@ export function useCaptures(user, isAuthenticated) {
   const fetchSettings = useCallback(async (jwt) => {
     if (!jwt) {return;}
     try {
-      const res = await fetch(`${BACKEND_URL}/settings`, {
+      const res = await fetch(`${SERVER_URL}/settings`, {
         headers: { Authorization: `Bearer ${jwt}` },
       });
       if (!res.ok) {return;}
@@ -59,7 +59,7 @@ export function useCaptures(user, isAuthenticated) {
     if (!user?.jwt) {return;}
     setSavingPref(true);
     try {
-      const res = await fetch(`${BACKEND_URL}/settings`, {
+      const res = await fetch(`${SERVER_URL}/settings`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${user.jwt}`,
@@ -77,7 +77,7 @@ export function useCaptures(user, isAuthenticated) {
 
   const deleteCapture = useCallback(async (id) => {
     if (!user?.jwt) {return;}
-    const res = await fetch(`${BACKEND_URL}/captures/${id}`, {
+    const res = await fetch(`${SERVER_URL}/captures/${id}`, {
       method: 'DELETE',
       headers: { Authorization: `Bearer ${user.jwt}` },
     });

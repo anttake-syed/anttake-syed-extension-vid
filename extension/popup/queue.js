@@ -87,7 +87,7 @@ export function initQueue() {
         if (res?.offline) {
           showSyncPanel('Sync Failed', 'wifi_off', '#f87171');
           addSyncStep('wifi_off', 'No internet connection', '#f87171');
-          showSyncError('Device is offline', 'The extension cannot reach the backend when your device has no network.', 'Connect to the internet and try syncing again.');
+          showSyncError('Device is offline', 'The extension cannot reach the server when your device has no network.', 'Connect to the internet and try syncing again.');
           return;
         }
 
@@ -131,14 +131,14 @@ export function initQueue() {
         addSyncStep('error', `${failed} item${failed > 1 ? 's' : ''} failed to upload`, '#f87171');
 
         const errMsg = errors[0] || 'Upload request rejected by server.';
-        const tip = 'Make sure the backend is running: cd backend && npm start';
+        const tip = 'Make sure the server is running: cd server && npm start';
 
         if (errMsg.includes('Failed to fetch') || errMsg.includes('NetworkError') || errMsg.includes('ECONNREFUSED')) {
-          showSyncError('Backend not reachable', 'Could not connect to http://localhost:3001. The server may not be running.', 'Run: cd backend && npm start — then try syncing again.');
+          showSyncError('Server not reachable', 'Could not connect to http://localhost:3001. The server may not be running.', 'Run: cd server && npm start — then try syncing again.');
         } else if (errMsg.includes('401') || errMsg.includes('403') || errMsg.includes('Unauthorized')) {
-          showSyncError('Session expired', 'Your JWT token was rejected by the backend.', 'Sign out and sign in again to refresh your session, then retry.');
+          showSyncError('Session expired', 'Your JWT token was rejected by the server.', 'Sign out and sign in again to refresh your session, then retry.');
         } else if (errMsg.includes('Local upload failed')) {
-          showSyncError('Server rejected the upload', errMsg, 'Check the backend terminal for the full error log.');
+          showSyncError('Server rejected the upload', errMsg, 'Check the server terminal for the full error log.');
         } else {
           showSyncError('Upload error', errMsg, tip);
         }

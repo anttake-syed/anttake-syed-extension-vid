@@ -33,7 +33,7 @@ export function initAuth() {
     googleLoginBtn.addEventListener('click', async () => {
       chrome.storage.local.get(['storageMode', 'dynamicWebUiUrl'], async (res) => {
         const mode = res.storageMode || 'computer';
-        const { backendUrl, webUiUrl } = await getConfig();
+        const { serverUrl, webUiUrl } = await getConfig();
         const actualWebUiUrl = res.dynamicWebUiUrl || webUiUrl;
         
         if (mode === 'localhost') {
@@ -41,7 +41,7 @@ export function initAuth() {
           window.close();
         } else {
           chrome.windows.create({
-            url: `${backendUrl}/auth/google?source=extension`,
+            url: `${serverUrl}/auth/google?source=extension`,
             type: 'popup',
             width: 500,
             height: 600
@@ -133,19 +133,19 @@ export function updateAuthUI(user) {
         }
       }
       
-      getConfig().then(({ backendUrl }) => {
-        fetch(`${backendUrl}/`)
+      getConfig().then(({ serverUrl }) => {
+        fetch(`${serverUrl}/`)
           .then(res => {
             if (res.ok) {
               if (statusDot) {statusDot.style.background = '#10b981';}
               if (statusText) {statusText.textContent = mode === 'localhost' ? 'Local Sync Active' : 'Web + Drive Sync Active';}
             } else {
-              throw new Error('Backend not ok');
+              throw new Error('Server not ok');
             }
           })
           .catch(() => {
             if (statusDot) {statusDot.style.background = '#ef4444';}
-            if (statusText) {statusText.textContent = mode === 'localhost' ? 'Local Backend Offline' : 'Cloud Backend Offline';}
+            if (statusText) {statusText.textContent = mode === 'localhost' ? 'Local Server Offline' : 'Cloud Server Offline';}
           });
       });
       
@@ -175,8 +175,8 @@ export function updateAuthUI(user) {
 
 async function fetchStats(user) {
   try {
-    const { backendUrl } = await getConfig();
-    const res = await fetch(`${backendUrl}/stats`, { headers: { Authorization: `Bearer ${user.jwt}` } });
+    const { serverUrl } = await getConfig();
+    const res = await fetch(`${serverUrl}/stats`, { headers: { Authorization: `Bearer ${user.jwt}` } });
     if (res.ok) {
       const data = await res.json();
       if (storageInfo) {storageInfo.textContent = `Metadata: ${data.dbSizeFormatted} | Drive Linked`;}

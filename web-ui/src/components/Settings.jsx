@@ -170,7 +170,7 @@ export default function Settings({
       </div>
 
       {/* ── Storage Destination (hidden in local/self-host mode) ── */}
-      {!IS_LOCAL_MODE && dbStats?.storageBackend !== 'local' && (
+      {!IS_LOCAL_MODE && dbStats?.storageServer !== 'local' && (
         <div style={S.section}>
           <SectionHeader icon="cloud_sync" title="Storage Destination" subtitle="Where your captures are saved by default" />
           {savingPref && <p style={{ fontSize: '12px', color: '#818cf8', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}><span className="material-symbols-rounded" style={{ fontSize: '14px' }}>sync</span> Saving preference…</p>}

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { BACKEND_URL, IS_LOCAL_MODE } from '../config';
+import { SERVER_URL, IS_LOCAL_MODE } from '../config';
 
 const DriveLogoSVG = ({ size = 18 }) => (
   <svg viewBox="0 0 87.3 78" width={size} height={size} xmlns="http://www.w3.org/2000/svg" style={{ flexShrink: 0 }}>
@@ -27,7 +27,7 @@ export default function MediaModal({ item, onClose, user, onSyncSuccess, onDelet
     setter(true);
     setSyncError(null);
     try {
-      const res = await fetch(`${BACKEND_URL}/captures/${item.id}/${path}`, {
+      const res = await fetch(`${SERVER_URL}/captures/${item.id}/${path}`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${user.jwt}` },
       });
@@ -46,7 +46,7 @@ export default function MediaModal({ item, onClose, user, onSyncSuccess, onDelet
     setDeleting(true);
     setSyncError(null);
     try {
-      const res = await fetch(`${BACKEND_URL}/captures/${item.id}`, {
+      const res = await fetch(`${SERVER_URL}/captures/${item.id}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${user.jwt}` },
       });
@@ -137,19 +137,19 @@ export default function MediaModal({ item, onClose, user, onSyncSuccess, onDelet
             
             {/* Sync / Remove buttons */}
             <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
-              {loc === 'local' && dbStats?.storageBackend !== 'local' && (
+              {loc === 'local' && dbStats?.storageServer !== 'local' && (
                 <button onClick={(e) => { e.stopPropagation(); callApi('sync-to-drive', setSyncingDrive); }} disabled={syncingDrive} style={syncBtnStyle('#60a5fa', 'rgba(59,130,246,0.1)', 'rgba(59,130,246,0.3)')}>
                   {syncingDrive ? <span className="btn-spinner" style={{ width: '12px', height: '12px', borderColor: '#60a5fa', borderTopColor: 'transparent' }} /> : <DriveLogoSVG size={16} />}
                   {syncingDrive ? 'Syncing...' : 'Backup to Drive'}
                 </button>
               )}
-              {loc === 'drive' && dbStats?.storageBackend !== 'local' && (
+              {loc === 'drive' && dbStats?.storageServer !== 'local' && (
                 <button onClick={(e) => { e.stopPropagation(); callApi('sync-to-local', setSyncingLocal); }} disabled={syncingLocal} style={syncBtnStyle('#818cf8', 'rgba(99,102,241,0.1)', 'rgba(99,102,241,0.3)')}>
                   {syncingLocal ? <span className="btn-spinner" style={{ width: '12px', height: '12px', borderColor: '#818cf8', borderTopColor: 'transparent' }} /> : <span className="material-symbols-rounded" style={{ fontSize: '16px' }}>download</span>}
                   {syncingLocal ? 'Syncing...' : 'Save to Local DB'}
                 </button>
               )}
-              {loc === 'both' && dbStats?.storageBackend !== 'local' && (
+              {loc === 'both' && dbStats?.storageServer !== 'local' && (
                 <>
                   <button onClick={(e) => { e.stopPropagation(); callApi('remove-local', setRemovingLocal); }} disabled={removingLocal} style={removeBtnStyle}>
                     {removingLocal ? <span className="btn-spinner" style={{ width: '12px', height: '12px', borderColor: '#f87171', borderTopColor: 'transparent' }} /> : <span className="material-symbols-rounded" style={{ fontSize: '16px' }}>hard_drive</span>}

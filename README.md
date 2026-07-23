@@ -12,7 +12,7 @@ AntCapture is a high-performance browser extension and web platform designed for
 ## 🛠 Tech Stack
 - **Extension**: Vite + React + Vanilla CSS (Custom Glassmorphic System) + Lucide Icons.
 - **Web UI**: Vite + React + Vanilla CSS (Modern Design Tokens).
-- **Backend**: Node.js + Express + Multer + Googleapis.
+- **Server**: Node.js + Express + Multer + Googleapis.
 - **Database/Storage**: IndexedDB (Local) + Google Drive (Cloud).
 
 ---
@@ -29,7 +29,7 @@ To ensure both developers (You & Your Brother) can showcase deep technical "core
 ### **Developer 2: Cloud Cloud Bridge & Security (Brother)**
 *Focus: Server-side infrastructure, Global APIs, and Dashboard Experience.*
 - **[CORE] Cloud Identity**: Implementing OAuth 2.0 flows and secure token management for Google/Social Media.
-- **[CORE] Media Bridge**: Building the Express backend that streams chunks directly to Google Drive/YouTube.
+- **[CORE] Media Bridge**: Building the Express server that streams chunks directly to Google Drive/YouTube.
 - **[UX/UI] Web Dashboard**: Designing the React-based library management system and media grid.
 
 ---
@@ -67,9 +67,9 @@ Each component requires environment variables. **Never push `.env` files to GitH
 
 Copy `.env.example` → `.env` and fill in the real values (ask Saleh for the Google credentials).
 
-### 2. Backend Setup
+### 2. Server Setup
 ```bash
-cd backend
+cd server
 npm install              # installs deps + auto-generates Prisma client
 
 # Copy env file and fill in your values
@@ -82,13 +82,13 @@ npm run setup            # runs: prisma generate && prisma db push
 npm start
 ```
 
-> ⚠️ **If you skip `npm run setup`, the database tables won't exist and the backend will crash.**
+> ⚠️ **If you skip `npm run setup`, the database tables won't exist and the server will crash.**
 
 ### 3. Web UI Setup
 ```bash
 cd web-ui
 npm install
-# VITE_API_BASE_URL should point to your backend (default: http://localhost:3001)
+# VITE_API_BASE_URL should point to your server (default: http://localhost:3001)
 npm run dev
 ```
 
@@ -127,8 +127,8 @@ t**, **Start/Stop Recording**,
 - Feedback / notifications to the user - Saleh 
   - Example: if storage drive is full, user will be notified via email
 
-## 3. Backend Integration
-- Connect frontend to backend **via API**  
+## 3. Server Integration
+- Connect frontend to server **via API**  
 - Endpoints:
   - `/auth/google` → Google OAuth  
   - `/upload/drive` → Upload captured content  
@@ -141,11 +141,11 @@ t**, **Start/Stop Recording**,
 ### Frontend (Extension)
 - Handle OAuth login flow - Saleh 
 - Receive access code after login (`/auth/callback`) - Saleh 
-- Send code securely to backend  - Brother
+- Send code securely to server  - Brother
 
 - Optionally store **short-lived tokens in memory/sessionStorage** for current session  
 
-### Backend
+### Server
 - Exchange OAuth code for **access + refresh tokens** - Saleh
 - Store tokens securely in **database or encrypted file** - Brother 
 - Handle **automatic token refresh**  
@@ -174,8 +174,8 @@ t**, **Start/Stop Recording**,
 - Feedback / notifications to the user  
   - Example: if upload fails or storage limit is reached  
 
-## 3. Backend Integration
-- Connect Web UI to backend **via API**  
+## 3. Server Integration
+- Connect Web UI to server **via API**  
 - Endpoints:
   - `/auth/google` → Google OAuth  
   - `/upload/drive` → Fetch uploaded content / manage uploads  

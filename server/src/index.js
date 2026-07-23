@@ -2,17 +2,17 @@ const express = require('express');
 const dotenv = require('dotenv');
 dotenv.config();
 
-const corsMiddleware = require('./src/middleware/cors');
-const logger = require('./src/middleware/logger');
+const corsMiddleware = require('./middleware/cors');
+const logger = require('./middleware/logger');
 const rateLimit = require('express-rate-limit');
 
-const authRoutes = require('./src/routes/auth');
-const captureRoutes = require('./src/routes/captures');
-const uploadRoutes = require('./src/routes/upload');
-const statsRoutes = require('./src/routes/stats');
-const settingsRoutes = require('./src/routes/settings');
-const userRoutes = require('./src/routes/user');
-const feedbackRoutes = require('./src/routes/feedback');
+const authRoutes = require('./routes/auth');
+const captureRoutes = require('./routes/captures');
+const uploadRoutes = require('./routes/upload');
+const statsRoutes = require('./routes/stats');
+const settingsRoutes = require('./routes/settings');
+const userRoutes = require('./routes/user');
+const feedbackRoutes = require('./routes/feedback');
 
 const app = express();
 
@@ -61,10 +61,10 @@ const generalLimiter = rateLimit({
 // (Uploads folder is no longer used. Media is stored directly in SQLite)
 
 app.get('/', (req, res) => {
-  res.json({ status: 'ok', message: '✨ AntCapture backend running', mode: process.env.STORAGE_BACKEND || 'drive' });
+  res.json({ status: 'ok', message: '✨ AntCapture server running', mode: process.env.STORAGE_BACKEND || 'drive' });
 });
 
-// ── Health endpoint (used by web-ui BackendHealthBadge to show live status) ──
+// ── Health endpoint (used by web-ui ServerHealthBadge to show live status) ──
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', uptime: process.uptime(), mode: process.env.STORAGE_BACKEND || 'drive' });
 });
@@ -80,7 +80,7 @@ app.use('/feedback', generalLimiter, feedbackRoutes);
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
   const mode = process.env.STORAGE_BACKEND || 'drive';
-  console.log(`\n\x1b[32m✨ AntCapture backend running at http://localhost:${PORT}\x1b[0m`);
+  console.log(`\n\x1b[32m✨ AntCapture server running at http://localhost:${PORT}\x1b[0m`);
   console.log(`\x1b[36m📦 Storage mode: ${mode === 'local' ? '💾 Local (SQLite Blob Storage)' : '☁️  Production (Google Drive)'}\x1b[0m\n`);
 });
 

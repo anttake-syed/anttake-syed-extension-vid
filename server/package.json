@@ -1,12 +1,12 @@
 {
-  "name": "backend",
+  "name": "server",
   "version": "1.0.0",
   "description": "",
-  "main": "server.js",
+  "main": "src/index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "node --watch server.js",
-    "start": "node server.js",
+    "dev": "node --watch src/index.js",
+    "start": "node src/index.js",
     "setup": "prisma generate && prisma db push",
     "postinstall": "prisma generate",
     "lint": "eslint ."

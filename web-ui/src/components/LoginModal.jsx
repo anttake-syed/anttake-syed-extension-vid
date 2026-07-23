@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { BACKEND_URL } from '../config';
+import { SERVER_URL } from '../config';
 
 export default function LoginModal({ onClose }) {
   const [loading, setLoading] = useState(false);
@@ -11,7 +11,7 @@ export default function LoginModal({ onClose }) {
     const top = window.screenY + (window.outerHeight - height) / 2;
     const origin = window.location.origin;
     window.open(
-      `${BACKEND_URL}/auth/google?source=web&mode=popup&origin=${encodeURIComponent(origin)}`,
+      `${SERVER_URL}/auth/google?source=web&mode=popup&origin=${encodeURIComponent(origin)}`,
       'Google Login',
       `width=${width},height=${height},left=${left},top=${top}`
     );

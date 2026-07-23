@@ -277,7 +277,7 @@ export default function Dashboard({ isAuthenticated, isLocalMode, stats, capture
       </section>
 
       {/* ── Storage Health Bar (Drive) — cloud mode only ── */}
-      {isAuthenticated && !isLocalMode && driveUsedPct !== null && dbStats?.storageBackend !== 'local' && (
+      {isAuthenticated && !isLocalMode && driveUsedPct !== null && dbStats?.storageServer !== 'local' && (
         <div style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: '12px', padding: '16px 20px', marginBottom: '28px', display: 'flex', alignItems: 'center', gap: '16px' }}>
           <DriveLogoSVG size={20} />
           <div style={{ flex: 1 }}>

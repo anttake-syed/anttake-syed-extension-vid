@@ -1,11 +1,11 @@
 // background/upload.js — AntCapture
-// Handles uploading blobs to the backend (localhost mode or Google Drive cloud mode).
+// Handles uploading blobs to the server (localhost mode or Google Drive cloud mode).
 
-import { DEV_BACKEND_URL, PROD_BACKEND_URL } from '../config.js';
+import { DEV_SERVER_URL, PROD_SERVER_URL } from '../config.js';
 
-export async function getBackendUrl() {
+export async function getServerUrl() {
   const { storageMode } = await chrome.storage.local.get(['storageMode']);
-  return storageMode === 'localhost' ? DEV_BACKEND_URL : PROD_BACKEND_URL;
+  return storageMode === 'localhost' ? DEV_SERVER_URL : PROD_SERVER_URL;
 }
 
 /**
@@ -24,7 +24,7 @@ export function resolveVideoMeta(type, format) {
 }
 
 /**
- * Uploads a Blob to either the local backend (localhost mode) or Google Drive (cloud mode).
+ * Uploads a Blob to either the local server (localhost mode) or Google Drive (cloud mode).
  *
  * @param {Blob} blob
  * @param {'image'|'video'} type
@@ -32,8 +32,8 @@ export function resolveVideoMeta(type, format) {
  * @param {number|null} resolution  — e.g. 720
  * @param {string|null} format      — raw mimeType string from MediaRecorder
  */
-export async function uploadToBackend(blob, type, jwt, resolution = null, format = null) {
-  const backendUrl = await getBackendUrl();
+export async function uploadToServer(blob, type, jwt, resolution = null, format = null) {
+  const serverUrl = await getServerUrl();
   const { ext, mimeType } = resolveVideoMeta(type, format);
   const filename = `capture-${Date.now()}.${ext}`;
 
@@ -51,7 +51,7 @@ export async function uploadToBackend(blob, type, jwt, resolution = null, format
     formData.append('size', sizeStr);
     formData.append('mimeType', mimeType);
 
-    const res = await fetch(`${backendUrl}/upload/local`, {
+    const res = await fetch(`${serverUrl}/upload/local`, {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${jwt || 'local-mode'}` },
       body: formData,
@@ -67,11 +67,11 @@ export async function uploadToBackend(blob, type, jwt, resolution = null, format
   }
 
   // ── MODE B: Cloud (Google Drive) ──────────────────────────────────────────
-  // 1. Get Google Drive access token from backend
-  const tokenRes = await fetch(`${backendUrl}/auth/google-token`, {
+  // 1. Get Google Drive access token from server
+  const tokenRes = await fetch(`${serverUrl}/auth/google-token`, {
     headers: { 'Authorization': `Bearer ${jwt}` },
   });
-  if (!tokenRes.ok) throw new Error('Failed to get Google token from backend. Please log in again.');
+  if (!tokenRes.ok) throw new Error('Failed to get Google token from server. Please log in again.');
   const { access_token } = await tokenRes.json();
 
   // 2a. Upload media binary to Google Drive
@@ -98,8 +98,8 @@ export async function uploadToBackend(blob, type, jwt, resolution = null, format
   const { webViewLink } = await patchRes.json();
   const finalDriveUrl = webViewLink || `https://drive.google.com/file/d/${fileId}/view`;
 
-  // 3. Save lightweight metadata to backend (bypasses Vercel 4.5 MB limit)
-  const metaRes = await fetch(`${backendUrl}/upload/metadata`, {
+  // 3. Save lightweight metadata to server (bypasses Vercel 4.5 MB limit)
+  const metaRes = await fetch(`${serverUrl}/upload/metadata`, {
     method: 'POST',
     headers: { 'Authorization': `Bearer ${jwt}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ title: filename, type, size: sizeStr, mimeType, driveUrl: finalDriveUrl }),

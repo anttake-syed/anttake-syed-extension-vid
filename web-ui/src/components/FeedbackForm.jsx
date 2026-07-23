@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { BACKEND_URL } from '../config';
+import { SERVER_URL } from '../config';
 
 const S = {
   section: { background: '#1e293b', border: '1px solid #334155', borderRadius: '16px', padding: '32px', maxWidth: '620px' },
@@ -49,7 +49,7 @@ export default function FeedbackForm({ user }) {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`${BACKEND_URL}/feedback`, {
+      const res = await fetch(`${SERVER_URL}/feedback`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

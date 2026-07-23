@@ -50,7 +50,7 @@ exports.getStats = async (req, res) => {
       driveUsageFormatted: formatBytes(driveUsage),
       driveLimitBytes: driveLimit,
       driveLimitFormatted: driveLimit > 0 ? formatBytes(driveLimit) : 'Unknown',
-      storageBackend: process.env.STORAGE_BACKEND || 'drive',
+      storageServer: process.env.STORAGE_BACKEND || 'drive',
     });
   } catch (err) {
     console.error('Stats error:', err.message);

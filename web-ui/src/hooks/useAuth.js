@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { BACKEND_URL, EXTENSION_ID, IS_LOCAL_MODE } from '../config';
+import { SERVER_URL, EXTENSION_ID, IS_LOCAL_MODE } from '../config';
 
 // Decode a JWT without a library and check if it is still valid
 function parseAndValidateJwt(token) {
@@ -118,7 +118,7 @@ export function useAuth() {
 
     // Handle popup postMessage (web UI login)
     const handleMessage = (event) => {
-      if (event.origin !== BACKEND_URL) {return;}
+      if (event.origin !== SERVER_URL) {return;}
       if (event.data?.type === 'AUTH_SUCCESS' && event.data.auth_data) {
         login(event.data.auth_data);
       }

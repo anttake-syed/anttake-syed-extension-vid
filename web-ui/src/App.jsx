@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import './index.css';
-import { BACKEND_URL, IS_LOCAL_MODE } from './config.js';
+import { SERVER_URL, IS_LOCAL_MODE } from './config.js';
 
 // Hooks
 import { useAuth } from './hooks/useAuth.js';
@@ -16,7 +16,7 @@ import Library from './components/Library.jsx';
 import Settings from './components/Settings.jsx';
 import FeedbackForm from './components/FeedbackForm.jsx';
 import StaticPage from './components/StaticPage.jsx';
-import BackendHealthBadge from './components/BackendHealthBadge.jsx';
+import ServerHealthBadge from './components/ServerHealthBadge.jsx';
 
 const NAV_TO_PATH = {
   'Dashboard': '/',
@@ -94,7 +94,7 @@ export default function App() {
       sub: dbStats ? `${dbStats.localCount} files local` : null,
     },
     // Only show Google Drive stat in cloud mode
-    ...(!IS_LOCAL_MODE && dbStats?.storageBackend !== 'local' ? [{
+    ...(!IS_LOCAL_MODE && dbStats?.storageServer !== 'local' ? [{
       label: 'Google Drive Used',
       value: dbStats?.appDriveFormatted ?? '0 B',
       icon: 'drive',
@@ -114,7 +114,7 @@ export default function App() {
 
   // ── Settings handlers ──────────────────────────────────────────────────────
   const handleNameUpdate = async (newName) => {
-    const res = await fetch(`${BACKEND_URL}/user/name`, {
+    const res = await fetch(`${SERVER_URL}/user/name`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${user.jwt}` },
       body: JSON.stringify({ name: newName }),
@@ -124,7 +124,7 @@ export default function App() {
   };
 
   const handleDeleteAllCaptures = async () => {
-    const res = await fetch(`${BACKEND_URL}/captures/all`, {
+    const res = await fetch(`${SERVER_URL}/captures/all`, {
       method: 'DELETE',
       headers: { Authorization: `Bearer ${user.jwt}` },
     });
@@ -133,7 +133,7 @@ export default function App() {
   };
 
   const handleDeleteAccount = async () => {
-    const res = await fetch(`${BACKEND_URL}/account`, {
+    const res = await fetch(`${SERVER_URL}/account`, {
       method: 'DELETE',
       headers: { Authorization: `Bearer ${user.jwt}` },
     });
@@ -207,9 +207,9 @@ export default function App() {
           onLogout={handleLogout}
           onNavClick={setActiveNav}
         />
-        {/* Backend health pill — only visible in local/self-hosted mode */}
+        {/* Server health pill — only visible in local/self-hosted mode */}
         <div style={{ position: 'fixed', top: '14px', right: '20px', zIndex: 200 }}>
-          <BackendHealthBadge />
+          <ServerHealthBadge />
         </div>
 
 
@@ -258,10 +258,10 @@ AntCapture takes security seriously. Here's how we protect your account and data
 AUTHENTICATION
 - All authentication is handled via Google OAuth 2.0 — we never store your Google password
 - Sessions are secured with signed JWT tokens that expire after 7 days
-- Tokens are stored locally in your browser and never transmitted except to our backend
+- Tokens are stored locally in your browser and never transmitted except to our server
 
 DATA IN TRANSIT
-- All communication between the extension, web UI, and backend uses HTTPS in production
+- All communication between the extension, web UI, and server uses HTTPS in production
 - API requests require a valid JWT — unauthenticated requests are rejected
 
 DATA AT REST
@@ -270,7 +270,7 @@ DATA AT REST
 - Google Drive files are stored in your own Drive under your own Google account
 
 EXTENSION SECURITY
-- The Chrome extension only communicates with our backend (localhost in development, your domain in production)
+- The Chrome extension only communicates with our server (localhost in development, your domain in production)
 - No third-party scripts or tracking are included in the extension
 - The extension requests only the permissions it needs — no broad host access
 
@@ -312,7 +312,7 @@ The My Library page shows all your captures. You can filter by videos or screens
 
 TROUBLESHOOTING
 - Captures not appearing? Make sure you're signed in to both the extension and the dashboard with the same Google account.
-- Upload failing? Check that your backend is running on port 3001.
+- Upload failing? Check that your server is running on port 3001.
 - Extension not recording? Make sure you've granted screen share permission when prompted by Chrome.`}
           />
         ) : activeNav === 'My Library' ? (

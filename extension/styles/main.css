@@ -183,7 +183,7 @@ body {
 }
 
 
-/* Backend health badge (extension, localhost mode) */
+/* Server health badge (extension, localhost mode) */
 .ext-health-badge {
   display: flex;
   align-items: center;

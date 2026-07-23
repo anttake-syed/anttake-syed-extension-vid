@@ -1,18 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { BACKEND_URL, IS_LOCAL_MODE } from '../config';
+import { SERVER_URL, IS_LOCAL_MODE } from '../config';
 
 /**
- * BackendHealthBadge
- * Shows a live "Backend Online / Offline" pill in the web-ui header.
- * Only visible in Local Mode (self-hosted). In cloud mode the backend
+ * ServerHealthBadge
+ * Shows a live "Server Online / Offline" pill in the web-ui header.
+ * Only visible in Local Mode (self-hosted). In cloud mode the server
  * is always managed by the platform, so we don't need to show this.
  */
-export default function BackendHealthBadge() {
+export default function ServerHealthBadge() {
   const [status, setStatus] = useState('checking'); // 'checking' | 'online' | 'offline'
 
   async function checkHealth() {
     try {
-      const res = await fetch(`${BACKEND_URL}/health`, {
+      const res = await fetch(`${SERVER_URL}/health`, {
         method: 'GET',
         signal: AbortSignal.timeout(3000), // 3 second timeout
       });
@@ -35,13 +35,13 @@ export default function BackendHealthBadge() {
 
   const config = {
     checking: { color: '#94a3b8', bg: 'rgba(148,163,184,0.1)', dot: '#94a3b8', label: 'Checking...' },
-    online:   { color: '#34d399', bg: 'rgba(52,211,153,0.1)',  dot: '#34d399', label: 'Backend Online' },
-    offline:  { color: '#f87171', bg: 'rgba(248,113,113,0.1)', dot: '#f87171', label: 'Backend Offline' },
+    online:   { color: '#34d399', bg: 'rgba(52,211,153,0.1)',  dot: '#34d399', label: 'Server Online' },
+    offline:  { color: '#f87171', bg: 'rgba(248,113,113,0.1)', dot: '#f87171', label: 'Server Offline' },
   }[status];
 
   return (
     <div
-      title={status === 'offline' ? `Cannot reach ${BACKEND_URL} — run: cd backend && npm start` : `Connected to ${BACKEND_URL}`}
+      title={status === 'offline' ? `Cannot reach ${SERVER_URL} — run: cd server && npm start` : `Connected to ${SERVER_URL}`}
       style={{
         display: 'flex',
         alignItems: 'center',

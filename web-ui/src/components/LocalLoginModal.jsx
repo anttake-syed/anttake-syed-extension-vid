@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { BACKEND_URL } from '../config';
+import { SERVER_URL } from '../config';
 
 export default function LocalLoginModal({ onClose, onLogin }) {
   const [username, setUsername] = useState('admin');
@@ -13,7 +13,7 @@ export default function LocalLoginModal({ onClose, onLogin }) {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`${BACKEND_URL}/auth/local`, {
+      const res = await fetch(`${SERVER_URL}/auth/local`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: username.trim(), password }),

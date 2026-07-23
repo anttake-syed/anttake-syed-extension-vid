@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { IS_LOCAL_MODE } from '../config';
 
 const DriveLogoSVG = ({ size = 18 }) => (
   <svg viewBox="0 0 87.3 78" width={size} height={size} xmlns="http://www.w3.org/2000/svg">
@@ -30,7 +31,7 @@ const SectionHeader = ({ icon, title, subtitle }) => (
 );
 
 export default function Settings({
-  user, captures, onNameUpdate, onDeleteAllCaptures,
+  user, captures, dbStats, onNameUpdate, onDeleteAllCaptures,
   onDeleteAccount, storagePreference, saveStoragePreference, savingPref,
 }) {
   const [newName, setNewName] = useState(user?.name || '');
@@ -43,7 +44,7 @@ export default function Settings({
   const imageCount = captures.filter((c) => c.type === 'image').length;
 
   const handleSaveName = async () => {
-    if (!newName.trim() || newName.trim() === user?.name) return;
+    if (!newName.trim() || newName.trim() === user?.name) {return;}
     setNameStatus('saving');
     try {
       await onNameUpdate(newName.trim());
@@ -92,15 +93,21 @@ export default function Settings({
         <SectionHeader icon="manage_accounts" title="Profile" subtitle="Your public identity within AntCapture" />
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '24px', background: '#0f172a', borderRadius: '12px', padding: '16px' }}>
-          {user?.picture ? (
-            <img src={user.picture} style={{ width: '52px', height: '52px', borderRadius: '50%', border: '2px solid #6366f1' }} alt="Avatar" />
-          ) : (
-            <div style={{ width: '52px', height: '52px', borderRadius: '50%', background: 'linear-gradient(135deg,#6366f1,#a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px', color: 'white', fontWeight: '700' }}>
-              {user?.name?.charAt(0) || 'U'}
+          {/* Avatar — gradient initial for local admin, photo for Google users */}
+          {(IS_LOCAL_MODE || !user?.picture) ? (
+            <div style={{ width: '52px', height: '52px', borderRadius: '50%', background: IS_LOCAL_MODE ? 'linear-gradient(135deg,#a78bfa,#6366f1)' : 'linear-gradient(135deg,#6366f1,#a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px', color: 'white', fontWeight: '700', flexShrink: 0, border: '2px solid rgba(167,139,250,0.4)' }}>
+              {IS_LOCAL_MODE ? '⚡' : (user?.name?.charAt(0) || 'U')}
             </div>
+          ) : (
+            <img src={user.picture} style={{ width: '52px', height: '52px', borderRadius: '50%', border: '2px solid #6366f1', flexShrink: 0 }} alt="Avatar" />
           )}
           <div>
-            <div style={{ color: '#f1f5f9', fontWeight: '700', fontSize: '16px' }}>{user?.name}</div>
+            <div style={{ color: '#f1f5f9', fontWeight: '700', fontSize: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              {user?.name}
+              {IS_LOCAL_MODE && (
+                <span style={{ fontSize: '10px', fontWeight: 600, background: 'rgba(167,139,250,0.15)', color: '#a78bfa', border: '1px solid rgba(167,139,250,0.3)', borderRadius: '999px', padding: '2px 8px' }}>Self-Hosted</span>
+              )}
+            </div>
             <div style={{ color: '#64748b', fontSize: '13px', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '6px' }}>
               <span className="material-symbols-rounded" style={{ fontSize: '14px' }}>mail</span>
               {user?.email}
@@ -137,7 +144,11 @@ export default function Settings({
           <span className="material-symbols-rounded" style={{ fontSize: '16px', color: '#475569' }}>lock</span>
           {user?.email}
         </div>
-        <p style={{ margin: '6px 0 0', fontSize: '12px', color: '#475569' }}>Managed by Google — cannot be changed here.</p>
+        <p style={{ margin: '6px 0 0', fontSize: '12px', color: '#475569' }}>
+          {IS_LOCAL_MODE ? 'Local admin email is fixed to admin@localhost.' : 'Managed by Google — cannot be changed here.'}
+        </p>
+
+        {/* Local Admin password section removed since authentication is bypassed */}
       </div>
 
       {/* ── Storage & Usage ── */}
@@ -158,32 +169,34 @@ export default function Settings({
         </div>
       </div>
 
-      {/* ── Storage Destination ── */}
-      <div style={S.section}>
-        <SectionHeader icon="cloud_sync" title="Storage Destination" subtitle="Where your captures are saved by default" />
-        {savingPref && <p style={{ fontSize: '12px', color: '#818cf8', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}><span className="material-symbols-rounded" style={{ fontSize: '14px' }}>sync</span> Saving preference…</p>}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-          {storageOptions.map((opt) => {
-            const isActive = storagePreference === opt.value;
-            return (
-              <div key={opt.value} onClick={() => saveStoragePreference(opt.value)} style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '16px 18px', background: isActive ? 'rgba(99,102,241,0.08)' : '#0f172a', border: `2px solid ${isActive ? '#6366f1' : '#334155'}`, borderRadius: '12px', cursor: 'pointer', transition: 'all 0.2s' }}>
-                <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: isActive ? 'rgba(99,102,241,0.15)' : '#1e293b', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  {opt.icon
-                    ? <span className="material-symbols-rounded" style={{ fontSize: '20px', color: isActive ? '#818cf8' : '#475569' }}>{opt.icon}</span>
-                    : <DriveLogoSVG size={20} />}
+      {/* ── Storage Destination (hidden in local/self-host mode) ── */}
+      {!IS_LOCAL_MODE && dbStats?.storageBackend !== 'local' && (
+        <div style={S.section}>
+          <SectionHeader icon="cloud_sync" title="Storage Destination" subtitle="Where your captures are saved by default" />
+          {savingPref && <p style={{ fontSize: '12px', color: '#818cf8', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}><span className="material-symbols-rounded" style={{ fontSize: '14px' }}>sync</span> Saving preference…</p>}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {storageOptions.map((opt) => {
+              const isActive = storagePreference === opt.value;
+              return (
+                <div key={opt.value} onClick={() => saveStoragePreference(opt.value)} style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '16px 18px', background: isActive ? 'rgba(99,102,241,0.08)' : '#0f172a', border: `2px solid ${isActive ? '#6366f1' : '#334155'}`, borderRadius: '12px', cursor: 'pointer', transition: 'all 0.2s' }}>
+                  <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: isActive ? 'rgba(99,102,241,0.15)' : '#1e293b', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    {opt.icon
+                      ? <span className="material-symbols-rounded" style={{ fontSize: '20px', color: isActive ? '#818cf8' : '#475569' }}>{opt.icon}</span>
+                      : <DriveLogoSVG size={20} />}
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ color: isActive ? '#f1f5f9' : '#94a3b8', fontWeight: '700', fontSize: '14px', marginBottom: '3px' }}>{opt.label}</div>
+                    <div style={{ color: '#475569', fontSize: '12px', lineHeight: '1.4' }}>{opt.desc}</div>
+                  </div>
+                  <div style={{ width: '20px', height: '20px', borderRadius: '50%', border: `2px solid ${isActive ? '#6366f1' : '#475569'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    {isActive && <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#6366f1' }} />}
+                  </div>
                 </div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ color: isActive ? '#f1f5f9' : '#94a3b8', fontWeight: '700', fontSize: '14px', marginBottom: '3px' }}>{opt.label}</div>
-                  <div style={{ color: '#475569', fontSize: '12px', lineHeight: '1.4' }}>{opt.desc}</div>
-                </div>
-                <div style={{ width: '20px', height: '20px', borderRadius: '50%', border: `2px solid ${isActive ? '#6366f1' : '#475569'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  {isActive && <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#6366f1' }} />}
-                </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* ── Danger Zone ── */}
       <div style={{ ...S.section, background: 'rgba(239,68,68,0.03)', border: '1px solid rgba(239,68,68,0.2)' }}>

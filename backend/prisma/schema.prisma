@@ -3,8 +3,8 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider = "sqlite"
+  url      = "file:./antcapture.db"
 }
 
 model Capture {
@@ -14,10 +14,10 @@ model Capture {
   type            String
   size            String?
   mimeType        String?
-  data            Bytes?
   fileUrl         String
   driveUrl        String?
-  storageLocation String   @default("local")
+  storageLocation String   @default("drive")
+  mediaData       Bytes?
   createdAt       DateTime @default(now())
 }
 

@@ -1,4 +1,5 @@
 import React from 'react';
+import { IS_LOCAL_MODE } from '../config';
 
 const PAGE_TITLES = {
   Settings: 'Settings',
@@ -54,9 +55,11 @@ export default function Header({ activeNav, isAuthenticated, user, showProfileMe
                 <button className="dropdown-item" onClick={() => { onNavClick('Settings'); setShowProfileMenu(false); }}>
                   <span className="item-icon material-symbols-rounded">settings</span> Settings
                 </button>
-                <button className="dropdown-item logout" onClick={onLogout}>
-                  <span className="item-icon material-symbols-rounded">logout</span> Sign Out
-                </button>
+                {!IS_LOCAL_MODE && (
+                  <button className="dropdown-item logout" onClick={onLogout}>
+                    <span className="item-icon material-symbols-rounded">logout</span> Sign Out
+                  </button>
+                )}
               </div>
             )}
           </div>

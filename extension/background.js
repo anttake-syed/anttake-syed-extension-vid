@@ -1,285 +1,404 @@
-// background.js — AntCapture
-// Flow: screenshot/video → upload directly to backend (Prisma/SQLite) → show on Web UI
-// No local machine downloads. IndexedDB is only used as a fallback queue when offline or not logged in.
+// background.js — AntCapture (Service Worker Entry Point)
+// ─────────────────────────────────────────────────────────────────────────────
+// This file is intentionally small. All feature logic lives in background/ modules:
+//
+//   background/recording.js   — start/stop recording, video blob handling
+//   background/screenshot.js  — tab / region / full-screen screenshots
+//   background/save.js        — unified saveCapture(), syncPendingUploads()
+//   background/upload.js      — localhost and Google Drive upload logic
+//   background/notify.js      — Chrome notification helper (auto-dismiss)
+// ─────────────────────────────────────────────────────────────────────────────
 
+import { getPendingUploads, deleteLocalMedia } from './storage.js';
+import { syncPendingUploads } from './background/save.js';
 import {
-  saveMediaLocally,
-  getPendingUploads,
-  deleteLocalMedia,
-} from "./storage.js";
+  handleStartRecording,
+  handleStopRecording,
+  handleVideoBlobStored,
+  handleVideoBlobReady,
+} from './background/recording.js';
+import {
+  handleTakeScreenshot,
+  handleRegionScreenshot,
+  handleScreenScreenshot,
+} from './background/screenshot.js';
 
-const PROD_BACKEND_URL = 'https://api.antcapture.anttake.com';
-const DEV_BACKEND_URL  = 'http://localhost:3001';
+// Use chrome.alarms for the badge timer — setInterval dies when the service worker goes idle in MV3
+const BADGE_ALARM = '__ant_badge_tick__';
 
-async function getBackendUrl() {
-  const { devMode } = await chrome.storage.local.get(['devMode']);
-  return devMode ? DEV_BACKEND_URL : PROD_BACKEND_URL;
-}
+// ─────────────────────────────────────────────────────────────────────────────
+// Message Router
+// Every message from the popup, content script, or offscreen doc is dispatched
+// here and forwarded to the appropriate handler module.
+// ─────────────────────────────────────────────────────────────────────────────
+// Standalone popup window removed
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.action === 'START_RECORDING') {
-    handleStartRecording(message, sendResponse);
-    return true;
-  } else if (message.action === 'STOP_RECORDING') {
-    handleStopRecording(message, sendResponse);
-    return true;
-  } else if (message.action === 'TAKE_SCREENSHOT') {
-    handleTakeScreenshot(message, sendResponse);
-    return true;
-  } else if (message.action === 'VIDEO_BLOB_READY') {
-    // Offscreen has finished recording — upload the blob to the backend
-    handleVideoBlobReady(message, sendResponse);
-    return true;
-  } else if (message.action === 'EXTERNAL_STOP_RECORDING') {
-    chrome.storage.local.set({ isRecording: false });
-    return true;
-  } else if (message.action === 'GET_USER') {
-    chrome.storage.local.get(['user'], (result) => {
-      sendResponse({ user: result.user || null });
-    });
-    return true;
-  } else if (message.action === 'LOGOUT') {
-    chrome.storage.local.remove(['user'], () => {
-      sendResponse({ success: true });
-    });
-    return true;
-  }
-});
+  switch (message.action) {
 
-// --- Auth Listener ---
-// Catches the redirect to /auth/success?auth_data=...
-chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-  if (changeInfo.url && changeInfo.url.includes('/auth/success?auth_data=')) {
-    try {
-      const url = new URL(changeInfo.url);
-      const authData = url.searchParams.get('auth_data');
-      if (authData) {
-        const base64Url = authData.split('.')[1];
-        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-        const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
-          return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-        }).join(''));
+    // ── Recording ────────────────────────────────────────────────────────────
+    case 'START_RECORDING':
+      handleStartRecording(message, sendResponse);
+      return true;
 
-        const userData = JSON.parse(jsonPayload);
-        userData.jwt = authData;
+    case 'STOP_RECORDING':
+      chrome.alarms.clear(BADGE_ALARM);
+      chrome.action.setBadgeText({ text: '' });
+      chrome.action.setBadgeText({ text: '' });
+      handleStopRecording(message, sendResponse);
+      return true;
 
-        chrome.storage.local.set({ user: userData }, () => {
-          console.log('✨ User authenticated in extension:', userData.email);
-          setTimeout(() => chrome.tabs.remove(tabId), 1500);
-          // Sync any offline-queued captures
+    case 'PAUSE_RECORDING':
+      chrome.storage.local.get(['isRecordingPaused', 'pausedAt'], (res) => {
+        if (!res.isRecordingPaused) {
+          chrome.storage.local.set({
+            isRecordingPaused: true,
+            pausedAt: Date.now()
+          }, () => {
+            chrome.runtime.sendMessage({ target: 'offscreen', type: 'pause-recording' });
+            chrome.tabs.query({}, (tabs) => {
+              tabs.forEach(tab => {
+                chrome.tabs.sendMessage(tab.id, { action: 'PAUSE_RECORDING' }).catch(() => {});
+                chrome.tabs.sendMessage(tab.id, { action: 'PAUSE_CAMERA_RECORDING' }).catch(() => {});
+              });
+            });
+          });
+        }
+      });
+      return true;
+
+    case 'RESUME_RECORDING':
+      chrome.storage.local.get(['isRecordingPaused', 'pausedAt', 'pausedOffset'], (res) => {
+        if (res.isRecordingPaused) {
+          const pauseDuration = Date.now() - (res.pausedAt || Date.now());
+          const newOffset = (res.pausedOffset || 0) + pauseDuration;
+          chrome.storage.local.set({
+            isRecordingPaused: false,
+            pausedAt: null,
+            pausedOffset: newOffset
+          }, () => {
+            chrome.runtime.sendMessage({ target: 'offscreen', type: 'resume-recording' });
+            chrome.tabs.query({}, (tabs) => {
+              tabs.forEach(tab => {
+                chrome.tabs.sendMessage(tab.id, { action: 'RESUME_RECORDING' }).catch(() => {});
+                chrome.tabs.sendMessage(tab.id, { action: 'RESUME_CAMERA_RECORDING' }).catch(() => {});
+              });
+            });
+          });
+        }
+      });
+      return true;
+
+    case 'DISCARD_RECORDING':
+      chrome.alarms.clear(BADGE_ALARM);
+      chrome.action.setBadgeText({ text: '' });
+      chrome.action.setBadgeText({ text: '' });
+      chrome.runtime.sendMessage({ target: 'offscreen', type: 'discard-recording' });
+      chrome.tabs.query({ active: true, lastFocusedWindow: true }, (tabs) => {
+        if (tabs[0]) chrome.tabs.sendMessage(tabs[0].id, { action: 'DISCARD_CAMERA_RECORDING' }).catch(() => {});
+      });
+      chrome.storage.local.set({ isRecording: false, isRecordingPaused: false, _stoppedNormally: true });
+      chrome.storage.local.get(['activeHudTabId', 'activeOverlayTabId'], (res) => {
+         if (res.activeHudTabId) {
+             chrome.tabs.sendMessage(res.activeHudTabId, { action: 'HIDE_RECORDING_HUD' }).catch(()=>{});
+             chrome.storage.local.remove('activeHudTabId');
+         }
+         if (res.activeOverlayTabId) {
+             chrome.tabs.sendMessage(res.activeOverlayTabId, { action: 'STOP_WEBCAM_BUBBLE' }).catch(()=>{});
+             chrome.storage.local.remove('activeOverlayTabId');
+         }
+      });
+      import('./background/notify.js').then(({ notify }) => notify('recording-discarded', 'Recording Discarded', 'Your recording was successfully discarded.'));
+      return true;
+
+    case 'VIDEO_BLOB_STORED':
+      // Offscreen finished recording — blob already saved to IndexedDB
+      handleVideoBlobStored(message, sendResponse);
+      return true;
+
+    case 'CAMERA_BLOB_READY':
+      // Camera recording in content.js finished — blob arrives as a data URL
+      handleVideoBlobReady(message, sendResponse);
+      return true;
+
+    case 'FORMAT_FALLBACK':
+      // Offscreen couldn't use the requested format; persist for popup toast
+      chrome.storage.local.set({
+        formatFallback: { requested: message.requested, actual: message.actual, ts: Date.now() },
+      });
+      return true;
+
+    // ── Screenshots ──────────────────────────────────────────────────────────
+    case 'TAKE_SCREENSHOT':
+      handleTakeScreenshot(message, sendResponse);
+      return true;
+
+    case 'OFFSCREEN_RECORDING_STARTED':
+    case 'CAMERA_RECORDING_STARTED':
+      chrome.storage.local.set({
+        recordingStartTime: Date.now(),
+        isRecordingPaused: false,
+        pausedOffset: 0,
+        pausedAt: null
+      }, () => {
+        chrome.action.setBadgeBackgroundColor({ color: '#ef4444' });
+        chrome.action.setBadgeText({ text: '0:00' });
+        
+        // Standalone popup window removed
+
+        // Use alarm-based ticking — survives service worker idle restarts
+        chrome.alarms.clear(BADGE_ALARM, () => {
+          chrome.alarms.create(BADGE_ALARM, { periodInMinutes: 1/60 }); // fires every ~1 second
+        });
+        chrome.tabs.query({ active: true, lastFocusedWindow: true }, (tabs) => {
+          if (tabs[0]) ensureHudOnTab(tabs[0].id);
+        });
+      });
+      return true;
+
+    case 'REGION_SCREENSHOT':
+      handleRegionScreenshot(message, sendResponse);
+      return true;
+
+    case 'SCREEN_SCREENSHOT':
+      handleScreenScreenshot(message, sendResponse);
+      return true;
+
+    case 'EXTERNAL_STOP_RECORDING':
+      chrome.alarms.clear(BADGE_ALARM);
+      chrome.action.setBadgeText({ text: '' });
+      chrome.action.setBadgeText({ text: '' });
+      chrome.storage.local.get(['activeOverlayTabId', 'activeHudTabId', '_stoppedNormally'], (res) => {
+        if (res._stoppedNormally) {
+          chrome.storage.local.remove('_stoppedNormally');
+          return;
+        }
+        if (res.activeHudTabId) {
+          chrome.tabs.sendMessage(res.activeHudTabId, { action: 'HIDE_RECORDING_HUD' }).catch(() => {});
+          chrome.storage.local.remove('activeHudTabId');
+        }
+        if (res.activeOverlayTabId) {
+          chrome.tabs.sendMessage(res.activeOverlayTabId, { action: 'STOP_WEBCAM_BUBBLE' }).catch(() => {});
+          chrome.storage.local.remove('activeOverlayTabId');
+        }
+        chrome.storage.local.set({ isRecording: false });
+      });
+      return true;
+
+    // ── HUD mic/cam toggles (from the in-page HUD buttons) ────────────────────
+    case 'HUD_TOGGLE_MIC':
+      chrome.storage.local.set({ recMic: message.on === true });
+      return true;
+
+    case 'HUD_TOGGLE_CAM':
+      chrome.storage.local.set({ recCam: message.on === true });
+      chrome.storage.local.get(['isRecording', 'currentRecordMode', 'activeOverlayTabId'], (res) => {
+        if (res.isRecording && res.currentRecordMode === 'overlay') {
+          if (message.on === true) {
+            chrome.tabs.query({ active: true, lastFocusedWindow: true }, async (tabs) => {
+              const tab = tabs[0];
+              if (tab && !tab.url.startsWith('chrome://') && !tab.url.startsWith('chrome-extension://')) {
+                await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['content.js'] }).catch(() => {});
+                chrome.tabs.sendMessage(tab.id, { action: 'START_WEBCAM_BUBBLE' }).catch(() => {});
+                chrome.storage.local.set({ activeOverlayTabId: tab.id });
+              }
+            });
+          } else {
+            if (res.activeOverlayTabId) {
+              chrome.tabs.sendMessage(res.activeOverlayTabId, { action: 'STOP_WEBCAM_BUBBLE' }).catch(() => {});
+              chrome.storage.local.remove('activeOverlayTabId');
+            }
+          }
+        }
+      });
+      return true;
+
+    // ── Camera-only: inject content.js into the active foreground tab ─────────
+    case 'START_CAMERA_IN_TAB':
+      chrome.tabs.query({ active: true, lastFocusedWindow: true }, async (tabs) => {
+        const tab = tabs[0];
+        if (tab && !tab.url.startsWith('chrome://') && !tab.url.startsWith('chrome-extension://') && !tab.url.startsWith('edge://')) {
+          await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['content.js'] }).catch(() => {});
+          chrome.tabs.sendMessage(tab.id, { action: 'START_CAMERA_RECORDING', options: message.options });
+        } else {
+          chrome.storage.local.set({ isRecording: false });
+          import('./background/notify.js').then(({ notify }) => {
+            notify('cam-error', 'AntCapture Error', 'Cannot record camera on this type of page (Chrome settings/new tab). Please open a normal website first.');
+          });
+        }
+      });
+      return true;
+
+    // ── Auth ──────────────────────────────────────────────────────────────────
+    case 'GET_USER':
+      chrome.storage.local.get(['user'], (result) => sendResponse({ user: result.user || null }));
+      return true;
+
+    case 'LOGOUT':
+      chrome.storage.local.remove(['user'], () => {
+        const broadcast = (pattern) => {
+          chrome.tabs.query({ url: pattern }, (tabs) =>
+            tabs.forEach(tab => chrome.tabs.sendMessage(tab.id, { action: 'LOGOUT_WEB_UI' }).catch(() => {}))
+          );
+        };
+        broadcast('*://antcapture.anttake.com/*');
+        broadcast('*://localhost:5173/*');
+        sendResponse({ success: true });
+      });
+      return true;
+
+    case 'SYNC_USER':
+      if (message.user) {
+        chrome.storage.local.set({ user: message.user }, () => {
+          console.log('✨ User synced from Web UI:', message.user.email);
           syncPendingUploads();
         });
+      } else {
+        chrome.storage.local.remove(['user'], () => console.log('User signed out from Web UI.'));
       }
-    } catch (e) {
-      console.error('Failed to parse extension auth data:', e);
-    }
+      return true;
+
+    case 'REGISTER_WEB_UI':
+      if (message.url) {
+        chrome.storage.local.set({ dynamicWebUiUrl: message.url }, () =>
+          console.log('✨ Extension learned dynamic Web UI URL:', message.url)
+        );
+      }
+      return true;
+
+    // ── Queue / Cache ─────────────────────────────────────────────────────────
+    case 'GET_CACHE_INFO':
+      chrome.storage.local.get(['storageMode'], (res) => {
+        const mode = res.storageMode || 'computer';
+        getPendingUploads(mode === 'localhost' ? 'localhost' : 'cloud')
+          .then((pending) => {
+            const totalBytes = pending.reduce((acc, item) => acc + (item.blob?.size || 0), 0);
+            const items = pending.map(item => ({
+              id: item.id, type: item.type, size: item.blob?.size || 0,
+              timestamp: item.timestamp, mode: item.mode || 'cloud',
+            }));
+            sendResponse({ sizeBytes: totalBytes, count: pending.length, items });
+          })
+          .catch((err) => sendResponse({ sizeBytes: 0, count: 0, items: [], error: err.message }));
+      });
+      return true;
+
+    case 'CLEAR_CACHE':
+      chrome.storage.local.get(['storageMode'], (res) => {
+        const mode = res.storageMode || 'computer';
+        getPendingUploads(mode === 'localhost' ? 'localhost' : 'cloud')
+          .then(async (pending) => {
+            for (const item of pending) await deleteLocalMedia(item.id);
+            sendResponse({ success: true });
+          })
+          .catch((err) => sendResponse({ success: false, error: err.message }));
+      });
+      return true;
+
+    case 'SYNC_PENDING':
+      syncPendingUploads()
+        .then((result) => sendResponse({ success: true, ...result }))
+        .catch((err) => sendResponse({ success: false, error: err.message, synced: 0, failed: 0, errors: [err.message] }));
+      return true;
+
+    default:
+      break;
   }
 });
 
-// --- Recording Handlers ---
+// ─────────────────────────────────────────────────────────────────────────────
+// Auth Listener — detects the /auth/success redirect and extracts the JWT
+// ─────────────────────────────────────────────────────────────────────────────
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+  const currentUrl = changeInfo.url || tab.url;
+  if (!currentUrl || !currentUrl.includes('/auth/success?auth_data=')) return;
 
-function notify(id, title, message) {
-  chrome.notifications.create(id, {
-    type: 'basic',
-    iconUrl: 'icons/icon48.png',
-    title,
-    message,
-    priority: 1,
-  });
-}
-
-async function handleStartRecording(message, sendResponse) {
   try {
-    await ensureOffscreen();
-    chrome.runtime.sendMessage({ target: 'offscreen', type: 'start-recording' });
-    await chrome.storage.local.set({ isRecording: true });
-    notify('recording-started', 'AntCapture', 'Recording started');
-    sendResponse({ success: true });
-  } catch (error) {
-    console.error('Start recording failed:', error);
-    sendResponse({ success: false, error: error.message });
+    const url = new URL(currentUrl);
+    const authData = url.searchParams.get('auth_data');
+    if (!authData) return;
+
+    const base64Url = authData.split('.')[1];
+    const base64    = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(
+      atob(base64).split('').map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join('')
+    );
+
+    const userData = JSON.parse(jsonPayload);
+    userData.jwt = authData;
+
+    chrome.storage.local.set({ user: userData }, () => {
+      console.log('✨ User authenticated in extension:', userData.email);
+      setTimeout(() => chrome.tabs.remove(tabId), 1500);
+      syncPendingUploads();
+    });
+  } catch (e) {
+    console.error('Failed to parse extension auth data:', e);
   }
-}
+});
 
-async function handleStopRecording(message, sendResponse) {
-  try {
-    await ensureOffscreen();
-    await chrome.runtime.sendMessage({ target: 'offscreen', type: 'stop-recording' });
-    await chrome.storage.local.set({ isRecording: false });
-    notify('recording-stopped', 'Recording stopped', 'Processing and saving your video...');
-    sendResponse({ success: true });
-  } catch (error) {
-    console.error('Stop recording failed:', error);
-    sendResponse({ success: false, error: error.message });
-  }
-}
-
-// --- Screenshot: take it and upload directly to backend ---
-async function handleTakeScreenshot(message, sendResponse) {
-  try {
-    const tabs = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
-    const tab = tabs[0];
-
-    // Chrome blocks screenshots on chrome://, extension pages, and new tab pages
-    if (!tab || !tab.url ||
-        tab.url.startsWith('chrome://') ||
-        tab.url.startsWith('chrome-extension://') ||
-        tab.url === 'about:blank' ||
-        tab.url === 'about:newtab') {
-      sendResponse({ success: false, error: 'Cannot screenshot this page. Navigate to a real website first.' });
-      return;
-    }
-
-    const dataUrl = await chrome.tabs.captureVisibleTab(tab.windowId, { format: 'png' });
-    const blob = dataURItoBlob(dataUrl);
-
-    const { user } = await chrome.storage.local.get(['user']);
-    if (user && user.jwt && navigator.onLine) {
-      try {
-        await uploadToBackend(blob, 'image', user.jwt);
-        console.log('✅ Screenshot uploaded to backend (Prisma DB)');
-        chrome.storage.local.get(['captureCount'], (result) => {
-          chrome.storage.local.set({ captureCount: (result.captureCount || 0) + 1 });
-        });
-        notify('screenshot-saved', 'Screenshot saved', 'Uploaded to your AntCapture library.');
-        sendResponse({ success: true, dataUrl });
-      } catch (uploadErr) {
-        console.error('Upload failed, saving locally:', uploadErr.message);
-        await saveMediaLocally(blob, 'image');
-        notify('screenshot-queued', 'Screenshot saved locally', 'Will sync when back online.');
-        sendResponse({ success: true, dataUrl, queued: true });
-      }
-    } else {
-      console.log('Not logged in or offline — queuing screenshot');
-      await saveMediaLocally(blob, 'image');
-      notify('screenshot-queued', 'Screenshot saved locally', 'Sign in to sync to your library.');
-      sendResponse({ success: true, dataUrl, queued: true });
-    }
-  } catch (error) {
-    console.error('Screenshot failed:', error);
-    sendResponse({ success: false, error: error.message });
-  }
-}
-
-// --- Video: offscreen sends the blob here, we upload to backend ---
-async function handleVideoBlobReady(message, sendResponse) {
-  try {
-    const { blobDataUrl, mimeType } = message;
-
-    // Convert data URL back to blob
-    const fetchRes = await fetch(blobDataUrl);
-    const blob = await fetchRes.blob();
-
-    const { user } = await chrome.storage.local.get(['user']);
-    if (user && user.jwt && navigator.onLine) {
-      try {
-        await uploadToBackend(blob, 'video', user.jwt);
-        console.log('✅ Video uploaded to backend');
-        chrome.storage.local.get(['captureCount'], (result) => {
-          chrome.storage.local.set({ captureCount: (result.captureCount || 0) + 1 });
-        });
-        notify('video-saved', 'Recording saved', 'Video uploaded to your AntCapture library.');
-      } catch (uploadErr) {
-        console.error('Direct upload failed, queueing for later:', uploadErr.message);
-        await saveMediaLocally(blob, 'video');
-        notify('video-queued', 'Recording saved locally', 'Will sync when back online.');
-        if (sendResponse) sendResponse({ success: true, queued: true });
-        return;
-      }
-    } else {
-      console.log('Not logged in or offline — queuing video');
-      await saveMediaLocally(blob, 'video');
-      notify('video-queued', 'Recording saved locally', 'Sign in to sync to your library.');
-    }
-    if (sendResponse) sendResponse({ success: true });
-  } catch (error) {
-    console.error('Video upload failed:', error);
-    if (sendResponse) sendResponse({ success: false, error: error.message });
-  }
-}
-
-async function ensureOffscreen() {
-  if (await chrome.offscreen.hasDocument()) return;
-  await chrome.offscreen.createDocument({
-    url: 'offscreen.html',
-    reasons: ['DISPLAY_MEDIA'],
-    justification: 'Media recording'
-  });
-}
-
-// --- Offline Sync: upload anything queued while offline/logged-out ---
+// ─────────────────────────────────────────────────────────────────────────────
+// Offline Sync — retry queued uploads whenever the worker starts or goes online
+// ─────────────────────────────────────────────────────────────────────────────
 chrome.runtime.onStartup.addListener(syncPendingUploads);
 chrome.runtime.onInstalled.addListener(syncPendingUploads);
-self.addEventListener("online", syncPendingUploads);
+self.addEventListener('online', syncPendingUploads);
 
-async function syncPendingUploads() {
-  if (!navigator.onLine) return;
-
-  const { user } = await chrome.storage.local.get(['user']);
-  if (!user || !user.jwt) {
-    console.log('No user logged in — skipping sync');
-    return;
-  }
-
-  const pending = await getPendingUploads();
-  if (pending.length === 0) return;
-
-  console.log(`Syncing ${pending.length} pending items...`);
-
-  for (const item of pending) {
-    try {
-      await uploadToBackend(item.blob, item.type, user.jwt);
-      console.log(`✅ Synced item ${item.id}`);
-      await deleteLocalMedia(item.id);
-      
-      // Update local capture count so UI reflects the synced files
-      chrome.storage.local.get(['captureCount'], (result) => {
-        chrome.storage.local.set({ captureCount: (result.captureCount || 0) + 1 });
-      });
-    } catch (error) {
-      console.error(`Sync failed for ${item.id}:`, error.message);
-      break; // Don't keep trying if server is down
+// ─────────────────────────────────────────────────────────────────────────────
+// Badge Timer via chrome.alarms — survives service worker idle restarts
+// ─────────────────────────────────────────────────────────────────────────────
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name !== BADGE_ALARM) return;
+  chrome.storage.local.get(['isRecording', 'recordingStartTime', 'isRecordingPaused', 'pausedOffset', 'pausedAt'], (res) => {
+    if (!res.isRecording || !res.recordingStartTime) {
+      // Recording ended but alarm not cleared yet
+      chrome.alarms.clear(BADGE_ALARM);
+      chrome.action.setBadgeText({ text: '' });
+      return;
     }
-  }
-}
-
-async function uploadToBackend(blob, type, jwt) {
-  const backendUrl = await getBackendUrl();
-  const formData = new FormData();
-  formData.append(
-    'file',
-    blob,
-    `capture-${Date.now()}.${type === 'video' ? 'webm' : 'png'}`
-  );
-
-  const response = await fetch(`${backendUrl}/upload`, {
-    method: 'POST',
-    headers: { 'Authorization': `Bearer ${jwt}` },
-    body: formData,
+    let elapsedMs;
+    if (res.isRecordingPaused) {
+      elapsedMs = (res.pausedAt || Date.now()) - res.recordingStartTime - (res.pausedOffset || 0);
+    } else {
+      elapsedMs = Date.now() - res.recordingStartTime - (res.pausedOffset || 0);
+    }
+    const elapsed = Math.max(0, Math.floor(elapsedMs / 1000));
+    const mins = Math.floor(elapsed / 60);
+    const secs = String(elapsed % 60).padStart(2, '0');
+    chrome.action.setBadgeText({ text: `${mins}:${secs}` });
   });
+});
 
-  if (!response.ok) {
-    let errorMsg = `Upload failed: ${response.status}`;
-    try {
-      const errorData = await response.json();
-      errorMsg = errorData.detail || errorData.error || errorMsg;
-    } catch (e) {
-      errorMsg += ` - ${await response.text()}`;
+// ─────────────────────────────────────────────────────────────────────────────
+// HUD Tab Tracker — Ensures the HUD follows the user across tabs
+// ─────────────────────────────────────────────────────────────────────────────
+async function ensureHudOnTab(tabId) {
+  chrome.storage.local.get(['isRecording', 'currentRecordMode', 'recMic', 'recCam', 'recordingStartTime', 'activeHudTabId'], async (res) => {
+    if (res.isRecording) {
+      if (res.activeHudTabId && res.activeHudTabId !== tabId) {
+        chrome.tabs.sendMessage(res.activeHudTabId, { action: 'HIDE_RECORDING_HUD' }).catch(() => {});
+      }
+      try {
+        const tab = await chrome.tabs.get(tabId);
+        if (tab && !tab.url.startsWith('chrome://') && !tab.url.startsWith('chrome-extension://') && !tab.url.startsWith('edge://')) {
+          chrome.tabs.sendMessage(tabId, {
+            action: 'SHOW_RECORDING_HUD',
+            options: { 
+              includeMic: res.recMic, 
+              includeCam: res.recCam, 
+              recordMode: res.currentRecordMode,
+              recordingStartTime: res.recordingStartTime || Date.now()
+            },
+          }).catch(() => {});
+          chrome.storage.local.set({ activeHudTabId: tabId });
+        }
+      } catch (e) {}
     }
-    throw new Error(errorMsg);
-  }
-
-  return response.json();
+  });
 }
 
-// Convert dataUrl to Blob without using fetch() (fetch on data: fails in MV3 service workers)
-function dataURItoBlob(dataURI) {
-  const byteString = atob(dataURI.split(',')[1]);
-  const mimeString = dataURI.split(',')[0].split(':')[1].split(';')[0];
-  const ab = new ArrayBuffer(byteString.length);
-  const ia = new Uint8Array(ab);
-  for (let i = 0; i < byteString.length; i++) {
-    ia[i] = byteString.charCodeAt(i);
-  }
-  return new Blob([ab], {type: mimeString});
-}
+chrome.tabs.onActivated.addListener((activeInfo) => ensureHudOnTab(activeInfo.tabId));
+// We also hook into onUpdated so if a user reloads the active tab, the HUD comes back
+chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
+  if (changeInfo.status === 'complete') ensureHudOnTab(tabId);
+});

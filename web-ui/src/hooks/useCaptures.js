@@ -10,29 +10,30 @@ export function useCaptures(user, isAuthenticated) {
   const [filter, setFilter] = useState('All');
 
   const fetchCaptures = useCallback(async (jwt, background = false) => {
-    if (!jwt) return;
-    if (!background) setLoadingCaptures(true);
+    if (!jwt) {return;}
+    if (!background) {setLoadingCaptures(true);}
     try {
       const res = await fetch(`${BACKEND_URL}/captures`, {
         headers: { Authorization: `Bearer ${jwt}` },
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) {throw new Error(`HTTP ${res.status}`);}
       const data = await res.json();
-      setCaptures((data.captures || []).map((c) => ({ ...c, src: c.fileUrl })));
+      // Map captures: use fileUrl as src for local BLOBs
+      setCaptures((data.captures || []).map((c) => ({ ...c, src: c.fileUrl || c.src })));
     } catch (err) {
       console.error('Failed to fetch captures:', err);
     } finally {
-      if (!background) setLoadingCaptures(false);
+      if (!background) {setLoadingCaptures(false);}
     }
   }, []);
 
   const fetchStats = useCallback(async (jwt) => {
-    if (!jwt) return;
+    if (!jwt) {return;}
     try {
       const res = await fetch(`${BACKEND_URL}/stats`, {
         headers: { Authorization: `Bearer ${jwt}` },
       });
-      if (!res.ok) return;
+      if (!res.ok) {return;}
       const data = await res.json();
       setDbStats(data);
     } catch (err) {
@@ -41,12 +42,12 @@ export function useCaptures(user, isAuthenticated) {
   }, []);
 
   const fetchSettings = useCallback(async (jwt) => {
-    if (!jwt) return;
+    if (!jwt) {return;}
     try {
       const res = await fetch(`${BACKEND_URL}/settings`, {
         headers: { Authorization: `Bearer ${jwt}` },
       });
-      if (!res.ok) return;
+      if (!res.ok) {return;}
       const data = await res.json();
       setStoragePreference(data.storagePreference || 'local');
     } catch (err) {
@@ -55,7 +56,7 @@ export function useCaptures(user, isAuthenticated) {
   }, []);
 
   const saveStoragePreference = async (pref) => {
-    if (!user?.jwt) return;
+    if (!user?.jwt) {return;}
     setSavingPref(true);
     try {
       const res = await fetch(`${BACKEND_URL}/settings`, {
@@ -66,7 +67,7 @@ export function useCaptures(user, isAuthenticated) {
         },
         body: JSON.stringify({ storagePreference: pref }),
       });
-      if (res.ok) setStoragePreference(pref);
+      if (res.ok) {setStoragePreference(pref);}
     } catch (err) {
       console.error('Failed to save setting:', err);
     } finally {
@@ -75,17 +76,17 @@ export function useCaptures(user, isAuthenticated) {
   };
 
   const deleteCapture = useCallback(async (id) => {
-    if (!user?.jwt) return;
+    if (!user?.jwt) {return;}
     const res = await fetch(`${BACKEND_URL}/captures/${id}`, {
       method: 'DELETE',
       headers: { Authorization: `Bearer ${user.jwt}` },
     });
-    if (!res.ok) throw new Error('Failed to delete');
+    if (!res.ok) {throw new Error('Failed to delete');}
     setCaptures((prev) => prev.filter((c) => c.id !== id));
   }, [user]);
 
   const refresh = useCallback(() => {
-    if (!user?.jwt) return;
+    if (!user?.jwt) {return;}
     fetchCaptures(user.jwt, true);
     fetchStats(user.jwt);
   }, [user, fetchCaptures, fetchStats]);
@@ -120,8 +121,8 @@ export function useCaptures(user, isAuthenticated) {
   }, [isAuthenticated, user?.jwt, fetchCaptures, fetchStats, fetchSettings]);
 
   const filteredCaptures = captures.filter((c) => {
-    if (filter === 'Videos') return c.type === 'video';
-    if (filter === 'Screenshots') return c.type === 'image';
+    if (filter === 'Videos') {return c.type === 'video';}
+    if (filter === 'Screenshots') {return c.type === 'image';}
     return true;
   });
 

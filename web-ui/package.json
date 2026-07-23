@@ -5,7 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:local": "VITE_APP_MODE=local VITE_API_BASE_URL=http://localhost:3001 vite",
+    "dev:cloud": "VITE_APP_MODE=cloud VITE_API_BASE_URL=https://api.antcapture.anttake.com vite",
     "build": "vite build",
+    "build:local": "VITE_APP_MODE=local VITE_API_BASE_URL=http://localhost:3001 vite build",
+    "build:cloud": "VITE_APP_MODE=cloud VITE_API_BASE_URL=https://api.antcapture.anttake.com vite build",
     "lint": "eslint .",
     "preview": "vite preview"
   },
@@ -19,6 +23,9 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.1",
     "eslint": "^9.39.1",
+    "eslint-plugin-import": "^2.32.0",
+    "eslint-plugin-jsx-a11y": "^6.10.2",
+    "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.24",
     "globals": "^16.5.0",

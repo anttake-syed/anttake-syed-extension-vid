@@ -36,7 +36,7 @@ function MediaCard({ item, onOpen, viewMode }) {
         {/* Info */}
         <div style={{ flex: 1, overflow: 'hidden' }}>
           <div style={{ fontWeight: 600, fontSize: '14px', color: '#f1f5f9', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            {item.title || 'Untitled'}<span style={{ color: '#475569' }}>{item.ext}</span>
+            {item.title || 'Untitled'}
           </div>
           <div style={{ fontSize: '12px', color: '#64748b', marginTop: '3px' }}>
             {item.date ? new Date(item.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}
@@ -47,10 +47,15 @@ function MediaCard({ item, onOpen, viewMode }) {
         <div style={{ fontSize: '12px', color: '#64748b', flexShrink: 0, minWidth: '64px', textAlign: 'right' }}>{item.size || '—'}</div>
 
         {/* Type badge */}
-        <div style={{ flexShrink: 0 }}>
+        <div style={{ flexShrink: 0, display: 'flex', gap: '6px' }}>
           <span style={{ fontSize: '11px', fontWeight: 700, padding: '3px 10px', borderRadius: '999px', background: item.type === 'video' ? 'rgba(99,102,241,0.15)' : 'rgba(52,211,153,0.15)', color: item.type === 'video' ? '#a5b4fc' : '#6ee7b7' }}>
             {item.type === 'video' ? 'Video' : 'Screenshot'}
           </span>
+          {item.type === 'video' && (
+            <span style={{ fontSize: '11px', fontWeight: 700, padding: '3px 10px', borderRadius: '999px', background: 'rgba(248, 250, 252, 0.1)', color: '#f8fafc', border: '1px solid rgba(255,255,255,0.1)' }}>
+              {(item.mimeType || '').includes('mp4') || (item.title || '').toLowerCase().endsWith('.mp4') ? 'MP4' : 'WEBM'}
+            </span>
+          )}
         </div>
 
         {/* Storage badge */}
@@ -106,9 +111,17 @@ function MediaCard({ item, onOpen, viewMode }) {
             </span>
           </div>
         )}
-        <div style={{ position: 'absolute', top: '8px', left: '8px', background: 'rgba(0,0,0,0.6)', borderRadius: '6px', padding: '2px 8px', fontSize: '11px', fontWeight: 600, color: item.type === 'video' ? '#a5b4fc' : '#6ee7b7' }}>
-          {item.type === 'video' ? 'Video' : 'Screenshot'}
+        <div style={{ position: 'absolute', top: '8px', left: '8px', display: 'flex', gap: '4px' }}>
+          <div style={{ background: 'rgba(0,0,0,0.6)', borderRadius: '6px', padding: '2px 8px', fontSize: '11px', fontWeight: 600, color: item.type === 'video' ? '#a5b4fc' : '#6ee7b7' }}>
+            {item.type === 'video' ? 'Video' : 'Screenshot'}
+          </div>
+          {item.type === 'video' && (
+            <div style={{ background: 'rgba(0,0,0,0.6)', borderRadius: '6px', padding: '2px 8px', fontSize: '11px', fontWeight: 700, color: '#f8fafc', letterSpacing: '0.05em' }}>
+              {(item.mimeType || '').includes('mp4') || (item.title || '').toLowerCase().endsWith('.mp4') ? 'MP4' : 'WEBM'}
+            </div>
+          )}
         </div>
+
         
         {/* Storage badges */}
         <div style={{ position: 'absolute', top: '8px', right: '8px', display: 'flex', gap: '4px' }}>
@@ -127,7 +140,7 @@ function MediaCard({ item, onOpen, viewMode }) {
       {/* Footer */}
       <div style={{ padding: '10px 12px' }}>
         <div style={{ fontWeight: 600, fontSize: '13px', color: '#e2e8f0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-          {item.title || 'Untitled'}<span style={{ color: '#475569', fontWeight: 400 }}>{item.ext}</span>
+          {item.title || 'Untitled'}
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
           <span style={{ fontSize: '11px', color: '#64748b' }}>
@@ -148,16 +161,16 @@ export default function Library({ captures, loadingCaptures, onOpenMedia, isAuth
   const filtered = useMemo(() => {
     let list = [...captures];
 
-    if (typeFilter === 'Videos') list = list.filter(c => c.type === 'video');
-    else if (typeFilter === 'Screenshots') list = list.filter(c => c.type === 'image');
+    if (typeFilter === 'Videos') {list = list.filter(c => c.type === 'video');}
+    else if (typeFilter === 'Screenshots') {list = list.filter(c => c.type === 'image');}
 
     if (search.trim()) {
       const q = search.toLowerCase();
       list = list.filter(c => (c.title || '').toLowerCase().includes(q));
     }
 
-    if (sort === 'newest') list.sort((a, b) => new Date(b.date) - new Date(a.date));
-    else if (sort === 'oldest') list.sort((a, b) => new Date(a.date) - new Date(b.date));
+    if (sort === 'newest') {list.sort((a, b) => new Date(b.date) - new Date(a.date));}
+    else if (sort === 'oldest') {list.sort((a, b) => new Date(a.date) - new Date(b.date));}
 
     return list;
   }, [captures, typeFilter, search, sort]);

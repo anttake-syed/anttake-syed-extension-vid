@@ -6,21 +6,48 @@
   "permissions": [
     "activeTab",
     "tabs",
+    "scripting",
     "storage",
     "unlimitedStorage",
     "offscreen",
     "downloads",
-    "notifications"
+    "notifications",
+    "alarms"
   ],
   "host_permissions": [
     "https://api.antcapture.anttake.com/*",
-    "https://antcapture.anttake.com/*"
+    "https://antcapture.anttake.com/*",
+    "https://www.googleapis.com/*",
+    "http://localhost:3001/*",
+    "http://localhost:5173/*"
   ],
   "externally_connectable": {
     "matches": [
-      "https://antcapture.anttake.com/*"
+      "https://antcapture.anttake.com/*",
+      "http://localhost:5173/*"
     ]
   },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "content/authSync.js",
+        "content/regionSelect.js",
+        "content/webcamBubble.js",
+        "content/cameraRecorder.js",
+        "content/recordingHUD.js"
+      ],
+      "matches": ["<all_urls>"],
+      "extension_ids": []
+    }
+  ],
   "action": {
     "default_popup": "popup.html",
     "default_icon": {

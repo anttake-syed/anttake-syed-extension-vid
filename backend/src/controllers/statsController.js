@@ -6,12 +6,17 @@ exports.getStats = async (req, res) => {
   try {
     const captures = await prisma.capture.findMany({
       where: { email: req.user.email },
-      select: { size: true, type: true, storageLocation: true, data: true },
+      select: { size: true, type: true, storageLocation: true, mediaData: true },
     });
 
+    // Use actual BLOB byte length for local files; fall back to parsed size string
     const localBytes = captures
       .filter(c => c.storageLocation === 'local' || c.storageLocation === 'both')
-      .reduce((acc, c) => acc + parseBytes(c.size), 0);
+      .reduce((acc, c) => {
+        if (c.mediaData && c.mediaData.length > 0) {return acc + c.mediaData.length;}
+        return acc + parseBytes(c.size); // fallback for old records
+      }, 0);
+
     const appDriveBytes = captures
       .filter(c => c.storageLocation === 'drive' || c.storageLocation === 'both')
       .reduce((acc, c) => acc + parseBytes(c.size), 0);
@@ -45,8 +50,10 @@ exports.getStats = async (req, res) => {
       driveUsageFormatted: formatBytes(driveUsage),
       driveLimitBytes: driveLimit,
       driveLimitFormatted: driveLimit > 0 ? formatBytes(driveLimit) : 'Unknown',
+      storageBackend: process.env.STORAGE_BACKEND || 'drive',
     });
   } catch (err) {
+    console.error('Stats error:', err.message);
     res.status(500).json({ error: 'Failed to fetch stats' });
   }
 };

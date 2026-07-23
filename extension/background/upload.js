@@ -1,0 +1,114 @@
+// background/upload.js — AntCapture
+// Handles uploading blobs to the backend (localhost mode or Google Drive cloud mode).
+
+import { DEV_BACKEND_URL, PROD_BACKEND_URL } from '../config.js';
+
+export async function getBackendUrl() {
+  const { storageMode } = await chrome.storage.local.get(['storageMode']);
+  return storageMode === 'localhost' ? DEV_BACKEND_URL : PROD_BACKEND_URL;
+}
+
+/**
+ * Derives the correct file extension and clean MIME type from a raw format/MIME string.
+ * e.g. "video/webm;codecs=vp9,opus" → { ext: 'webm', mimeType: 'video/webm' }
+ */
+export function resolveVideoMeta(type, format) {
+  const baseMime = (format || '').split(';')[0].trim();
+  let ext = type === 'video' ? 'webm' : 'png';
+  if (type === 'video') {
+    if (baseMime.includes('mp4'))       ext = 'mp4';
+    else if (baseMime.includes('webm')) ext = 'webm';
+  }
+  const mimeType = type === 'video' ? `video/${ext}` : 'image/png';
+  return { ext, mimeType };
+}
+
+/**
+ * Uploads a Blob to either the local backend (localhost mode) or Google Drive (cloud mode).
+ *
+ * @param {Blob} blob
+ * @param {'image'|'video'} type
+ * @param {string} jwt  — 'local-mode' for localhost, a real JWT for cloud
+ * @param {number|null} resolution  — e.g. 720
+ * @param {string|null} format      — raw mimeType string from MediaRecorder
+ */
+export async function uploadToBackend(blob, type, jwt, resolution = null, format = null) {
+  const backendUrl = await getBackendUrl();
+  const { ext, mimeType } = resolveVideoMeta(type, format);
+  const filename = `capture-${Date.now()}.${ext}`;
+
+  let sizeStr = `${(blob.size / 1048576).toFixed(2)} MB`;
+  if (resolution) sizeStr = `${resolution}p • ${sizeStr}`;
+
+  const { storageMode } = await chrome.storage.local.get(['storageMode']);
+
+  // ── MODE A: Self-Hosted (localhost) ───────────────────────────────────────
+  if (storageMode === 'localhost') {
+    const formData = new FormData();
+    formData.append('file', blob, filename);
+    formData.append('title', filename);
+    formData.append('type', type);
+    formData.append('size', sizeStr);
+    formData.append('mimeType', mimeType);
+
+    const res = await fetch(`${backendUrl}/upload/local`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${jwt || 'local-mode'}` },
+      body: formData,
+    });
+
+    if (!res.ok) {
+      let errorMsg = `Local upload failed: ${res.status}`;
+      try { const d = await res.json(); errorMsg = d.detail || d.error || errorMsg; }
+      catch { /* ignore */ }
+      throw new Error(errorMsg);
+    }
+    return;
+  }
+
+  // ── MODE B: Cloud (Google Drive) ──────────────────────────────────────────
+  // 1. Get Google Drive access token from backend
+  const tokenRes = await fetch(`${backendUrl}/auth/google-token`, {
+    headers: { 'Authorization': `Bearer ${jwt}` },
+  });
+  if (!tokenRes.ok) throw new Error('Failed to get Google token from backend. Please log in again.');
+  const { access_token } = await tokenRes.json();
+
+  // 2a. Upload media binary to Google Drive
+  const driveRes = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=media&fields=id', {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${access_token}`, 'Content-Type': mimeType },
+    body: blob,
+  });
+  if (!driveRes.ok) {
+    const errObj = await driveRes.json().catch(() => ({}));
+    if (driveRes.status === 403 || errObj.error?.message?.toLowerCase().includes('quota')) {
+      throw new Error('Google Drive Storage is FULL. Please upgrade or clear space to sync.');
+    }
+    throw new Error(`Drive upload failed: ${driveRes.statusText}`);
+  }
+  const { id: fileId } = await driveRes.json();
+
+  // 2b. Set filename metadata on Drive
+  const patchRes = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?fields=webViewLink`, {
+    method: 'PATCH',
+    headers: { 'Authorization': `Bearer ${access_token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: filename }),
+  });
+  const { webViewLink } = await patchRes.json();
+  const finalDriveUrl = webViewLink || `https://drive.google.com/file/d/${fileId}/view`;
+
+  // 3. Save lightweight metadata to backend (bypasses Vercel 4.5 MB limit)
+  const metaRes = await fetch(`${backendUrl}/upload/metadata`, {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${jwt}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title: filename, type, size: sizeStr, mimeType, driveUrl: finalDriveUrl }),
+  });
+  if (!metaRes.ok) {
+    let errorMsg = `Metadata save failed: ${metaRes.status}`;
+    try { const d = await metaRes.json(); errorMsg = d.detail || d.error || errorMsg; }
+    catch { /* ignore */ }
+    throw new Error(errorMsg);
+  }
+  return metaRes.json();
+}

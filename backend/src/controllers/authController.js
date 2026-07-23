@@ -27,8 +27,8 @@ exports.googleAuth = (req, res) => {
 
 exports.googleCallback = async (req, res) => {
   const { code, state, error } = req.query;
-  if (error) return res.status(400).send(`Auth failed: ${error}`);
-  if (!code) return res.status(400).send('No code received');
+  if (error) {return res.status(400).send(`Auth failed: ${error}`);}
+  if (!code) {return res.status(400).send('No code received');}
 
   try {
     const { tokens } = await oauth2Client.getToken(code);
@@ -46,7 +46,7 @@ exports.googleCallback = async (req, res) => {
         mode = parsed.mode || mode;
         origin = parsed.origin || origin;
       }
-    } catch (e) {
+    } catch {
       console.warn('State parse failed');
     }
 
@@ -60,7 +60,7 @@ exports.googleCallback = async (req, res) => {
         expiry_date: tokens.expiry_date,
       },
       process.env.JWT_SECRET,
-      { expiresIn: '7d' }
+      { expiresIn: '30d' }  // 30 days — keeps active users signed in
     );
 
     if (mode === 'popup') {
@@ -80,8 +80,7 @@ exports.googleCallback = async (req, res) => {
     }
 
     if (source === 'extension') {
-      const backendUrl = process.env.BACKEND_URL || 'https://api.antcapture.anttake.com';
-      return res.redirect(`${backendUrl}/auth/success?auth_data=${jwtToken}`);
+      return res.redirect(`/auth/success?auth_data=${jwtToken}`);
     }
 
     return res.redirect(`${origin}?auth_data=${jwtToken}`);
@@ -105,4 +104,16 @@ exports.authSuccess = (req, res) => {
 
 exports.getMe = (req, res) => {
   res.json({ user: { name: req.user.name, email: req.user.email, picture: req.user.picture } });
+};
+
+exports.getGoogleToken = async (req, res) => {
+  try {
+    const { getValidOAuthClient } = require('../models/helpers');
+    const oauth2Client = await getValidOAuthClient(req.user);
+    const { token } = await oauth2Client.getAccessToken();
+    res.json({ access_token: token });
+  } catch (err) {
+    console.error('Failed to get Google token:', err.message);
+    res.status(401).json({ error: 'Failed to retrieve Google token' });
+  }
 };

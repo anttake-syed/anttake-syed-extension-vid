@@ -1,23 +1,23 @@
 const { google } = require('googleapis');
 
 function formatBytes(bytes) {
-  if (!bytes || bytes === 0) return '0 B';
-  if (bytes < 1024) return bytes + ' B';
-  if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
-  if (bytes < 1073741824) return (bytes / 1048576).toFixed(1) + ' MB';
+  if (!bytes || bytes === 0) {return '0 B';}
+  if (bytes < 1024) {return bytes + ' B';}
+  if (bytes < 1048576) {return (bytes / 1024).toFixed(1) + ' KB';}
+  if (bytes < 1073741824) {return (bytes / 1048576).toFixed(1) + ' MB';}
   return (bytes / 1073741824).toFixed(1) + ' GB';
 }
 
 function parseBytes(sizeStr) {
-  if (!sizeStr) return 0;
+  if (!sizeStr) {return 0;}
   const match = sizeStr.match(/([\d.]+)\s*(B|KB|MB|GB)/);
-  if (!match) return 0;
+  if (!match) {return 0;}
   const val = parseFloat(match[1]);
   const unit = match[2];
-  if (unit === 'B') return val;
-  if (unit === 'KB') return val * 1024;
-  if (unit === 'MB') return val * 1048576;
-  if (unit === 'GB') return val * 1073741824;
+  if (unit === 'B') {return val;}
+  if (unit === 'KB') {return val * 1024;}
+  if (unit === 'MB') {return val * 1048576;}
+  if (unit === 'GB') {return val * 1073741824;}
   return 0;
 }
 
@@ -40,7 +40,7 @@ async function getValidOAuthClient(user) {
       console.log(`🔄 Token refreshed for user`);
     } catch (err) {
       console.error('Token refresh failed:', err.message);
-      throw new Error('Google session expired. Please log in again.');
+      throw new Error('Google session expired. Please log in again.', { cause: err });
     }
   }
   return userOauth2Client;

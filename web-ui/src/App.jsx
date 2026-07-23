@@ -1,21 +1,34 @@
 import React, { useState, useEffect } from 'react';
 import './index.css';
-import { BACKEND_URL } from './config';
+import { BACKEND_URL, IS_LOCAL_MODE } from './config.js';
 
 // Hooks
-import { useAuth } from './hooks/useAuth';
-import { useCaptures } from './hooks/useCaptures';
+import { useAuth } from './hooks/useAuth.js';
+import { useCaptures } from './hooks/useCaptures.js';
 
 // Components
-import Sidebar from './components/Sidebar';
-import Header from './components/Header';
-import LoginModal from './components/LoginModal';
-import MediaModal from './components/MediaModal';
-import Dashboard from './components/Dashboard';
-import Library from './components/Library';
-import Settings from './components/Settings';
-import FeedbackForm from './components/FeedbackForm';
-import StaticPage from './components/StaticPage';
+import Sidebar from './components/Sidebar.jsx';
+import Header from './components/Header.jsx';
+import LoginModal from './components/LoginModal.jsx';
+import MediaModal from './components/MediaModal.jsx';
+import Dashboard from './components/Dashboard.jsx';
+import Library from './components/Library.jsx';
+import Settings from './components/Settings.jsx';
+import FeedbackForm from './components/FeedbackForm.jsx';
+import StaticPage from './components/StaticPage.jsx';
+import BackendHealthBadge from './components/BackendHealthBadge.jsx';
+
+const NAV_TO_PATH = {
+  'Dashboard': '/',
+  'My Library': '/library',
+  'Settings': '/settings',
+  'Feedback': '/feedback',
+  'Privacy': '/privacy-policy',
+  'Security': '/security',
+  'Documentation': '/documentation'
+};
+
+const PATH_TO_NAV = Object.fromEntries(Object.entries(NAV_TO_PATH).map(([k, v]) => [v, k]));
 
 export default function App() {
   const { user, isAuthenticated, isInitializing, logout, updateUser } = useAuth();
@@ -23,26 +36,13 @@ export default function App() {
   const {
     captures, setCaptures, dbStats,
     storagePreference, loadingCaptures, savingPref,
-    fetchCaptures, fetchStats,
     saveStoragePreference, deleteCapture, refresh,
   } = useCaptures(user, isAuthenticated);
-
-  const NAV_TO_PATH = {
-    'Dashboard': '/',
-    'My Library': '/library',
-    'Settings': '/settings',
-    'Feedback': '/feedback',
-    'Privacy': '/privacy-policy',
-    'Security': '/security',
-    'Documentation': '/documentation'
-  };
-
-  const PATH_TO_NAV = Object.fromEntries(Object.entries(NAV_TO_PATH).map(([k, v]) => [v, k]));
 
   const [activeNav, setActiveNav] = useState(() => {
     const path = window.location.pathname;
     // Check path first
-    if (PATH_TO_NAV[path]) return PATH_TO_NAV[path];
+    if (PATH_TO_NAV[path]) {return PATH_TO_NAV[path];}
     
     // Fallback to query params for legacy links
     const params = new URLSearchParams(window.location.search);
@@ -93,15 +93,21 @@ export default function App() {
       icon: 'hard_drive',
       sub: dbStats ? `${dbStats.localCount} files local` : null,
     },
-    {
+    // Only show Google Drive stat in cloud mode
+    ...(!IS_LOCAL_MODE && dbStats?.storageBackend !== 'local' ? [{
       label: 'Google Drive Used',
       value: dbStats?.appDriveFormatted ?? '0 B',
       icon: 'drive',
+      isDrive: true,
       sub: dbStats ? `${dbStats.driveCount} files on Drive${dbStats.driveLimitBytes > 0 ? ` (Overall: ${dbStats.driveUsageFormatted} / ${dbStats.driveLimitFormatted})` : ''}` : null,
-    },
+    }] : []),
     {
       label: 'This Week',
-      value: captures.filter((c) => c.date && new Date(c.date) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)).length.toString(),
+      value: captures.filter((c) => {
+        // eslint-disable-next-line react-hooks/purity
+        const now = Date.now();
+        return c.date && new Date(c.date) > new Date(now - 7 * 24 * 60 * 60 * 1000);
+      }).length.toString(),
       icon: 'trending_up',
     },
   ];
@@ -113,7 +119,7 @@ export default function App() {
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${user.jwt}` },
       body: JSON.stringify({ name: newName }),
     });
-    if (!res.ok) throw new Error('Failed to update name');
+    if (!res.ok) {throw new Error('Failed to update name');}
     updateUser({ name: newName });
   };
 
@@ -122,7 +128,7 @@ export default function App() {
       method: 'DELETE',
       headers: { Authorization: `Bearer ${user.jwt}` },
     });
-    if (!res.ok) throw new Error('Failed to delete captures');
+    if (!res.ok) {throw new Error('Failed to delete captures');}
     setCaptures([]);
   };
 
@@ -131,7 +137,7 @@ export default function App() {
       method: 'DELETE',
       headers: { Authorization: `Bearer ${user.jwt}` },
     });
-    if (!res.ok) throw new Error('Failed to delete account');
+    if (!res.ok) {throw new Error('Failed to delete account');}
     logout();
   };
 
@@ -170,12 +176,13 @@ export default function App() {
 
   return (
     <div className={`layout ${isAuthenticated ? 'isAuthenticated' : ''}`}>
-      {showModal && <LoginModal onClose={() => setShowModal(false)} />}
+      {showModal && !IS_LOCAL_MODE && <LoginModal onClose={() => setShowModal(false)} />}
       {activeMedia && (
         <MediaModal
           item={activeMedia}
-          onClose={() => setActiveMedia(null)}
           user={user}
+          dbStats={dbStats}
+          onClose={() => setActiveMedia(null)}
           onSyncSuccess={() => { refresh(); setActiveMedia(null); }}
           onDelete={(id) => { deleteCapture(id); setActiveMedia(null); }}
         />
@@ -200,19 +207,15 @@ export default function App() {
           onLogout={handleLogout}
           onNavClick={setActiveNav}
         />
+        {/* Backend health pill — only visible in local/self-hosted mode */}
+        <div style={{ position: 'fixed', top: '14px', right: '20px', zIndex: 200 }}>
+          <BackendHealthBadge />
+        </div>
+
 
         {/* ── Page Content ── */}
         {activeNav === 'Settings' && isAuthenticated ? (
-          <Settings
-            user={user}
-            captures={captures}
-            onNameUpdate={handleNameUpdate}
-            onDeleteAllCaptures={handleDeleteAllCaptures}
-            onDeleteAccount={handleDeleteAccount}
-            storagePreference={storagePreference}
-            saveStoragePreference={saveStoragePreference}
-            savingPref={savingPref}
-          />
+          <Settings user={user} captures={captures} dbStats={dbStats} onNameUpdate={handleNameUpdate} onDeleteAllCaptures={handleDeleteAllCaptures} onDeleteAccount={handleDeleteAccount} storagePreference={storagePreference} saveStoragePreference={saveStoragePreference} savingPref={savingPref} />
         ) : activeNav === 'Feedback' && isAuthenticated ? (
           <FeedbackForm user={user} />
         ) : activeNav === 'Privacy' ? (
@@ -323,6 +326,7 @@ TROUBLESHOOTING
         ) : (
           <Dashboard
             isAuthenticated={isAuthenticated}
+            isLocalMode={IS_LOCAL_MODE}
             stats={stats}
             captures={captures}
             loadingCaptures={loadingCaptures}

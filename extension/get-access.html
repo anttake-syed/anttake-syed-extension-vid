@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AntCapture — Grant Access</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,1,0" rel="stylesheet">
+  <link rel="stylesheet" href="css/get-access.css">
+</head>
+<body>
+
+  <div class="page">
+    <div class="header">
+      <div class="logo-row">
+        <div class="logo-icon">
+          <span class="material-symbols-rounded" style="color:white;font-size:22px;">videocam</span>
+        </div>
+        <div class="logo-name">Ant<em>Capture</em></div>
+      </div>
+      <h1>Grant Device Access</h1>
+      <p class="subtitle">Allow access to your Camera and Microphone so recordings can include them.</p>
+    </div>
+
+    <div class="content-area">
+      <button class="big-btn" id="requestBtn">
+        <span class="material-symbols-rounded">security</span>
+        <span>Request Permissions</span>
+      </button>
+
+      <div class="message-box error" id="errorBox">
+        <span class="material-symbols-rounded">error</span>
+        <div id="errorText"></div>
+      </div>
+
+      <div class="message-box success" id="successBox">
+        <span class="material-symbols-rounded">check_circle</span>
+        <div>
+          <strong>Access Granted!</strong><br>
+          Your devices are ready. You can close this tab and start recording.
+        </div>
+      </div>
+
+      <div class="feeds-grid" id="feedsGrid">
+        <div class="feed-box">
+          <div class="feed-header">
+            <div class="feed-title">
+              <span class="material-symbols-rounded" style="font-size:15px;">mic</span>
+              <select id="micSelect" class="device-select" disabled>
+                <option value="">Microphone</option>
+              </select>
+            </div>
+            <div class="status-badge" id="micStatus">Waiting</div>
+          </div>
+          <canvas id="micCanvas"></canvas>
+          <div class="vol-row">
+            <span class="material-symbols-rounded" style="font-size:13px;color:var(--muted)">volume_up</span>
+            <div class="vol-track"><div class="vol-fill" id="volFill"></div></div>
+          </div>
+        </div>
+
+        <div class="feed-box">
+          <div class="feed-header">
+            <div class="feed-title">
+              <span class="material-symbols-rounded" style="font-size:15px;">videocam</span>
+              <select id="camSelect" class="device-select" disabled>
+                <option value="">Camera</option>
+              </select>
+            </div>
+            <div class="status-badge" id="camStatus">Waiting</div>
+          </div>
+          <video id="camVideo" autoplay muted playsinline></video>
+        </div>
+      </div>
+    </div>
+
+    <div class="close-hint">
+      Press <kbd style="background:rgba(255,255,255,0.08);padding:2px 6px;border-radius:4px;font-size:11px;">Ctrl</kbd> + <kbd style="background:rgba(255,255,255,0.08);padding:2px 6px;border-radius:4px;font-size:11px;">W</kbd> to close this tab.
+    </div>
+  </div>
+
+  <script type="module" src="js/get-access.js"></script>
+</body>
+</html>

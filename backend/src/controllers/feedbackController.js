@@ -41,7 +41,7 @@ exports.getFeedback = async (req, res) => {
   try {
     const feedbacks = await prisma.feedback.findMany({ orderBy: { createdAt: 'desc' } });
     res.json({ feedbacks });
-  } catch (err) {
+  } catch {
     res.status(500).json({ error: 'Failed to fetch feedback' });
   }
 };

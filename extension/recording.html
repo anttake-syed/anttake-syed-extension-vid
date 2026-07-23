@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AntCapture — Recording</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,1,0" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0a0c16;
+      --card: rgba(255,255,255,0.04);
+      --border: rgba(255,255,255,0.08);
+      --red: #ef4444;
+      --red-dim: rgba(239,68,68,0.15);
+      --green: #34d399;
+      --green-dim: rgba(52,211,153,0.12);
+      --muted: #64748b;
+      --text: #f8fafc;
+      --text-dim: #94a3b8;
+      --yellow: #fbbf24;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      width: 320px;
+      min-height: 100px;
+      padding: 0;
+      overflow: hidden;
+      user-select: none;
+    }
+
+    .panel {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+      padding: 16px;
+      background: linear-gradient(135deg, rgba(239,68,68,0.06) 0%, rgba(10,12,22,0) 60%);
+      border-bottom: 1px solid rgba(239,68,68,0.2);
+    }
+
+    /* Header row */
+    .header-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+    .rec-indicator {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+    .rec-dot {
+      width: 9px; height: 9px;
+      border-radius: 50%;
+      background: var(--red);
+      animation: pulse 1.4s ease-in-out infinite;
+    }
+    .rec-label {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: var(--red);
+    }
+    .rec-mode-badge {
+      font-size: 10px;
+      padding: 2px 8px;
+      border-radius: 20px;
+      background: rgba(255,255,255,0.07);
+      border: 1px solid var(--border);
+      color: var(--text-dim);
+      text-transform: capitalize;
+      font-weight: 500;
+    }
+
+    /* Timer */
+    .timer {
+      text-align: center;
+      font-size: 44px;
+      font-family: 'Courier New', monospace;
+      font-weight: 700;
+      color: var(--red);
+      letter-spacing: 4px;
+      line-height: 1;
+      margin: 4px 0 14px;
+      font-variant-numeric: tabular-nums;
+      transition: color 0.3s;
+    }
+    .timer.paused { color: var(--yellow); }
+
+    /* Device toggles */
+    .device-row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+    .device-btn {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      padding: 9px 0;
+      border-radius: 10px;
+      border: 1px solid rgba(52,211,153,0.3);
+      background: var(--green-dim);
+      cursor: pointer;
+      transition: all 0.18s;
+    }
+    .device-btn.off {
+      background: rgba(239,68,68,0.1);
+      border-color: rgba(239,68,68,0.3);
+    }
+    .device-btn:hover { filter: brightness(1.2); transform: scale(1.03); }
+    .device-btn:active { transform: scale(0.97); }
+    .device-btn .material-symbols-rounded { font-size: 20px; color: var(--green); }
+    .device-btn.off .material-symbols-rounded { color: var(--red); }
+    .device-label {
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      color: var(--green);
+    }
+    .device-btn.off .device-label { color: var(--red); }
+
+    /* Action buttons */
+    .action-row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+    .btn {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      padding: 9px 10px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+      font-family: inherit;
+      border: 1px solid transparent;
+    }
+    .btn:hover { filter: brightness(1.15); }
+    .btn:active { transform: scale(0.97); }
+    .btn .material-symbols-rounded { font-size: 15px; }
+
+    .btn-stop {
+      background: var(--red);
+      border-color: var(--red);
+      color: #fff;
+    }
+    .btn-pause {
+      background: rgba(255,255,255,0.08);
+      border-color: var(--border);
+      color: var(--text);
+    }
+    .btn-pause.is-paused {
+      background: rgba(251,191,36,0.15);
+      border-color: rgba(251,191,36,0.4);
+      color: var(--yellow);
+    }
+    .btn-discard {
+      width: 100%;
+      background: transparent;
+      border-color: rgba(239,68,68,0.3);
+      color: #f87171;
+      font-size: 11px;
+    }
+    .btn-discard:hover { background: rgba(239,68,68,0.1); }
+
+    /* Discard confirm */
+    .discard-confirm {
+      display: none;
+      flex-direction: column;
+      gap: 8px;
+      padding: 12px;
+      background: rgba(0,0,0,0.5);
+      border: 1px dashed rgba(239,68,68,0.4);
+      border-radius: 8px;
+      margin-bottom: 8px;
+    }
+    .discard-confirm.visible { display: flex; }
+    .discard-confirm p {
+      font-size: 12px;
+      text-align: center;
+      color: #fca5a5;
+      font-weight: 600;
+    }
+    .discard-confirm small {
+      display: block;
+      text-align: center;
+      font-size: 11px;
+      color: var(--muted);
+    }
+    .confirm-btns {
+      display: flex;
+      gap: 8px;
+      margin-top: 4px;
+    }
+    .btn-yes { background: var(--red); border-color: var(--red); color: #fff; }
+    .btn-no  { background: rgba(255,255,255,0.08); border-color: var(--border); color: var(--text); }
+
+    /* Format/res bar */
+    .settings-bar {
+      display: flex;
+      gap: 6px;
+      padding: 8px 0 0;
+      border-top: 1px solid var(--border);
+      margin-top: 2px;
+    }
+    .settings-chip {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 10px;
+      color: var(--text-dim);
+      background: rgba(255,255,255,0.04);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 3px 7px;
+      font-weight: 500;
+    }
+    .settings-chip .material-symbols-rounded { font-size: 12px; }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.25; transform: scale(0.8); }
+    }
+  </style>
+</head>
+<body>
+
+<div class="panel">
+  <!-- Header -->
+  <div class="header-row">
+    <div class="rec-indicator">
+      <div class="rec-dot"></div>
+      <span class="rec-label">Recording</span>
+    </div>
+    <span class="rec-mode-badge" id="modeBadge">Screen</span>
+  </div>
+
+  <!-- Timer -->
+  <div class="timer" id="timerDisplay">0:00</div>
+
+  <!-- Mic / Cam toggles -->
+  <div class="device-row">
+    <button class="device-btn" id="micBtn">
+      <span class="material-symbols-rounded">mic</span>
+      <span class="device-label" id="micLabel">Mic On</span>
+    </button>
+    <button class="device-btn" id="camBtn">
+      <span class="material-symbols-rounded">videocam</span>
+      <span class="device-label" id="camLabel">Cam On</span>
+    </button>
+  </div>
+
+  <!-- Stop + Pause -->
+  <div class="action-row">
+    <button class="btn btn-stop" id="stopBtn">
+      <span class="material-symbols-rounded">stop</span> Stop &amp; Save
+    </button>
+    <button class="btn btn-pause" id="pauseBtn">
+      <span class="material-symbols-rounded">pause</span> Pause
+    </button>
+  </div>
+
+  <!-- Discard -->
+  <div class="discard-confirm" id="discardConfirm">
+    <p>Discard this recording?</p>
+    <small>This cannot be undone.</small>
+    <div class="confirm-btns">
+      <button class="btn btn-yes" id="discardYes">Yes, Discard</button>
+      <button class="btn btn-no"  id="discardNo">No, Continue</button>
+    </div>
+  </div>
+  <button class="btn btn-discard" id="discardBtn">
+    <span class="material-symbols-rounded" style="font-size:13px;">delete</span>
+    Discard Recording
+  </button>
+
+  <!-- Settings info bar -->
+  <div class="settings-bar">
+    <span class="settings-chip"><span class="material-symbols-rounded">movie</span><span id="fmtChip">webm</span></span>
+    <span class="settings-chip"><span class="material-symbols-rounded">hd</span><span id="resChip">720p</span></span>
+    <span class="settings-chip" id="pausedChip" style="display:none;color:#fbbf24;border-color:rgba(251,191,36,0.3);">
+      <span class="material-symbols-rounded">pause_circle</span> Paused
+    </span>
+  </div>
+</div>
+
+<script src="recording.js"></script>
+</body>
+</html>

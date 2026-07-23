@@ -6,6 +6,14 @@
   <title>AntCapture</title>
   <link rel="stylesheet" href="styles/main.css">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,1,0" />
+  <style>
+    @keyframes __antRecPulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.3; transform: scale(0.85); }
+    }
+    #activeRecMicBtn:hover, #activeRecCamBtn:hover { filter: brightness(1.15); }
+    #activeRecMicBtn:active, #activeRecCamBtn:active { transform: scale(0.95); }
+  </style>
 </head>
 <body>
   <div class="container">
@@ -23,17 +31,184 @@
         <div class="status-dot" id="statusDot"></div>
         <span id="statusText">Cloud Sync Active</span>
       </div>
+      <!-- Storage Mode Selector -->
+      <div style="margin-top: 12px; border-top: 1px dashed rgba(255,255,255,0.1); padding-top: 12px;">
+        <label style="font-size: 11px; color: #94a3b8; font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px; display: block; margin-bottom: 6px;">Storage Mode</label>
+        <!-- Hidden native select keeps the value binding -->
+        <select id="storageModeSelect" style="display:none;">
+          <option value="computer">computer</option>
+          <option value="cloud">cloud</option>
+          <option value="localhost">localhost</option>
+        </select>
+        <!-- Custom styled dropdown -->
+        <div id="modeDropdownTrigger" style="display:flex; align-items:center; gap:8px; background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; padding: 8px 10px; cursor: pointer; user-select:none; transition: border-color 0.2s;">
+          <span id="modeIcon" class="material-symbols-rounded" style="font-size:16px; color:#818cf8;">save_alt</span>
+          <span id="modeLabelText" style="font-size:13px; color:#e2e8f0; flex:1;">Save to Computer</span>
+          <span class="material-symbols-rounded" style="font-size:14px; color:#64748b;">expand_more</span>
+        </div>
+        <div id="modeDropdownMenu" style="display:none; flex-direction:column; gap:2px; margin-top:4px; background: #1e293b; border:1px solid rgba(255,255,255,0.1); border-radius:6px; overflow:hidden; z-index:99;">
+          <div class="mode-opt" data-value="computer" style="display:flex; align-items:center; gap:8px; padding:9px 10px; cursor:pointer; transition: background 0.15s;">
+            <span class="material-symbols-rounded" style="font-size:16px; color:#60a5fa;">save_alt</span>
+            <span style="font-size:13px; color:#e2e8f0;">Save to Computer</span>
+          </div>
+          <div class="mode-opt" data-value="cloud" style="display:flex; align-items:center; gap:8px; padding:9px 10px; cursor:pointer; transition: background 0.15s;">
+            <span class="material-symbols-rounded" style="font-size:16px; color:#34d399;">cloud_sync</span>
+            <span style="font-size:13px; color:#e2e8f0;">Web + Google Drive</span>
+          </div>
+          <div class="mode-opt" data-value="localhost" style="display:flex; align-items:center; gap:8px; padding:9px 10px; cursor:pointer; transition: background 0.15s;">
+            <span class="material-symbols-rounded" style="font-size:16px; color:#a78bfa;">dns</span>
+            <span style="font-size:13px; color:#e2e8f0;">Local Web UI (Self-Hosted)</span>
+          </div>
+        </div>
+      </div>
     </div>
 
-    <div class="action-buttons">
-      <button class="btn primary" id="recordBtn">
+    <!-- ═══ CAPTURE PANEL ═══ -->
+    <div class="capture-panel">
+
+      <!-- ── Screenshot ── -->
+      <div class="capture-section-label">
+        <span class="material-symbols-rounded" style="font-size:15px;vertical-align:-3px;">photo_camera</span>
+        Screenshot
+      </div>
+      <div class="capture-grid" id="screenshotModes">
+        <button class="cap-mode-btn active" id="shotTabBtn" data-mode="tab" title="Capture the visible area of this tab">
+          <span class="material-symbols-rounded" style="font-size:18px;">screenshot_monitor</span>
+          <span>Tab</span>
+        </button>
+        <button class="cap-mode-btn" id="shotRegionBtn" data-mode="region" title="Drag to select an area">
+          <span class="material-symbols-rounded" style="font-size:18px;">crop_free</span>
+          <span>Selected Area</span>
+        </button>
+        <button class="cap-mode-btn" id="shotScreenBtn" data-mode="screen" title="Capture your full desktop">
+          <span class="material-symbols-rounded" style="font-size:18px;">desktop_windows</span>
+          <span>Entire Screen</span>
+        </button>
+      </div>
+      <!-- hidden canonical screenshot button (JS triggers this) -->
+      <button id="screenshotBtn" style="display:none;"></button>
+      <button class="btn primary" id="shotCaptureBtn" style="margin-top:6px;">
+        <span class="btn-icon material-symbols-rounded">photo_camera</span>
+        <span class="btn-text">Take Screenshot</span>
+      </button>
+
+      <!-- ── Recording ── -->
+      <div class="capture-section-label" style="margin-top:12px;">
+        <span class="material-symbols-rounded" style="font-size:15px;vertical-align:-3px;">radio_button_checked</span>
+        Recording
+      </div>
+      <div class="capture-grid" id="recordModes">
+        <button class="cap-mode-btn active" id="recScreenBtn" data-mode="screen" title="Record your full display">
+          <span class="material-symbols-rounded" style="font-size:18px;">desktop_windows</span>
+          <span>Screen</span>
+          <span class="mode-desc">Full display</span>
+        </button>
+        <button class="cap-mode-btn" id="recTabBtn" data-mode="tab" title="Record this browser tab only">
+          <span class="material-symbols-rounded" style="font-size:18px;">tab</span>
+          <span>Tab</span>
+          <span class="mode-desc">This tab only</span>
+        </button>
+        <button class="cap-mode-btn" id="recCamBtn" data-mode="camera" title="Camera/webcam only">
+          <span class="material-symbols-rounded" style="font-size:18px;">videocam</span>
+          <span>Cam</span>
+          <span class="mode-desc">Webcam only</span>
+        </button>
+        <button class="cap-mode-btn" id="recOverlayBtn" data-mode="overlay" title="Screen + floating camera bubble (like Loom)">
+          <span class="material-symbols-rounded" style="font-size:18px;">picture_in_picture</span>
+          <span>Overlay</span>
+          <span class="mode-desc">Screen + cam</span>
+        </button>
+      </div>
+
+      <!-- Recording settings row: Resolution | Format | Devices in one line -->
+      <div class="rec-settings-row" id="recSettingsRow">
+        <!-- Resolution Dropdown -->
+        <select id="resolutionSelect" class="rec-setting-dropdown" title="Resolution">
+          <option value="720">720p</option>
+          <option value="1080">1080p</option>
+        </select>
+        
+        <!-- Format Dropdown -->
+        <select id="formatSelect" class="rec-setting-dropdown" title="Format">
+          <option value="webm">WebM</option>
+          <option value="mp4">MP4</option>
+        </select>
+        
+        <!-- Separator -->
+        <div class="rec-setting-sep" style="margin: 0 4px;"></div>
+        
+        <!-- Device Toggles -->
+        <div class="device-toggles" style="gap: 8px;">
+          <button class="device-icon-toggle off" id="micToggleBtn" data-on="false" title="Toggle microphone">
+            <div class="dit-icon-wrap">
+              <span class="material-symbols-rounded dit-icon" style="font-size: 16px;">mic_off</span>
+              <canvas id="popupMicCanvas" width="16" height="6" style="margin-top: 1px;"></canvas>
+            </div>
+          </button>
+          <button class="device-icon-toggle off" id="camToggleBtn" data-on="false" title="Toggle camera">
+            <div class="dit-icon-wrap">
+              <span class="material-symbols-rounded dit-icon" style="font-size: 16px;">videocam_off</span>
+            </div>
+          </button>
+        </div>
+      </div>
+
+      <!-- Record main button -->
+      <button class="btn primary" id="recordBtn" style="margin-top:6px;">
         <span class="btn-icon material-symbols-rounded">radio_button_checked</span>
-        <span class="btn-text">Record Screen</span>
+        <span class="btn-text">Start Recording</span>
       </button>
-      <button class="btn" id="screenshotBtn">
-        <span class="btn-icon material-symbols-rounded">screenshot_monitor</span>
-        <span class="btn-text">Screenshot</span>
+    </div>
+
+    <!-- ═══ ACTIVE RECORDING PANEL (Hidden by default) ═══ -->
+    <div id="activeRecordingPanel" class="card" style="display:none; flex-direction:column; gap:12px; align-items:center; padding: 20px 14px; margin-top:0; border: 1px solid rgba(239,68,68,0.35); background: rgba(239,68,68,0.04);">
+      <!-- Header: dot + label -->
+      <div style="display:flex; align-items:center; gap:8px;">
+        <div style="width:10px; height:10px; border-radius:50%; background:#ef4444; animation: __antRecPulse 1.5s infinite;"></div>
+        <div style="font-size:13px; font-weight:700; color:#f8fafc; letter-spacing:0.8px; text-transform:uppercase;">Recording</div>
+      </div>
+
+      <!-- Big timer -->
+      <div id="popupTimer" style="font-size:36px; font-variant-numeric:tabular-nums; font-family:monospace; font-weight:bold; color:#f87171; letter-spacing:2px;">0:00</div>
+
+      <!-- Mic + Cam toggles (interactive buttons) -->
+      <div style="display:flex; gap:12px; margin-top:2px; width:100%;">
+        <button id="activeRecMicBtn" title="Toggle Microphone"
+          style="flex:1; display:flex; flex-direction:column; align-items:center; gap:4px; background:rgba(52,211,153,0.12); border:1px solid rgba(52,211,153,0.3); border-radius:10px; padding:8px 0; cursor:pointer; transition:all 0.2s;">
+          <span id="activeMicStatus" class="material-symbols-rounded" style="font-size:22px; color:#34d399;">mic</span>
+          <span id="activeMicLabel" style="font-size:9px; color:#34d399; text-transform:uppercase; letter-spacing:0.5px; font-weight:600;">Mic On</span>
+        </button>
+        <button id="activeRecCamBtn" title="Toggle Camera"
+          style="flex:1; display:flex; flex-direction:column; align-items:center; gap:4px; background:rgba(52,211,153,0.12); border:1px solid rgba(52,211,153,0.3); border-radius:10px; padding:8px 0; cursor:pointer; transition:all 0.2s;">
+          <span id="activeCamStatus" class="material-symbols-rounded" style="font-size:22px; color:#34d399;">videocam</span>
+          <span id="activeCamLabel" style="font-size:9px; color:#34d399; text-transform:uppercase; letter-spacing:0.5px; font-weight:600;">Cam On</span>
+        </button>
+      </div>
+
+      <!-- Stop + Pause row -->
+      <div style="display:flex; gap: 10px; margin-top:4px; width:100%;">
+        <button id="activeStopBtn" class="btn primary" style="flex:1;">
+          <span class="material-symbols-rounded btn-icon" style="font-size:16px;">stop</span> Stop & Save
+        </button>
+        <button id="activePauseBtn" class="btn" style="flex:1; background:rgba(255,255,255,0.1);">
+          <span class="material-symbols-rounded btn-icon" style="font-size:16px;">pause</span> Pause
+        </button>
+      </div>
+
+      <!-- Discard -->
+      <button id="activeDiscardBtn" class="btn" style="width:100%; background:rgba(239,68,68,0.12); border:1px solid rgba(239,68,68,0.3); color:#f87171; margin-top:0;">
+        <span class="material-symbols-rounded btn-icon" style="font-size:16px;">delete</span> Discard Recording
       </button>
+
+      <!-- Discard Confirmation -->
+      <div id="discardConfirmBox" style="display:none; flex-direction:column; gap:8px; background:rgba(0,0,0,0.6); padding:12px; border-radius:8px; border:1px dashed rgba(239,68,68,0.5); width:100%;">
+          <span style="font-size:12px; text-align:center; color:#fca5a5; font-weight:600;">Discard this recording?</span>
+          <span style="font-size:11px; text-align:center; color:#94a3b8;">This cannot be undone.</span>
+          <div style="display:flex; gap:8px; margin-top:4px;">
+              <button id="discardYesBtn" class="btn primary" style="flex:1; background:#ef4444; border-color:#ef4444;">Yes, Discard</button>
+              <button id="discardNoBtn" class="btn" style="flex:1; background:rgba(255,255,255,0.1);">No, Continue</button>
+          </div>
+      </div>
     </div>
 
     <!-- Auth Section -->
@@ -48,9 +223,13 @@
         </svg>
         <span class="btn-text">Sign in with Google</span>
       </button>
+      
+      <div id="loginNotice" style="font-size: 11px; color: #94a3b8; text-align: center; margin-top: 10px; line-height: 1.4; padding: 8px; background: rgba(255,255,255,0.03); border-radius: 6px; border: 1px dashed rgba(255,255,255,0.1);">
+        <strong>Note:</strong> You need to sign in to both the <strong>Dashboard</strong> and this <strong>Extension</strong> to see your saved screenshots and recordings.
+      </div>
 
       <div id="profileContainer" class="card" style="display: none; padding: 12px; margin-top: 0; align-items: center; gap: 12px; flex-direction: column; cursor: default;">
-        <div style="display: flex; align-items: center; gap: 12px; width: 100%;">
+        <div id="profileDetails" style="display: flex; align-items: center; gap: 12px; width: 100%;">
           <img id="userAvatar" src="" style="width: 32px; height: 32px; border-radius: 50%; background: #1e293b; border: 1px solid rgba(255,255,255,0.1);" />
           <div style="flex: 1; overflow: hidden;">
             <div id="userName" style="font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">User Name</div>
@@ -60,10 +239,95 @@
             <span class="material-symbols-rounded" style="font-size:20px;">logout</span>
           </button>
         </div>
+        
+
+
         <!-- Open Dashboard button — auto-logs into Web UI -->
-        <button id="openDashboardBtn" style="width: 100%; background: linear-gradient(135deg,#6366f1,#a855f7); border: none; color: white; padding: 9px 14px; cursor: pointer; font-size: 13px; font-weight: 600; border-radius: 8px; display: flex; align-items: center; justify-content: center; gap: 6px;">
+        <button id="openDashboardBtn" style="width: 100%; background: linear-gradient(135deg,#6366f1,#a855f7); border: none; color: white; padding: 9px 14px; cursor: pointer; font-size: 13px; font-weight: 600; border-radius: 8px; display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: 4px;">
           <span class="material-symbols-rounded" style="font-size:18px;">open_in_new</span> Open Dashboard
         </button>
+      </div>
+    </div>
+
+    <!-- ═══ CLOUD QUEUE (Web + Google Drive mode only) ═══ -->
+    <div id="cloudQueueContainer" style="display: none; width: 100%; background: rgba(0,0,0,0.2); border-radius: 6px; padding: 10px; margin-top: 12px; border: 1px solid rgba(52,211,153,0.12); flex-direction: column;">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <div style="display: flex; align-items: center; gap: 6px;">
+          <span class="material-symbols-rounded" style="font-size:15px; color:#34d399;">cloud_queue</span>
+          <div style="display: flex; flex-direction: column;">
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <span style="font-size: 11px; color: #34d399; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Cloud Upload Queue</span>
+              <button id="cloudRefreshBtn" style="background:none; border:none; color:#34d399; cursor:pointer; padding:0; display:flex; align-items:center; transition: transform 0.3s;" title="Refresh Queue">
+                <span class="material-symbols-rounded" style="font-size:13px;">refresh</span>
+              </button>
+            </div>
+            <span id="cloudCacheSizeText" style="font-size: 13px; font-weight: 600; color: #f8fafc; margin-top: 2px;">Loading queue...</span>
+          </div>
+        </div>
+        <div style="display:flex; gap:6px;">
+          <button id="cloudClearCacheBtn" style="display:none; background: rgba(248,113,113,0.1); border: 1px solid rgba(248,113,113,0.2); color: #f87171; border-radius: 4px; padding: 4px 8px; font-size: 11px; cursor: pointer; align-items: center; gap: 4px; transition: all 0.2s;">
+            <span class="material-symbols-rounded" style="font-size:14px;">delete</span> Clear
+          </button>
+        </div>
+      </div>
+      <div id="cloudCacheItemsList" style="display: flex; flex-direction: column; gap: 4px; margin-top: 8px; max-height: 150px; overflow-y: auto;">
+        <!-- Items injected here -->
+      </div>
+      <!-- Storage Limit Bar -->
+      <div class="storage-bar-bg" id="cloudStorageBar" style="display: none;">
+        <div id="cloudStorageFill" class="storage-bar-fill" style="width: 0%;"></div>
+      </div>
+    </div>
+
+    <!-- ═══ LOCAL QUEUE (Self-Hosted / Localhost mode only) ═══ -->
+    <div id="localQueueContainer" style="display: none; width: 100%; background: rgba(0,0,0,0.2); border-radius: 6px; padding: 10px; margin-top: 12px; border: 1px solid rgba(167,139,250,0.15); flex-direction: column;">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <div style="display: flex; align-items: center; gap: 6px;">
+          <span class="material-symbols-rounded" style="font-size:15px; color:#a78bfa;">hard_drive</span>
+          <div style="display: flex; flex-direction: column;">
+            <span style="font-size: 11px; color: #a78bfa; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Local Sync Queue</span>
+            <span id="localCacheSizeText" style="font-size: 13px; font-weight: 600; color: #f8fafc; margin-top: 2px;">0 MB (0 items)</span>
+          </div>
+        </div>
+        <div style="display:flex; gap:6px;">
+          <button id="syncCacheBtn" style="display:none; background: rgba(167,139,250,0.1); border: 1px solid rgba(167,139,250,0.25); color: #a78bfa; border-radius: 4px; padding: 4px 8px; font-size: 11px; cursor: pointer; align-items: center; gap: 4px; transition: all 0.2s;">
+            <span class="material-symbols-rounded" style="font-size:14px;">sync</span> Sync Now
+          </button>
+          <button id="localClearCacheBtn" style="display:none; background: rgba(248,113,113,0.1); border: 1px solid rgba(248,113,113,0.2); color: #f87171; border-radius: 4px; padding: 4px 8px; font-size: 11px; cursor: pointer; align-items: center; gap: 4px; transition: all 0.2s;">
+            <span class="material-symbols-rounded" style="font-size:14px;">delete</span> Clear
+          </button>
+        </div>
+      </div>
+      <div id="localCacheItemsList" style="display: flex; flex-direction: column; gap: 4px; margin-top: 8px; max-height: 150px; overflow-y: auto;">
+        <!-- Items injected here -->
+      </div>
+    </div>
+
+    <!-- Sync Status Panel (localhost mode only) -->
+    <div id="syncStatusPanel" style="display:none; width:100%; background: rgba(0,0,0,0.25); border-radius: 8px; padding: 10px; margin-top: 8px; border: 1px solid rgba(255,255,255,0.07); flex-direction: column; gap: 6px;">
+      <!-- Header row -->
+      <div style="display:flex; align-items:center; gap:6px; margin-bottom:2px;">
+        <span id="syncStatusIcon" class="material-symbols-rounded" style="font-size:15px; color:#818cf8;">info</span>
+        <span id="syncStatusTitle" style="font-size:11px; font-weight:700; color:#f8fafc; text-transform:uppercase; letter-spacing:0.05em;">Sync Status</span>
+      </div>
+      <!-- Steps list -->
+      <div id="syncStepsList" style="display:flex; flex-direction:column; gap:3px;"></div>
+      <!-- Error box -->
+      <div id="syncErrorBox" style="display:none; background:rgba(239,68,68,0.08); border:1px solid rgba(239,68,68,0.2); border-radius:5px; padding:7px 9px; margin-top:2px;">
+        <div style="display:flex; align-items:flex-start; gap:6px;">
+          <span class="material-symbols-rounded" style="font-size:13px; color:#f87171; flex-shrink:0; margin-top:1px;">error</span>
+          <div>
+            <div id="syncErrorTitle" style="font-size:11px; font-weight:700; color:#f87171; margin-bottom:2px;">Error</div>
+            <div id="syncErrorDetail" style="font-size:10px; color:#fca5a5; line-height:1.5;"></div>
+          </div>
+        </div>
+      </div>
+      <!-- Tip / help box -->
+      <div id="syncTipBox" style="display:none; background:rgba(99,102,241,0.07); border:1px solid rgba(99,102,241,0.18); border-radius:5px; padding:7px 9px; margin-top:2px;">
+        <div style="display:flex; align-items:flex-start; gap:6px;">
+          <span class="material-symbols-rounded" style="font-size:13px; color:#818cf8; flex-shrink:0; margin-top:1px;">tips_and_updates</span>
+          <div id="syncTipText" style="font-size:10px; color:#a5b4fc; line-height:1.5;"></div>
+        </div>
       </div>
     </div>
 
@@ -73,6 +337,7 @@
       <span id="storageInfo">Checking...</span>
     </div>
   </div>
-  <script src="popup.js"></script>
+  <script type="module" src="popup.js"></script>
 </body>
 </html>
+

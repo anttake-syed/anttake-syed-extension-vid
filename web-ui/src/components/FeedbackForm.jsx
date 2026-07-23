@@ -45,7 +45,7 @@ export default function FeedbackForm({ user }) {
   }
 
   const handleSubmit = async () => {
-    if (!text.trim()) return;
+    if (!text.trim()) {return;}
     setLoading(true);
     setError(null);
     try {
@@ -58,7 +58,7 @@ export default function FeedbackForm({ user }) {
         body: JSON.stringify({ message: text.trim() }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to submit feedback');
+      if (!res.ok) {throw new Error(data.error || 'Failed to submit feedback');}
       setSubmitted(true);
     } catch (err) {
       setError(err.message);

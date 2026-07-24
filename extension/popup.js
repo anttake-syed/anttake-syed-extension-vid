@@ -1,20 +1,12 @@
 // popup.js — Entry point for AntCapture Extension Popup
 // Modularized for maintainability and to avoid massive monoliths.
 
-import { initQueue } from './popup/queue.js';
-import { initAuth } from './popup/auth.js';
 import { initCapture } from './popup/capture.js';
 import { getConfig } from './popup/state.js';
 
 document.addEventListener('DOMContentLoaded', () => {
   // 1. Initialize Capture UI bindings (screenshot modes, recording options, mic toggle)
   initCapture();
-
-  // 2. Initialize Queue/Sync handlers (cloud/local sync logic, UI updates, caching)
-  initQueue();
-
-  // 3. Initialize Authentication and Profile UI bindings
-  initAuth();
 
   // 4. Bind the settings button
   const settingsBtn = document.getElementById('settingsBtn');

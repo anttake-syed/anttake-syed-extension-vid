@@ -1,5 +1,5 @@
 // offscreen.js — AntCapture
-import { saveMediaLocally } from './storage.js';
+import { saveMediaLocally } from '../storage/storage.js';
 
 // Handles all recording modes: Screen, Tab, Camera-only, and Cam+Screen Overlay (like Loom)
 // Uses canvas compositing to render the webcam bubble on top of screen recording.
@@ -126,9 +126,6 @@ async function startRecording(options = {}) {
       // Cancel canvas animation loop if running
       if (animFrameId) { cancelAnimationFrame(animFrameId); animFrameId = null; }
 
-      // Stop all underlying streams
-      activeStreams.forEach(s => s.getTracks().forEach(t => t.stop()));
-
       const blob = new Blob(data, { type: mimeType });
       data = [];
       isStopping = false; // reset guard
@@ -136,28 +133,30 @@ async function startRecording(options = {}) {
       if (isDiscarding) {
         console.log('Recording discarded.');
         isDiscarding = false;
+        activeStreams.forEach(s => s.getTracks().forEach(t => t.stop()));
         return;
       }
 
       if (blob.size === 0) {
         console.warn('AntCapture: empty blob, skipping save.');
+        activeStreams.forEach(s => s.getTracks().forEach(t => t.stop()));
+        chrome.runtime.sendMessage({ action: 'OPEN_EDIT_PAGE', error: 'empty_blob' });
         return;
       }
 
       try {
-        // Save to IndexedDB directly to avoid massive memory usage / IPC limits
-        const itemId = await saveMediaLocally(blob, 'video', 'transfer', resolution, resolvedFormat);
+        // Save to IndexedDB directly as 'preview' to avoid background transfer overhead
+        const itemId = await saveMediaLocally(blob, 'video', 'preview', resolution, resolvedFormat);
 
         chrome.runtime.sendMessage({
-          action: 'VIDEO_BLOB_STORED',
-          itemId,
-          mimeType,
-          recordingMode: mode,
-          resolution: resolution,
-          format: resolvedFormat,
+          action: 'OPEN_EDIT_PAGE_FOR_VIDEO',
+          itemId
         });
       } catch (err) {
         console.error('Failed to process video blob:', err);
+        chrome.runtime.sendMessage({ action: 'OPEN_EDIT_PAGE', error: 'save_failed' });
+      } finally {
+        activeStreams.forEach(s => s.getTracks().forEach(t => t.stop()));
       }
       // NOTE: Do NOT send EXTERNAL_STOP_RECORDING here.
       // background.js already sets isRecording: false in handleStopRecording.
@@ -181,7 +180,14 @@ function stopRecording() {
   if (isStopping) { return; }
   if (recorder && recorder.state !== 'inactive') {
     isStopping = true;
+    
+    // Instantly kill the streams to hide the browser's "Stop sharing" OS banner immediately
+    if (typeof activeStreams !== 'undefined') {
+      activeStreams.forEach(s => s.getTracks().forEach(t => t.stop()));
+    }
+    
     recorder.stop();
+    chrome.runtime.sendMessage({ action: 'EXTERNAL_STOP_RECORDING' });
   }
 }
 

@@ -30,13 +30,13 @@
     { initRegionSelect },
     { initWebcamBubble },
     { initCameraRecorder },
-    { initRecordingHUD },
+    { initControlBar }
   ] = await Promise.all([
     import(base + 'authSync.js'),
     import(base + 'regionSelect.js'),
     import(base + 'webcamBubble.js'),
     import(base + 'cameraRecorder.js'),
-    import(base + 'recordingHUD.js'),
+    import(base + 'controlBar.js'),
   ]);
 
   // Boot every feature module
@@ -44,5 +44,5 @@
   initRegionSelect();
   initWebcamBubble();
   initCameraRecorder();
-  initRecordingHUD();
+  initControlBar();
 })();

@@ -3,7 +3,7 @@
 // All screenshot + video recording paths funnel through saveCapture().
 // It reads storageMode and routes to: 'computer' | 'localhost' | 'cloud'.
 
-import { saveMediaLocally, getPendingUploads, deleteLocalMedia } from '../storage.js';
+import { saveMediaLocally, getPendingUploads, deleteLocalMedia } from '../storage/storage.js';
 import { notify } from './notify.js';
 import { uploadToServer } from './upload.js';
 
@@ -25,54 +25,21 @@ export function dataURItoBlob(dataURI) {
 // saveCapture — single routing point for ALL captured media
 // ─────────────────────────────────────────────────────────────────────────────
 export async function saveCapture(blob, type = 'image', resolution = null, format = null) {
-  const { storageMode } = await chrome.storage.local.get(['storageMode']);
   const label = type === 'image' ? 'Screenshot' : 'Recording';
 
-  // ── MODE 1: Save to Computer ────────────────────────────────────────────
-  if (storageMode === 'computer' || !storageMode) {
-    const itemId = await saveMediaLocally(blob, type, 'computer', resolution, format);
-    // Open download.html which triggers chrome.downloads.download() with saveAs dialog
-    chrome.tabs.create({ url: chrome.runtime.getURL(`download.html?id=${itemId}&autoDelete=true`) });
-    notify('capture-computer', `${label} ready`, 'Choose a save location in the download dialog.');
-    return { success: true, computer: true };
+  // Always save the raw blob to IndexedDB as a 'preview' item
+  let itemId;
+  try {
+    itemId = await saveMediaLocally(blob, type, 'preview', resolution, format);
+  } catch (err) {
+    chrome.tabs.create({ url: chrome.runtime.getURL(`edit/edit.html?error=storage_full`) });
+    throw err;
   }
-
-  // ── MODE 2: Self-Hosted (localhost) ───────────────────────────────────────
-  if (storageMode === 'localhost') {
-    try {
-      await uploadToServer(blob, type, 'local-mode', resolution, format);
-      chrome.storage.local.get(['captureCount'], (r) =>
-        chrome.storage.local.set({ captureCount: (r.captureCount || 0) + 1 })
-      );
-      notify('capture-local', `${label} saved`, 'Stored in your self-hosted library.');
-      return { success: true };
-    } catch {
-      notify('capture-local-fail', 'Local Server Offline', 'Run: node server.js  to start your local server.');
-      return { success: false, server_offline: true };
-    }
-  }
-
-  // ── MODE 3: Cloud (Web UI + Google Drive) ─────────────────────────────────
-  const { user } = await chrome.storage.local.get(['user']);
-  if (user && user.jwt && navigator.onLine) {
-    try {
-      await uploadToServer(blob, type, user.jwt, resolution, format);
-      chrome.storage.local.get(['captureCount'], (r) =>
-        chrome.storage.local.set({ captureCount: (r.captureCount || 0) + 1 })
-      );
-      notify('capture-cloud', `${label} uploaded`, 'Saved to your AntCapture cloud library.');
-      return { success: true };
-    } catch {
-      await saveMediaLocally(blob, type, 'cloud', resolution, format);
-      notify('capture-queued', 'Added to Cloud Queue', 'Upload failed — will retry when back online.');
-      return { success: true, queued: true };
-    }
-  } else {
-    await saveMediaLocally(blob, type, 'cloud', resolution, format);
-    const reason = !navigator.onLine ? 'No internet connection.' : 'Sign in to upload this item.';
-    notify('capture-queued', 'Added to Cloud Queue', reason);
-    return { success: true, queued: true };
-  }
+  
+  // Open the local edit/preview page automatically so the user can choose how to save it
+  chrome.tabs.create({ url: chrome.runtime.getURL(`edit/edit.html?id=${itemId}`) });
+  
+  return { success: true, previewId: itemId };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

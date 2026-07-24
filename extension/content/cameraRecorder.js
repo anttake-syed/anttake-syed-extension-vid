@@ -96,7 +96,7 @@ async function startCameraRecording(options = {}) {
 
     if (blob.size === 0) {
       console.warn('AntCapture: empty camera blob, skipping save.');
-      chrome.runtime.sendMessage({ action: 'EXTERNAL_STOP_RECORDING' });
+      chrome.runtime.sendMessage({ action: 'OPEN_EDIT_PAGE', error: 'empty_blob' });
       return;
     }
 
@@ -131,6 +131,12 @@ async function startCameraRecording(options = {}) {
 function stopCameraRecording() {
   if (cameraRecorder && cameraRecorder.state !== 'inactive') {
     cameraIsStopping = true;
+    
+    // Instantly kill the tracks so the hardware camera light and preview bubble vanish immediately
+    if (cameraStream) {
+      cameraStream.getTracks().forEach(t => t.stop());
+    }
+    
     cameraRecorder.stop();
     cameraRecorder = null;
   }

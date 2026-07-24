@@ -1,25 +1,27 @@
-const toggle = document.getElementById('devModeToggle');
+import { DEV_SERVER_URL, PROD_SERVER_URL, DEV_WEB_UI_URL, PROD_WEB_UI_URL } from './shared/config.js';
+
+const select = document.getElementById('storageModeSelect');
 const status = document.getElementById('status');
 
-chrome.storage.local.get(['devMode'], (result) => {
-  toggle.checked = result.devMode || false;
-  updateLabels(toggle.checked);
+chrome.storage.local.get(['storageMode'], (result) => {
+  select.value = result.storageMode || 'computer';
+  updateLabels(select.value);
 });
 
-toggle.addEventListener('change', () => {
-  const devMode = toggle.checked;
-  chrome.storage.local.set({ devMode }, () => {
-    updateLabels(devMode);
+select.addEventListener('change', () => {
+  const storageMode = select.value;
+  chrome.storage.local.set({ storageMode }, () => {
+    updateLabels(storageMode);
     status.textContent = 'Saved!';
     setTimeout(() => { status.textContent = ''; }, 1500);
   });
 });
 
-function updateLabels(devMode) {
-  document.getElementById('backendLabel').textContent = devMode
-    ? 'http://localhost:3001'
-    : 'https://api.antcapture.anttake.com';
-  document.getElementById('webUiLabel').textContent = devMode
-    ? 'http://localhost:3000'
-    : 'https://antcapture.anttake.com';
+function updateLabels(mode) {
+  document.getElementById('serverLabel').textContent = mode === 'localhost'
+    ? DEV_SERVER_URL
+    : (mode === 'cloud' ? PROD_SERVER_URL : 'N/A (Direct Download)');
+  document.getElementById('webUiLabel').textContent = mode === 'localhost'
+    ? DEV_WEB_UI_URL
+    : (mode === 'cloud' ? PROD_WEB_UI_URL : 'N/A (Direct Download)');
 }

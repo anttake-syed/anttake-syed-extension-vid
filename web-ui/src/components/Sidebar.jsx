@@ -21,9 +21,9 @@ export default function Sidebar({ activeNav, isAuthenticated, onNavClick, onSign
       key={item}
       className={`nav-item ${activeNav === item ? 'active' : ''} ${secondary ? 'nav-item-secondary' : ''}`}
       onClick={() => {
-        if (PUBLIC_ITEMS.includes(item)) onNavClick(item);
-        else if (isAuthenticated) onNavClick(item);
-        else onSignIn();
+        if (PUBLIC_ITEMS.includes(item)) {onNavClick(item);}
+        else if (isAuthenticated) {onNavClick(item);}
+        else {onSignIn();}
       }}
     >
       <span className="nav-icon material-symbols-rounded" style={{ fontSize: secondary ? '18px' : '20px', fontWeight: '300' }}>

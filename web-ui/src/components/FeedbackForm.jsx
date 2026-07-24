@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { BACKEND_URL } from '../config';
+import { SERVER_URL } from '../config';
 
 const S = {
   section: { background: '#1e293b', border: '1px solid #334155', borderRadius: '16px', padding: '32px', maxWidth: '620px' },
@@ -45,11 +45,11 @@ export default function FeedbackForm({ user }) {
   }
 
   const handleSubmit = async () => {
-    if (!text.trim()) return;
+    if (!text.trim()) {return;}
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`${BACKEND_URL}/feedback`, {
+      const res = await fetch(`${SERVER_URL}/feedback`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -58,7 +58,7 @@ export default function FeedbackForm({ user }) {
         body: JSON.stringify({ message: text.trim() }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to submit feedback');
+      if (!res.ok) {throw new Error(data.error || 'Failed to submit feedback');}
       setSubmitted(true);
     } catch (err) {
       setError(err.message);

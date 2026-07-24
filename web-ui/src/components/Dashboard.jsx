@@ -35,7 +35,7 @@ function GetExtensionBanner() {
         </div>
 
         <p style={{ margin: '0 0 20px', color: '#94a3b8', fontSize: '14px', lineHeight: '1.6' }}>
-          All recording and screenshots happen through the Chrome extension. Install it in seconds — it's free.
+          All recording and screenshots happen through the Chrome extension. Install it in seconds — it&apos;s free.
         </p>
 
         {/* Steps */}
@@ -122,6 +122,7 @@ function StatCard({ icon, value, label, sub, isAuthenticated, onSignIn, isDrive 
 }
 
 function MediaThumb({ item, onOpen }) {
+  const [videoHovered, setVideoHovered] = React.useState(false);
   return (
     <div
       onClick={() => onOpen(item)}
@@ -142,7 +143,22 @@ function MediaThumb({ item, onOpen }) {
       ) : item.type === 'image' && item.src ? (
         <img src={item.src} alt={item.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
       ) : item.type === 'video' && item.src ? (
-        <video src={item.src} style={{ width: '100%', height: '100%', objectFit: 'cover' }} muted />
+        <div style={{ position: 'relative', width: '100%', height: '100%' }}
+          onMouseEnter={() => setVideoHovered(true)}
+          onMouseLeave={() => setVideoHovered(false)}
+        >
+          <video src={item.src} style={{ width: '100%', height: '100%', objectFit: 'cover' }} muted
+            onMouseOver={e => e.target.play()} onMouseOut={e => { e.target.pause(); e.target.currentTime = 0; }} />
+          <div style={{
+            position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            pointerEvents: 'none', transition: 'opacity 0.2s',
+            opacity: videoHovered ? 0 : 1,
+          }}>
+            <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(2px)' }}>
+              <span className="material-symbols-rounded" style={{ fontSize: '22px', color: 'white', marginLeft: '3px' }}>play_arrow</span>
+            </div>
+          </div>
+        </div>
       ) : (
         <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <span className="material-symbols-rounded" style={{ fontSize: '36px', color: '#475569' }}>
@@ -152,8 +168,15 @@ function MediaThumb({ item, onOpen }) {
       )}
 
       {/* Type badge */}
-      <div style={{ position: 'absolute', top: '8px', left: '8px', background: 'rgba(0,0,0,0.6)', borderRadius: '6px', padding: '2px 8px', fontSize: '11px', fontWeight: 600, color: item.type === 'video' ? '#a5b4fc' : '#6ee7b7' }}>
-        {item.type === 'video' ? 'Video' : 'Screenshot'}
+      <div style={{ position: 'absolute', top: '8px', left: '8px', display: 'flex', gap: '4px' }}>
+        <div style={{ background: 'rgba(0,0,0,0.6)', borderRadius: '6px', padding: '2px 8px', fontSize: '11px', fontWeight: 600, color: item.type === 'video' ? '#a5b4fc' : '#6ee7b7' }}>
+          {item.type === 'video' ? 'Video' : 'Screenshot'}
+        </div>
+        {item.type === 'video' && (
+          <div style={{ background: 'rgba(0,0,0,0.6)', borderRadius: '6px', padding: '2px 8px', fontSize: '11px', fontWeight: 700, color: '#f8fafc', letterSpacing: '0.05em' }}>
+            {(item.mimeType || '').includes('mp4') || (item.title || '').toLowerCase().endsWith('.mp4') ? 'MP4' : 'WEBM'}
+          </div>
+        )}
       </div>
 
       {/* Storage badges */}
@@ -186,7 +209,7 @@ function MediaThumb({ item, onOpen }) {
   );
 }
 
-export default function Dashboard({ isAuthenticated, stats, captures, loadingCaptures, dbStats, onSignIn, onOpenMedia, onGoToLibrary }) {
+export default function Dashboard({ isAuthenticated, isLocalMode, stats, captures, loadingCaptures, dbStats, onSignIn, onOpenMedia, onGoToLibrary }) {
   const recentCaptures = captures.slice(0, 6);
   const driveUsedPct = dbStats?.driveLimitBytes > 0
     ? Math.min(100, Math.round((dbStats.driveUsageBytes / dbStats.driveLimitBytes) * 100))
@@ -224,11 +247,17 @@ export default function Dashboard({ isAuthenticated, stats, captures, loadingCap
           <section className="hero-banner slideIn">
             <div className="hero-text">
               <h2>Record. Screenshot. Sync.</h2>
-              <p>Capture anything on your screen and automatically back it up to Google Drive. Works as a Chrome extension — no account needed to start.</p>
+              <p>
+                {isLocalMode
+                  ? 'Capture anything on your screen and save it to your local self-hosted dashboard. Runs entirely on your own machine.'
+                  : 'Capture anything on your screen and automatically back it up to Google Drive. Works as a Chrome extension — no account needed to start.'}
+              </p>
               <div className="hero-pills">
                 <span className="pill">✓ Tab &amp; window recording</span>
                 <span className="pill">✓ One-click screenshots</span>
-                <span className="pill">✓ Cloud sync</span>
+                {isLocalMode
+                  ? <span className="pill">✓ SQLite local storage</span>
+                  : <span className="pill">✓ Cloud sync</span>}
               </div>
             </div>
             <button className="btn-hero" onClick={onSignIn}>
@@ -247,8 +276,8 @@ export default function Dashboard({ isAuthenticated, stats, captures, loadingCap
         ))}
       </section>
 
-      {/* ── Storage Health Bar (Drive) ── */}
-      {isAuthenticated && driveUsedPct !== null && (
+      {/* ── Storage Health Bar (Drive) — cloud mode only ── */}
+      {isAuthenticated && !isLocalMode && driveUsedPct !== null && dbStats?.storageServer !== 'local' && (
         <div style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: '12px', padding: '16px 20px', marginBottom: '28px', display: 'flex', alignItems: 'center', gap: '16px' }}>
           <DriveLogoSVG size={20} />
           <div style={{ flex: 1 }}>
@@ -258,6 +287,22 @@ export default function Dashboard({ isAuthenticated, stats, captures, loadingCap
             </div>
             <div style={{ height: '6px', background: '#0f172a', borderRadius: '999px', overflow: 'hidden' }}>
               <div style={{ height: '100%', width: `${driveUsedPct}%`, background: driveUsedPct > 80 ? 'linear-gradient(90deg,#f87171,#ef4444)' : 'linear-gradient(90deg,#4ade80,#22d3ee)', borderRadius: '999px', transition: 'width 0.6s ease' }} />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Storage Health Bar (Local) — local mode only ── */}
+      {isAuthenticated && isLocalMode && dbStats && (
+        <div style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: '12px', padding: '16px 20px', marginBottom: '28px', display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <span className="material-symbols-rounded" style={{ fontSize: '24px', color: '#818cf8' }}>hard_drive</span>
+          <div style={{ flex: 1 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '6px' }}>
+              <span style={{ color: '#94a3b8', fontWeight: 600 }}>Local Database Storage</span>
+              <span style={{ color: '#818cf8' }}>{dbStats.dbSizeFormatted} Used</span>
+            </div>
+            <div style={{ height: '6px', background: '#0f172a', borderRadius: '999px', overflow: 'hidden' }}>
+              <div style={{ height: '100%', width: `${Math.min(100, Math.max(2, (dbStats.dbSizeBytes / 1073741824) * 100))}%`, background: 'linear-gradient(90deg,#6366f1,#8b5cf6)', borderRadius: '999px', transition: 'width 0.6s ease' }} />
             </div>
           </div>
         </div>
@@ -294,7 +339,7 @@ export default function Dashboard({ isAuthenticated, stats, captures, loadingCap
         <div style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: '16px', padding: '48px 24px', textAlign: 'center', marginBottom: '28px' }}>
           <span className="material-symbols-rounded" style={{ fontSize: '52px', color: '#334155', display: 'block', marginBottom: '16px' }}>screenshot_monitor</span>
           <h3 style={{ color: '#64748b', margin: '0 0 8px', fontWeight: 600 }}>No captures yet</h3>
-          <p style={{ color: '#475569', fontSize: '14px', margin: 0 }}>Open the AntCapture extension and click "Record Screen" or "Screenshot" to get started.</p>
+          <p style={{ color: '#475569', fontSize: '14px', margin: 0 }}>Open the AntCapture extension and click &quot;Record Screen&quot; or &quot;Screenshot&quot; to get started.</p>
         </div>
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '16px', marginBottom: '28px' }}>

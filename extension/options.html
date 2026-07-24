@@ -58,19 +58,20 @@
   <h1>AntCapture Settings</h1>
 
   <div class="card">
-    <h2>Environment</h2>
-    <div class="row">
-      <label for="devModeToggle">Developer Mode (localhost)</label>
-      <label class="switch">
-        <input type="checkbox" id="devModeToggle">
-        <span class="slider"></span>
-      </label>
+    <h2>Storage Destination</h2>
+    <div class="row" style="flex-direction: column; align-items: flex-start; gap: 12px;">
+      <label for="storageModeSelect">Where should captures be saved?</label>
+      <select id="storageModeSelect" style="width: 100%; background: #0f172a; color: #e2e8f0; border: 1px solid #334155; border-radius: 6px; padding: 12px; font-size: 14px; font-family: inherit; outline: none; cursor: pointer;">
+        <option value="computer">📁 Save to Computer directly</option>
+        <option value="cloud">☁️ AntCapture Web + Google Drive</option>
+        <option value="localhost">💻 Local Web UI (Self-Hosted)</option>
+      </select>
     </div>
 
     <table class="url-table">
       <tr>
-        <td>Backend</td>
-        <td id="backendLabel"></td>
+        <td>Server</td>
+        <td id="serverLabel"></td>
       </tr>
       <tr>
         <td>Web UI</td>
@@ -81,6 +82,6 @@
     <div id="status"></div>
   </div>
 
-  <script src="options.js"></script>
+  <script type="module" src="options.js"></script>
 </body>
 </html>

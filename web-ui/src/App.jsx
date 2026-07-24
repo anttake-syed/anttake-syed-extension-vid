@@ -1,21 +1,34 @@
 import React, { useState, useEffect } from 'react';
 import './index.css';
-import { BACKEND_URL } from './config';
+import { SERVER_URL, IS_LOCAL_MODE } from './config.js';
 
 // Hooks
-import { useAuth } from './hooks/useAuth';
-import { useCaptures } from './hooks/useCaptures';
+import { useAuth } from './hooks/useAuth.js';
+import { useCaptures } from './hooks/useCaptures.js';
 
 // Components
-import Sidebar from './components/Sidebar';
-import Header from './components/Header';
-import LoginModal from './components/LoginModal';
-import MediaModal from './components/MediaModal';
-import Dashboard from './components/Dashboard';
-import Library from './components/Library';
-import Settings from './components/Settings';
-import FeedbackForm from './components/FeedbackForm';
-import StaticPage from './components/StaticPage';
+import Sidebar from './components/Sidebar.jsx';
+import Header from './components/Header.jsx';
+import LoginModal from './components/LoginModal.jsx';
+import MediaModal from './components/MediaModal.jsx';
+import Dashboard from './components/Dashboard.jsx';
+import Library from './components/Library.jsx';
+import Settings from './components/Settings.jsx';
+import FeedbackForm from './components/FeedbackForm.jsx';
+import StaticPage from './components/StaticPage.jsx';
+import ServerHealthBadge from './components/ServerHealthBadge.jsx';
+
+const NAV_TO_PATH = {
+  'Dashboard': '/',
+  'My Library': '/library',
+  'Settings': '/settings',
+  'Feedback': '/feedback',
+  'Privacy': '/privacy-policy',
+  'Security': '/security',
+  'Documentation': '/documentation'
+};
+
+const PATH_TO_NAV = Object.fromEntries(Object.entries(NAV_TO_PATH).map(([k, v]) => [v, k]));
 
 export default function App() {
   const { user, isAuthenticated, isInitializing, logout, updateUser } = useAuth();
@@ -23,26 +36,13 @@ export default function App() {
   const {
     captures, setCaptures, dbStats,
     storagePreference, loadingCaptures, savingPref,
-    fetchCaptures, fetchStats,
     saveStoragePreference, deleteCapture, refresh,
   } = useCaptures(user, isAuthenticated);
-
-  const NAV_TO_PATH = {
-    'Dashboard': '/',
-    'My Library': '/library',
-    'Settings': '/settings',
-    'Feedback': '/feedback',
-    'Privacy': '/privacy-policy',
-    'Security': '/security',
-    'Documentation': '/documentation'
-  };
-
-  const PATH_TO_NAV = Object.fromEntries(Object.entries(NAV_TO_PATH).map(([k, v]) => [v, k]));
 
   const [activeNav, setActiveNav] = useState(() => {
     const path = window.location.pathname;
     // Check path first
-    if (PATH_TO_NAV[path]) return PATH_TO_NAV[path];
+    if (PATH_TO_NAV[path]) {return PATH_TO_NAV[path];}
     
     // Fallback to query params for legacy links
     const params = new URLSearchParams(window.location.search);
@@ -93,45 +93,51 @@ export default function App() {
       icon: 'hard_drive',
       sub: dbStats ? `${dbStats.localCount} files local` : null,
     },
-    {
+    // Only show Google Drive stat in cloud mode
+    ...(!IS_LOCAL_MODE && dbStats?.storageServer !== 'local' ? [{
       label: 'Google Drive Used',
       value: dbStats?.appDriveFormatted ?? '0 B',
       icon: 'drive',
+      isDrive: true,
       sub: dbStats ? `${dbStats.driveCount} files on Drive${dbStats.driveLimitBytes > 0 ? ` (Overall: ${dbStats.driveUsageFormatted} / ${dbStats.driveLimitFormatted})` : ''}` : null,
-    },
+    }] : []),
     {
       label: 'This Week',
-      value: captures.filter((c) => c.date && new Date(c.date) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)).length.toString(),
+      value: captures.filter((c) => {
+        // eslint-disable-next-line react-hooks/purity
+        const now = Date.now();
+        return c.date && new Date(c.date) > new Date(now - 7 * 24 * 60 * 60 * 1000);
+      }).length.toString(),
       icon: 'trending_up',
     },
   ];
 
   // ── Settings handlers ──────────────────────────────────────────────────────
   const handleNameUpdate = async (newName) => {
-    const res = await fetch(`${BACKEND_URL}/user/name`, {
+    const res = await fetch(`${SERVER_URL}/user/name`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${user.jwt}` },
       body: JSON.stringify({ name: newName }),
     });
-    if (!res.ok) throw new Error('Failed to update name');
+    if (!res.ok) {throw new Error('Failed to update name');}
     updateUser({ name: newName });
   };
 
   const handleDeleteAllCaptures = async () => {
-    const res = await fetch(`${BACKEND_URL}/captures/all`, {
+    const res = await fetch(`${SERVER_URL}/captures/all`, {
       method: 'DELETE',
       headers: { Authorization: `Bearer ${user.jwt}` },
     });
-    if (!res.ok) throw new Error('Failed to delete captures');
+    if (!res.ok) {throw new Error('Failed to delete captures');}
     setCaptures([]);
   };
 
   const handleDeleteAccount = async () => {
-    const res = await fetch(`${BACKEND_URL}/account`, {
+    const res = await fetch(`${SERVER_URL}/account`, {
       method: 'DELETE',
       headers: { Authorization: `Bearer ${user.jwt}` },
     });
-    if (!res.ok) throw new Error('Failed to delete account');
+    if (!res.ok) {throw new Error('Failed to delete account');}
     logout();
   };
 
@@ -170,12 +176,13 @@ export default function App() {
 
   return (
     <div className={`layout ${isAuthenticated ? 'isAuthenticated' : ''}`}>
-      {showModal && <LoginModal onClose={() => setShowModal(false)} />}
+      {showModal && !IS_LOCAL_MODE && <LoginModal onClose={() => setShowModal(false)} />}
       {activeMedia && (
         <MediaModal
           item={activeMedia}
-          onClose={() => setActiveMedia(null)}
           user={user}
+          dbStats={dbStats}
+          onClose={() => setActiveMedia(null)}
           onSyncSuccess={() => { refresh(); setActiveMedia(null); }}
           onDelete={(id) => { deleteCapture(id); setActiveMedia(null); }}
         />
@@ -200,19 +207,15 @@ export default function App() {
           onLogout={handleLogout}
           onNavClick={setActiveNav}
         />
+        {/* Server health pill — only visible in local/self-hosted mode */}
+        <div style={{ position: 'fixed', top: '14px', right: '20px', zIndex: 200 }}>
+          <ServerHealthBadge />
+        </div>
+
 
         {/* ── Page Content ── */}
         {activeNav === 'Settings' && isAuthenticated ? (
-          <Settings
-            user={user}
-            captures={captures}
-            onNameUpdate={handleNameUpdate}
-            onDeleteAllCaptures={handleDeleteAllCaptures}
-            onDeleteAccount={handleDeleteAccount}
-            storagePreference={storagePreference}
-            saveStoragePreference={saveStoragePreference}
-            savingPref={savingPref}
-          />
+          <Settings user={user} captures={captures} dbStats={dbStats} onNameUpdate={handleNameUpdate} onDeleteAllCaptures={handleDeleteAllCaptures} onDeleteAccount={handleDeleteAccount} storagePreference={storagePreference} saveStoragePreference={saveStoragePreference} savingPref={savingPref} />
         ) : activeNav === 'Feedback' && isAuthenticated ? (
           <FeedbackForm user={user} />
         ) : activeNav === 'Privacy' ? (
@@ -255,10 +258,10 @@ AntCapture takes security seriously. Here's how we protect your account and data
 AUTHENTICATION
 - All authentication is handled via Google OAuth 2.0 — we never store your Google password
 - Sessions are secured with signed JWT tokens that expire after 7 days
-- Tokens are stored locally in your browser and never transmitted except to our backend
+- Tokens are stored locally in your browser and never transmitted except to our server
 
 DATA IN TRANSIT
-- All communication between the extension, web UI, and backend uses HTTPS in production
+- All communication between the extension, web UI, and server uses HTTPS in production
 - API requests require a valid JWT — unauthenticated requests are rejected
 
 DATA AT REST
@@ -267,7 +270,7 @@ DATA AT REST
 - Google Drive files are stored in your own Drive under your own Google account
 
 EXTENSION SECURITY
-- The Chrome extension only communicates with our backend (localhost in development, your domain in production)
+- The Chrome extension only communicates with our server (localhost in development, your domain in production)
 - No third-party scripts or tracking are included in the extension
 - The extension requests only the permissions it needs — no broad host access
 
@@ -309,7 +312,7 @@ The My Library page shows all your captures. You can filter by videos or screens
 
 TROUBLESHOOTING
 - Captures not appearing? Make sure you're signed in to both the extension and the dashboard with the same Google account.
-- Upload failing? Check that your backend is running on port 3001.
+- Upload failing? Check that your server is running on port 3001.
 - Extension not recording? Make sure you've granted screen share permission when prompted by Chrome.`}
           />
         ) : activeNav === 'My Library' ? (
@@ -323,6 +326,7 @@ TROUBLESHOOTING
         ) : (
           <Dashboard
             isAuthenticated={isAuthenticated}
+            isLocalMode={IS_LOCAL_MODE}
             stats={stats}
             captures={captures}
             loadingCaptures={loadingCaptures}

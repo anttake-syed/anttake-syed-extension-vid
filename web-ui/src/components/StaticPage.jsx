@@ -18,13 +18,13 @@ const SectionHeader = ({ icon, title, subtitle }) => (
 
 export default function StaticPage({ title, content }) {
   const getIcon = () => {
-    if (title.toLowerCase().includes('privacy')) return 'shield';
-    if (title.toLowerCase().includes('security')) return 'lock';
+    if (title.toLowerCase().includes('privacy')) {return 'shield';}
+    if (title.toLowerCase().includes('security')) {return 'lock';}
     return 'article';
   };
   const getSubtitle = () => {
-    if (title.toLowerCase().includes('privacy')) return 'How we handle and protect your data';
-    if (title.toLowerCase().includes('security')) return 'Our security practices and standards';
+    if (title.toLowerCase().includes('privacy')) {return 'How we handle and protect your data';}
+    if (title.toLowerCase().includes('security')) {return 'Our security practices and standards';}
     return 'Learn how to get the most out of AntCapture';
   };
 

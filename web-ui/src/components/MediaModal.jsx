@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { BACKEND_URL } from '../config';
+import { SERVER_URL, IS_LOCAL_MODE } from '../config';
 
 const DriveLogoSVG = ({ size = 18 }) => (
   <svg viewBox="0 0 87.3 78" width={size} height={size} xmlns="http://www.w3.org/2000/svg" style={{ flexShrink: 0 }}>
@@ -12,9 +12,7 @@ const DriveLogoSVG = ({ size = 18 }) => (
   </svg>
 );
 
-export default function MediaModal({ item, onClose, user, onSyncSuccess, onDelete }) {
-  if (!item) return null;
-
+export default function MediaModal({ item, onClose, user, onSyncSuccess, onDelete, dbStats }) {
   const [syncingDrive, setSyncingDrive] = useState(false);
   const [syncingLocal, setSyncingLocal] = useState(false);
   const [removingLocal, setRemovingLocal] = useState(false);
@@ -22,18 +20,20 @@ export default function MediaModal({ item, onClose, user, onSyncSuccess, onDelet
   const [deleting, setDeleting] = useState(false);
   const [syncError, setSyncError] = useState(null);
 
+  if (!item) {return null;}
+
   const callApi = async (path, setter) => {
-    if (!user?.jwt) return;
+    if (!user?.jwt) {return;}
     setter(true);
     setSyncError(null);
     try {
-      const res = await fetch(`${BACKEND_URL}/captures/${item.id}/${path}`, {
+      const res = await fetch(`${SERVER_URL}/captures/${item.id}/${path}`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${user.jwt}` },
       });
       const data = await res.json();
-      if (!res.ok) throw new Error((data.error || 'Failed') + (data.detail ? ': ' + data.detail : ''));
-      if (onSyncSuccess) onSyncSuccess();
+      if (!res.ok) {throw new Error((data.error || 'Failed') + (data.detail ? ': ' + data.detail : ''));}
+      if (onSyncSuccess) {onSyncSuccess();}
     } catch (err) {
       setSyncError(err.message);
     } finally {
@@ -42,19 +42,41 @@ export default function MediaModal({ item, onClose, user, onSyncSuccess, onDelet
   };
 
   const handleDelete = async () => {
-    if (!user?.jwt || !window.confirm('Delete this capture? This cannot be undone.')) return;
+    if (!user?.jwt || !window.confirm('Delete this capture? This cannot be undone.')) {return;}
     setDeleting(true);
     setSyncError(null);
     try {
-      const res = await fetch(`${BACKEND_URL}/captures/${item.id}`, {
+      const res = await fetch(`${SERVER_URL}/captures/${item.id}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${user.jwt}` },
       });
       if (!res.ok) { const d = await res.json(); throw new Error(d.error || 'Delete failed'); }
-      if (onDelete) onDelete(item.id);
+      if (onDelete) {onDelete(item.id);}
     } catch (err) {
       setSyncError(err.message);
       setDeleting(false);
+    }
+  };
+
+  const handleDownload = async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!item.src) {return;}
+    try {
+      const response = await fetch(item.src);
+      if (!response.ok) {throw new Error('Download failed from server');}
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.style.display = 'none';
+      a.href = url;
+      a.download = item.title;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (err) {
+      setSyncError('Failed to save to computer: ' + err.message);
     }
   };
 
@@ -62,9 +84,9 @@ export default function MediaModal({ item, onClose, user, onSyncSuccess, onDelet
 
   const badges = [];
   if (loc === 'local' || loc === 'both')
-    badges.push({ label: 'Local Database', icon: 'hard_drive', color: '#818cf8', bg: 'rgba(99,102,241,0.1)', border: 'rgba(99,102,241,0.25)' });
+    {badges.push({ label: 'Local Database', icon: 'hard_drive', color: '#818cf8', bg: 'rgba(99,102,241,0.1)', border: 'rgba(99,102,241,0.25)' });}
   if (loc === 'drive' || loc === 'both')
-    badges.push({ label: 'Google Drive', icon: 'drive', color: '#34d399', bg: 'rgba(52,211,153,0.1)', border: 'rgba(52,211,153,0.25)' });
+    {badges.push({ label: 'Google Drive', icon: 'drive', color: '#34d399', bg: 'rgba(52,211,153,0.1)', border: 'rgba(52,211,153,0.25)' });}
 
   const syncBtnStyle = (textColor, bgColor, borderColor) => ({
     background: bgColor, color: textColor, border: `1px solid ${borderColor}`,
@@ -90,7 +112,7 @@ export default function MediaModal({ item, onClose, user, onSyncSuccess, onDelet
 
         {/* Header */}
         <div style={{ padding: '24px', paddingBottom: '20px', borderBottom: '1px solid #1e293b' }}>
-          <h2 style={{ margin: 0, fontSize: '20px', color: '#f8fafc', fontWeight: '700' }}>{item.title}{item.ext}</h2>
+          <h2 style={{ margin: 0, fontSize: '20px', color: '#f8fafc', fontWeight: '700' }}>{item.title}</h2>
           
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '12px', flexWrap: 'wrap' }}>
             <span style={{ color: '#94a3b8', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -107,7 +129,7 @@ export default function MediaModal({ item, onClose, user, onSyncSuccess, onDelet
               </span>
             ))}
             
-            {item.driveUrl && (
+            {!IS_LOCAL_MODE && item.driveUrl && (
               <a href={item.driveUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: '13px', color: '#60a5fa', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '4px', background: 'rgba(59,130,246,0.1)', padding: '4px 10px', borderRadius: '999px' }} onClick={(e) => e.stopPropagation()}>
                 <DriveLogoSVG size={14} /> Open in Drive <span className="material-symbols-rounded" style={{ fontSize: '14px' }}>arrow_outward</span>
               </a>
@@ -115,19 +137,19 @@ export default function MediaModal({ item, onClose, user, onSyncSuccess, onDelet
             
             {/* Sync / Remove buttons */}
             <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
-              {loc === 'local' && (
+              {loc === 'local' && dbStats?.storageServer !== 'local' && (
                 <button onClick={(e) => { e.stopPropagation(); callApi('sync-to-drive', setSyncingDrive); }} disabled={syncingDrive} style={syncBtnStyle('#60a5fa', 'rgba(59,130,246,0.1)', 'rgba(59,130,246,0.3)')}>
                   {syncingDrive ? <span className="btn-spinner" style={{ width: '12px', height: '12px', borderColor: '#60a5fa', borderTopColor: 'transparent' }} /> : <DriveLogoSVG size={16} />}
                   {syncingDrive ? 'Syncing...' : 'Backup to Drive'}
                 </button>
               )}
-              {loc === 'drive' && (
+              {loc === 'drive' && dbStats?.storageServer !== 'local' && (
                 <button onClick={(e) => { e.stopPropagation(); callApi('sync-to-local', setSyncingLocal); }} disabled={syncingLocal} style={syncBtnStyle('#818cf8', 'rgba(99,102,241,0.1)', 'rgba(99,102,241,0.3)')}>
                   {syncingLocal ? <span className="btn-spinner" style={{ width: '12px', height: '12px', borderColor: '#818cf8', borderTopColor: 'transparent' }} /> : <span className="material-symbols-rounded" style={{ fontSize: '16px' }}>download</span>}
                   {syncingLocal ? 'Syncing...' : 'Save to Local DB'}
                 </button>
               )}
-              {loc === 'both' && (
+              {loc === 'both' && dbStats?.storageServer !== 'local' && (
                 <>
                   <button onClick={(e) => { e.stopPropagation(); callApi('remove-local', setRemovingLocal); }} disabled={removingLocal} style={removeBtnStyle}>
                     {removingLocal ? <span className="btn-spinner" style={{ width: '12px', height: '12px', borderColor: '#f87171', borderTopColor: 'transparent' }} /> : <span className="material-symbols-rounded" style={{ fontSize: '16px' }}>hard_drive</span>}
@@ -139,7 +161,13 @@ export default function MediaModal({ item, onClose, user, onSyncSuccess, onDelet
                   </button>
                 </>
               )}
-              <button onClick={(e) => { e.stopPropagation(); handleDelete(); }} disabled={deleting} style={{ ...removeBtnStyle, marginLeft: loc === 'local' || loc === 'drive' ? 0 : '4px' }}>
+              {IS_LOCAL_MODE && (
+                <button onClick={handleDownload} style={syncBtnStyle('#f1f5f9', 'rgba(255,255,255,0.1)', 'rgba(255,255,255,0.2)')}>
+                  <span className="material-symbols-rounded" style={{ fontSize: '16px' }}>download</span>
+                  Save to Computer
+                </button>
+              )}
+              <button onClick={(e) => { e.stopPropagation(); handleDelete(); }} disabled={deleting} style={{ ...removeBtnStyle, marginLeft: (loc === 'local' || loc === 'drive' || IS_LOCAL_MODE) ? 0 : '4px' }}>
                 {deleting ? <span className="btn-spinner" style={{ width: '12px', height: '12px', borderColor: '#f87171', borderTopColor: 'transparent' }} /> : <span className="material-symbols-rounded" style={{ fontSize: '16px' }}>delete_forever</span>}
                 {deleting ? 'Deleting...' : 'Delete'}
               </button>
@@ -154,7 +182,9 @@ export default function MediaModal({ item, onClose, user, onSyncSuccess, onDelet
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px' }}>
               <DriveLogoSVG size={72} />
               <div style={{ textAlign: 'center' }}>
-                <div style={{ color: '#f8fafc', fontSize: '18px', fontWeight: '600', marginBottom: '8px' }}>Private image on Drive</div>
+                <div style={{ color: '#f8fafc', fontSize: '18px', fontWeight: '600', marginBottom: '8px' }}>
+                  Private {item.type === 'video' ? 'video' : 'image'} on Drive
+                </div>
                 <div style={{ color: '#94a3b8', fontSize: '14px' }}>Google restricts direct preview of private Drive files for your security.</div>
               </div>
               <a href={item.driveUrl} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 24px', background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.3)', color: '#60a5fa', borderRadius: '8px', fontWeight: '600', transition: 'all 0.2s' }}
@@ -166,13 +196,57 @@ export default function MediaModal({ item, onClose, user, onSyncSuccess, onDelet
               </a>
               <div style={{ color: '#64748b', fontSize: '13px', marginTop: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <span className="material-symbols-rounded" style={{ fontSize: '16px', color: '#6366f1' }}>lightbulb</span>
-                Tip: Click "Save to Local DB" above to enable native preview inside AntCapture.
+                Tip: Click &quot;Save to Local DB&quot; above to enable native preview inside AntCapture.
               </div>
             </div>
           ) : item.type === 'video' ? (
-            <video controls autoPlay style={{ width: '100%', maxHeight: '65vh', outline: 'none', background: '#020617', borderRadius: '8px' }} src={item.src}>
-              Your browser does not support the video tag.
-            </video>
+            <div style={{ position: 'relative', width: '100%' }}>
+              {/* Resolution + Format badge overlay */}
+              {(() => {
+                const mime = item.mimeType || '';
+                const formatLabel = mime.includes('mp4') ? 'MP4' : mime.includes('webm') ? 'WebM' : (mime.split('/')[1] || 'Video').toUpperCase();
+                // Try to extract resolution from the size string (e.g. "720p • 12.34 MB")
+                const resMatch = (item.size || '').match(/(\d+)p/);
+                const resLabel = resMatch ? resMatch[1] + 'p' : null;
+                return (
+                  <div style={{
+                    position: 'absolute', top: '12px', left: '12px', zIndex: 5,
+                    display: 'flex', gap: '6px', alignItems: 'center', pointerEvents: 'none'
+                  }}>
+                    {resLabel && (
+                      <span style={{
+                        background: 'rgba(0,0,0,0.72)', backdropFilter: 'blur(4px)',
+                        border: '1px solid rgba(255,255,255,0.15)',
+                        color: '#f8fafc', fontSize: '11px', fontWeight: '700',
+                        letterSpacing: '0.05em', padding: '3px 8px', borderRadius: '5px',
+                        display: 'inline-flex', alignItems: 'center', gap: '4px'
+                      }}>
+                        <span style={{ fontSize: '10px', opacity: 0.7 }}>&#9646;</span>
+                        {resLabel}
+                      </span>
+                    )}
+                    <span style={{
+                      background: 'rgba(0,0,0,0.72)', backdropFilter: 'blur(4px)',
+                      border: '1px solid rgba(99,102,241,0.35)',
+                      color: '#818cf8', fontSize: '11px', fontWeight: '700',
+                      letterSpacing: '0.05em', padding: '3px 8px', borderRadius: '5px'
+                    }}>
+                      {formatLabel}
+                    </span>
+                  </div>
+                );
+              })()}
+              <video
+                key={item.id}
+                controls
+                autoPlay
+                style={{ width: '100%', maxHeight: '65vh', outline: 'none', background: '#020617', borderRadius: '8px', display: 'block' }}
+                onError={(e) => console.error('Video error:', e.target.error?.message || e.target.error)}
+              >
+                <source src={item.src} type={item.mimeType || 'video/webm'} />
+                Your browser does not support the video tag.
+              </video>
+            </div>
           ) : (
             <img src={item.src} style={{ maxWidth: '100%', maxHeight: '65vh', objectFit: 'contain', borderRadius: '8px' }} alt={item.title} />
           )}

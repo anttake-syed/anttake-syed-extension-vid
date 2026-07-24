@@ -1,4 +1,4 @@
-import { openDB } from './storage.js';
+import { openDB, deleteLocalMedia } from './storage/storage.js';
 
 const iconEl = document.getElementById('icon');
 const titleEl = document.getElementById('title');
@@ -14,12 +14,12 @@ function setState(state, extraMsg = '') {
   } else if (state === 'done') {
     iconEl.innerHTML = '✅';
     titleEl.textContent = 'Saved to your computer!';
-    msgEl.textContent = 'Your recording has been saved. This tab will close shortly.';
+    msgEl.textContent = 'Your file has been saved. This tab will close shortly.';
     manualBtn.style.display = 'none';
   } else if (state === 'error') {
     iconEl.innerHTML = '❌';
     titleEl.textContent = 'Something went wrong';
-    msgEl.textContent = extraMsg || 'Could not find the recorded media. Please try recording again.';
+    msgEl.textContent = extraMsg || 'Could not find the media. Please try again.';
     manualBtn.style.display = 'none';
   }
 }
@@ -27,6 +27,8 @@ function setState(state, extraMsg = '') {
 async function downloadMedia() {
   const urlParams = new URLSearchParams(window.location.search);
   const idStr = urlParams.get('id');
+  const autoDelete = urlParams.get('autoDelete') === 'true';
+
   if (!idStr) { setState('error', 'No recording ID provided.'); return; }
   const id = parseInt(idStr, 10);
 
@@ -40,7 +42,17 @@ async function downloadMedia() {
     if (!item?.blob) { setState('error'); return; }
 
     const objectUrl = URL.createObjectURL(item.blob);
-    const filename = `capture-[AntCapture]-${Date.now()}.${item.type === 'video' ? 'webm' : 'png'}`;
+    // Derive the correct file extension from the stored format/mimeType
+    // Priority: item.format (mimeType) → item.blob.type → type field fallback
+    const mimeStr = item.format || item.blob?.type || '';
+    let ext = item.type === 'video' ? 'webm' : 'png';
+    if (mimeStr.includes('mp4'))  {ext = 'mp4';}
+    else if (mimeStr.includes('webm')) {ext = 'webm';}
+    else if (mimeStr.includes('png'))  {ext = 'png';}
+    else if (mimeStr.includes('jpeg') || mimeStr.includes('jpg')) {ext = 'jpg';}
+    const customName = urlParams.get('filename');
+    let filename = customName ? customName : `capture-[AntCapture]-${Date.now()}`;
+    if (!filename.endsWith(`.${ext}`)) filename += `.${ext}`;
 
     // Wire up the manual fallback button
     manualBtn.href = objectUrl;
@@ -49,15 +61,22 @@ async function downloadMedia() {
     setState('ready');
 
     chrome.downloads.download({ url: objectUrl, filename, saveAs: true }, (downloadId) => {
-      if (!downloadId) { setState('error', 'Download could not start. Use the button below.'); manualBtn.style.display = 'inline-block'; return; }
+      if (!downloadId) {
+        setState('error', 'Download could not start. Use the button below.');
+        manualBtn.style.display = 'inline-block';
+        return;
+      }
 
       chrome.downloads.onChanged.addListener(function monitor(delta) {
-        if (delta.id !== downloadId || !delta.state) return;
+        if (delta.id !== downloadId || !delta.state) {return;}
         if (delta.state.current === 'complete') {
           chrome.downloads.onChanged.removeListener(monitor);
+          URL.revokeObjectURL(objectUrl);
+          // Clean up from IndexedDB if this was a computer-mode temporary save
+          if (autoDelete) {deleteLocalMedia(id).catch(() => {});}
           setState('done');
           setTimeout(() => {
-            chrome.tabs.getCurrent(tab => { if (tab) chrome.tabs.remove(tab.id); });
+            chrome.tabs.getCurrent(tab => { if (tab) {chrome.tabs.remove(tab.id);} });
           }, 2500);
         } else if (delta.state.current === 'interrupted') {
           chrome.downloads.onChanged.removeListener(monitor);
@@ -67,7 +86,7 @@ async function downloadMedia() {
       });
     });
   };
-  request.onerror = () => setState('error', 'Database error reading your recording.');
+  request.onerror = () => setState('error', 'Database error reading your media.');
 }
 
 document.addEventListener('DOMContentLoaded', downloadMedia);

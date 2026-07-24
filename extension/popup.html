@@ -6,6 +6,14 @@
   <title>AntCapture</title>
   <link rel="stylesheet" href="styles/main.css">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,1,0" />
+  <style>
+    @keyframes __antRecPulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.3; transform: scale(0.85); }
+    }
+    #activeRecMicBtn:hover, #activeRecCamBtn:hover { filter: brightness(1.15); }
+    #activeRecMicBtn:active, #activeRecCamBtn:active { transform: scale(0.95); }
+  </style>
 </head>
 <body>
   <div class="container">
@@ -18,61 +26,160 @@
       </button>
     </div>
 
-    <div class="card">
-      <div class="status-bar">
-        <div class="status-dot" id="statusDot"></div>
-        <span id="statusText">Cloud Sync Active</span>
+
+
+    <!-- ═══ CAPTURE PANEL ═══ -->
+    <div class="capture-panel">
+
+      <!-- ── Screenshot ── -->
+      <div class="capture-section-label">
+        <span class="material-symbols-rounded" style="font-size:15px;vertical-align:-3px;">photo_camera</span>
+        Screenshot
       </div>
-    </div>
-
-    <div class="action-buttons">
-      <button class="btn primary" id="recordBtn">
-        <span class="btn-icon material-symbols-rounded">radio_button_checked</span>
-        <span class="btn-text">Record Screen</span>
-      </button>
-      <button class="btn" id="screenshotBtn">
-        <span class="btn-icon material-symbols-rounded">screenshot_monitor</span>
-        <span class="btn-text">Screenshot</span>
-      </button>
-    </div>
-
-    <!-- Auth Section -->
-    <div id="authSection" style="margin-top: 12px;">
-      <button class="btn" id="googleLoginBtn" style="width: 100%; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);">
-        <!-- Google 'G' logo -->
-        <svg class="btn-icon" width="16" height="16" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-          <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
-          <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-          <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
-          <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
-        </svg>
-        <span class="btn-text">Sign in with Google</span>
-      </button>
-
-      <div id="profileContainer" class="card" style="display: none; padding: 12px; margin-top: 0; align-items: center; gap: 12px; flex-direction: column; cursor: default;">
-        <div style="display: flex; align-items: center; gap: 12px; width: 100%;">
-          <img id="userAvatar" src="" style="width: 32px; height: 32px; border-radius: 50%; background: #1e293b; border: 1px solid rgba(255,255,255,0.1);" />
-          <div style="flex: 1; overflow: hidden;">
-            <div id="userName" style="font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">User Name</div>
-            <div id="userEmail" style="font-size: 11px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">user@example.com</div>
-          </div>
-          <button id="logoutBtn" style="background: none; border: none; color: #f87171; cursor: pointer; padding: 4px; display:flex; align-items:center;" title="Sign Out">
-            <span class="material-symbols-rounded" style="font-size:20px;">logout</span>
-          </button>
-        </div>
-        <!-- Open Dashboard button — auto-logs into Web UI -->
-        <button id="openDashboardBtn" style="width: 100%; background: linear-gradient(135deg,#6366f1,#a855f7); border: none; color: white; padding: 9px 14px; cursor: pointer; font-size: 13px; font-weight: 600; border-radius: 8px; display: flex; align-items: center; justify-content: center; gap: 6px;">
-          <span class="material-symbols-rounded" style="font-size:18px;">open_in_new</span> Open Dashboard
+      <div class="capture-grid" id="screenshotModes">
+        <button class="cap-mode-btn active" id="shotTabBtn" data-mode="tab" title="Capture the visible area of this tab">
+          <span class="material-symbols-rounded" style="font-size:18px;">screenshot_monitor</span>
+          <span>Tab</span>
+        </button>
+        <button class="cap-mode-btn" id="shotRegionBtn" data-mode="region" title="Drag to select an area">
+          <span class="material-symbols-rounded" style="font-size:18px;">crop_free</span>
+          <span>Selected Area</span>
+        </button>
+        <button class="cap-mode-btn" id="shotScreenBtn" data-mode="screen" title="Capture your full desktop">
+          <span class="material-symbols-rounded" style="font-size:18px;">desktop_windows</span>
+          <span>Entire Screen</span>
         </button>
       </div>
+      <!-- hidden canonical screenshot button (JS triggers this) -->
+      <button id="screenshotBtn" style="display:none;"></button>
+      <button class="btn primary" id="shotCaptureBtn" style="margin-top:6px;">
+        <span class="btn-icon material-symbols-rounded">photo_camera</span>
+        <span class="btn-text">Take Screenshot</span>
+      </button>
+
+      <!-- ── Recording ── -->
+      <div class="capture-section-label" style="margin-top:12px;">
+        <span class="material-symbols-rounded" style="font-size:15px;vertical-align:-3px;">radio_button_checked</span>
+        Recording
+      </div>
+      <div class="capture-grid" id="recordModes">
+        <button class="cap-mode-btn active" id="recScreenBtn" data-mode="screen" title="Record your full display">
+          <span class="material-symbols-rounded" style="font-size:18px;">desktop_windows</span>
+          <span>Screen</span>
+          <span class="mode-desc">Full display</span>
+        </button>
+        <button class="cap-mode-btn" id="recTabBtn" data-mode="tab" title="Record this browser tab only">
+          <span class="material-symbols-rounded" style="font-size:18px;">tab</span>
+          <span>Tab</span>
+          <span class="mode-desc">This tab only</span>
+        </button>
+        <button class="cap-mode-btn" id="recCamBtn" data-mode="camera" title="Camera/webcam only">
+          <span class="material-symbols-rounded" style="font-size:18px;">videocam</span>
+          <span>Cam</span>
+          <span class="mode-desc">Webcam only</span>
+        </button>
+        <button class="cap-mode-btn" id="recOverlayBtn" data-mode="overlay" title="Screen + floating camera bubble (like Loom)">
+          <span class="material-symbols-rounded" style="font-size:18px;">picture_in_picture</span>
+          <span>Overlay</span>
+          <span class="mode-desc">Screen + cam</span>
+        </button>
+      </div>
+
+      <!-- Recording settings row: Resolution | Format | Devices in one line -->
+      <div class="rec-settings-row" id="recSettingsRow">
+        <!-- Resolution Dropdown -->
+        <select id="resolutionSelect" class="rec-setting-dropdown" title="Resolution">
+          <option value="720">720p</option>
+          <option value="1080">1080p</option>
+        </select>
+        
+        <!-- Format Dropdown -->
+        <select id="formatSelect" class="rec-setting-dropdown" title="Format">
+          <option value="webm">WebM</option>
+          <option value="mp4">MP4</option>
+        </select>
+        
+        <!-- Separator -->
+        <div class="rec-setting-sep" style="margin: 0 4px;"></div>
+        
+        <!-- Device Toggles -->
+        <div class="device-toggles" style="gap: 8px;">
+          <button class="device-icon-toggle off" id="micToggleBtn" data-on="false" title="Toggle microphone">
+            <div class="dit-icon-wrap">
+              <span class="material-symbols-rounded dit-icon" style="font-size: 16px;">mic_off</span>
+              <canvas id="popupMicCanvas" width="16" height="6" style="margin-top: 1px;"></canvas>
+            </div>
+          </button>
+          <button class="device-icon-toggle off" id="camToggleBtn" data-on="false" title="Toggle camera">
+            <div class="dit-icon-wrap">
+              <span class="material-symbols-rounded dit-icon" style="font-size: 16px;">videocam_off</span>
+            </div>
+          </button>
+        </div>
+      </div>
+
+      <!-- Record main button -->
+      <button class="btn primary" id="recordBtn" style="margin-top:6px;">
+        <span class="btn-icon material-symbols-rounded">radio_button_checked</span>
+        <span class="btn-text">Start Recording</span>
+      </button>
     </div>
 
-    <div class="footer">
-      <div id="captureCountBadge">Captures: 0</div>
-      <span>v1.0.0</span>
-      <span id="storageInfo">Checking...</span>
+    <!-- ═══ ACTIVE RECORDING PANEL (Hidden by default) ═══ -->
+    <div id="activeRecordingPanel" class="card" style="display:none; flex-direction:column; gap:12px; align-items:center; padding: 20px 14px; margin-top:0; border: 1px solid rgba(239,68,68,0.35); background: rgba(239,68,68,0.04);">
+      <!-- Header: dot + label -->
+      <div style="display:flex; align-items:center; gap:8px;">
+        <div style="width:10px; height:10px; border-radius:50%; background:#ef4444; animation: __antRecPulse 1.5s infinite;"></div>
+        <div style="font-size:13px; font-weight:700; color:#f8fafc; letter-spacing:0.8px; text-transform:uppercase;">Recording</div>
+      </div>
+
+      <!-- Big timer -->
+      <div id="popupTimer" style="font-size:36px; font-variant-numeric:tabular-nums; font-family:monospace; font-weight:bold; color:#f87171; letter-spacing:2px;">0:00</div>
+
+      <!-- Mic + Cam toggles (interactive buttons) -->
+      <div style="display:flex; gap:12px; margin-top:2px; width:100%;">
+        <button id="activeRecMicBtn" title="Toggle Microphone"
+          style="flex:1; display:flex; flex-direction:column; align-items:center; gap:4px; background:rgba(52,211,153,0.12); border:1px solid rgba(52,211,153,0.3); border-radius:10px; padding:8px 0; cursor:pointer; transition:all 0.2s;">
+          <span id="activeMicStatus" class="material-symbols-rounded" style="font-size:22px; color:#34d399;">mic</span>
+          <span id="activeMicLabel" style="font-size:9px; color:#34d399; text-transform:uppercase; letter-spacing:0.5px; font-weight:600;">Mic On</span>
+        </button>
+        <button id="activeRecCamBtn" title="Toggle Camera"
+          style="flex:1; display:flex; flex-direction:column; align-items:center; gap:4px; background:rgba(52,211,153,0.12); border:1px solid rgba(52,211,153,0.3); border-radius:10px; padding:8px 0; cursor:pointer; transition:all 0.2s;">
+          <span id="activeCamStatus" class="material-symbols-rounded" style="font-size:22px; color:#34d399;">videocam</span>
+          <span id="activeCamLabel" style="font-size:9px; color:#34d399; text-transform:uppercase; letter-spacing:0.5px; font-weight:600;">Cam On</span>
+        </button>
+      </div>
+
+      <!-- Stop + Pause row -->
+      <div style="display:flex; gap: 10px; margin-top:4px; width:100%;">
+        <button id="activeStopBtn" class="btn primary" style="flex:1;">
+          <span class="material-symbols-rounded btn-icon" style="font-size:16px;">stop</span> Stop & Save
+        </button>
+        <button id="activePauseBtn" class="btn" style="flex:1; background:rgba(255,255,255,0.1);">
+          <span class="material-symbols-rounded btn-icon" style="font-size:16px;">pause</span> Pause
+        </button>
+      </div>
+
+      <!-- Discard -->
+      <button id="activeDiscardBtn" class="btn" style="width:100%; background:rgba(239,68,68,0.12); border:1px solid rgba(239,68,68,0.3); color:#f87171; margin-top:0;">
+        <span class="material-symbols-rounded btn-icon" style="font-size:16px;">delete</span> Discard Recording
+      </button>
+
+      <!-- Discard Confirmation -->
+      <div id="discardConfirmBox" style="display:none; flex-direction:column; gap:8px; background:rgba(0,0,0,0.6); padding:12px; border-radius:8px; border:1px dashed rgba(239,68,68,0.5); width:100%;">
+          <span style="font-size:12px; text-align:center; color:#fca5a5; font-weight:600;">Discard this recording?</span>
+          <span style="font-size:11px; text-align:center; color:#94a3b8;">This cannot be undone.</span>
+          <div style="display:flex; gap:8px; margin-top:4px;">
+              <button id="discardYesBtn" class="btn primary" style="flex:1; background:#ef4444; border-color:#ef4444;">Yes, Discard</button>
+              <button id="discardNoBtn" class="btn" style="flex:1; background:rgba(255,255,255,0.1);">No, Continue</button>
+          </div>
+      </div>
     </div>
+
+
+
   </div>
-  <script src="popup.js"></script>
+  <script type="module" src="popup.js"></script>
 </body>
 </html>
+

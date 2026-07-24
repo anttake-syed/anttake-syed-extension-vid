@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import './login.css';
 
-const BACKEND_URL = import.meta.env.VITE_API_BASE_URL || 'https://api.antcapture.anttake.com';
+const SERVER_URL = import.meta.env.VITE_API_BASE_URL || 'https://api.antcapture.anttake.com';
 
 export default function LoginPage() {
   const [loading, setLoading] = useState(false);
@@ -11,7 +11,7 @@ export default function LoginPage() {
     setLoading(true);
     setError(null);
     const origin = window.location.origin;
-    window.location.href = `${BACKEND_URL}/auth/google?source=web&origin=${encodeURIComponent(origin)}`;
+    window.location.href = `${SERVER_URL}/auth/google?source=web&origin=${encodeURIComponent(origin)}`;
   };
 
   return (

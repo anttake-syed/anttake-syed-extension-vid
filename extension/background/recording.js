@@ -4,7 +4,7 @@
 
 import { notify } from './notify.js';
 import { saveCapture, dataURItoBlob } from './save.js';
-import { deleteLocalMedia } from '../storage.js';
+import { deleteLocalMedia, getMediaById } from '../storage/storage.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ensureOffscreen — creates the offscreen document if it doesn't exist.
@@ -13,7 +13,7 @@ import { deleteLocalMedia } from '../storage.js';
 async function ensureOffscreen() {
   if (await chrome.offscreen.hasDocument()) return;
   await chrome.offscreen.createDocument({
-    url: 'offscreen.html',
+    url: 'offscreen/offscreen.html',
     reasons: ['DISPLAY_MEDIA', 'USER_MEDIA'],
     justification: 'Media recording',
   });
@@ -77,7 +77,7 @@ export async function handleStopRecording(message, sendResponse) {
     // Hide the in-page HUD
     const { activeHudTabId } = await chrome.storage.local.get(['activeHudTabId']);
     if (activeHudTabId) {
-      chrome.tabs.sendMessage(activeHudTabId, { action: 'HIDE_RECORDING_HUD' }).catch(() => {});
+      chrome.tabs.sendMessage(activeHudTabId, { action: 'HIDE_CONTROL_BAR' }).catch(() => {});
       chrome.storage.local.remove('activeHudTabId');
     }
 
@@ -94,10 +94,13 @@ export async function handleStopRecording(message, sendResponse) {
     }
     chrome.storage.local.remove('activeOverlayTabId');
 
+    // Set stopped Normally before telling offscreen to stop
+    // so EXTERNAL_STOP_RECORDING does not misfire
+    await chrome.storage.local.set({ isRecording: false, _stoppedNormally: true });
+
     await ensureOffscreen();
     await chrome.runtime.sendMessage({ target: 'offscreen', type: 'stop-recording' });
-    await chrome.storage.local.set({ isRecording: false, _stoppedNormally: true });
-    notify('recording-stopped', 'Recording stopped', 'Processing and saving your video...');
+
     sendResponse({ success: true });
   } catch (error) {
     console.error('Stop recording failed:', error);
@@ -113,7 +116,6 @@ export async function handleStopRecording(message, sendResponse) {
 export async function handleVideoBlobStored(message, sendResponse) {
   try {
     const { itemId, mimeType, resolution, format } = message;
-    const { getMediaById } = await import('../storage.js');
 
     const item = await getMediaById(itemId);
     if (!item || !item.blob) throw new Error('Could not find saved video in local IndexedDB');
@@ -128,14 +130,13 @@ export async function handleVideoBlobStored(message, sendResponse) {
     if (!_stoppedNormally) {
       // Hide the HUD (Chrome's bar was used instead of our Stop button)
       if (activeHudTabId) {
-        chrome.tabs.sendMessage(activeHudTabId, { action: 'HIDE_RECORDING_HUD' }).catch(() => {});
+        chrome.tabs.sendMessage(activeHudTabId, { action: 'HIDE_CONTROL_BAR' }).catch(() => {});
         chrome.storage.local.remove('activeHudTabId');
       }
       if (activeOverlayTabId) {
         chrome.tabs.sendMessage(activeOverlayTabId, { action: 'STOP_WEBCAM_BUBBLE' }).catch(() => {});
         chrome.storage.local.remove('activeOverlayTabId');
       }
-      notify('recording-stopped', 'Recording stopped', 'Processing and saving your video...');
     }
 
     // Reset recording state
@@ -149,6 +150,7 @@ export async function handleVideoBlobStored(message, sendResponse) {
     if (sendResponse) sendResponse(result);
   } catch (error) {
     console.error('Video blob routing failed:', error);
+    chrome.tabs.create({ url: chrome.runtime.getURL(`edit/edit.html?error=routing_failed`) });
     if (sendResponse) sendResponse({ success: false, error: error.message });
   }
 }
@@ -167,11 +169,6 @@ export async function handleVideoBlobReady(message, sendResponse) {
     const blob = dataURItoBlob(blobDataUrl);
     if (blob.size === 0) throw new Error('Reconstructed blob is empty — recording may have failed.');
 
-    const { _stoppedNormally } = await chrome.storage.local.get(['_stoppedNormally']);
-    if (!_stoppedNormally) {
-      notify('recording-stopped', 'Recording stopped', 'Processing and saving your camera video...');
-    }
-    
     // Reset recording state
     chrome.storage.local.set({ isRecording: false });
 
@@ -179,6 +176,7 @@ export async function handleVideoBlobReady(message, sendResponse) {
     if (sendResponse) sendResponse(result);
   } catch (error) {
     console.error('Camera blob save failed:', error);
+    chrome.tabs.create({ url: chrome.runtime.getURL(`edit/edit.html?error=camera_failed`) });
     if (sendResponse) sendResponse({ success: false, error: error.message });
   }
 }

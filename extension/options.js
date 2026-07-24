@@ -1,4 +1,4 @@
-import { DEV_SERVER_URL, PROD_SERVER_URL, DEV_WEB_UI_URL, PROD_WEB_UI_URL } from './config.js';
+import { DEV_SERVER_URL, PROD_SERVER_URL, DEV_WEB_UI_URL, PROD_WEB_UI_URL } from './shared/config.js';
 
 const select = document.getElementById('storageModeSelect');
 const status = document.getElementById('status');

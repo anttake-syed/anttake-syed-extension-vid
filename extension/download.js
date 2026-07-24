@@ -1,4 +1,4 @@
-import { openDB, deleteLocalMedia } from './storage.js';
+import { openDB, deleteLocalMedia } from './storage/storage.js';
 
 const iconEl = document.getElementById('icon');
 const titleEl = document.getElementById('title');
@@ -50,7 +50,9 @@ async function downloadMedia() {
     else if (mimeStr.includes('webm')) {ext = 'webm';}
     else if (mimeStr.includes('png'))  {ext = 'png';}
     else if (mimeStr.includes('jpeg') || mimeStr.includes('jpg')) {ext = 'jpg';}
-    const filename = `capture-[AntCapture]-${Date.now()}.${ext}`;
+    const customName = urlParams.get('filename');
+    let filename = customName ? customName : `capture-[AntCapture]-${Date.now()}`;
+    if (!filename.endsWith(`.${ext}`)) filename += `.${ext}`;
 
     // Wire up the manual fallback button
     manualBtn.href = objectUrl;

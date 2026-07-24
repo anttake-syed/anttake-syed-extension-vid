@@ -31,19 +31,22 @@ export async function saveMediaLocally(blob, type, mode = 'cloud', resolution = 
       const existing = allRequest.result;
       const totalBytes = existing.reduce((acc, item) => acc + (item.blob?.size || 0), 0);
 
-      if (existing.length >= MAX_ITEMS) {
-        reject(new Error(`Queue full: max ${MAX_ITEMS} items. Sync to dashboard or clear the queue.`));
-        return;
-      }
-      if (totalBytes + (blob?.size || 0) > MAX_BYTES) {
-        reject(new Error(`Queue full: 200 MB storage limit reached. Sync or clear the queue to continue.`));
-        return;
+      // Only enforce limits for actual background syncing modes (cloud / localhost)
+      if (mode !== 'transfer' && mode !== 'preview') {
+        if (existing.length >= MAX_ITEMS) {
+          reject(new Error(`Queue full: max ${MAX_ITEMS} items. Sync to dashboard or clear the queue.`));
+          return;
+        }
+        if (totalBytes + (blob?.size || 0) > MAX_BYTES) {
+          reject(new Error(`Queue full: 200 MB storage limit reached. Sync or clear the queue to continue.`));
+          return;
+        }
       }
 
       const item = {
         blob,
         type,   // 'video' or 'image'
-        mode,   // 'cloud' or 'localhost'
+        mode,   // 'cloud' or 'localhost' or 'preview' or 'transfer'
         resolution,
         format,
         timestamp: Date.now(),
@@ -59,6 +62,34 @@ export async function saveMediaLocally(blob, type, mode = 'cloud', resolution = 
     };
     allRequest.onerror = () => reject(allRequest.error);
   });
+}
+
+export async function cleanTemporaryMedia() {
+  try {
+    const db = await openDB();
+    const tx = db.transaction(STORE_NAME, 'readwrite');
+    const store = tx.objectStore(STORE_NAME);
+
+    return new Promise((resolve, reject) => {
+      const request = store.getAll();
+      request.onsuccess = () => {
+        const items = request.result;
+        const deletePromises = items
+          .filter(item => item.mode === 'transfer' || item.mode === 'preview')
+          .map(item => {
+            return new Promise((res) => {
+              const req = store.delete(item.id);
+              req.onsuccess = () => res();
+              req.onerror = () => res();
+            });
+          });
+        Promise.all(deletePromises).then(() => resolve());
+      };
+      request.onerror = () => reject(request.error);
+    });
+  } catch (e) {
+    console.warn('Failed to clean temp media:', e);
+  }
 }
 
 export async function getPendingUploads(mode = null) {

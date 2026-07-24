@@ -1,8 +1,6 @@
 // popup/capture.js — Capture Action and UI bindings
 import { showToast } from './toast.js';
-import { updateCacheUI, renderQueueItems, cancelSyncHide } from './queue.js';
 import { appState, getConfig } from './state.js';
-import { updateAuthUI } from './auth.js';
 
 let shotMode  = 'tab';
 let recMode   = 'screen';
@@ -352,10 +350,8 @@ export function initCapture() {
       window.close();
   });
 
-  chrome.storage.local.get(['captureCount', 'isRecording', 'storageMode', 'recMic', 'recCam', 'recFormat', 'recRes', 'formatFallback'], (result) => {
-    if (captureCountBadge) {captureCountBadge.textContent = `Captures: ${result.captureCount || 0}`;}
+  chrome.storage.local.get(['isRecording', 'recMic', 'recCam', 'recFormat', 'recRes', 'formatFallback'], (result) => {
     updateRecordButton(result.isRecording || false);
-    setModeTriggerDisplay(result.storageMode || 'computer');
     
     applyMicState(result.recMic === true);
     applyCamState(result.recCam === true);
@@ -397,72 +393,11 @@ export function initCapture() {
     }
   });
 
-  const MODE_META = {
-    computer:  { icon: 'save_alt',    color: '#60a5fa', label: 'Save to Computer' },
-    cloud:     { icon: 'cloud_sync',  color: '#34d399', label: 'Web + Google Drive' },
-    localhost: { icon: 'dns',         color: '#a78bfa', label: 'Local Web UI (Self-Hosted)' },
-  };
 
-  const modeDropdownTrigger = document.getElementById('modeDropdownTrigger');
-  const modeDropdownMenu    = document.getElementById('modeDropdownMenu');
-  const modeIconEl          = document.getElementById('modeIcon');
-  const modeLabelTextEl     = document.getElementById('modeLabelText');
-
-  function setModeTriggerDisplay(value) {
-    const m = MODE_META[value] || MODE_META.computer;
-    if (modeIconEl) { modeIconEl.textContent = m.icon; modeIconEl.style.color = m.color; }
-    if (modeLabelTextEl) {modeLabelTextEl.textContent = m.label;}
-    if (storageModeSelect) {storageModeSelect.value = value;}
-    document.querySelectorAll('.mode-opt').forEach(el => {
-      el.style.background = el.dataset.value === value ? 'rgba(99,102,241,0.15)' : '';
-    });
-  }
-
-  if (modeDropdownTrigger) {
-    modeDropdownTrigger.addEventListener('click', () => {
-      const isOpen = modeDropdownMenu.style.display === 'flex';
-      modeDropdownMenu.style.display = isOpen ? 'none' : 'flex';
-      modeDropdownMenu.style.flexDirection = 'column';
-    });
-  }
-
-  document.querySelectorAll('.mode-opt').forEach(opt => {
-    opt.addEventListener('mouseenter', () => { opt.style.background = 'rgba(255,255,255,0.06)'; });
-    opt.addEventListener('mouseleave', () => {
-      opt.style.background = opt.dataset.value === storageModeSelect?.value ? 'rgba(99,102,241,0.15)' : '';
-    });
-    opt.addEventListener('click', () => {
-      const val = opt.dataset.value;
-      setModeTriggerDisplay(val);
-      if (modeDropdownMenu) modeDropdownMenu.style.display = 'none';
-      
-      const cloudQ = document.getElementById('cloudQueueContainer');
-      const localQ = document.getElementById('localQueueContainer');
-      const panel  = document.getElementById('syncStatusPanel');
-      if (cloudQ) {cloudQ.style.display = 'none';}
-      if (localQ) {localQ.style.display = 'none';}
-      if (panel && val !== 'localhost') { panel.style.display = 'none'; cancelSyncHide(); }
-      
-      chrome.storage.local.set({ storageMode: val }, () => {
-        chrome.storage.local.get(['user'], (res) => {
-          updateAuthUI(res.user || null);
-          updateCacheUI();
-        });
-      });
-    });
-  });
-
-  document.addEventListener('click', (e) => {
-    if (!modeDropdownTrigger?.contains(e.target) && !modeDropdownMenu?.contains(e.target)) {
-      if (modeDropdownMenu) {modeDropdownMenu.style.display = 'none';}
-    }
-  });
 
   chrome.storage.onChanged.addListener((changes, namespace) => {
     if (namespace !== "local") return;
-    if (changes.captureCount && captureCountBadge) captureCountBadge.textContent = `Captures: ${changes.captureCount.newValue}`;
     if (changes.isRecording !== undefined) updateRecordButton(changes.isRecording.newValue);
-    if (changes.lastQueueUpdate !== undefined) updateCacheUI();
     if (changes.recMic !== undefined || changes.recCam !== undefined) {
       chrome.storage.local.get(['recMic', 'recCam'], (res) => {
         _updatePopupMicCamUI(res.recMic === true, res.recCam === true);
@@ -506,19 +441,7 @@ export function initCapture() {
 
       const action = { tab: 'TAKE_SCREENSHOT', region: 'REGION_SCREENSHOT', screen: 'SCREEN_SCREENSHOT' }[shotMode] || 'TAKE_SCREENSHOT';
 
-      if (appState.mode === 'cloud' && action !== 'REGION_SCREENSHOT') {
-        appState.items.push({ id: `optimistic-${Date.now()}`, type: 'image', mode: 'cloud', timestamp: Date.now() });
-        appState.count++;
-        appState.bytes += 500 * 1024;
-        
-        const cList = document.getElementById('cloudCacheItemsList');
-        const cSize = document.getElementById('cloudCacheSizeText');
-        const cClear = document.getElementById('cloudClearCacheBtn');
-        if (cList) renderQueueItems(cList, appState.items, 'cloud');
-        if (cSize) cSize.textContent = `Processing... (${appState.count} items)`;
-        if (cClear) cClear.style.display = 'flex';
-      }
-
+      // (Optimistic queue update removed. User now decides in edit.html)
       if (action === 'REGION_SCREENSHOT') {
         chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
           const tab = tabs[0];
@@ -554,7 +477,6 @@ export function initCapture() {
           if (shotBtnText) shotBtnText.textContent = 'Done ✓';
         }
 
-        updateCacheUI();
         setTimeout(() => { if (shotBtnText) shotBtnText.textContent = origText; }, 2000);
       });
     });

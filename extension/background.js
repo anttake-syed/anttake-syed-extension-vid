@@ -9,8 +9,9 @@
 //   background/notify.js      — Chrome notification helper (auto-dismiss)
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { getPendingUploads, deleteLocalMedia } from './storage.js';
+import { getPendingUploads, deleteLocalMedia, cleanTemporaryMedia } from './storage/storage.js';
 import { syncPendingUploads } from './background/save.js';
+import { notify } from './background/notify.js';
 import {
   handleStartRecording,
   handleStopRecording,
@@ -100,7 +101,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       chrome.storage.local.set({ isRecording: false, isRecordingPaused: false, _stoppedNormally: true });
       chrome.storage.local.get(['activeHudTabId', 'activeOverlayTabId'], (res) => {
          if (res.activeHudTabId) {
-             chrome.tabs.sendMessage(res.activeHudTabId, { action: 'HIDE_RECORDING_HUD' }).catch(()=>{});
+             chrome.tabs.sendMessage(res.activeHudTabId, { action: 'HIDE_CONTROL_BAR' }).catch(()=>{});
              chrome.storage.local.remove('activeHudTabId');
          }
          if (res.activeOverlayTabId) {
@@ -108,12 +109,17 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
              chrome.storage.local.remove('activeOverlayTabId');
          }
       });
-      import('./background/notify.js').then(({ notify }) => notify('recording-discarded', 'Recording Discarded', 'Your recording was successfully discarded.'));
       return true;
 
-    case 'VIDEO_BLOB_STORED':
-      // Offscreen finished recording — blob already saved to IndexedDB
-      handleVideoBlobStored(message, sendResponse);
+    case 'OPEN_EDIT_PAGE_FOR_VIDEO':
+      chrome.tabs.create({ url: chrome.runtime.getURL(`edit/edit.html?id=${message.itemId}`) });
+      chrome.storage.local.get(['_stoppedNormally', 'activeOverlayTabId', 'activeHudTabId'], (res) => {
+        if (!res._stoppedNormally) {
+          if (res.activeHudTabId) chrome.tabs.sendMessage(res.activeHudTabId, { action: 'HIDE_CONTROL_BAR' }).catch(()=>{});
+          if (res.activeOverlayTabId) chrome.tabs.sendMessage(res.activeOverlayTabId, { action: 'STOP_WEBCAM_BUBBLE' }).catch(()=>{});
+        }
+        chrome.storage.local.set({ isRecording: false });
+      });
       return true;
 
     case 'CAMERA_BLOB_READY':
@@ -126,6 +132,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       chrome.storage.local.set({
         formatFallback: { requested: message.requested, actual: message.actual, ts: Date.now() },
       });
+      return true;
+
+    case 'OPEN_EDIT_PAGE':
+      const errParam = message.error ? `?error=${message.error}` : '';
+      chrome.tabs.create({ url: chrome.runtime.getURL(`edit/edit.html${errParam}`) });
       return true;
 
     // ── Screenshots ──────────────────────────────────────────────────────────
@@ -151,7 +162,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           chrome.alarms.create(BADGE_ALARM, { periodInMinutes: 1/60 }); // fires every ~1 second
         });
         chrome.tabs.query({ active: true, lastFocusedWindow: true }, (tabs) => {
-          if (tabs[0]) ensureHudOnTab(tabs[0].id);
+          if (tabs[0]) {
+            chrome.tabs.sendMessage(tabs[0].id, { action: 'SHOW_CONTROL_BAR' }).catch(() => {});
+            chrome.storage.local.set({ activeHudTabId: tabs[0].id });
+          }
         });
       });
       return true;
@@ -174,7 +188,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           return;
         }
         if (res.activeHudTabId) {
-          chrome.tabs.sendMessage(res.activeHudTabId, { action: 'HIDE_RECORDING_HUD' }).catch(() => {});
+          chrome.tabs.sendMessage(res.activeHudTabId, { action: 'HIDE_CONTROL_BAR' }).catch(() => {});
           chrome.storage.local.remove('activeHudTabId');
         }
         if (res.activeOverlayTabId) {
@@ -222,9 +236,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           chrome.tabs.sendMessage(tab.id, { action: 'START_CAMERA_RECORDING', options: message.options });
         } else {
           chrome.storage.local.set({ isRecording: false });
-          import('./background/notify.js').then(({ notify }) => {
-            notify('cam-error', 'AntCapture Error', 'Cannot record camera on this type of page (Chrome settings/new tab). Please open a normal website first.');
-          });
+          notify('cam-error', 'AntCapture Error', 'Cannot record camera on this type of page (Chrome settings/new tab). Please open a normal website first.');
         }
       });
       return true;
@@ -340,8 +352,14 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 // ─────────────────────────────────────────────────────────────────────────────
 // Offline Sync — retry queued uploads whenever the worker starts or goes online
 // ─────────────────────────────────────────────────────────────────────────────
-chrome.runtime.onStartup.addListener(syncPendingUploads);
-chrome.runtime.onInstalled.addListener(syncPendingUploads);
+chrome.runtime.onStartup.addListener(() => {
+  cleanTemporaryMedia();
+  syncPendingUploads();
+});
+chrome.runtime.onInstalled.addListener(() => {
+  cleanTemporaryMedia();
+  syncPendingUploads();
+});
 self.addEventListener('online', syncPendingUploads);
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -370,35 +388,6 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// HUD Tab Tracker — Ensures the HUD follows the user across tabs
+// (HUD Logic removed as requested)
 // ─────────────────────────────────────────────────────────────────────────────
-async function ensureHudOnTab(tabId) {
-  chrome.storage.local.get(['isRecording', 'currentRecordMode', 'recMic', 'recCam', 'recordingStartTime', 'activeHudTabId'], async (res) => {
-    if (res.isRecording) {
-      if (res.activeHudTabId && res.activeHudTabId !== tabId) {
-        chrome.tabs.sendMessage(res.activeHudTabId, { action: 'HIDE_RECORDING_HUD' }).catch(() => {});
-      }
-      try {
-        const tab = await chrome.tabs.get(tabId);
-        if (tab && !tab.url.startsWith('chrome://') && !tab.url.startsWith('chrome-extension://') && !tab.url.startsWith('edge://')) {
-          chrome.tabs.sendMessage(tabId, {
-            action: 'SHOW_RECORDING_HUD',
-            options: { 
-              includeMic: res.recMic, 
-              includeCam: res.recCam, 
-              recordMode: res.currentRecordMode,
-              recordingStartTime: res.recordingStartTime || Date.now()
-            },
-          }).catch(() => {});
-          chrome.storage.local.set({ activeHudTabId: tabId });
-        }
-      } catch (e) {}
-    }
-  });
-}
 
-chrome.tabs.onActivated.addListener((activeInfo) => ensureHudOnTab(activeInfo.tabId));
-// We also hook into onUpdated so if a user reloads the active tab, the HUD comes back
-chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
-  if (changeInfo.status === 'complete') ensureHudOnTab(tabId);
-});

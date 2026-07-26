@@ -5,7 +5,7 @@ import { getConfig } from '../popup/state.js';
 import { showToast } from '../popup/toast.js';
 
 const urlParams = new URLSearchParams(window.location.search);
-const itemId = Number(urlParams.get('id'));
+const itemId = parseInt(urlParams.get('id'), 10) || null;
 
 const mediaContainer = document.getElementById('mediaContainer');
 const fileNameInput = document.getElementById('fileNameInput');
@@ -121,11 +121,27 @@ async function init() {
   document.getElementById('mediaInfoPanel').style.display = 'flex';
 
   const url = URL.createObjectURL(currentItem.blob);
-  
+
+  // Use createElement — setting blob: URLs via innerHTML can be blocked by extension CSP.
+  mediaContainer.innerHTML = '';
   if (currentItem.type === 'video') {
-    mediaContainer.innerHTML = `<video src="${url}" controls autoplay loop></video>`;
+    const video = document.createElement('video');
+    video.controls = true;
+    video.autoplay = true;
+    video.loop = true;
+    video.style.maxWidth = '100%';
+    video.style.maxHeight = '100%';
+    video.style.borderRadius = '8px';
+    video.src = url;
+    mediaContainer.appendChild(video);
   } else {
-    mediaContainer.innerHTML = `<img src="${url}" alt="Screenshot" />`;
+    const img = document.createElement('img');
+    img.alt = 'Screenshot';
+    img.style.maxWidth = '100%';
+    img.style.maxHeight = '100%';
+    img.style.borderRadius = '8px';
+    img.src = url;
+    mediaContainer.appendChild(img);
   }
 
   // Check initial connection status

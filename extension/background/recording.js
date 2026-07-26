@@ -2,9 +2,8 @@
 // Handles start/stop recording and processing of video blobs from offscreen.js
 // and camera recording (via content.js injected into the active tab).
 
-import { notify } from './notify.js';
-import { saveCapture, dataURItoBlob } from './save.js';
-import { deleteLocalMedia, getMediaById } from '../storage/storage.js';
+import { saveMediaLocally } from '../storage/storage.js';
+import { dataURItoBlob } from './save.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ensureOffscreen — creates the offscreen document if it doesn't exist.
@@ -40,7 +39,7 @@ export async function handleStartRecording(message, sendResponse) {
         chrome.tabs.sendMessage(tab.id, { action: 'START_WEBCAM_BUBBLE' });
         await chrome.storage.local.set({ activeOverlayTabId: tab.id });
       } else {
-        notify('bubble-warn', 'AntCapture Warning', 'Webcam bubble cannot be shown on this page (Chrome restriction), but screen will still be recorded.');
+        console.warn('AntCapture: Webcam bubble cannot be shown on this page type.');
       }
     }
 
@@ -58,10 +57,6 @@ export async function handleStartRecording(message, sendResponse) {
 
 
 
-    const modeLabel = {
-      screen: 'Entire Screen', tab: 'Tab', camera: 'Camera', overlay: 'Cam + Screen',
-    }[options.mode] || 'Entire Screen';
-    notify('recording-started', 'AntCapture', `Recording started (${modeLabel})`);
     sendResponse({ success: true });
   } catch (error) {
     console.error('Start recording failed:', error);
@@ -109,71 +104,27 @@ export async function handleStopRecording(message, sendResponse) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// handleVideoBlobStored
-// Called when offscreen.js finishes recording and saves the Blob to IndexedDB.
-// The message only contains an itemId reference — we fetch the blob from IndexedDB here.
-// ─────────────────────────────────────────────────────────────────────────────
-export async function handleVideoBlobStored(message, sendResponse) {
-  try {
-    const { itemId, mimeType, resolution, format } = message;
-
-    const item = await getMediaById(itemId);
-    if (!item || !item.blob) throw new Error('Could not find saved video in local IndexedDB');
-
-    const cleanMime = (mimeType || '').split(';')[0].trim() || 'video/webm';
-
-    // If the user clicked the OS "Stop sharing" bar, handle cleanup
-    const { _stoppedNormally, activeOverlayTabId, activeHudTabId } = await chrome.storage.local.get(
-      ['_stoppedNormally', 'activeOverlayTabId', 'activeHudTabId']
-    );
-    
-    if (!_stoppedNormally) {
-      // Hide the HUD (Chrome's bar was used instead of our Stop button)
-      if (activeHudTabId) {
-        chrome.tabs.sendMessage(activeHudTabId, { action: 'HIDE_CONTROL_BAR' }).catch(() => {});
-        chrome.storage.local.remove('activeHudTabId');
-      }
-      if (activeOverlayTabId) {
-        chrome.tabs.sendMessage(activeOverlayTabId, { action: 'STOP_WEBCAM_BUBBLE' }).catch(() => {});
-        chrome.storage.local.remove('activeOverlayTabId');
-      }
-    }
-
-    // Reset recording state
-    chrome.storage.local.set({ isRecording: false });
-
-    const result = await saveCapture(item.blob, 'video', resolution, format || cleanMime);
-
-    // Delete the temporary transfer entry
-    deleteLocalMedia(itemId).catch(() => {});
-
-    if (sendResponse) sendResponse(result);
-  } catch (error) {
-    console.error('Video blob routing failed:', error);
-    chrome.tabs.create({ url: chrome.runtime.getURL(`edit/edit.html?error=routing_failed`) });
-    if (sendResponse) sendResponse({ success: false, error: error.message });
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
 // handleVideoBlobReady
 // Called when camera recording in content.js finishes and sends a data URL.
+// Saves to IndexedDB once then opens edit.html — same pattern as screenshot.
 // ─────────────────────────────────────────────────────────────────────────────
 export async function handleVideoBlobReady(message, sendResponse) {
   try {
     const { blobDataUrl, mimeType, isImage, resolution, format } = message;
     const type = isImage ? 'image' : 'video';
-    const cleanMime = (mimeType || '').split(';')[0].trim() || (type === 'video' ? 'video/webm' : 'image/png');
 
     if (!blobDataUrl) throw new Error('No blob data received');
     const blob = dataURItoBlob(blobDataUrl);
     if (blob.size === 0) throw new Error('Reconstructed blob is empty — recording may have failed.');
 
     // Reset recording state
-    chrome.storage.local.set({ isRecording: false });
+    await chrome.storage.local.set({ isRecording: false });
 
-    const result = await saveCapture(blob, type, resolution, format || cleanMime);
-    if (sendResponse) sendResponse(result);
+    // Save once to IndexedDB as 'preview', then open edit.html
+    const itemId = await saveMediaLocally(blob, type, 'preview', resolution, format);
+    chrome.tabs.create({ url: chrome.runtime.getURL(`edit/edit.html?id=${itemId}`) });
+
+    if (sendResponse) sendResponse({ success: true, previewId: itemId });
   } catch (error) {
     console.error('Camera blob save failed:', error);
     chrome.tabs.create({ url: chrome.runtime.getURL(`edit/edit.html?error=camera_failed`) });

@@ -15,7 +15,6 @@ import { notify } from './background/notify.js';
 import {
   handleStartRecording,
   handleStopRecording,
-  handleVideoBlobStored,
   handleVideoBlobReady,
 } from './background/recording.js';
 import {
@@ -39,6 +38,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
     // ── Recording ────────────────────────────────────────────────────────────
     case 'START_RECORDING':
+      // Capture the active tab NOW — before the screen-picker dialog steals focus.
+      // By the time OFFSCREEN_RECORDING_STARTED fires, active tab query is unreliable.
+      chrome.tabs.query({ active: true, lastFocusedWindow: true }, (tabs) => {
+        const tab = tabs[0];
+        if (tab && !tab.url.startsWith('chrome://') && !tab.url.startsWith('chrome-extension://') && !tab.url.startsWith('edge://')) {
+          chrome.storage.local.set({ pendingHudTabId: tab.id });
+        }
+      });
       handleStartRecording(message, sendResponse);
       return true;
 
@@ -56,7 +63,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             isRecordingPaused: true,
             pausedAt: Date.now()
           }, () => {
-            chrome.runtime.sendMessage({ target: 'offscreen', type: 'pause-recording' });
+            chrome.runtime.sendMessage({ target: 'offscreen', type: 'pause-recording' }).catch(() => {});
             chrome.tabs.query({}, (tabs) => {
               tabs.forEach(tab => {
                 chrome.tabs.sendMessage(tab.id, { action: 'PAUSE_RECORDING' }).catch(() => {});
@@ -66,7 +73,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           });
         }
       });
-      return true;
+      break; // fire-and-forget, no sendResponse
 
     case 'RESUME_RECORDING':
       chrome.storage.local.get(['isRecordingPaused', 'pausedAt', 'pausedOffset'], (res) => {
@@ -78,7 +85,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             pausedAt: null,
             pausedOffset: newOffset
           }, () => {
-            chrome.runtime.sendMessage({ target: 'offscreen', type: 'resume-recording' });
+            chrome.runtime.sendMessage({ target: 'offscreen', type: 'resume-recording' }).catch(() => {});
             chrome.tabs.query({}, (tabs) => {
               tabs.forEach(tab => {
                 chrome.tabs.sendMessage(tab.id, { action: 'RESUME_RECORDING' }).catch(() => {});
@@ -88,7 +95,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           });
         }
       });
-      return true;
+      break; // fire-and-forget
 
     case 'DISCARD_RECORDING':
       chrome.alarms.clear(BADGE_ALARM);
@@ -109,18 +116,26 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
              chrome.storage.local.remove('activeOverlayTabId');
          }
       });
-      return true;
+      break; // fire-and-forget, no sendResponse
 
     case 'OPEN_EDIT_PAGE_FOR_VIDEO':
-      chrome.tabs.create({ url: chrome.runtime.getURL(`edit/edit.html?id=${message.itemId}`) });
-      chrome.storage.local.get(['_stoppedNormally', 'activeOverlayTabId', 'activeHudTabId'], (res) => {
-        if (!res._stoppedNormally) {
-          if (res.activeHudTabId) chrome.tabs.sendMessage(res.activeHudTabId, { action: 'HIDE_CONTROL_BAR' }).catch(()=>{});
-          if (res.activeOverlayTabId) chrome.tabs.sendMessage(res.activeOverlayTabId, { action: 'STOP_WEBCAM_BUBBLE' }).catch(()=>{});
+      // offscreen.js saved blob to IndexedDB — just open edit.html with the id.
+      // Call sendResponse immediately so offscreen's callback fires without lastError.
+      sendResponse({ ok: true });
+      chrome.storage.local.get(['activeHudTabId', 'activeOverlayTabId'], (res) => {
+        if (res.activeHudTabId) {
+          chrome.tabs.sendMessage(res.activeHudTabId, { action: 'HIDE_CONTROL_BAR' }).catch(() => {});
+          chrome.storage.local.remove('activeHudTabId');
         }
-        chrome.storage.local.set({ isRecording: false });
+        if (res.activeOverlayTabId) {
+          chrome.tabs.sendMessage(res.activeOverlayTabId, { action: 'STOP_WEBCAM_BUBBLE' }).catch(() => {});
+          chrome.storage.local.remove('activeOverlayTabId');
+        }
       });
-      return true;
+      chrome.storage.local.set({ isRecording: false });
+      chrome.tabs.create({ url: chrome.runtime.getURL(`edit/edit.html?id=${message.itemId}`) });
+      // sendResponse already called above — don't return true (would re-open port)
+      break;
 
     case 'CAMERA_BLOB_READY':
       // Camera recording in content.js finished — blob arrives as a data URL
@@ -132,12 +147,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       chrome.storage.local.set({
         formatFallback: { requested: message.requested, actual: message.actual, ts: Date.now() },
       });
-      return true;
+      break; // fire-and-forget, no sendResponse
 
     case 'OPEN_EDIT_PAGE':
-      const errParam = message.error ? `?error=${message.error}` : '';
-      chrome.tabs.create({ url: chrome.runtime.getURL(`edit/edit.html${errParam}`) });
-      return true;
+      chrome.tabs.create({ url: chrome.runtime.getURL(`edit/edit.html${message.error ? '?error=' + message.error : ''}`) });
+      break; // fire-and-forget, no sendResponse
 
     // ── Screenshots ──────────────────────────────────────────────────────────
     case 'TAKE_SCREENSHOT':
@@ -155,20 +169,35 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         chrome.action.setBadgeBackgroundColor({ color: '#ef4444' });
         chrome.action.setBadgeText({ text: '0:00' });
         
-        // Standalone popup window removed
-
-        // Use alarm-based ticking — survives service worker idle restarts
         chrome.alarms.clear(BADGE_ALARM, () => {
-          chrome.alarms.create(BADGE_ALARM, { periodInMinutes: 1/60 }); // fires every ~1 second
+          chrome.alarms.create(BADGE_ALARM, { periodInMinutes: 1/60 });
         });
-        chrome.tabs.query({ active: true, lastFocusedWindow: true }, (tabs) => {
-          if (tabs[0]) {
-            chrome.tabs.sendMessage(tabs[0].id, { action: 'SHOW_CONTROL_BAR' }).catch(() => {});
-            chrome.storage.local.set({ activeHudTabId: tabs[0].id });
+
+        // Use the tab ID captured at START_RECORDING time — far more reliable
+        // than querying active tab now (picker dialog may have stolen focus).
+        chrome.storage.local.get(['pendingHudTabId'], async (res) => {
+          const tabId = res.pendingHudTabId;
+          chrome.storage.local.remove('pendingHudTabId');
+          if (!tabId) return;
+
+          try {
+            // Ensure content.js is loaded in the tab before messaging it
+            await chrome.scripting.executeScript({
+              target: { tabId },
+              files: ['content.js'],
+            });
+          } catch (_) {
+            // Already injected or restricted page — ignore
           }
+
+          // Small delay so the module boots before we send the message
+          setTimeout(() => {
+            chrome.tabs.sendMessage(tabId, { action: 'SHOW_CONTROL_BAR' }).catch(() => {});
+            chrome.storage.local.set({ activeHudTabId: tabId });
+          }, 300);
         });
       });
-      return true;
+      break; // fire-and-forget, no sendResponse
 
     case 'REGION_SCREENSHOT':
       handleRegionScreenshot(message, sendResponse);
@@ -197,12 +226,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }
         chrome.storage.local.set({ isRecording: false });
       });
-      return true;
+      break; // fire-and-forget, no sendResponse
 
     // ── HUD mic/cam toggles (from the in-page HUD buttons) ────────────────────
     case 'HUD_TOGGLE_MIC':
       chrome.storage.local.set({ recMic: message.on === true });
-      return true;
+      break; // fire-and-forget, no sendResponse
 
     case 'HUD_TOGGLE_CAM':
       chrome.storage.local.set({ recCam: message.on === true });
@@ -225,7 +254,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           }
         }
       });
-      return true;
+      break; // fire-and-forget, no sendResponse
 
     // ── Camera-only: inject content.js into the active foreground tab ─────────
     case 'START_CAMERA_IN_TAB':
@@ -239,7 +268,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           notify('cam-error', 'AntCapture Error', 'Cannot record camera on this type of page (Chrome settings/new tab). Please open a normal website first.');
         }
       });
-      return true;
+      break; // fire-and-forget, no sendResponse
 
     // ── Auth ──────────────────────────────────────────────────────────────────
     case 'GET_USER':
@@ -268,7 +297,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       } else {
         chrome.storage.local.remove(['user'], () => console.log('User signed out from Web UI.'));
       }
-      return true;
+      break; // fire-and-forget, no sendResponse
 
     case 'REGISTER_WEB_UI':
       if (message.url) {
@@ -276,7 +305,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           console.log('✨ Extension learned dynamic Web UI URL:', message.url)
         );
       }
-      return true;
+      break; // fire-and-forget, no sendResponse
 
     // ── Queue / Cache ─────────────────────────────────────────────────────────
     case 'GET_CACHE_INFO':
@@ -315,6 +344,44 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
     default:
       break;
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Recording Redirect via Storage — offscreen.js sets pendingEditId after saving
+// the blob to IndexedDB. This listener is a guaranteed MV3 wakeup event, unlike
+// chrome.runtime.sendMessage which can silently fail if the worker is idle.
+// ─────────────────────────────────────────────────────────────────────────────
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area !== 'local' || !changes.pendingEditId) return;
+
+  const newVal = changes.pendingEditId.newValue;
+  if (!newVal) return;
+
+  // Consume the signal immediately so it doesn't re-fire
+  chrome.storage.local.remove(['pendingEditId', 'pendingEditTs']);
+
+  // Clean up HUD and webcam overlay
+  chrome.storage.local.get(['activeHudTabId', 'activeOverlayTabId'], (res) => {
+    if (res.activeHudTabId) {
+      chrome.tabs.sendMessage(res.activeHudTabId, { action: 'HIDE_CONTROL_BAR' }).catch(() => {});
+      chrome.storage.local.remove('activeHudTabId');
+    }
+    if (res.activeOverlayTabId) {
+      chrome.tabs.sendMessage(res.activeOverlayTabId, { action: 'STOP_WEBCAM_BUBBLE' }).catch(() => {});
+      chrome.storage.local.remove('activeOverlayTabId');
+    }
+  });
+
+  chrome.alarms.clear('__ant_badge_tick__');
+  chrome.action.setBadgeText({ text: '' });
+  chrome.storage.local.set({ isRecording: false });
+
+  if (newVal.startsWith('error:')) {
+    const errCode = newVal.replace('error:', '');
+    chrome.tabs.create({ url: chrome.runtime.getURL(`edit/edit.html?error=${errCode}`) });
+  } else {
+    chrome.tabs.create({ url: chrome.runtime.getURL(`edit/edit.html?id=${newVal}`) });
   }
 });
 

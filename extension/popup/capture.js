@@ -163,7 +163,7 @@ export function initCapture() {
         chrome.storage.local.set({ recMic });
       } catch (e) {
         // No permission — open access page
-        chrome.tabs.create({ url: chrome.runtime.getURL('get-access.html?target=mic') });
+        chrome.tabs.create({ url: chrome.runtime.getURL('permissions/get-access.html?target=mic') });
         window.close();
       }
     });
@@ -180,7 +180,7 @@ export function initCapture() {
           applyCamState(!recCam);
           chrome.storage.local.set({ recCam });
         } catch (e) {
-          chrome.tabs.create({ url: chrome.runtime.getURL('get-access.html?target=cam') });
+          chrome.tabs.create({ url: chrome.runtime.getURL('permissions/get-access.html?target=cam') });
           window.close();
         }
       } else {

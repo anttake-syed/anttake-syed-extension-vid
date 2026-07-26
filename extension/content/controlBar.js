@@ -13,6 +13,10 @@ let lastX = 0;
 let lastY = 0;
 
 export function initControlBar() {
+  // Guard against duplicate listeners if content.js is re-injected into the same tab
+  if (window._antControlBarInited) return;
+  window._antControlBarInited = true;
+
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.action === 'SHOW_CONTROL_BAR') {
       buildControlBar();

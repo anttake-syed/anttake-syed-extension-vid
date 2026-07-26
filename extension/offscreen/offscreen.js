@@ -1,10 +1,9 @@
 // offscreen.js — AntCapture
 import { saveMediaLocally } from '../storage/storage.js';
 
-// Handles all recording modes: Screen, Tab, Camera-only, and Cam+Screen Overlay (like Loom)
-// Uses canvas compositing to render the webcam bubble on top of screen recording.
+// Handles screen/tab recording modes.
 
-chrome.runtime.onMessage.addListener(async (message) => {
+chrome.runtime.onMessage.addListener((message) => {
   if (message.target !== 'offscreen') return;
 
   if (message.type === 'start-recording') {
@@ -16,32 +15,27 @@ chrome.runtime.onMessage.addListener(async (message) => {
   } else if (message.type === 'resume-recording') {
     if (recorder && recorder.state === 'paused') recorder.resume();
   } else if (message.type === 'discard-recording') {
-    if (recorder) {
-      isDiscarding = true;
-      stopRecording();
-    }
+    if (recorder) { isDiscarding = true; stopRecording(); }
   }
 });
 
 let recorder = null;
 let data = [];
-let activeStreams = []; // track all streams so we can stop them cleanly
-let animFrameId = null; // for canvas overlay animation loop
-let isStopping = false; // guard against double-stop (ended event + explicit stop)
+let activeStreams = [];
+let animFrameId = null;
+let isStopping = false;
 let isDiscarding = false;
 
 async function startRecording(options = {}) {
   if (recorder?.state === 'recording') return;
 
   const {
-    mode       = 'screen',   // 'screen' | 'tab' | 'camera' | 'overlay'
-    resolution = 720,        // 720 | 1080
+    mode       = 'screen',
+    resolution = 720,
     includeMic = true,
-    format     = 'webm',     // 'webm' | 'mp4'
+    format     = 'webm',
   } = options;
 
-  // ── Camera-only: Chrome blocks getUserMedia in offscreen docs ───────────
-  // Route back to background.js which will inject into the active tab instead.
   if (mode === 'camera') {
     chrome.runtime.sendMessage({ action: 'START_CAMERA_IN_TAB', options });
     return;
@@ -51,9 +45,6 @@ async function startRecording(options = {}) {
   activeStreams = [];
 
   try {
-    let finalStream;
-
-    // ── DISPLAY SURFACE constraints ──────────────────────────────────────────
     const height = resolution === 720 ? 720 : 1080;
     const displayConstraints = {
       video: {
@@ -61,168 +52,117 @@ async function startRecording(options = {}) {
         height: { ideal: height },
         frameRate: { ideal: 30 }
       },
-      audio: includeMic,     // system/tab audio
+      // Always false here — Linux does not support system audio via getDisplayMedia.
+      // Microphone is merged in separately below via getUserMedia.
+      audio: false,
     };
 
-    // ── Camera logic handled in content script (foreground) ──────────────────
-    // Because Chrome blocks video getUserMedia in offscreen documents, 
-    // the 'overlay' mode injects a draggable webcam bubble into the active tab.
-    // Here, we just need to record the screen normally, and the bubble will be captured!
-    
-    finalStream = await navigator.mediaDevices.getDisplayMedia(displayConstraints);
+    const finalStream = await navigator.mediaDevices.getDisplayMedia(displayConstraints);
     activeStreams.push(finalStream);
-    // 'ended' fires when user clicks the OS-level "Stop sharing" button.
-    // Guard with isStopping to prevent a second save when we stopped it ourselves.
+
+    // 'ended' fires when the user clicks the OS-level "Stop sharing" button
     finalStream.getVideoTracks()[0].addEventListener('ended', () => stopRecording());
 
-    // ── Explicitly request Microphone (since getDisplayMedia only gets system audio)
     if (includeMic) {
       try {
-        const micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const micStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
         activeStreams.push(micStream);
-        
-        // Check if finalStream already has an audio track (system audio)
-        const sysAudioTracks = finalStream.getAudioTracks();
-        if (sysAudioTracks.length > 0) {
-          // If we have both system audio and mic, we need an AudioContext to mix them
-          const ctx = new AudioContext();
-          if (ctx.state === 'suspended') {
-            await ctx.resume().catch(e => console.warn('Could not resume AudioContext:', e));
-          }
-          const dest = ctx.createMediaStreamDestination();
-          ctx.createMediaStreamSource(new MediaStream([sysAudioTracks[0]])).connect(dest);
-          ctx.createMediaStreamSource(micStream).connect(dest);
-          
-          // Remove the old system audio track and add the mixed one
-          finalStream.removeTrack(sysAudioTracks[0]);
-          finalStream.addTrack(dest.stream.getAudioTracks()[0]);
-        } else {
-          // Just add the mic track directly
-          finalStream.addTrack(micStream.getAudioTracks()[0]);
-        }
+        const micTrack = micStream.getAudioTracks()[0];
+        if (micTrack) finalStream.addTrack(micTrack);
       } catch (err) {
-        console.warn('Microphone permission denied or not available:', err);
+        console.warn('Microphone not available (continuing without mic):', err.name, err.message);
       }
     }
-    // ── Pick the best supported MIME type ──────────────────────────────────
+
     const { mimeType, resolvedFormat } = pickMimeType(format);
 
-    // Notify background if we had to fall back from requested format
     if (resolvedFormat !== format) {
-      chrome.runtime.sendMessage({
-        action: 'FORMAT_FALLBACK',
-        requested: format,
-        actual: resolvedFormat,
-      });
+      chrome.runtime.sendMessage({ action: 'FORMAT_FALLBACK', requested: format, actual: resolvedFormat });
     }
 
     recorder = new MediaRecorder(finalStream, { mimeType });
-
     recorder.ondataavailable = (event) => {
       if (event.data.size > 0) data.push(event.data);
     };
 
     recorder.onstop = async () => {
-      // Cancel canvas animation loop if running
       if (animFrameId) { cancelAnimationFrame(animFrameId); animFrameId = null; }
 
       const blob = new Blob(data, { type: mimeType });
       data = [];
-      isStopping = false; // reset guard
+      isStopping = false;
+
+      // Stop streams HERE — after collecting the blob — so the OS banner dismisses
+      // and the camera light turns off at the right moment (not before we have the data).
+      activeStreams.forEach(s => s.getTracks().forEach(t => t.stop()));
+      activeStreams = [];
 
       if (isDiscarding) {
-        console.log('Recording discarded.');
         isDiscarding = false;
-        activeStreams.forEach(s => s.getTracks().forEach(t => t.stop()));
         return;
       }
 
       if (blob.size === 0) {
-        console.warn('AntCapture: empty blob, skipping save.');
-        activeStreams.forEach(s => s.getTracks().forEach(t => t.stop()));
-        chrome.runtime.sendMessage({ action: 'OPEN_EDIT_PAGE', error: 'empty_blob' });
+        console.warn('AntCapture: empty blob — recording too short?');
+        chrome.storage.local.set({ pendingEditId: 'error:empty_blob', pendingEditTs: Date.now() });
         return;
       }
 
       try {
-        // Save to IndexedDB directly as 'preview' to avoid background transfer overhead
+        // Save blob to IndexedDB. Use storage signal to tell background.js to redirect.
+        // NOTE: chrome.tabs is NOT available in offscreen documents — do NOT call
+        // chrome.tabs.create() here. It throws TypeError which corrupts the signal.
         const itemId = await saveMediaLocally(blob, 'video', 'preview', resolution, resolvedFormat);
-
-        chrome.runtime.sendMessage({
-          action: 'OPEN_EDIT_PAGE_FOR_VIDEO',
-          itemId
-        });
+        console.log('AntCapture: saved to IndexedDB, id=' + itemId + ' — signalling background...');
+        // background.js listens via chrome.storage.onChanged and opens edit.html
+        chrome.storage.local.set({ pendingEditId: String(itemId), pendingEditTs: Date.now() });
       } catch (err) {
-        console.error('Failed to process video blob:', err);
-        chrome.runtime.sendMessage({ action: 'OPEN_EDIT_PAGE', error: 'save_failed' });
-      } finally {
-        activeStreams.forEach(s => s.getTracks().forEach(t => t.stop()));
+        console.error('AntCapture: IndexedDB save failed:', err);
+        // Signal background to show error page
+        chrome.storage.local.set({ pendingEditId: 'error:save_failed', pendingEditTs: Date.now() });
       }
-      // NOTE: Do NOT send EXTERNAL_STOP_RECORDING here.
-      // background.js already sets isRecording: false in handleStopRecording.
-      // Sending it again from onstop creates a race and resets state prematurely.
     };
 
-    recorder.start(250); // 250ms timeslice for efficient chunking
-    console.log(`🎬 AntCapture recording started — mode:${mode} res:${resolution}p format:${format}`);
+    recorder.start(250);
+    console.log(`AntCapture recording started — mode:${mode} res:${resolution}p format:${format}`);
     chrome.runtime.sendMessage({ action: 'OFFSCREEN_RECORDING_STARTED', options });
 
   } catch (err) {
-    console.error('Recording start failed:', err);
-    // Clean up any partial streams
+    // Log name + message so the real DOMException is visible in DevTools
+    console.error('Recording start failed:', err.name, '—', err.message, err);
     activeStreams.forEach(s => s.getTracks().forEach(t => t.stop()));
     chrome.runtime.sendMessage({ action: 'EXTERNAL_STOP_RECORDING' });
   }
 }
 
 function stopRecording() {
-  // Guard: prevent duplicate saves if the 'ended' event fires after we already stopped
-  if (isStopping) { return; }
+  if (isStopping) return;
   if (recorder && recorder.state !== 'inactive') {
     isStopping = true;
-    
-    // Instantly kill the streams to hide the browser's "Stop sharing" OS banner immediately
-    if (typeof activeStreams !== 'undefined') {
-      activeStreams.forEach(s => s.getTracks().forEach(t => t.stop()));
-    }
-    
+    // Call recorder.stop() FIRST — onstop fires and stops the streams there.
+    // Stopping streams before recorder.stop() triggers an 'ended' event which
+    // auto-stops the MediaRecorder, causing a double-stop race condition.
     recorder.stop();
     chrome.runtime.sendMessage({ action: 'EXTERNAL_STOP_RECORDING' });
   }
 }
 
-// ── Helpers ────────────────────────────────────────────────────────────────────
-
-// Returns { mimeType, resolvedFormat } — resolvedFormat dictates the saved file extension
 function pickMimeType(preferredFormat) {
   const mp4Candidates  = ['video/mp4;codecs=h264,aac', 'video/mp4;codecs=avc1', 'video/mp4'];
-  // Prioritize vp8 over vp9 to avoid blank/black screen issues on certain hardware encoders
   const webmCandidates = ['video/webm;codecs=vp8,opus', 'video/webm;codecs=vp9,opus', 'video/webm'];
 
   if (preferredFormat === 'mp4') {
     for (const type of mp4Candidates) {
-      if (MediaRecorder.isTypeSupported(type)) {
-        return { mimeType: type, resolvedFormat: 'mp4' };
-      }
+      if (MediaRecorder.isTypeSupported(type)) return { mimeType: type, resolvedFormat: 'mp4' };
     }
-    // MP4 not natively supported by this browser — fall back to WebM encoding
-    // BUT we keep resolvedFormat as 'mp4' so the file gets saved with a .mp4 extension.
-    // Modern players (VLC, Chrome) will sniff the WebM container and play it perfectly anyway.
-    console.warn('MP4 recording not supported natively, falling back to WebM container but keeping .mp4 extension.');
     for (const type of webmCandidates) {
-      if (MediaRecorder.isTypeSupported(type)) {
-        return { mimeType: type, resolvedFormat: 'mp4' };
-      }
+      if (MediaRecorder.isTypeSupported(type)) return { mimeType: type, resolvedFormat: 'mp4' };
     }
   }
 
   for (const type of webmCandidates) {
-    if (MediaRecorder.isTypeSupported(type)) {
-      return { mimeType: type, resolvedFormat: 'webm' };
-    }
+    if (MediaRecorder.isTypeSupported(type)) return { mimeType: type, resolvedFormat: 'webm' };
   }
 
-  return { mimeType: 'video/webm', resolvedFormat: 'webm' }; // ultimate fallback
+  return { mimeType: 'video/webm', resolvedFormat: 'webm' };
 }
-
-

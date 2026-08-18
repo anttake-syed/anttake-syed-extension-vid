@@ -3,6 +3,10 @@
 // Runs every time the content script is injected into a page.
 
 export function initAuthSync() {
+  // Only run auth sync on the actual Web UI domains
+  const allowedOrigins = ['http://localhost:5173', 'https://antcapture.anttake.com'];
+  if (!allowedOrigins.includes(window.location.origin)) return;
+
   // Push the locally-stored user to the extension, or pull from it if missing
   function syncAuthToExtension() {
     const userDataStr = localStorage.getItem('antcapture_user');

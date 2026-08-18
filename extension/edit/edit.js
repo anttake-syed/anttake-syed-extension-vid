@@ -654,8 +654,10 @@ document.getElementById('btnGoogleSignIn')?.addEventListener('click', async () =
 });
 
 document.getElementById('btnLogout')?.addEventListener('click', () => {
-  const userKey = pendingSaveMode === 'localhost' ? 'user_local' : 'user_cloud';
-  chrome.storage.local.remove(userKey, () => {
+  const targetMode = pendingSaveMode || 'cloud';
+  const origin = targetMode === 'localhost' ? 'http://localhost:3001' : 'https://api.antcapture.anttake.com';
+  
+  chrome.runtime.sendMessage({ action: 'LOGOUT', origin }, () => {
     pendingSaveMode = null;
     updateAuthPanel(null);
     showToast("Signed out successfully.", "success");

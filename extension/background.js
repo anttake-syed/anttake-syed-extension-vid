@@ -341,33 +341,42 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
 
     // ── Auth ──────────────────────────────────────────────────────────────────
-    case 'GET_USER':
-      chrome.storage.local.get(['user'], (result) => sendResponse({ user: result.user || null }));
+    case 'GET_USER': {
+      const isLocal = message.origin && (message.origin.includes('localhost') || message.origin.includes('127.0.0.1'));
+      const userKey = isLocal ? 'user_local' : 'user_cloud';
+      chrome.storage.local.get([userKey], (result) => sendResponse({ user: result[userKey] || null }));
       return true;
+    }
 
-    case 'LOGOUT':
-      chrome.storage.local.remove(['user'], () => {
+    case 'LOGOUT': {
+      // If we logout globally, just clear both. Or if we pass origin, clear specific one.
+      const isLocal = message.origin && (message.origin.includes('localhost') || message.origin.includes('127.0.0.1'));
+      const userKey = isLocal ? 'user_local' : 'user_cloud';
+      chrome.storage.local.remove([userKey], () => {
         const broadcast = (pattern) => {
           chrome.tabs.query({ url: pattern }, (tabs) =>
             tabs.forEach(tab => chrome.tabs.sendMessage(tab.id, { action: 'LOGOUT_WEB_UI' }).catch(() => {}))
           );
         };
-        broadcast('*://antcapture.anttake.com/*');
-        broadcast('*://localhost:5173/*');
+        broadcast(isLocal ? '*://localhost:5173/*' : '*://antcapture.anttake.com/*');
         sendResponse({ success: true });
       });
       return true;
+    }
 
-    case 'SYNC_USER':
+    case 'SYNC_USER': {
+      const isLocal = message.origin && (message.origin.includes('localhost') || message.origin.includes('127.0.0.1'));
+      const userKey = isLocal ? 'user_local' : 'user_cloud';
       if (message.user) {
-        chrome.storage.local.set({ user: message.user }, () => {
-          log.info('User synced from Web UI', message.user.email);
+        chrome.storage.local.set({ [userKey]: message.user }, () => {
+          log.info(`User synced from Web UI (${userKey})`, message.user.email);
           syncPendingUploads();
         });
       } else {
-        chrome.storage.local.remove(['user'], () => log.info('User signed out from Web UI.'));
+        chrome.storage.local.remove([userKey], () => log.info(`User signed out from Web UI (${userKey}).`));
       }
       break; // fire-and-forget, no sendResponse
+    }
 
     case 'REGISTER_WEB_UI':
       if (message.url) {
@@ -440,8 +449,11 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     const userData = JSON.parse(jsonPayload);
     userData.jwt = authData;
 
-    chrome.storage.local.set({ user: userData }, () => {
-      log.info('User authenticated in extension', userData.email);
+    const isLocal = url.hostname === 'localhost' || url.hostname === '127.0.0.1';
+    const userKey = isLocal ? 'user_local' : 'user_cloud';
+
+    chrome.storage.local.set({ [userKey]: userData }, () => {
+      log.info(`User authenticated in extension (${userKey})`, userData.email);
       setTimeout(() => chrome.tabs.remove(tabId), 1500);
       syncPendingUploads();
     });

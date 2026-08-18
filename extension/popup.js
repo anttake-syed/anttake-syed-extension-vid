@@ -13,13 +13,16 @@ document.addEventListener('DOMContentLoaded', () => {
   if (settingsBtn) {
     settingsBtn.addEventListener('click', async () => {
       const { webUiUrl } = await getConfig();
-      chrome.storage.local.get(['user', 'storageMode', 'dynamicWebUiUrl'], (result) => {
+      chrome.storage.local.get(['user_cloud', 'user_local', 'storageMode', 'dynamicWebUiUrl'], (result) => {
+        const mode = result.storageMode || 'computer';
+        const userKey = mode === 'localhost' ? 'user_local' : 'user_cloud';
+        const user = result[userKey];
+
         const actualWebUiUrl = result.dynamicWebUiUrl || webUiUrl;
-        const settingsUrl = result.user?.jwt
-          ? `${actualWebUiUrl}?nav=Settings&auth_data=${result.user.jwt}`
+        const settingsUrl = user?.jwt
+          ? `${actualWebUiUrl}?nav=Settings&auth_data=${user.jwt}`
           : `${actualWebUiUrl}?nav=Settings`;
 
-        const mode = result.storageMode || 'computer';
         const queryUrl = mode === 'localhost' ? 'http://localhost:517*/*' : `${actualWebUiUrl}/*`;
 
         chrome.tabs.query({ url: queryUrl }, (tabs) => {

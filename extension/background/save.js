@@ -44,11 +44,11 @@ export async function saveCapture(blob, type = 'image', resolution = null, forma
 export async function syncPendingUploads() {
   if (!navigator.onLine) return { synced: 0, failed: 0, total: 0, offline: true, errors: [] };
 
-  const { user, storageMode } = await chrome.storage.local.get(['user', 'storageMode']);
+  const { user_cloud, storageMode } = await chrome.storage.local.get(['user_cloud', 'storageMode']);
 
   // Local mode has no queue — uploads are direct-only, nothing to sync
   if (storageMode === 'localhost') return { synced: 0, failed: 0, total: 0, errors: [] };
-  if (!user || !user.jwt)         return { synced: 0, failed: 0, total: 0, noUser: true, errors: [] };
+  if (!user_cloud || !user_cloud.jwt) return { synced: 0, failed: 0, total: 0, noUser: true, errors: [] };
 
   const pending = await getPendingUploads('cloud');
   if (pending.length === 0)       return { synced: 0, failed: 0, total: 0, errors: [] };
@@ -60,7 +60,7 @@ export async function syncPendingUploads() {
   for (const item of pending) {
     try {
       // Correct argument order: (blob, type, destination, jwt, resolution, format, customFilename, hasAudio)
-      await uploadToServer(item.blob, item.type, 'cloud', user.jwt, item.resolution, item.format, null, item.hasAudio !== undefined ? item.hasAudio : true);
+      await uploadToServer(item.blob, item.type, 'cloud', user_cloud.jwt, item.resolution, item.format, null, item.hasAudio !== undefined ? item.hasAudio : true);
       log.info(`✅ Synced item ${item.id}`);
       await deleteLocalMedia(item.id);
       synced++;

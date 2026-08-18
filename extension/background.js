@@ -9,13 +9,16 @@
 //   background/notify.js      — Chrome notification helper (auto-dismiss)
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { getPendingUploads, deleteLocalMedia, cleanTemporaryMedia } from './storage/storage.js';
+import { getPendingUploads, deleteLocalMedia, cleanTemporaryMedia, getMediaById } from './storage/storage.js';
 import { syncPendingUploads } from './background/save.js';
 import { notify } from './background/notify.js';
+import { Logger } from './shared/logger.js';
+import { cleanOPFSOrphans, deleteOPFSFile } from './storage/opfsStorage.js';
+
+const log = Logger.getLogger('Background Worker');
 import {
   handleStartRecording,
   handleStopRecording,
-  handleVideoBlobStored,
   handleVideoBlobReady,
 } from './background/recording.js';
 import {
@@ -39,8 +42,34 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
     // ── Recording ────────────────────────────────────────────────────────────
     case 'START_RECORDING':
-      handleStartRecording(message, sendResponse);
+      (async () => {
+        if (message.tabTitle) {
+          await chrome.storage.local.set({
+            recordingTabTitle: message.tabTitle,
+            recordingTabUrl:   message.tabUrl || '',
+          });
+          const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+          const tab = tabs[0];
+          if (tab) {
+            const isRestricted = tab.url.startsWith('chrome://') || tab.url.startsWith('chrome-extension://') || tab.url.startsWith('edge://');
+            await chrome.storage.local.set({ pendingHudTabId: isRestricted ? null : tab.id });
+          }
+        } else {
+          const tabs = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+          const tab = tabs[0];
+          if (tab) {
+            const isRestricted = tab.url.startsWith('chrome://') || tab.url.startsWith('chrome-extension://') || tab.url.startsWith('edge://');
+            await chrome.storage.local.set({
+              pendingHudTabId:    isRestricted ? null : tab.id,
+              recordingTabTitle:  tab.title || '',
+              recordingTabUrl:    tab.url || '',
+            });
+          }
+        }
+        handleStartRecording(message, sendResponse);
+      })();
       return true;
+
 
     case 'STOP_RECORDING':
       chrome.alarms.clear(BADGE_ALARM);
@@ -56,7 +85,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             isRecordingPaused: true,
             pausedAt: Date.now()
           }, () => {
-            chrome.runtime.sendMessage({ target: 'offscreen', type: 'pause-recording' });
+            chrome.runtime.sendMessage({ target: 'offscreen', type: 'pause-recording' }).catch(() => {});
             chrome.tabs.query({}, (tabs) => {
               tabs.forEach(tab => {
                 chrome.tabs.sendMessage(tab.id, { action: 'PAUSE_RECORDING' }).catch(() => {});
@@ -66,7 +95,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           });
         }
       });
-      return true;
+      break; // fire-and-forget, no sendResponse
 
     case 'RESUME_RECORDING':
       chrome.storage.local.get(['isRecordingPaused', 'pausedAt', 'pausedOffset'], (res) => {
@@ -78,7 +107,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             pausedAt: null,
             pausedOffset: newOffset
           }, () => {
-            chrome.runtime.sendMessage({ target: 'offscreen', type: 'resume-recording' });
+            chrome.runtime.sendMessage({ target: 'offscreen', type: 'resume-recording' }).catch(() => {});
             chrome.tabs.query({}, (tabs) => {
               tabs.forEach(tab => {
                 chrome.tabs.sendMessage(tab.id, { action: 'RESUME_RECORDING' }).catch(() => {});
@@ -88,7 +117,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           });
         }
       });
-      return true;
+      break; // fire-and-forget
 
     case 'DISCARD_RECORDING':
       chrome.alarms.clear(BADGE_ALARM);
@@ -109,18 +138,38 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
              chrome.storage.local.remove('activeOverlayTabId');
          }
       });
-      return true;
+      break; // fire-and-forget, no sendResponse
 
     case 'OPEN_EDIT_PAGE_FOR_VIDEO':
-      chrome.tabs.create({ url: chrome.runtime.getURL(`edit/edit.html?id=${message.itemId}`) });
-      chrome.storage.local.get(['_stoppedNormally', 'activeOverlayTabId', 'activeHudTabId'], (res) => {
-        if (!res._stoppedNormally) {
-          if (res.activeHudTabId) chrome.tabs.sendMessage(res.activeHudTabId, { action: 'HIDE_CONTROL_BAR' }).catch(()=>{});
-          if (res.activeOverlayTabId) chrome.tabs.sendMessage(res.activeOverlayTabId, { action: 'STOP_WEBCAM_BUBBLE' }).catch(()=>{});
+      // offscreen.js saved blob to IndexedDB — just open edit.html with the id.
+      // Call sendResponse immediately so offscreen's callback fires without lastError.
+      sendResponse({ ok: true });
+      chrome.storage.local.get(['activeHudTabId', 'activeOverlayTabId'], (res) => {
+        if (res.activeHudTabId) {
+          chrome.tabs.sendMessage(res.activeHudTabId, { action: 'HIDE_CONTROL_BAR' }).catch(() => {});
+          chrome.storage.local.remove('activeHudTabId');
         }
-        chrome.storage.local.set({ isRecording: false });
+        if (res.activeOverlayTabId) {
+          chrome.tabs.sendMessage(res.activeOverlayTabId, { action: 'STOP_WEBCAM_BUBBLE' }).catch(() => {});
+          chrome.storage.local.remove('activeOverlayTabId');
+        }
       });
-      return true;
+      chrome.storage.local.set({ isRecording: false });
+      chrome.tabs.create({ url: chrome.runtime.getURL(`edit/edit.html?id=${message.itemId}`) });
+      // sendResponse already called above — don't return true (would re-open port)
+      break;
+
+    case 'DISCARD_TAB_CLOSED':
+      // The user closed edit.html without saving. Clean up both IndexedDB record and OPFS file.
+      if (message.id) {
+        getMediaById(message.id)
+          .then(item => {
+            if (item && item.opfsFileName) deleteOPFSFile(item.opfsFileName).catch(() => {});
+          })
+          .catch(() => {})
+          .finally(() => deleteLocalMedia(message.id).catch(() => {}));
+      }
+      break; // fire-and-forget
 
     case 'CAMERA_BLOB_READY':
       // Camera recording in content.js finished — blob arrives as a data URL
@@ -132,12 +181,30 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       chrome.storage.local.set({
         formatFallback: { requested: message.requested, actual: message.actual, ts: Date.now() },
       });
+      break; // fire-and-forget, no sendResponse
+
+    case 'REVOKE_FALLBACK_BLOB':
+      // Forward the blob URL revoke command to the offscreen document that created it
+      // to free up memory (preventing OOM leaks on huge recordings).
+      chrome.runtime.sendMessage({ target: 'offscreen', type: 'revoke-blob-url', url: message.url }).catch(() => {});
+      break; // fire-and-forget, no sendResponse
+
+    case 'SAVE_FALLBACK_BLOB':
+      // Perform chrome.storage.local write on behalf of offscreen.js (which lacks permissions in Chrome)
+      chrome.storage.local.set({ [message.id]: message.item }, () => {
+        sendResponse({ success: true });
+      });
       return true;
 
+    case 'OPEN_EDIT_PAGE_OPFS':
+      // IndexedDB save failed but OPFS file is intact. Open edit.html with OPFS params directly.
+      sendResponse({ ok: true });
+      chrome.tabs.create({ url: chrome.runtime.getURL(`edit/edit.html?${message.queryString}`) });
+      break;
+
     case 'OPEN_EDIT_PAGE':
-      const errParam = message.error ? `?error=${message.error}` : '';
-      chrome.tabs.create({ url: chrome.runtime.getURL(`edit/edit.html${errParam}`) });
-      return true;
+      chrome.tabs.create({ url: chrome.runtime.getURL(`edit/edit.html${message.error ? '?error=' + message.error : ''}`) });
+      break; // fire-and-forget, no sendResponse
 
     // ── Screenshots ──────────────────────────────────────────────────────────
     case 'TAKE_SCREENSHOT':
@@ -146,8 +213,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
     case 'OFFSCREEN_RECORDING_STARTED':
     case 'CAMERA_RECORDING_STARTED':
+      // Don't overwrite recordingStartTime — handleStartRecording already set it
+      // before the screen picker even appeared. Overwriting here would make the
+      // badge timer start late (after the picker delay).
       chrome.storage.local.set({
-        recordingStartTime: Date.now(),
         isRecordingPaused: false,
         pausedOffset: 0,
         pausedAt: null
@@ -155,20 +224,33 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         chrome.action.setBadgeBackgroundColor({ color: '#ef4444' });
         chrome.action.setBadgeText({ text: '0:00' });
         
-        // Standalone popup window removed
-
-        // Use alarm-based ticking — survives service worker idle restarts
         chrome.alarms.clear(BADGE_ALARM, () => {
-          chrome.alarms.create(BADGE_ALARM, { periodInMinutes: 1/60 }); // fires every ~1 second
+          chrome.alarms.create(BADGE_ALARM, { periodInMinutes: 1/60 });
         });
-        chrome.tabs.query({ active: true, lastFocusedWindow: true }, (tabs) => {
-          if (tabs[0]) {
-            chrome.tabs.sendMessage(tabs[0].id, { action: 'SHOW_CONTROL_BAR' }).catch(() => {});
-            chrome.storage.local.set({ activeHudTabId: tabs[0].id });
-          }
+
+        // Use the tab ID pinned at START_RECORDING time (or overridden by overlay mode).
+        // This is more reliable than querying the active tab now — the picker dialog
+        // may have stolen focus in between.
+        chrome.storage.local.get(['pendingHudTabId'], async (res) => {
+          const tabId = res.pendingHudTabId;
+          chrome.storage.local.remove('pendingHudTabId');
+          if (!tabId) return;
+
+          // content.js may already be injected (especially for overlay mode).
+          // executeScript is safe to call again — it's a no-op if already present.
+          try {
+            await chrome.scripting.executeScript({ target: { tabId }, files: ['content.js'] });
+          } catch (_) { /* Already injected or restricted page — fine */ }
+
+          // 600ms: clears residual focus-change from the screen-share picker and
+          // gives content.js modules time to fully boot on slow machines / Brave.
+          setTimeout(() => {
+            chrome.tabs.sendMessage(tabId, { action: 'SHOW_CONTROL_BAR' }).catch(() => {});
+            chrome.storage.local.set({ activeHudTabId: tabId });
+          }, 600);
         });
       });
-      return true;
+      break; // fire-and-forget, no sendResponse
 
     case 'REGION_SCREENSHOT':
       handleRegionScreenshot(message, sendResponse);
@@ -197,12 +279,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }
         chrome.storage.local.set({ isRecording: false });
       });
-      return true;
+      break; // fire-and-forget, no sendResponse
 
     // ── HUD mic/cam toggles (from the in-page HUD buttons) ────────────────────
     case 'HUD_TOGGLE_MIC':
-      chrome.storage.local.set({ recMic: message.on === true });
-      return true;
+      chrome.storage.local.set({ recMic: message.on === true }, () => {
+        chrome.storage.local.get(['isRecording'], (res) => {
+          if (res.isRecording) {
+            chrome.runtime.sendMessage({ target: 'offscreen', type: 'toggle-mic-live', on: message.on === true }).catch(() => {});
+          }
+        });
+      });
+      break; // fire-and-forget, no sendResponse
 
     case 'HUD_TOGGLE_CAM':
       chrome.storage.local.set({ recCam: message.on === true });
@@ -225,13 +313,23 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           }
         }
       });
-      return true;
+      break; // fire-and-forget, no sendResponse
 
     // ── Camera-only: inject content.js into the active foreground tab ─────────
     case 'START_CAMERA_IN_TAB':
-      chrome.tabs.query({ active: true, lastFocusedWindow: true }, async (tabs) => {
+      // Use currentWindow (not lastFocusedWindow) — the camera is always injected
+      // into the tab the user was on, not any abstract "last focused" context.
+      chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
         const tab = tabs[0];
         if (tab && !tab.url.startsWith('chrome://') && !tab.url.startsWith('chrome-extension://') && !tab.url.startsWith('edge://')) {
+          // Save the tab title now in case START_RECORDING path didn't store it yet
+          if (tab.title) {
+            chrome.storage.local.get(['recordingTabTitle'], (r) => {
+              if (!r.recordingTabTitle) {
+                chrome.storage.local.set({ recordingTabTitle: tab.title, recordingTabUrl: tab.url || '' });
+              }
+            });
+          }
           await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['content.js'] }).catch(() => {});
           chrome.tabs.sendMessage(tab.id, { action: 'START_CAMERA_RECORDING', options: message.options });
         } else {
@@ -239,7 +337,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           notify('cam-error', 'AntCapture Error', 'Cannot record camera on this type of page (Chrome settings/new tab). Please open a normal website first.');
         }
       });
-      return true;
+      break; // fire-and-forget, no sendResponse
+
 
     // ── Auth ──────────────────────────────────────────────────────────────────
     case 'GET_USER':
@@ -262,21 +361,21 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     case 'SYNC_USER':
       if (message.user) {
         chrome.storage.local.set({ user: message.user }, () => {
-          console.log('✨ User synced from Web UI:', message.user.email);
+          log.info('User synced from Web UI', message.user.email);
           syncPendingUploads();
         });
       } else {
-        chrome.storage.local.remove(['user'], () => console.log('User signed out from Web UI.'));
+        chrome.storage.local.remove(['user'], () => log.info('User signed out from Web UI.'));
       }
-      return true;
+      break; // fire-and-forget, no sendResponse
 
     case 'REGISTER_WEB_UI':
       if (message.url) {
         chrome.storage.local.set({ dynamicWebUiUrl: message.url }, () =>
-          console.log('✨ Extension learned dynamic Web UI URL:', message.url)
+          log.info('Extension learned dynamic Web UI URL', message.url)
         );
       }
-      return true;
+      break; // fire-and-forget, no sendResponse
 
     // ── Queue / Cache ─────────────────────────────────────────────────────────
     case 'GET_CACHE_INFO':
@@ -318,6 +417,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 });
 
+
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Auth Listener — detects the /auth/success redirect and extracts the JWT
 // ─────────────────────────────────────────────────────────────────────────────
@@ -340,27 +441,35 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     userData.jwt = authData;
 
     chrome.storage.local.set({ user: userData }, () => {
-      console.log('✨ User authenticated in extension:', userData.email);
+      log.info('User authenticated in extension', userData.email);
       setTimeout(() => chrome.tabs.remove(tabId), 1500);
       syncPendingUploads();
     });
   } catch (e) {
-    console.error('Failed to parse extension auth data:', e);
+    log.error('Failed to parse extension auth data', e);
   }
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Offline Sync — retry queued uploads whenever the worker starts or goes online
 // ─────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
 chrome.runtime.onStartup.addListener(() => {
+  log.info('Service Worker Started');
   cleanTemporaryMedia();
+  cleanOPFSOrphans(); // remove orphaned recording files from disk
   syncPendingUploads();
 });
 chrome.runtime.onInstalled.addListener(() => {
+  log.info('Extension Installed/Updated');
   cleanTemporaryMedia();
+  cleanOPFSOrphans(); // remove orphaned recording files from disk
   syncPendingUploads();
 });
-self.addEventListener('online', syncPendingUploads);
+self.addEventListener('online', () => {
+  log.info('Browser came online, triggering sync');
+  syncPendingUploads();
+});
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Badge Timer via chrome.alarms — survives service worker idle restarts

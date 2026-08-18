@@ -2,8 +2,20 @@
 // Renders a draggable floating webcam preview bubble during "Cam + Screen" (overlay) recordings.
 // Listens for START_WEBCAM_BUBBLE / STOP_WEBCAM_BUBBLE messages from background.js.
 
+// ─────────────────────────────────────────────────────────────────────────────
+// ARCHITECTURE NOTE:
+// The webcam bubble is purely a UI component. It MUST NOT own a MediaStream that
+// is shared with the recording pipeline. Its stream is display-only (muted video).
+// Stopping this bubble must never affect the recording session.
+// ─────────────────────────────────────────────────────────────────────────────
+
 let webcamBubble = null;
 let webcamStream = null;
+let shadowHost = null;
+
+// Stored drag handlers so they can be removed on cleanup
+let _onDragMove = null;
+let _onDragUp   = null;
 
 export function initWebcamBubble() {
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -21,28 +33,35 @@ export function initWebcamBubble() {
 }
 
 async function startWebcamBubble() {
-  if (webcamBubble) return;
+  if (webcamBubble) return; // already running
 
   try {
     webcamStream = await navigator.mediaDevices.getUserMedia({
       video: { width: 320, height: 240, facingMode: 'user' },
-      audio: false,
+      audio: false, // display only — audio captured separately by the recording pipeline
     });
   } catch (e) {
-    console.error('Failed to get webcam:', e);
+    console.error('[AntCapture] Failed to get webcam stream for bubble:', e);
     return;
   }
 
   const size = 180;
+
+  shadowHost = document.createElement('div');
+  shadowHost.id = 'antcapture-webcam-host';
+  shadowHost.style.cssText = 'all: initial; position: fixed; z-index: 2147483647; top: 0; left: 0; width: 0; height: 0; overflow: visible;';
+  const shadowRoot = shadowHost.attachShadow({ mode: 'open' });
+
   webcamBubble = document.createElement('div');
   Object.assign(webcamBubble.style, {
-    position: 'fixed', bottom: '20px', left: '20px',
+    position: 'fixed', bottom: '20px', right: '20px',
     width: size+'px', height: size+'px',
     borderRadius: '50%', overflow: 'hidden',
     zIndex: '2147483647',
-    boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
+    boxShadow: '0 0 0 3px #ef4444, 0 8px 32px rgba(0,0,0,0.3)',
     border: '3px solid rgba(255,255,255,0.2)',
     cursor: 'move', backgroundColor: '#000',
+    transition: 'box-shadow 0.2s ease',
   });
 
   const video = document.createElement('video');
@@ -55,32 +74,55 @@ async function startWebcamBubble() {
     pointerEvents: 'none',
   });
   webcamBubble.appendChild(video);
-  document.body.appendChild(webcamBubble);
+  shadowRoot.appendChild(webcamBubble);
+  document.body.appendChild(shadowHost);
 
-  // Drag support
+  // ── Drag support with bounds clamping ──────────────────────────────────────
   let isDragging = false, startX, startY, initLeft, initTop;
+
   webcamBubble.addEventListener('mousedown', (e) => {
-    isDragging = true; startX = e.clientX; startY = e.clientY;
+    isDragging = true;
+    startX = e.clientX; startY = e.clientY;
     const rect = webcamBubble.getBoundingClientRect();
     initLeft = rect.left; initTop = rect.top;
+    e.preventDefault();
   });
-  window.addEventListener('mousemove', (e) => {
+
+  _onDragMove = (e) => {
     if (!isDragging) return;
-    webcamBubble.style.left   = (initLeft + e.clientX - startX) + 'px';
-    webcamBubble.style.top    = (initTop  + e.clientY - startY) + 'px';
+    const newLeft = initLeft + e.clientX - startX;
+    const newTop  = initTop  + e.clientY - startY;
+    // Clamp — keep at least half the bubble visible on screen
+    const half = size / 2;
+    const clampedLeft = Math.max(-half, Math.min(window.innerWidth  - half, newLeft));
+    const clampedTop  = Math.max(-half, Math.min(window.innerHeight - half, newTop));
+    webcamBubble.style.left   = clampedLeft + 'px';
+    webcamBubble.style.top    = clampedTop  + 'px';
     webcamBubble.style.right  = 'auto';
     webcamBubble.style.bottom = 'auto';
-  });
-  window.addEventListener('mouseup', () => { isDragging = false; });
+  };
+
+  _onDragUp = () => { isDragging = false; };
+
+  window.addEventListener('mousemove', _onDragMove);
+  window.addEventListener('mouseup',   _onDragUp);
 }
 
 function stopWebcamBubble() {
+  // 1. Remove drag event listeners — prevents accumulation across sessions
+  if (_onDragMove) { window.removeEventListener('mousemove', _onDragMove); _onDragMove = null; }
+  if (_onDragUp)   { window.removeEventListener('mouseup',   _onDragUp);   _onDragUp   = null; }
+
+  // 2. Stop the DISPLAY-ONLY webcam stream (safe — this is NOT the recording stream)
   if (webcamStream) {
     webcamStream.getTracks().forEach(t => t.stop());
     webcamStream = null;
   }
-  if (webcamBubble && webcamBubble.parentNode) {
-    webcamBubble.parentNode.removeChild(webcamBubble);
+
+  // 3. Remove the DOM element
+  if (shadowHost && shadowHost.parentNode) {
+    shadowHost.parentNode.removeChild(shadowHost);
+    shadowHost = null;
     webcamBubble = null;
   }
 }

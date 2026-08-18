@@ -3,6 +3,7 @@
 // Resolves via the chrome.runtime.sendMessage response callback.
 
 let regionOverlay = null;
+let shadowHost = null;
 
 export function initRegionSelect() {
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -14,7 +15,13 @@ export function initRegionSelect() {
 }
 
 function startRegionSelect(sendResponse) {
-  if (regionOverlay) return; // prevent double-overlay
+  if (shadowHost) return; // prevent double-overlay
+
+  shadowHost = document.createElement('div');
+  shadowHost.id = 'antcapture-region-host';
+  shadowHost.style.cssText = 'all: initial; position: fixed; z-index: 2147483647; top: 0; left: 0; width: 100vw; height: 100vh; pointer-events: none;';
+  
+  const shadowRoot = shadowHost.attachShadow({ mode: 'open' });
 
   // ── Root overlay (full screen, crosshair cursor) ──────────────────────────
   const overlay = document.createElement('div');
@@ -24,6 +31,7 @@ function startRegionSelect(sendResponse) {
     zIndex: '2147483647',
     cursor: 'crosshair',
     userSelect: 'none',
+    pointerEvents: 'auto',
     fontFamily: '"Inter", "Segoe UI", system-ui, sans-serif',
   });
 
@@ -96,7 +104,8 @@ function startRegionSelect(sendResponse) {
   toolbar.appendChild(saveBtn);
   overlay.appendChild(toolbar);
 
-  document.body.appendChild(overlay);
+  shadowRoot.appendChild(overlay);
+  document.body.appendChild(shadowHost);
 
   // ── State ─────────────────────────────────────────────────────────────────
   let startX = 0, startY = 0, isDragging = false;
@@ -199,7 +208,10 @@ function startRegionSelect(sendResponse) {
 
   function cleanup() {
     document.removeEventListener('keydown', onKeyDown);
-    if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+    if (shadowHost && shadowHost.parentNode) {
+      shadowHost.parentNode.removeChild(shadowHost);
+    }
+    shadowHost = null;
     regionOverlay = null;
   }
 

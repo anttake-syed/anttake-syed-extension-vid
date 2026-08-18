@@ -158,12 +158,11 @@ export function initCapture() {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         stream.getTracks().forEach(t => t.stop());
-        // Permission OK — just toggle
-        applyMicState(!recMic);
-        chrome.storage.local.set({ recMic });
+        // Permission OK — update central state
+        chrome.storage.local.set({ recMic: !recMic });
       } catch (e) {
         // No permission — open access page
-        chrome.tabs.create({ url: chrome.runtime.getURL('get-access.html?target=mic') });
+        chrome.tabs.create({ url: chrome.runtime.getURL('permissions/get-access.html?target=both') });
         window.close();
       }
     });
@@ -171,22 +170,13 @@ export function initCapture() {
 
   if (camBtn) {
     camBtn.addEventListener('click', async () => {
-      // Camera permission is only needed for "camera" or "overlay" recording modes.
-      // For screen/tab modes the cam toggle is purely a preference — no permission gate needed.
-      if (recMode === 'camera' || recMode === 'overlay') {
-        try {
-          const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-          stream.getTracks().forEach(t => t.stop());
-          applyCamState(!recCam);
-          chrome.storage.local.set({ recCam });
-        } catch (e) {
-          chrome.tabs.create({ url: chrome.runtime.getURL('get-access.html?target=cam') });
-          window.close();
-        }
-      } else {
-        // For screen/tab mode just toggle without permission gate
-        applyCamState(!recCam);
-        chrome.storage.local.set({ recCam });
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        stream.getTracks().forEach(t => t.stop());
+        chrome.storage.local.set({ recCam: !recCam });
+      } catch (e) {
+        chrome.tabs.create({ url: chrome.runtime.getURL('permissions/get-access.html?target=both') });
+        window.close();
       }
     });
   }
@@ -296,20 +286,15 @@ export function initCapture() {
   document.getElementById('activeRecMicBtn')?.addEventListener('click', () => {
     chrome.storage.local.get(['recMic'], (res) => {
       const newState = !(res.recMic === true);
-      chrome.storage.local.set({ recMic: newState });
+      // We do not update the DOM manually here; the chrome.storage.onChanged listener will handle it.
       chrome.runtime.sendMessage({ action: 'HUD_TOGGLE_MIC', on: newState });
-      _updatePopupMicCamUI(newState, null); // update mic only
-      // Re-read cam to keep both correct
-      chrome.storage.local.get(['recCam'], (r) => _updatePopupMicCamUI(newState, r.recCam === true));
     });
   });
 
   document.getElementById('activeRecCamBtn')?.addEventListener('click', () => {
     chrome.storage.local.get(['recCam'], (res) => {
       const newState = !(res.recCam === true);
-      chrome.storage.local.set({ recCam: newState });
       chrome.runtime.sendMessage({ action: 'HUD_TOGGLE_CAM', on: newState });
-      chrome.storage.local.get(['recMic'], (r) => _updatePopupMicCamUI(r.recMic === true, newState));
     });
   });
 
@@ -401,33 +386,60 @@ export function initCapture() {
     if (changes.recMic !== undefined || changes.recCam !== undefined) {
       chrome.storage.local.get(['recMic', 'recCam'], (res) => {
         _updatePopupMicCamUI(res.recMic === true, res.recCam === true);
+        if (changes.recMic !== undefined) applyMicState(res.recMic === true);
+        if (changes.recCam !== undefined) applyCamState(res.recCam === true);
       });
     }
   });
 
   if (recordBtn) {
-    recordBtn.addEventListener('click', () => {
+    recordBtn.addEventListener('click', async () => {
       recordBtn.disabled = true;
-      chrome.storage.local.get(['isRecording'], (result) => {
-        const currentlyRecording = result.isRecording || false;
+      const currentlyRecording = await new Promise(resolve =>
+        chrome.storage.local.get(['isRecording'], r => resolve(r.isRecording || false))
+      );
         
-        if (!currentlyRecording && (recMode === 'camera' || recMode === 'overlay') && !recCam) {
-          showToast('Please enable the Camera toggle first.', 'error');
-          recordBtn.disabled = false;
-          return;
-        }
+      if (!currentlyRecording && (recMode === 'camera' || recMode === 'overlay') && !recCam) {
+        showToast('Please enable the Camera toggle first.', 'error');
+        recordBtn.disabled = false;
+        return;
+      }
 
-        chrome.runtime.sendMessage({
-          action: currentlyRecording ? 'STOP_RECORDING' : 'START_RECORDING',
-          recordMode: recMode, resolution: recRes, format: recFormat, includeMic: recMic, includeCam: recCam,
-        }, (response) => {
-          recordBtn.disabled = false;
-          if (chrome.runtime.lastError) return;
-          if (!response?.success) {
-            if (recordBtnText) recordBtnText.textContent = 'Error — try again';
-            setTimeout(() => updateRecordButton(currentlyRecording), 2000);
+      // ── Resolve the active tab title HERE in the popup context ────────────────
+      // From the popup, chrome.tabs.query({ active: true, currentWindow: true })
+      // reliably returns the tab the user was on before opening the popup.
+      // The background service worker's lastFocusedWindow query is unreliable
+      // when the popup is open because the popup itself can be the "last focused window".
+      let tabTitle = '';
+      let tabUrl   = '';
+      if (!currentlyRecording) {
+        try {
+          const tabs = await new Promise(resolve =>
+            chrome.tabs.query({ active: true, currentWindow: true }, resolve)
+          );
+          const tab = tabs?.[0];
+          if (tab && tab.title) {
+            tabTitle = tab.title;
+            tabUrl   = tab.url || '';
           }
-        });
+        } catch (_) {
+          // Not a critical error — filename will fall back to generic name
+        }
+      }
+      // ─────────────────────────────────────────────────────────────────────────
+
+      chrome.runtime.sendMessage({
+        action: currentlyRecording ? 'STOP_RECORDING' : 'START_RECORDING',
+        recordMode: recMode, resolution: recRes, format: recFormat, includeMic: recMic, includeCam: recCam,
+        tabTitle,  // pass the resolved title directly — no background-side tab query needed
+        tabUrl,
+      }, (response) => {
+        recordBtn.disabled = false;
+        if (chrome.runtime.lastError) return;
+        if (!response?.success) {
+          if (recordBtnText) recordBtnText.textContent = 'Error — try again';
+          setTimeout(() => updateRecordButton(currentlyRecording), 2000);
+        }
       });
     });
   }
@@ -441,6 +453,21 @@ export function initCapture() {
 
       const action = { tab: 'TAKE_SCREENSHOT', region: 'REGION_SCREENSHOT', screen: 'SCREEN_SCREENSHOT' }[shotMode] || 'TAKE_SCREENSHOT';
 
+      // ── Resolve the active tab title HERE in the popup context ────────────────
+      let tabTitle = '';
+      try {
+        const tabs = await new Promise(resolve =>
+          chrome.tabs.query({ active: true, currentWindow: true }, resolve)
+        );
+        const tab = tabs?.[0];
+        if (tab && tab.title) {
+          tabTitle = tab.title;
+        }
+      } catch (_) {
+        // Fallback to empty string
+      }
+      // ─────────────────────────────────────────────────────────────────────────
+
       // (Optimistic queue update removed. User now decides in edit.html)
       if (action === 'REGION_SCREENSHOT') {
         chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
@@ -451,13 +478,13 @@ export function initCapture() {
             showToast('Cannot select regions on Chrome settings pages. Try a normal website.', 'error');
             return;
           }
-          chrome.runtime.sendMessage({ action });
+          chrome.runtime.sendMessage({ action, tabTitle });
           window.close();
         });
         return;
       }
 
-      chrome.runtime.sendMessage({ action }, (response) => {
+      chrome.runtime.sendMessage({ action, tabTitle }, (response) => {
         void chrome.runtime.lastError;
         shotCaptureBtn.disabled = false;
 

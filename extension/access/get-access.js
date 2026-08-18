@@ -11,10 +11,29 @@ async function requestPermissions() {
   $('feedsGrid').style.display = 'grid';
   
   try {
-    // Request both audio and video
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
-    currentMicStream = new MediaStream(stream.getAudioTracks());
-    currentCamStream = new MediaStream(stream.getVideoTracks());
+    // Parse target from URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const target = urlParams.get('target');
+
+    const constraints = {
+      audio: target === 'mic' || target === 'both' || !target,
+      video: target === 'cam' || target === 'both' || !target
+    };
+
+    let stream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia(constraints);
+    } catch (err) {
+      // If asking for both failed (e.g. no camera attached), try just audio if they didn't specifically ask for cam
+      if (err.name === 'NotFoundError' && constraints.video && target !== 'cam') {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      } else {
+        throw err;
+      }
+    }
+
+    if (stream.getAudioTracks().length > 0) currentMicStream = new MediaStream(stream.getAudioTracks());
+    if (stream.getVideoTracks().length > 0) currentCamStream = new MediaStream(stream.getVideoTracks());
     
     // Success!
     $('successBox').style.display = 'flex';
@@ -51,19 +70,20 @@ async function requestPermissions() {
       $('camSelect').value = videoTrack.getSettings().deviceId;
     }
 
-    // Parse target from URL
-    const urlParams = new URLSearchParams(window.location.search);
-    const target = urlParams.get('target');
-
     // Save state to extension storage to auto-turn on the requested toggle
     if (typeof chrome !== 'undefined' && chrome.storage?.local) {
       const updates = {};
-      if (target === 'mic') {
-        updates.recMic = true;
-        updates.micPermissionGranted = true;
-      } else if (target === 'cam') {
-        updates.recCam = true;
-        updates.camPermissionGranted = true;
+      if (target === 'mic' || target === 'both' || !target) {
+        if (currentMicStream) {
+          updates.recMic = true;
+          updates.micPermissionGranted = true;
+        }
+      }
+      if (target === 'cam' || target === 'both' || !target) {
+        if (currentCamStream) {
+          updates.recCam = true;
+          updates.camPermissionGranted = true;
+        }
       }
       chrome.storage.local.set(updates);
     }

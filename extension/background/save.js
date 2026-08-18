@@ -3,41 +3,36 @@
 // All screenshot + video recording paths funnel through saveCapture().
 // It reads storageMode and routes to: 'computer' | 'localhost' | 'cloud'.
 
-import { saveMediaLocally, getPendingUploads, deleteLocalMedia } from '../storage/storage.js';
+import { getPendingUploads, deleteLocalMedia, saveMediaLocally } from '../storage/storage.js';
 import { notify } from './notify.js';
 import { uploadToServer } from './upload.js';
+import { Logger } from '../shared/logger.js';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// dataURItoBlob — convert a base64 data URL into a Blob
-// ─────────────────────────────────────────────────────────────────────────────
-export function dataURItoBlob(dataURI) {
-  const base64Idx = dataURI.indexOf('base64,');
-  if (base64Idx === -1) throw new Error('Invalid data URI');
-  const byteString = atob(dataURI.slice(base64Idx + 7));
-  const mimeString = dataURI.slice(5, base64Idx - 1);
-  const ab = new ArrayBuffer(byteString.length);
-  const ia = new Uint8Array(ab);
-  for (let i = 0; i < byteString.length; i++) ia[i] = byteString.charCodeAt(i);
-  return new Blob([ab], { type: mimeString });
-}
+const log = Logger.getLogger('Background: Save/Sync');
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // saveCapture — single routing point for ALL captured media
 // ─────────────────────────────────────────────────────────────────────────────
-export async function saveCapture(blob, type = 'image', resolution = null, format = null) {
+export async function saveCapture(blob, type = 'image', resolution = null, format = null, hasAudio = true, tabTitle = '') {
   const label = type === 'image' ? 'Screenshot' : 'Recording';
 
-  // Always save the raw blob to IndexedDB as a 'preview' item
+  // Store tabTitle WITH the blob in IndexedDB — this is the only reliable path.
+  // Using a chrome.storage.local key (recordingTabTitle) is race-prone: if the
+  // service worker restarts or the edit page loads before the key is set, naming breaks.
   let itemId;
   try {
-    itemId = await saveMediaLocally(blob, type, 'preview', resolution, format);
+    itemId = await saveMediaLocally(blob, type, 'preview', resolution, format, hasAudio, tabTitle);
   } catch (err) {
     chrome.tabs.create({ url: chrome.runtime.getURL(`edit/edit.html?error=storage_full`) });
     throw err;
   }
   
+  // Simple edit URL — no need for URL params to carry the title anymore; it's in IndexedDB
+  const editUrl = chrome.runtime.getURL(`edit/edit.html?id=${itemId}`);
+  
   // Open the local edit/preview page automatically so the user can choose how to save it
-  chrome.tabs.create({ url: chrome.runtime.getURL(`edit/edit.html?id=${itemId}`) });
+  chrome.tabs.create({ url: editUrl });
   
   return { success: true, previewId: itemId };
 }
@@ -58,21 +53,22 @@ export async function syncPendingUploads() {
   const pending = await getPendingUploads('cloud');
   if (pending.length === 0)       return { synced: 0, failed: 0, total: 0, errors: [] };
 
-  console.log(`Syncing ${pending.length} pending items...`);
+  log.info(`Syncing ${pending.length} pending items...`);
   let synced = 0;
   const errors = [];
 
   for (const item of pending) {
     try {
-      await uploadToServer(item.blob, item.type, user.jwt, item.resolution, item.format);
-      console.log(`✅ Synced item ${item.id}`);
+      // Correct argument order: (blob, type, destination, jwt, resolution, format, customFilename, hasAudio)
+      await uploadToServer(item.blob, item.type, 'cloud', user.jwt, item.resolution, item.format, null, item.hasAudio !== undefined ? item.hasAudio : true);
+      log.info(`✅ Synced item ${item.id}`);
       await deleteLocalMedia(item.id);
       synced++;
       chrome.storage.local.get(['captureCount'], (r) =>
         chrome.storage.local.set({ captureCount: (r.captureCount || 0) + 1 })
       );
     } catch (error) {
-      console.error(`Sync failed for ${item.id}:`, error.message);
+      log.error(`Sync failed for ${item.id}`, error.message);
       errors.push(error.message);
       break; // Stop retrying if the server is down
     }

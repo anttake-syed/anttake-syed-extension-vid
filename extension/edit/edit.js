@@ -1,7 +1,7 @@
 import { getMediaById, deleteLocalMedia } from '../storage/storage.js';
 import { uploadToServer } from '../background/upload.js';
 import { notify } from '../background/notify.js';
-import { getConfig } from '../popup/state.js';
+import { getServerUrl } from '../background/upload.js';
 import { readOPFSFile, deleteOPFSFile } from '../storage/opfsStorage.js';
 import { AntCapturePlayer } from '../shared/player/AntCapturePlayer.js';
 
@@ -21,14 +21,17 @@ let autoSaveCountdown = 5;
 
 // Listen for successful login from background.js
 chrome.storage.onChanged.addListener((changes, area) => {
-  if (area === 'local' && changes.user) {
-    const newUser = changes.user.newValue;
-    updateAuthPanel(newUser);
-    // If sign-in just completed and we have a pending save — execute it now
-    if (newUser && newUser.jwt) {
-      if (pendingSaveMode) {
-        processSave(pendingSaveMode);
-        pendingSaveMode = null;
+  if (area === 'local' && (changes.user_cloud || changes.user_local)) {
+    const relevantChange = pendingSaveMode === 'localhost' ? changes.user_local : changes.user_cloud;
+    if (relevantChange) {
+      const newUser = relevantChange.newValue;
+      updateAuthPanel(newUser);
+      // If sign-in just completed and we have a pending save — execute it now
+      if (newUser && newUser.jwt) {
+        if (pendingSaveMode) {
+          processSave(pendingSaveMode);
+          pendingSaveMode = null;
+        }
       }
     }
   }
@@ -389,8 +392,9 @@ async function init() {
   });
 
   // Check initial connection status & render auth panel accordingly
-  chrome.storage.local.get(['user', 'autoSavePref'], (res) => {
-    updateAuthPanel(res.user);
+  // We default to showing the cloud user status if no pending mode is set
+  chrome.storage.local.get(['user_cloud', 'user_local', 'autoSavePref'], (res) => {
+    updateAuthPanel(res.user_cloud);
 
     // Setup auto-save toggles
     const toggles = document.querySelectorAll('.auto-save-toggle');
@@ -564,41 +568,48 @@ async function processSave(mode) {
       return;
     }
 
-    if (mode === 'localhost') {
-      document.body.style.pointerEvents = 'none';
-      await uploadToServer(blob, type, 'localhost', 'local-mode', resolution, format, customName, hasAudio);
-      chrome.storage.local.get(['captureCount'], (r) =>
-        chrome.storage.local.set({ captureCount: (r.captureCount || 0) + 1 })
-      );
-      notify('capture-local', `${label} saved`, 'Stored in your self-hosted library.');
-      isSaved = true;
-      await deleteCurrentItem();
-      await showSuccessAndClose('Saved to Self-Hosted!');
-      return;
-    }
+    if (mode === 'localhost' || mode === 'cloud' || mode === 'drive-only') {
+      if (mode === 'localhost') {
+        try {
+          const serverUrl = getServerUrl('localhost');
+          await fetch(`${serverUrl}/health`, { method: 'GET', signal: AbortSignal.timeout(2000) });
+        } catch (e) {
+          showToast('Self-Hosted server is not running (localhost:3001). Please start it and try again.', 'error', 5000);
+          return;
+        }
+      }
 
-    if (mode === 'cloud' || mode === 'drive-only') {
-      const { user } = await chrome.storage.local.get(['user']);
+      const userKey = mode === 'localhost' ? 'user_local' : 'user_cloud';
+      const { [userKey]: user } = await chrome.storage.local.get([userKey]);
+      
       if (user && user.jwt && navigator.onLine) {
         document.body.style.pointerEvents = 'none';
         await uploadToServer(blob, type, mode, user.jwt, resolution, format, customName, hasAudio);
         chrome.storage.local.get(['captureCount'], (r) =>
           chrome.storage.local.set({ captureCount: (r.captureCount || 0) + 1 })
         );
-        const msgTitle = mode === 'cloud' ? `${label} synced` : `${label} saved to Drive`;
-        const msgText  = mode === 'cloud' ? 'Saved to AntCapture web app and Google Drive.' : 'Uploaded directly to Google Drive.';
-        notify(mode === 'cloud' ? 'capture-cloud' : 'capture-drive', msgTitle, msgText);
+        let msgTitle, msgText;
+        if (mode === 'localhost') {
+           msgTitle = `${label} saved`;
+           msgText = 'Stored in your self-hosted library.';
+        } else {
+           msgTitle = mode === 'cloud' ? `${label} synced` : `${label} saved to Drive`;
+           msgText  = mode === 'cloud' ? 'Saved to AntCapture web app and Google Drive.' : 'Uploaded directly to Google Drive.';
+        }
+        notify(mode === 'localhost' ? 'capture-local' : (mode === 'cloud' ? 'capture-cloud' : 'capture-drive'), msgTitle, msgText);
         isSaved = true;
         await deleteCurrentItem();
-        await showSuccessAndClose(mode === 'cloud' ? 'Saved to Cloud & Drive!' : 'Uploaded to Google Drive!');
+        await showSuccessAndClose(mode === 'localhost' ? 'Saved to Self-Hosted!' : (mode === 'cloud' ? 'Saved to Cloud & Drive!' : 'Uploaded to Google Drive!'));
       } else {
         if (!user || !user.jwt) {
           pendingSaveMode = mode;
-          updateAuthPanel(null, `Sign in with Google to save to ${mode === 'cloud' ? 'AntCapture Web & Drive' : 'Google Drive'}.`);
+          const targetName = mode === 'localhost' ? 'Self-Hosted Server' : (mode === 'cloud' ? 'AntCapture Web & Drive' : 'Google Drive');
+          updateAuthPanel(null, `Sign in with Google to save to ${targetName}.`);
           return;
         }
         if (!navigator.onLine) { showToast('No internet connection. Please check your network.', 'error'); return; }
       }
+      return;
     }
   } catch (err) {
     console.error(err);
@@ -636,13 +647,15 @@ document.getElementById('discardConfirmBtn')?.addEventListener('click', async ()
 
 // ── Inline auth panel button handlers ─────────────────────────────────────
 document.getElementById('btnGoogleSignIn')?.addEventListener('click', async () => {
-  const { serverUrl } = await getConfig();
+  const targetMode = pendingSaveMode || 'cloud';
+  const serverUrl = getServerUrl(targetMode);
   const authUrl = `${serverUrl}/auth/google?source=extension`;
   chrome.tabs.create({ url: authUrl });
 });
 
 document.getElementById('btnLogout')?.addEventListener('click', () => {
-  chrome.storage.local.remove('user', () => {
+  const userKey = pendingSaveMode === 'localhost' ? 'user_local' : 'user_cloud';
+  chrome.storage.local.remove(userKey, () => {
     pendingSaveMode = null;
     updateAuthPanel(null);
     showToast("Signed out successfully.", "success");

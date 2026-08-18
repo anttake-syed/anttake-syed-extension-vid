@@ -1,13 +1,18 @@
 // background/upload.js — AntCapture
 // Handles uploading blobs to the server (localhost mode, Google Drive cloud mode, or Google Drive only).
 
-import { DEV_SERVER_URL, PROD_SERVER_URL, IS_DEV } from '../shared/config.js';
+import { DEV_SERVER_URL, PROD_SERVER_URL } from '../shared/config.js';
 import { Logger } from '../shared/logger.js';
 
 const log = Logger.getLogger('Background: Upload');
 
-export async function getServerUrl() {
-  return IS_DEV ? DEV_SERVER_URL : PROD_SERVER_URL;
+/**
+ * Resolves the correct API server URL based on the upload destination.
+ * The destination drives the URL — IS_DEV is no longer consulted here.
+ * @param {'localhost'|'cloud'|'drive-only'} destination
+ */
+export function getServerUrl(destination) {
+  return destination === 'localhost' ? DEV_SERVER_URL : PROD_SERVER_URL;
 }
 
 /**
@@ -37,7 +42,7 @@ export function resolveVideoMeta(type, format) {
  * @param {boolean} hasAudio — whether the capture includes audio
  */
 export async function uploadToServer(blob, type, destination, jwt, resolution = null, format = null, customFilename = null, hasAudio = true) {
-  const serverUrl = await getServerUrl();
+  const serverUrl = getServerUrl(destination);
   const { ext, mimeType } = resolveVideoMeta(type, format);
   
   let filename = customFilename || `capture-${Date.now()}`;

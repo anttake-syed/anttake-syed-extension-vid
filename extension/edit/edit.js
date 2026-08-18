@@ -87,21 +87,43 @@ function showToast(msg, type = 'success', durationMs = 2500) {
 
   const toast = document.createElement('div');
   const isErr = type === 'error';
+  toast.title = 'Click to copy';
   toast.style.cssText = `
     background: ${isErr ? 'rgba(239,68,68,0.9)' : 'rgba(16,185,129,0.9)'};
     color: white; padding: 10px 16px; border-radius: 8px;
     font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 8px;
     box-shadow: 0 10px 25px rgba(0,0,0,0.5); backdrop-filter: blur(4px);
-    transition: opacity 0.3s ease;
+    transition: opacity 0.3s ease; user-select: text; cursor: pointer;
   `;
-  toast.innerHTML = `<span class="material-symbols-rounded" style="font-size:16px;">${isErr ? 'error' : 'check_circle'}</span> ${msg}`;
+  toast.innerHTML = `<span class="material-symbols-rounded" style="font-size:16px;">${isErr ? 'error' : 'check_circle'}</span> <span>${msg}</span>`;
   
   container.appendChild(toast);
   
-  editToastTimer = setTimeout(() => {
-    toast.style.opacity = '0';
-    setTimeout(() => toast.remove(), 300);
-  }, durationMs);
+  const startTimer = () => {
+    editToastTimer = setTimeout(() => {
+      toast.style.opacity = '0';
+      setTimeout(() => toast.remove(), 300);
+    }, durationMs);
+  };
+
+  // Pause timer on hover so they have time to copy
+  toast.addEventListener('mouseenter', () => clearTimeout(editToastTimer));
+  toast.addEventListener('mouseleave', startTimer);
+  
+  // Click to copy functionality
+  toast.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(msg);
+      toast.innerHTML = `<span class="material-symbols-rounded" style="font-size:16px;">content_copy</span> <span>Copied to clipboard!</span>`;
+      setTimeout(() => {
+        toast.innerHTML = `<span class="material-symbols-rounded" style="font-size:16px;">${isErr ? 'error' : 'check_circle'}</span> <span>${msg}</span>`;
+      }, 1500);
+    } catch (e) {
+      console.error('Failed to copy', e);
+    }
+  });
+
+  startTimer();
 }
 
 let successCloseTimer = null;

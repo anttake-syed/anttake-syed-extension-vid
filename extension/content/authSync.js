@@ -9,17 +9,17 @@ export function initAuthSync() {
     if (userDataStr) {
       try {
         const user = JSON.parse(userDataStr);
-        chrome.runtime.sendMessage({ action: 'SYNC_USER', user });
+        chrome.runtime.sendMessage({ action: 'SYNC_USER', user, origin: window.location.origin });
       } catch (e) {
         console.error('Failed to parse user data', e);
       }
     } else {
-      chrome.runtime.sendMessage({ action: 'GET_USER' }, (res) => {
+      chrome.runtime.sendMessage({ action: 'GET_USER', origin: window.location.origin }, (res) => {
         if (res && res.user) {
           localStorage.setItem('antcapture_user', JSON.stringify(res.user));
           window.dispatchEvent(new Event('storage'));
         } else {
-          chrome.runtime.sendMessage({ action: 'SYNC_USER', user: null });
+          chrome.runtime.sendMessage({ action: 'SYNC_USER', user: null, origin: window.location.origin });
         }
       });
     }

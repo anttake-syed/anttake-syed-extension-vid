@@ -18,6 +18,7 @@ model Capture {
   driveUrl        String?
   storageLocation String   @default("drive")
   mediaData       Bytes?
+  hasAudio        Boolean  @default(true)
   createdAt       DateTime @default(now())
 }
 
@@ -30,6 +31,7 @@ model UserSettings {
 model Feedback {
   id        Int      @id @default(autoincrement())
   email     String
+  type      String   @default("bug")
   message   String
   createdAt DateTime @default(now())
 }

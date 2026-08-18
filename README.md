@@ -196,3 +196,16 @@ t**, **Start/Stop Recording**,
 - Email notifications for errors or full storage
 
 Like that thing will automatically delete in WordViewi the video will automatically delete from local if we select that in settings then that will store in cloud then that don't consume both sides of the space
+
+---
+
+## 📄 License & Commercial Use
+
+AntCapture is dual-licensed:
+
+1. **Open Source License**: The core software is licensed under the [GNU Affero General Public License v3.0 (AGPL-3.0)](LICENSE). This means you can use and modify the code freely, provided you share your modifications and do not use it to provide a proprietary SaaS service.
+2. **Commercial License**: For businesses that want to embed AntCapture in their closed-source products, use it in a team of 5+ members, or avoid the AGPL copyleft requirements, a Commercial License is required. See [`COMMERCIAL_LICENSE.md`](COMMERCIAL_LICENSE.md) for pricing and details.
+
+## ™️ Trademark Guidelines
+
+"AntCapture" and "AntTake" are trademarks of Syed. While the source code is available under the AGPL v3 license, this license does NOT grant you the right to use our trademarks. If you fork the project and distribute a modified version, you must rename your project to avoid confusing users.

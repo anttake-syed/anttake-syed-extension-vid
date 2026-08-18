@@ -224,30 +224,36 @@ label {
   transform: scale(1.1);
 }
 
-/* Custom Button Modes */
-.btn-computer:hover { 
-  border-color: #3b82f6; 
-  box-shadow: 0 10px 20px -10px rgba(59, 130, 246, 0.3); 
-}
-.btn-computer .material-symbols-rounded { color: #3b82f6; }
 
-.btn-cloud:hover { 
-  border-color: #818cf8; 
-  box-shadow: 0 10px 20px -10px rgba(129, 140, 248, 0.3); 
-}
-.btn-cloud .material-symbols-rounded { color: #818cf8; }
 
-.btn-drive:hover { 
-  border-color: #10b981; 
-  box-shadow: 0 10px 20px -10px rgba(16, 185, 129, 0.3); 
+/* Auto-Save Toggle */
+.auto-save-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 10px;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.2s ease;
 }
-.btn-drive .material-symbols-rounded { color: #10b981; }
 
-.btn-local:hover { 
-  border-color: #8b5cf6; 
-  box-shadow: 0 10px 20px -10px rgba(139, 92, 246, 0.3); 
+.auto-save-toggle:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #e2e8f0;
 }
-.btn-local .material-symbols-rounded { color: #8b5cf6; }
+
+.auto-save-toggle.active {
+  background: rgba(234, 179, 8, 0.15);
+  border-color: rgba(234, 179, 8, 0.4);
+  color: #facc15;
+}
+
+.auto-save-toggle .material-symbols-rounded {
+  font-size: 20px;
+}
 
 /* Discard Button */
 .btn-discard { 

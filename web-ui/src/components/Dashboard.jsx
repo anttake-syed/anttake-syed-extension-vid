@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 
 // Update this once the extension is approved on the Chrome Web Store
 const CHROME_STORE_URL = '#';
@@ -86,8 +86,8 @@ function GetExtensionBanner() {
   );
 }
 
-const DriveLogoSVG = ({ size = 22 }) => (
-  <svg viewBox="0 0 87.3 78" width={size} height={size} xmlns="http://www.w3.org/2000/svg">
+const DriveLogoSVG = ({ size = 20 }) => (
+  <svg viewBox="0 0 87.3 78" width={size} height={size} xmlns="http://www.w3.org/2000/svg" style={{ flexShrink: 0 }}>
     <path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8H.97c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/>
     <path d="M43.65 25 29.9 1.2C28.55 2 27.4 3.1 26.6 4.5L1.2 48.4C.4 49.8 0 51.35 0 52.9h27.45z" fill="#00ac47"/>
     <path d="M73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5H59.85l5.65 9.5z" fill="#ea4335"/>
@@ -96,6 +96,62 @@ const DriveLogoSVG = ({ size = 22 }) => (
     <path d="M27.45 52.9H0l13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2L59.85 52.9z" fill="#ffba00"/>
   </svg>
 );
+
+const ThumbnailVideo = ({ item }) => {
+  const [videoHovered, setVideoHovered] = useState(false);
+  const [isLoaded, setIsLoaded] = useState(false);
+
+  return (
+    <div style={{ position: 'relative', width: '100%', height: '100%', background: '#0a0f1d' }}
+      onMouseEnter={() => setVideoHovered(true)}
+      onMouseLeave={() => setVideoHovered(false)}
+    >
+      {/* Skeleton / Loading State */}
+      {!isLoaded && (
+        <div style={{
+          position: 'absolute', inset: 0, zIndex: 1,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          background: 'linear-gradient(135deg, rgba(30,41,59,0.5) 0%, rgba(15,23,42,0.8) 100%)',
+          animation: 'pulse-glow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite'
+        }}>
+          <span className="material-symbols-rounded" style={{ fontSize: '28px', color: 'rgba(148,163,184,0.4)' }}>
+            movie
+          </span>
+        </div>
+      )}
+
+      {/* Video Element */}
+      <video
+        src={item.src}
+        style={{
+          width: '100%', height: '100%', objectFit: 'cover',
+          opacity: isLoaded ? 1 : 0, transition: 'opacity 0.3s ease'
+        }}
+        muted
+        onLoadedData={() => setIsLoaded(true)}
+        onMouseOver={e => { if (isLoaded) e.target.play().catch(()=>{}); }}
+        onMouseOut={e => { e.target.pause(); e.target.currentTime = 0; }}
+      />
+
+      {/* Play Icon Overlay */}
+      <div style={{
+        position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+        pointerEvents: 'none', transition: 'opacity 0.2s', zIndex: 2,
+        opacity: (!isLoaded || videoHovered) ? 0 : 1,
+      }}>
+        <div style={{
+          width: '40px', height: '40px', borderRadius: '50%',
+          background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          backdropFilter: 'blur(2px)'
+        }}>
+          <span className="material-symbols-rounded" style={{ fontSize: '22px', color: 'white', marginLeft: '3px' }}>
+            play_arrow
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 function StatCard({ icon, value, label, sub, isAuthenticated, onSignIn, isDrive }) {
   return (
@@ -143,22 +199,7 @@ function MediaThumb({ item, onOpen }) {
       ) : item.type === 'image' && item.src ? (
         <img src={item.src} alt={item.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
       ) : item.type === 'video' && item.src ? (
-        <div style={{ position: 'relative', width: '100%', height: '100%' }}
-          onMouseEnter={() => setVideoHovered(true)}
-          onMouseLeave={() => setVideoHovered(false)}
-        >
-          <video src={item.src} style={{ width: '100%', height: '100%', objectFit: 'cover' }} muted
-            onMouseOver={e => e.target.play()} onMouseOut={e => { e.target.pause(); e.target.currentTime = 0; }} />
-          <div style={{
-            position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
-            pointerEvents: 'none', transition: 'opacity 0.2s',
-            opacity: videoHovered ? 0 : 1,
-          }}>
-            <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(2px)' }}>
-              <span className="material-symbols-rounded" style={{ fontSize: '22px', color: 'white', marginLeft: '3px' }}>play_arrow</span>
-            </div>
-          </div>
-        </div>
+        <ThumbnailVideo item={item} />
       ) : (
         <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <span className="material-symbols-rounded" style={{ fontSize: '36px', color: '#475569' }}>
@@ -175,6 +216,13 @@ function MediaThumb({ item, onOpen }) {
         {item.type === 'video' && (
           <div style={{ background: 'rgba(0,0,0,0.6)', borderRadius: '6px', padding: '2px 8px', fontSize: '11px', fontWeight: 700, color: '#f8fafc', letterSpacing: '0.05em' }}>
             {(item.mimeType || '').includes('mp4') || (item.title || '').toLowerCase().endsWith('.mp4') ? 'MP4' : 'WEBM'}
+          </div>
+        )}
+        {item.type === 'video' && (
+          <div title={(item.hasAudio === false) ? 'No Audio (Muted)' : 'Contains Audio'} style={{ background: 'rgba(0,0,0,0.6)', borderRadius: '6px', padding: '1px 6px', display: 'flex', alignItems: 'center', border: `1px solid ${(item.hasAudio === false) ? 'rgba(239,68,68,0.4)' : 'rgba(255,255,255,0.15)'}` }}>
+            <span className="material-symbols-rounded" style={{ fontSize: '14px', color: 'white' }}>
+              {(item.hasAudio === false) ? 'volume_off' : 'volume_up'}
+            </span>
           </div>
         )}
       </div>

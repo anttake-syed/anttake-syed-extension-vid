@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 
 const DriveLogoSVG = ({ size = 20 }) => (
   <svg viewBox="0 0 87.3 78" width={size} height={size} xmlns="http://www.w3.org/2000/svg">
@@ -54,6 +54,11 @@ function MediaCard({ item, onOpen, viewMode }) {
           {item.type === 'video' && (
             <span style={{ fontSize: '11px', fontWeight: 700, padding: '3px 10px', borderRadius: '999px', background: 'rgba(248, 250, 252, 0.1)', color: '#f8fafc', border: '1px solid rgba(255,255,255,0.1)' }}>
               {(item.mimeType || '').includes('mp4') || (item.title || '').toLowerCase().endsWith('.mp4') ? 'MP4' : 'WEBM'}
+            </span>
+          )}
+          {item.type === 'video' && (
+            <span title={(item.hasAudio === false) ? 'No Audio (Muted)' : 'Contains Audio'} className="material-symbols-rounded" style={{ fontSize: '14px', padding: '4px', borderRadius: '50%', background: 'rgba(248, 250, 252, 0.1)', border: `1px solid ${(item.hasAudio === false) ? 'rgba(239,68,68,0.4)' : 'rgba(255,255,255,0.1)'}`, color: 'white', alignSelf: 'center' }}>
+              {(item.hasAudio === false) ? 'volume_off' : 'volume_up'}
             </span>
           )}
         </div>
@@ -120,6 +125,13 @@ function MediaCard({ item, onOpen, viewMode }) {
               {(item.mimeType || '').includes('mp4') || (item.title || '').toLowerCase().endsWith('.mp4') ? 'MP4' : 'WEBM'}
             </div>
           )}
+          {item.type === 'video' && (
+            <div title={(item.hasAudio === false) ? 'No Audio (Muted)' : 'Contains Audio'} style={{ background: 'rgba(0,0,0,0.6)', borderRadius: '6px', padding: '1px 6px', display: 'flex', alignItems: 'center', border: `1px solid ${(item.hasAudio === false) ? 'rgba(239,68,68,0.4)' : 'rgba(255,255,255,0.15)'}` }}>
+              <span className="material-symbols-rounded" style={{ fontSize: '14px', color: 'white' }}>
+                {(item.hasAudio === false) ? 'volume_off' : 'volume_up'}
+              </span>
+            </div>
+          )}
         </div>
 
         
@@ -152,25 +164,92 @@ function MediaCard({ item, onOpen, viewMode }) {
   );
 }
 
+// ── Fuzzy scorer ──────────────────────────────────────────────────────────────
+// Returns a score > 0 if every char in `query` appears in `text` in order.
+// Higher score = better match (consecutive chars score higher).
+function fuzzyScore(text, query) {
+  if (!query) return 1;
+  text = text.toLowerCase();
+  query = query.toLowerCase();
+  let score = 0, ti = 0, qi = 0, streak = 0;
+  while (ti < text.length && qi < query.length) {
+    if (text[ti] === query[qi]) {
+      streak++;
+      score += streak; // consecutive bonus
+      qi++;
+    } else {
+      streak = 0;
+    }
+    ti++;
+  }
+  return qi === query.length ? score : 0; // 0 = no match
+}
+
 export default function Library({ captures, loadingCaptures, onOpenMedia, isAuthenticated, onSignIn }) {
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState('All');
   const [sort, setSort] = useState('newest');
   const [viewMode, setViewMode] = useState('grid');
+  const [showShortcuts, setShowShortcuts] = useState(false);
+  const searchRef = useRef(null);
 
+  // ── Keyboard Shortcuts ───────────────────────────────────────────────────────
+  useEffect(() => {
+    const handler = (e) => {
+      const tag = document.activeElement?.tagName?.toLowerCase();
+      const isTyping = tag === 'input' || tag === 'textarea' || tag === 'select';
+
+      // / or Cmd+K → focus search
+      if ((e.key === '/' || (e.key === 'k' && (e.metaKey || e.ctrlKey))) && !isTyping) {
+        e.preventDefault();
+        searchRef.current?.focus();
+        searchRef.current?.select();
+        return;
+      }
+      // Escape → clear search (if search input is focused)
+      if (e.key === 'Escape' && document.activeElement === searchRef.current) {
+        setSearch('');
+        searchRef.current?.blur();
+        return;
+      }
+      // g → grid view
+      if (e.key === 'g' && !isTyping) { setViewMode('grid'); return; }
+      // l → list view
+      if (e.key === 'l' && !isTyping) { setViewMode('list'); return; }
+      // v → filter videos
+      if (e.key === 'v' && !isTyping) { setTypeFilter('Videos'); return; }
+      // s → filter screenshots
+      if (e.key === 's' && !isTyping) { setTypeFilter('Screenshots'); return; }
+      // a → show all
+      if (e.key === 'a' && !isTyping) { setTypeFilter('All'); return; }
+      // ? → toggle shortcuts panel
+      if (e.key === '?' && !isTyping) { setShowShortcuts(p => !p); return; }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
+
+  // ── Fuzzy filter + sort ──────────────────────────────────────────────────────
   const filtered = useMemo(() => {
     let list = [...captures];
 
     if (typeFilter === 'Videos') {list = list.filter(c => c.type === 'video');}
     else if (typeFilter === 'Screenshots') {list = list.filter(c => c.type === 'image');}
 
-    if (search.trim()) {
-      const q = search.toLowerCase();
-      list = list.filter(c => (c.title || '').toLowerCase().includes(q));
+    const q = search.trim();
+    if (q) {
+      // Combine title + type + size for matching
+      list = list
+        .map(c => {
+          const haystack = [c.title || '', c.type || '', c.size || ''].join(' ');
+          return { ...c, _score: fuzzyScore(haystack, q) };
+        })
+        .filter(c => c._score > 0)
+        .sort((a, b) => b._score - a._score); // best match first
+    } else {
+      if (sort === 'newest') {list.sort((a, b) => new Date(b.date) - new Date(a.date));}
+      else if (sort === 'oldest') {list.sort((a, b) => new Date(a.date) - new Date(b.date));}
     }
-
-    if (sort === 'newest') {list.sort((a, b) => new Date(b.date) - new Date(a.date));}
-    else if (sort === 'oldest') {list.sort((a, b) => new Date(a.date) - new Date(b.date));}
 
     return list;
   }, [captures, typeFilter, search, sort]);
@@ -192,17 +271,22 @@ export default function Library({ captures, loadingCaptures, onOpenMedia, isAuth
     <>
       {/* ── Toolbar ── */}
       <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap', marginBottom: '20px' }}>
-        {/* Search */}
+              {/* Search */}
         <div style={{ position: 'relative', flex: '1', minWidth: '200px' }}>
           <span className="material-symbols-rounded" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', fontSize: '18px', color: '#475569', pointerEvents: 'none' }}>search</span>
           <input
+            ref={searchRef}
             value={search}
             onChange={e => setSearch(e.target.value)}
-            placeholder="Search captures..."
-            style={{ width: '100%', background: '#1e293b', border: '1px solid #334155', borderRadius: '10px', color: '#f1f5f9', fontSize: '14px', padding: '9px 12px 9px 38px', outline: 'none', boxSizing: 'border-box' }}
+            placeholder="Fuzzy search captures... (press / to focus)"
+            style={{ width: '100%', background: '#1e293b', border: '1px solid #334155', borderRadius: '10px', color: '#f1f5f9', fontSize: '14px', padding: '9px 36px 9px 38px', outline: 'none', boxSizing: 'border-box' }}
             onFocus={e => e.target.style.borderColor = '#6366f1'}
             onBlur={e => e.target.style.borderColor = '#334155'}
           />
+          {/* / shortcut hint inside input */}
+          {!search && (
+            <kbd style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: '#0f172a', border: '1px solid #334155', borderRadius: '4px', padding: '2px 6px', fontSize: '11px', color: '#475569', pointerEvents: 'none' }}>/</kbd>
+          )}
         </div>
 
         {/* Type filter */}
@@ -224,7 +308,7 @@ export default function Library({ captures, loadingCaptures, onOpenMedia, isAuth
           <option value="oldest">Oldest first</option>
         </select>
 
-        {/* View toggle */}
+                {/* View toggle */}
         <div style={{ display: 'flex', background: '#1e293b', border: '1px solid #334155', borderRadius: '10px', overflow: 'hidden' }}>
           {[['grid', 'grid_view'], ['list', 'view_list']].map(([mode, icon]) => (
             <button key={mode} onClick={() => setViewMode(mode)} title={mode} style={{ padding: '9px 12px', border: 'none', cursor: 'pointer', background: viewMode === mode ? '#334155' : 'transparent', color: viewMode === mode ? '#f1f5f9' : '#64748b', transition: 'background 0.15s' }}>
@@ -232,7 +316,37 @@ export default function Library({ captures, loadingCaptures, onOpenMedia, isAuth
             </button>
           ))}
         </div>
+
+        {/* Keyboard shortcut hint */}
+        <button
+          onClick={() => setShowShortcuts(p => !p)}
+          title="Keyboard shortcuts (?)"
+          style={{ padding: '9px 12px', background: showShortcuts ? '#334155' : '#1e293b', border: '1px solid #334155', borderRadius: '10px', color: '#64748b', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '13px', fontWeight: 600, transition: 'background 0.15s' }}
+        >
+          <span className="material-symbols-rounded" style={{ fontSize: '16px' }}>keyboard</span>
+        </button>
       </div>
+
+      {/* ── Keyboard Shortcuts Panel ── */}
+      {showShortcuts && (
+        <div style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: '12px', padding: '16px 20px', marginBottom: '20px', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '8px 24px' }}>
+          {[
+            ['/', 'Focus search'],
+            ['Esc', 'Clear search'],
+            ['G', 'Grid view'],
+            ['L', 'List view'],
+            ['V', 'Filter Videos'],
+            ['S', 'Filter Screenshots'],
+            ['A', 'Show All'],
+            ['?', 'Toggle this panel'],
+          ].map(([key, desc]) => (
+            <div key={key} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <kbd style={{ background: '#0f172a', border: '1px solid #475569', borderRadius: '4px', padding: '2px 8px', fontSize: '12px', color: '#94a3b8', fontWeight: 700, minWidth: '28px', textAlign: 'center', flexShrink: 0 }}>{key}</kbd>
+              <span style={{ fontSize: '12px', color: '#64748b' }}>{desc}</span>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* ── Count bar ── */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>

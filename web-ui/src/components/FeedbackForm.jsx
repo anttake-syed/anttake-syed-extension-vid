@@ -19,6 +19,7 @@ const SectionHeader = ({ icon, title, subtitle }) => (
 );
 
 export default function FeedbackForm({ user }) {
+  const [type, setType] = useState('bug');
   const [text, setText] = useState('');
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -55,7 +56,7 @@ export default function FeedbackForm({ user }) {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${user.jwt}`,
         },
-        body: JSON.stringify({ message: text.trim() }),
+        body: JSON.stringify({ type, message: text.trim() }),
       });
       const data = await res.json();
       if (!res.ok) {throw new Error(data.error || 'Failed to submit feedback');}
@@ -70,6 +71,26 @@ export default function FeedbackForm({ user }) {
   return (
     <div style={S.section} className="fadeInScale">
       <SectionHeader icon="chat_bubble" title="Submit Feedback" subtitle="Found a bug or have a feature idea? We want to hear it." />
+
+      <label style={S.label}>Feedback Type</label>
+      <select
+        value={type}
+        onChange={(e) => setType(e.target.value)}
+        style={{
+          width: '100%', background: '#0f172a', border: '1px solid #334155',
+          borderRadius: '12px', padding: '12px 16px', color: '#f1f5f9', marginBottom: '20px',
+          outline: 'none', boxSizing: 'border-box', fontSize: '14px',
+          fontFamily: 'inherit', transition: 'border-color 0.2s', appearance: 'none',
+          cursor: 'pointer'
+        }}
+        onFocus={e => e.target.style.borderColor = '#6366f1'}
+        onBlur={e => e.target.style.borderColor = '#334155'}
+      >
+        <option value="bug">Report a Bug</option>
+        <option value="feature">Feature Request</option>
+        <option value="confusing">Something is Confusing</option>
+        <option value="other">Other</option>
+      </select>
 
       <label style={S.label}>Your Message</label>
       <textarea

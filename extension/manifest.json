@@ -11,7 +11,8 @@
     "unlimitedStorage",
     "offscreen",
     "downloads",
-    "alarms"
+    "alarms",
+    "notifications"
   ],
   "host_permissions": [
     "https://api.antcapture.anttake.com/*",
@@ -41,7 +42,8 @@
         "content/regionSelect.js",
         "content/webcamBubble.js",
         "content/cameraRecorder.js",
-        "content/controlBar.js"
+        "content/controlBar.js",
+        "shared/logger.js"
       ],
       "matches": ["<all_urls>"],
       "extension_ids": []

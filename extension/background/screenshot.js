@@ -4,7 +4,10 @@
 //   2. Region screenshot     (user draws a selection box)
 //   3. Full-screen snapshot  (same as tab, but framed as "entire screen")
 
-import { saveCapture, dataURItoBlob } from './save.js';
+import { saveCapture } from './save.js';
+import { Logger } from '../shared/logger.js';
+
+const log = Logger.getLogger('Background: Screenshot');
 
 // ─────────────────────────────────────────────────────────────────────────────
 // handleTakeScreenshot — captures the visible area of the active tab
@@ -16,7 +19,6 @@ export async function handleTakeScreenshot(message, sendResponse) {
 
     if (!tab || !tab.url ||
         tab.url.startsWith('chrome://') ||
-        tab.url.startsWith('chrome-extension://') ||
         tab.url === 'about:blank' ||
         tab.url === 'about:newtab') {
       sendResponse({ success: false, error: 'Cannot screenshot this page. Navigate to a real website first.' });
@@ -24,11 +26,12 @@ export async function handleTakeScreenshot(message, sendResponse) {
     }
 
     const dataUrl = await chrome.tabs.captureVisibleTab(tab.windowId, { format: 'png' });
-    const blob = dataURItoBlob(dataUrl);
-    const result = await saveCapture(blob, 'image');
+    const blob = await fetch(dataUrl).then(r => r.blob());
+    const finalTitle = message.tabTitle || tab.title || '';
+    const result = await saveCapture(blob, 'image', null, null, false, finalTitle);
     sendResponse(result);
   } catch (error) {
-    console.error('Screenshot failed:', error);
+    log.error('Screenshot failed', error);
     sendResponse({ success: false, error: error.message });
   }
 }
@@ -50,7 +53,7 @@ export async function handleRegionScreenshot(message, sendResponse) {
     try {
       await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['content.js'] });
     } catch (injectErr) {
-      console.log('Script injection note:', injectErr.message);
+      log.warn('Script injection note', injectErr.message);
     }
 
     // Ask content.js to show the drag-select overlay; it resolves when the user saves/cancels
@@ -73,10 +76,11 @@ export async function handleRegionScreenshot(message, sendResponse) {
       height: region.height * dpr,
     });
 
-    const result = await saveCapture(croppedBlob, 'image');
+    const finalTitle = message.tabTitle || tab.title || '';
+    const result = await saveCapture(croppedBlob, 'image', null, null, false, finalTitle);
     sendResponse(result);
   } catch (err) {
-    console.error('Region screenshot failed:', err);
+    log.error('Region screenshot failed', err);
     sendResponse({ success: false, error: err.message });
   }
 }
@@ -92,10 +96,11 @@ export async function handleScreenScreenshot(message, sendResponse) {
 
     const dataUrl = await chrome.tabs.captureVisibleTab(tab.windowId, { format: 'png' });
     const blob = await fetch(dataUrl).then(r => r.blob());
-    const result = await saveCapture(blob, 'image');
+    const finalTitle = message.tabTitle || tab.title || '';
+    const result = await saveCapture(blob, 'image', null, null, false, finalTitle);
     sendResponse(result);
   } catch (err) {
-    console.error('Screen screenshot failed:', err);
+    log.error('Screen screenshot failed', err);
     sendResponse({ success: false, error: err.message });
   }
 }

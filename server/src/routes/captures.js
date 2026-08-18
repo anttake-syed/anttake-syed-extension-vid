@@ -7,6 +7,7 @@ router.get('/', requireAuth, captureController.getCaptures);
 router.get('/media/:id', captureController.getMedia);
 router.options('/media/:id', captureController.getMedia); // CORS preflight for video Range requests
 router.post('/:id/remove-drive', requireAuth, captureController.removeDrive);
+router.patch('/:id/rename', requireAuth, captureController.renameCapture);
 router.delete('/all', requireAuth, captureController.deleteAll);
 router.delete('/:id', requireAuth, captureController.deleteCapture);
 

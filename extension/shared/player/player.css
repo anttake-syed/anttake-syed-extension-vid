@@ -1,0 +1,389 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   AntCapture Player  ·  shared/player/player.css
+   Zero browser controls. 100% custom AntCapture UI.
+───────────────────────────────────────────────────────────────────────────── */
+
+/* ── Reset inside player ───────────────────────────────────────────────────── */
+.acp * { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* ── Root ──────────────────────────────────────────────────────────────────── */
+.acp {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background: #000;
+  border-radius: 10px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  user-select: none;
+  --acp-accent:    #6366f1;
+  --acp-accent2:   #a78bfa;
+  --acp-text:      #f1f5f9;
+  --acp-muted:     #64748b;
+  --acp-bg:        rgba(8, 12, 24, 0.92);
+  --acp-track-bg:  rgba(255,255,255,0.10);
+  --acp-fill:      linear-gradient(90deg,#6366f1,#a78bfa);
+  font-family: 'Inter', -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Native video (engine only, no UI) ─────────────────────────────────────── */
+.acp video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+  background: #000;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+  cursor: pointer;
+  z-index: 1;
+}
+.acp video.acp-ready { opacity: 1; }
+
+/* ── State overlays ────────────────────────────────────────────────────────── */
+.acp-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  transition: opacity 0.3s ease;
+}
+.acp-overlay.acp-hidden { opacity: 0; pointer-events: none; }
+
+/* Loading */
+.acp-overlay-loading { background: linear-gradient(135deg,#08111e 0%,#101828 100%); }
+
+.acp-spinner {
+  width: 52px; height: 52px;
+  border-radius: 50%;
+  border: 2.5px solid rgba(99,102,241,0.15);
+  border-top-color: #6366f1;
+  animation: acp-spin 0.85s linear infinite;
+}
+@keyframes acp-spin { to { transform: rotate(360deg); } }
+
+/* Error */
+.acp-overlay-error { background: linear-gradient(135deg,#080f1e 0%,#180a0a 100%); }
+
+/* Empty */
+.acp-overlay-empty { background: linear-gradient(135deg,#08111e 0%,#101828 100%); }
+
+.acp-overlay-icon {
+  font-size: 48px !important;
+  line-height: 1;
+}
+.acp-overlay-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #f1f5f9;
+}
+.acp-overlay-sub {
+  font-size: 12px;
+  color: #64748b;
+  text-align: center;
+  max-width: 300px;
+  line-height: 1.65;
+}
+.acp-overlay-code {
+  font-size: 11px;
+  font-family: 'Menlo', 'Monaco', monospace;
+  color: #475569;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 6px;
+  padding: 6px 12px;
+  max-width: 320px;
+  text-align: center;
+  word-break: break-word;
+}
+
+/* ── Play/Pause centre flash ───────────────────────────────────────────────── */
+.acp-flash {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  opacity: 0;
+}
+.acp-flash-ring {
+  width: 70px; height: 70px;
+  border-radius: 50%;
+  background: rgba(99,102,241,0.18);
+  backdrop-filter: blur(8px);
+  border: 2px solid rgba(99,102,241,0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.acp-flash-ring .material-symbols-rounded { font-size: 34px !important; color: #fff; }
+.acp-flash.acp-flash-go { animation: acp-flash 0.42s ease-out forwards; }
+@keyframes acp-flash {
+  0%   { opacity: 1; transform: scale(0.75); }
+  35%  { opacity: 1; transform: scale(1.05); }
+  100% { opacity: 0; transform: scale(1.22); }
+}
+
+/* ── Buffering ring (shown over video) ─────────────────────────────────────── */
+.acp-buffering {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+.acp-buffering.acp-active { opacity: 1; }
+.acp-buffering-ring {
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  border: 2px solid rgba(255,255,255,0.12);
+  border-top-color: rgba(99,102,241,0.8);
+  animation: acp-spin 0.75s linear infinite;
+}
+
+/* ── Controls chrome ───────────────────────────────────────────────────────── */
+.acp-controls {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  z-index: 10;
+  background: linear-gradient(to top, rgba(0,0,0,0.88) 0%, rgba(0,0,0,0) 100%);
+  padding: 40px 14px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  opacity: 0;
+  transform: translateY(6px);
+  transition: opacity 0.22s ease, transform 0.22s ease;
+  pointer-events: none;
+}
+.acp-controls.acp-visible,
+.acp:hover .acp-controls,
+.acp.acp-paused .acp-controls,
+.acp.acp-ended .acp-controls {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: all;
+}
+
+/* ── Seekbar row ───────────────────────────────────────────────────────────── */
+.acp-seek-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Time display */
+.acp-time {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--acp-text);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+  min-width: 96px;
+}
+.acp-time .acp-sep { color: #475569; margin: 0 1px; }
+.acp-time .acp-dur { color: #64748b; }
+
+/* Track container — expands to fill */
+.acp-seekbar {
+  flex: 1;
+  position: relative;
+  height: 18px;     /* larger hit area */
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.acp-seekbar-track {
+  position: absolute;
+  left: 0; right: 0;
+  height: 4px;
+  border-radius: 4px;
+  background: var(--acp-track-bg);
+  transition: height 0.15s ease;
+  overflow: hidden;
+}
+.acp-seekbar:hover .acp-seekbar-track { height: 6px; }
+
+.acp-seekbar-buffer {
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  border-radius: 4px;
+  background: rgba(255,255,255,0.22);
+  pointer-events: none;
+}
+
+.acp-seekbar-fill {
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  border-radius: 4px;
+  background: var(--acp-fill);
+  pointer-events: none;
+}
+
+/* Thumb */
+.acp-seekbar-thumb {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(99,102,241,0.55);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s ease, transform 0.1s ease;
+  z-index: 1;
+}
+.acp-seekbar:hover .acp-seekbar-thumb { opacity: 1; }
+.acp-seekbar.dragging .acp-seekbar-thumb {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1.25);
+}
+
+/* ── Bottom row ────────────────────────────────────────────────────────────── */
+.acp-btn-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.acp-spacer { flex: 1; }
+
+/* Icon buttons */
+.acp-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px; height: 34px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  color: var(--acp-text);
+  cursor: pointer;
+  transition: background 0.14s ease, transform 0.1s ease;
+  flex-shrink: 0;
+}
+.acp-btn:hover { background: rgba(255,255,255,0.09); }
+.acp-btn:active { transform: scale(0.88); }
+.acp-btn .material-symbols-rounded { font-size: 20px !important; pointer-events: none; }
+
+/* Play button is slightly bigger */
+.acp-btn-play { width: 40px; height: 40px; }
+.acp-btn-play .material-symbols-rounded { font-size: 26px !important; }
+
+/* Volume group */
+.acp-volume-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.acp-vol-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 72px; height: 4px;
+  border-radius: 4px;
+  background: var(--acp-track-bg);
+  outline: none;
+  cursor: pointer;
+}
+.acp-vol-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 13px; height: 13px;
+  border-radius: 50%;
+  background: #fff;
+  cursor: pointer;
+  box-shadow: 0 0 0 2px rgba(99,102,241,0.5);
+}
+
+/* Speed button */
+.acp-speed-btn {
+  padding: 0 9px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.04);
+  color: var(--acp-text);
+  font-family: 'Inter', sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.14s ease;
+  white-space: nowrap;
+}
+.acp-speed-btn:hover {
+  background: rgba(99,102,241,0.15);
+  border-color: rgba(99,102,241,0.4);
+  color: #a78bfa;
+}
+
+/* ── Screenshot mode ───────────────────────────────────────────────────────── */
+.acp-img-wrap {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.acp-img-wrap img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border-radius: 4px;
+}
+.acp-img-badge {
+  position: absolute;
+  top: 10px; left: 10px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(0,0,0,0.58);
+  backdrop-filter: blur(6px);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 20px;
+  padding: 4px 10px 4px 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #94a3b8;
+  z-index: 5;
+}
+.acp-img-badge .material-symbols-rounded { font-size: 14px !important; color: #818cf8; }
+
+/* ── Keyboard shortcut hint (visible 2s on first load) ───────────────────── */
+.acp-kb-hint {
+  position: absolute;
+  bottom: 70px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 11;
+  background: rgba(0,0,0,0.7);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 8px;
+  padding: 7px 14px;
+  font-size: 11px;
+  color: #64748b;
+  white-space: nowrap;
+  animation: acp-kbhint 3s ease forwards;
+  pointer-events: none;
+}
+@keyframes acp-kbhint {
+  0%   { opacity: 0; transform: translateX(-50%) translateY(4px); }
+  15%  { opacity: 1; transform: translateX(-50%) translateY(0); }
+  75%  { opacity: 1; }
+  100% { opacity: 0; }
+}

@@ -20,10 +20,16 @@
 
 body {
   width: 320px;
+  min-width: 320px;
+  max-width: 320px;
   background: var(--bg-gradient);
   color: var(--text-main);
   padding: 16px;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
+  /* Prevents the body from ever growing beyond 320px,
+     which is the #1 cause of the popup expanding sideways */
+  box-sizing: border-box;
 }
 
 /* ── Capture Panel ── */
@@ -217,6 +223,10 @@ body {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  width: 100%;
+  /* Hard lock — no child element can push the container wider */
+  max-width: 288px; /* 320px body - 2x16px padding */
+  overflow: hidden;
 }
 
 .header {
@@ -238,12 +248,17 @@ body {
   border: 1px solid var(--glass-border);
   border-radius: 12px;
   padding: 16px;
-  transition: all 0.3s ease;
+  transition: border-color 0.3s ease;
+  /* Remove transform from card default — it caused the active
+     recording panel to jump/shift on hover */
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .card:hover {
   border-color: rgba(255, 255, 255, 0.2);
-  transform: translateY(-2px);
+  /* Intentionally removed: transform: translateY(-2px)
+     This was causing the popup layout to shift on hover */
 }
 
 .action-buttons {
@@ -422,8 +437,10 @@ body {
 #antToast {
   position: fixed;
   bottom: 16px;
-  left: 50%;
-  transform: translateX(-50%);
+  left: 16px;
+  right: 16px;
+  /* Changed from left:50%/translateX(-50%) to left/right anchors.
+     The old approach could cause the popup to widen to fit the toast text */
   background: #1e293b;
   border: 1px solid rgba(255,255,255,0.12);
   border-radius: 8px;
@@ -432,6 +449,8 @@ body {
   font-weight: 500;
   color: #f8fafc;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   z-index: 9999;
   display: flex;
   align-items: center;

@@ -248,6 +248,31 @@ You can delete all your captures or your entire account at any time from the Set
 CONTACT
 Questions about privacy? Reach us through the Feedback page.`}
           />
+        ) : activeNav === 'Documentation' ? (
+          <StaticPage
+            title="Documentation"
+            content={`Welcome to the AntCapture Documentation.
+
+KEYBOARD SHORTCUTS
+AntCapture is designed for speed. Use these shortcuts to capture instantly:
+• Alt + Shift + S : Capture visible screen (Screenshot)
+• Alt + Shift + C : Start/Stop Camera recording
+• Alt + Shift + V : Start/Stop Screen recording
+
+FUZZY SEARCH
+Your Library supports advanced fuzzy search. You don't need to type exact filenames — just type fragments, and the dashboard will instantly filter your captures based on title, format, or date.
+
+AUTO-SAVE WORKFLOW (edit.html)
+When you finish a recording, AntCapture opens the Studio (edit.html).
+If you have Auto-Save enabled in Settings, a 5-second countdown begins immediately.
+• If you do nothing, the capture automatically saves to your preferred destination and the tab closes.
+• If you click "Cancel Auto-Save" (the lightning bolt icon) during the countdown, the auto-save is aborted, allowing you to manually review or discard the file.
+
+STORAGE OPTIONS
+• Local: Saves directly to your computer or self-hosted server's database. Fast and completely private.
+• Google Drive: Uploads directly to a private folder in your Google Drive. Files do not touch our servers.
+• Both: Keeps a local copy for instant access and backs up to Google Drive automatically.`}
+          />
         ) : activeNav === 'Security' ? (
           <StaticPage
             title="Security"

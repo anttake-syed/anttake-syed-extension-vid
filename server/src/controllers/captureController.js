@@ -27,6 +27,7 @@ exports.getCaptures = async (req, res) => {
         src: c.fileUrl,
         driveUrl: c.driveUrl,
         storageLocation: c.storageLocation,
+        hasAudio: c.hasAudio,
         ext,
       };
     });
@@ -39,7 +40,7 @@ exports.getCaptures = async (req, res) => {
 
 exports.uploadMetadata = async (req, res) => {
   try {
-    const { title, type, size, mimeType, driveUrl } = req.body;
+    const { title, type, size, mimeType, driveUrl, hasAudio } = req.body;
     
     if (!driveUrl) {return res.status(400).json({ error: 'driveUrl is required' });}
 
@@ -53,6 +54,7 @@ exports.uploadMetadata = async (req, res) => {
         fileUrl: driveUrl, // Deprecated, but keeping for schema compat
         driveUrl: driveUrl,
         storageLocation: 'drive',
+        hasAudio: hasAudio === undefined ? true : hasAudio,
       },
     });
 
@@ -66,7 +68,7 @@ exports.uploadMetadata = async (req, res) => {
 
 exports.uploadLocal = async (req, res) => {
   try {
-    const { title, type, size, mimeType } = req.body;
+    const { title, type, size, mimeType, hasAudio } = req.body;
     
     if (!req.file) {
       console.log(`❌ [SYNC REJECTED] No file attached in request from ${req.user.email}`);
@@ -88,6 +90,7 @@ exports.uploadLocal = async (req, res) => {
         fileUrl: '', // Will update after getting ID
         driveUrl: '',
         storageLocation: 'local',
+        hasAudio: (hasAudio === 'true' || hasAudio === true) ? true : false,
         mediaData: req.file.buffer, // Save binary data directly to SQLite
       },
     });
@@ -158,6 +161,29 @@ exports.deleteCapture = async (req, res) => {
   } catch (err) {
     console.error('Delete capture error:', err);
     res.status(500).json({ error: 'Failed to delete capture' });
+  }
+};
+
+exports.renameCapture = async (req, res) => {
+  try {
+    const { title } = req.body;
+    if (!title || typeof title !== 'string' || !title.trim()) {
+      return res.status(400).json({ error: 'A valid title is required' });
+    }
+    const record = await prisma.capture.findUnique({
+      where: { id: parseInt(req.params.id, 10) },
+    });
+    if (!record || record.email !== req.user.email)
+      { return res.status(404).json({ error: 'Not found' }); }
+
+    const updated = await prisma.capture.update({
+      where: { id: record.id },
+      data: { title: title.trim() },
+    });
+    res.json({ success: true, title: updated.title });
+  } catch (err) {
+    console.error('Rename capture error:', err);
+    res.status(500).json({ error: 'Failed to rename capture' });
   }
 };
 

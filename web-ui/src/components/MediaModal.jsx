@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { SERVER_URL, IS_LOCAL_MODE } from '../config';
+import ConfirmDeleteModal from './ConfirmDeleteModal';
 
 const DriveLogoSVG = ({ size = 18 }) => (
   <svg viewBox="0 0 87.3 78" width={size} height={size} xmlns="http://www.w3.org/2000/svg" style={{ flexShrink: 0 }}>
@@ -18,7 +19,12 @@ export default function MediaModal({ item, onClose, user, onSyncSuccess, onDelet
   const [removingLocal, setRemovingLocal] = useState(false);
   const [removingDrive, setRemovingDrive] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [syncError, setSyncError] = useState(null);
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [titleValue, setTitleValue] = useState(item?.title || '');
+  const [titleSaving, setTitleSaving] = useState(false);
+  const [mediaLoading, setMediaLoading] = useState(true);
 
   if (!item) {return null;}
 
@@ -41,8 +47,33 @@ export default function MediaModal({ item, onClose, user, onSyncSuccess, onDelet
     }
   };
 
+  const saveTitle = async () => {
+    if (!user?.jwt || !titleValue.trim()) return;
+    setTitleSaving(true);
+    try {
+      const res = await fetch(`${SERVER_URL}/captures/${item.id}/rename`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${user.jwt}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: titleValue.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Rename failed');
+      setEditingTitle(false);
+      if (onSyncSuccess) onSyncSuccess(); // re-fetch the list so the new name shows
+    } catch (err) {
+      setSyncError('Rename failed: ' + err.message);
+    } finally {
+      setTitleSaving(false);
+    }
+  };
+
+
   const handleDelete = async () => {
-    if (!user?.jwt || !window.confirm('Delete this capture? This cannot be undone.')) {return;}
+    if (!user?.jwt) {return;}
+    setShowDeleteConfirm(true);
+  };
+
+  const confirmDelete = async () => {
     setDeleting(true);
     setSyncError(null);
     try {
@@ -51,9 +82,11 @@ export default function MediaModal({ item, onClose, user, onSyncSuccess, onDelet
         headers: { Authorization: `Bearer ${user.jwt}` },
       });
       if (!res.ok) { const d = await res.json(); throw new Error(d.error || 'Delete failed'); }
+      setShowDeleteConfirm(false);
       if (onDelete) {onDelete(item.id);}
     } catch (err) {
       setSyncError(err.message);
+      setShowDeleteConfirm(false);
       setDeleting(false);
     }
   };
@@ -100,11 +133,21 @@ export default function MediaModal({ item, onClose, user, onSyncSuccess, onDelet
   };
 
   return (
-    <div className="modal-overlay fadeIn" onClick={onClose} style={{ zIndex: 1000, background: 'rgba(2, 6, 23, 0.9)', backdropFilter: 'blur(4px)' }}>
+    <>
+    <ConfirmDeleteModal
+      isOpen={showDeleteConfirm}
+      title="Delete this capture?"
+      message={`"${item.title || 'This capture'}" will be permanently deleted.`}
+      confirmText="Yes, Delete"
+      loading={deleting}
+      onConfirm={confirmDelete}
+      onCancel={() => { if (!deleting) setShowDeleteConfirm(false); }}
+    />
+    <div className="modal-overlay fadeIn" onClick={onClose} style={{ zIndex: 1000, background: 'rgba(2, 6, 23, 0.92)', backdropFilter: 'blur(8px)', padding: '20px' }}>
       <div
         className="modal-card fadeInScale"
         onClick={(e) => e.stopPropagation()}
-        style={{ width: '85%', maxWidth: '1000px', background: '#0f172a', border: '1px solid #334155', borderRadius: '16px', padding: 0, overflow: 'hidden', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.7)' }}
+        style={{ width: '95%', maxWidth: '1300px', maxHeight: '95vh', background: '#0a0f1d', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '16px', padding: 0, overflow: 'hidden', boxShadow: '0 32px 80px rgba(0,0,0,0.8)', display: 'flex', flexDirection: 'column' }}
       >
         <button className="modal-close" onClick={onClose} aria-label="Close" style={{ zIndex: 10, top: '16px', right: '16px', background: 'rgba(255,255,255,0.1)', border: 'none', width: '32px', height: '32px', borderRadius: '50%', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
           <span className="material-symbols-rounded" style={{ fontSize: '20px' }}>close</span>
@@ -112,7 +155,49 @@ export default function MediaModal({ item, onClose, user, onSyncSuccess, onDelet
 
         {/* Header */}
         <div style={{ padding: '24px', paddingBottom: '20px', borderBottom: '1px solid #1e293b' }}>
-          <h2 style={{ margin: 0, fontSize: '20px', color: '#f8fafc', fontWeight: '700' }}>{item.title}</h2>
+          {/* Editable Title */}
+          {editingTitle ? (
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '12px' }}>
+              <input
+                autoFocus
+                value={titleValue}
+                onChange={e => setTitleValue(e.target.value)}
+                onKeyDown={async e => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    await saveTitle();
+                  } else if (e.key === 'Escape') {
+                    setEditingTitle(false);
+                    setTitleValue(item.title);
+                  }
+                }}
+                style={{
+                  flex: 1, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(99,102,241,0.5)',
+                  borderRadius: '8px', padding: '8px 12px', color: '#f8fafc', fontSize: '18px',
+                  fontWeight: '700', outline: 'none', fontFamily: 'inherit'
+                }}
+              />
+              <button onClick={saveTitle} disabled={titleSaving} style={{ background: 'rgba(99,102,241,0.2)', border: '1px solid rgba(99,102,241,0.4)', color: '#818cf8', padding: '8px 14px', borderRadius: '7px', cursor: 'pointer', fontSize: '13px', fontWeight: 600 }}>
+                {titleSaving ? '...' : 'Save'}
+              </button>
+              <button onClick={() => { setEditingTitle(false); setTitleValue(item.title); }} style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: '#94a3b8', padding: '8px 12px', borderRadius: '7px', cursor: 'pointer', fontSize: '13px' }}>Cancel</button>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+              <h2 style={{ margin: 0, fontSize: '18px', color: '#f8fafc', fontWeight: '700', flex: 1, lineHeight: 1.3 }}>{titleValue}</h2>
+              {user?.jwt && (
+                <button
+                  onClick={() => setEditingTitle(true)}
+                  title="Rename"
+                  style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', padding: '4px', borderRadius: '6px', display: 'flex', alignItems: 'center', transition: 'color 0.15s' }}
+                  onMouseEnter={e => e.currentTarget.style.color = '#818cf8'}
+                  onMouseLeave={e => e.currentTarget.style.color = '#64748b'}
+                >
+                  <span className="material-symbols-rounded" style={{ fontSize: '18px' }}>edit</span>
+                </button>
+              )}
+            </div>
+          )}
           
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '12px', flexWrap: 'wrap' }}>
             <span style={{ color: '#94a3b8', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -176,8 +261,8 @@ export default function MediaModal({ item, onClose, user, onSyncSuccess, onDelet
           {syncError && <div style={{ color: '#ef4444', fontSize: '12px', marginTop: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}><span className="material-symbols-rounded" style={{ fontSize: '14px' }}>error</span> {syncError}</div>}
         </div>
 
-        {/* Media */}
-        <div style={{ padding: '20px', display: 'flex', justifyContent: 'center', alignItems: 'center', background: '#020617', minHeight: '400px' }}>
+        {/* Media — zero padding so video fills edge-to-edge */}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#000', overflow: 'hidden', minHeight: 0 }}>
           {item.storageLocation === 'drive' ? (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px' }}>
               <DriveLogoSVG size={72} />
@@ -200,58 +285,106 @@ export default function MediaModal({ item, onClose, user, onSyncSuccess, onDelet
               </div>
             </div>
           ) : item.type === 'video' ? (
-            <div style={{ position: 'relative', width: '100%' }}>
+            <div style={{ position: 'relative', width: '100%', flex: 1, minHeight: '420px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#000', overflow: 'hidden' }}>
+
+              {/* ── Professional loading skeleton ── */}
+              {mediaLoading && (
+                <div style={{
+                  position: 'absolute', inset: 0, zIndex: 10,
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '18px',
+                  background: 'linear-gradient(135deg, #020617 0%, #0d1526 100%)',
+                  borderRadius: '8px',
+                }}>
+                  {/* Pulsing play-circle icon */}
+                  <div style={{
+                    width: '72px', height: '72px', borderRadius: '50%',
+                    background: 'rgba(99,102,241,0.1)', border: '1.5px solid rgba(99,102,241,0.2)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    animation: 'modalSkeletonPulse 1.8s ease-in-out infinite',
+                  }}>
+                    <span className="material-symbols-rounded" style={{ fontSize: '34px', color: 'rgba(129,140,248,0.55)' }}>
+                      play_circle
+                    </span>
+                  </div>
+
+                  {/* Label */}
+                  <div style={{ fontSize: '14px', fontWeight: 600, color: 'rgba(148,163,184,0.65)', letterSpacing: '0.02em' }}>
+                    Preparing video…
+                  </div>
+
+                  {/* Shimmer progress bar */}
+                  <div style={{ width: '130px', height: '2px', background: 'rgba(255,255,255,0.05)', borderRadius: '2px', overflow: 'hidden' }}>
+                    <div style={{
+                      height: '100%', width: '40%',
+                      background: 'linear-gradient(90deg, transparent, rgba(99,102,241,0.55), transparent)',
+                      animation: 'modalSkeletonSweep 1.4s ease-in-out infinite',
+                    }} />
+                  </div>
+
+                  <style>{`
+                    @keyframes modalSkeletonPulse {
+                      0%, 100% { transform: scale(1);    opacity: 0.7; }
+                      50%       { transform: scale(1.07); opacity: 1;   }
+                    }
+                    @keyframes modalSkeletonSweep {
+                      0%   { transform: translateX(-250%); }
+                      100% { transform: translateX(400%);  }
+                    }
+                  `}</style>
+                </div>
+              )}
+
               {/* Resolution + Format badge overlay */}
-              {(() => {
+              {!mediaLoading && (() => {
                 const mime = item.mimeType || '';
                 const formatLabel = mime.includes('mp4') ? 'MP4' : mime.includes('webm') ? 'WebM' : (mime.split('/')[1] || 'Video').toUpperCase();
-                // Try to extract resolution from the size string (e.g. "720p • 12.34 MB")
                 const resMatch = (item.size || '').match(/(\d+)p/);
                 const resLabel = resMatch ? resMatch[1] + 'p' : null;
                 return (
-                  <div style={{
-                    position: 'absolute', top: '12px', left: '12px', zIndex: 5,
-                    display: 'flex', gap: '6px', alignItems: 'center', pointerEvents: 'none'
-                  }}>
+                  <div style={{ position: 'absolute', top: '12px', left: '12px', zIndex: 5, display: 'flex', gap: '6px', alignItems: 'center', pointerEvents: 'none' }}>
                     {resLabel && (
-                      <span style={{
-                        background: 'rgba(0,0,0,0.72)', backdropFilter: 'blur(4px)',
-                        border: '1px solid rgba(255,255,255,0.15)',
-                        color: '#f8fafc', fontSize: '11px', fontWeight: '700',
-                        letterSpacing: '0.05em', padding: '3px 8px', borderRadius: '5px',
-                        display: 'inline-flex', alignItems: 'center', gap: '4px'
-                      }}>
+                      <span style={{ background: 'rgba(0,0,0,0.72)', backdropFilter: 'blur(4px)', border: '1px solid rgba(255,255,255,0.15)', color: '#f8fafc', fontSize: '11px', fontWeight: '700', letterSpacing: '0.05em', padding: '3px 8px', borderRadius: '5px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
                         <span style={{ fontSize: '10px', opacity: 0.7 }}>&#9646;</span>
                         {resLabel}
                       </span>
                     )}
-                    <span style={{
-                      background: 'rgba(0,0,0,0.72)', backdropFilter: 'blur(4px)',
-                      border: '1px solid rgba(99,102,241,0.35)',
-                      color: '#818cf8', fontSize: '11px', fontWeight: '700',
-                      letterSpacing: '0.05em', padding: '3px 8px', borderRadius: '5px'
-                    }}>
+                    <span style={{ background: 'rgba(0,0,0,0.72)', backdropFilter: 'blur(4px)', border: '1px solid rgba(99,102,241,0.35)', color: '#818cf8', fontSize: '11px', fontWeight: '700', letterSpacing: '0.05em', padding: '3px 8px', borderRadius: '5px' }}>
                       {formatLabel}
+                    </span>
+                    <span title={(item.hasAudio === false) ? 'No Audio' : 'Contains Audio'} style={{ background: 'rgba(0,0,0,0.72)', backdropFilter: 'blur(4px)', border: `1px solid ${(item.hasAudio === false) ? 'rgba(239, 68, 68, 0.5)' : 'rgba(255,255,255,0.15)'}`, color: 'white', fontSize: '11px', fontWeight: '700', letterSpacing: '0.05em', padding: '3px 6px', borderRadius: '5px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                      <span className="material-symbols-rounded" style={{ fontSize: '14px', color: (item.hasAudio === false) ? '#f87171' : 'white' }}>
+                        {(item.hasAudio === false) ? 'volume_off' : 'volume_up'}
+                      </span>
+                      {(item.hasAudio === false) ? 'Muted' : 'Audio'}
                     </span>
                   </div>
                 );
               })()}
+
               <video
                 key={item.id}
                 controls
                 autoPlay
-                style={{ width: '100%', maxHeight: '65vh', outline: 'none', background: '#020617', borderRadius: '8px', display: 'block' }}
-                onError={(e) => console.error('Video error:', e.target.error?.message || e.target.error)}
+                style={{ width: '100%', height: '100%', objectFit: 'contain', outline: 'none', background: '#000', display: 'block', opacity: mediaLoading ? 0 : 1, transition: 'opacity 0.35s ease' }}
+                onCanPlay={() => setMediaLoading(false)}
+                onLoadedData={() => setMediaLoading(false)}
+                onError={(e) => {
+                  console.error('Video error:', e.target.error?.message || e.target.error);
+                  setMediaLoading(false);
+                }}
               >
                 <source src={item.src} type={item.mimeType || 'video/webm'} />
                 Your browser does not support the video tag.
               </video>
             </div>
           ) : (
-            <img src={item.src} style={{ maxWidth: '100%', maxHeight: '65vh', objectFit: 'contain', borderRadius: '8px' }} alt={item.title} />
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', flex: 1, background: '#000', padding: '16px' }}>
+              <img src={item.src} style={{ maxWidth: '100%', maxHeight: '70vh', objectFit: 'contain', borderRadius: '8px', display: 'block' }} alt={item.title} />
+            </div>
           )}
         </div>
       </div>
     </div>
+    </>
   );
 }

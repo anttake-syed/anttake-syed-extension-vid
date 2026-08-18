@@ -2,6 +2,9 @@
 // Handles uploading blobs to the server (localhost mode, Google Drive cloud mode, or Google Drive only).
 
 import { DEV_SERVER_URL, PROD_SERVER_URL, IS_DEV } from '../shared/config.js';
+import { Logger } from '../shared/logger.js';
+
+const log = Logger.getLogger('Background: Upload');
 
 export async function getServerUrl() {
   return IS_DEV ? DEV_SERVER_URL : PROD_SERVER_URL;
@@ -31,8 +34,9 @@ export function resolveVideoMeta(type, format) {
  * @param {number|null} resolution  — e.g. 720
  * @param {string|null} format
  * @param {string|null} customFilename  — optional custom filename
+ * @param {boolean} hasAudio — whether the capture includes audio
  */
-export async function uploadToServer(blob, type, destination, jwt, resolution = null, format = null, customFilename = null) {
+export async function uploadToServer(blob, type, destination, jwt, resolution = null, format = null, customFilename = null, hasAudio = true) {
   const serverUrl = await getServerUrl();
   const { ext, mimeType } = resolveVideoMeta(type, format);
   
@@ -50,6 +54,7 @@ export async function uploadToServer(blob, type, destination, jwt, resolution = 
     formData.append('type', type);
     formData.append('size', sizeStr);
     formData.append('mimeType', mimeType);
+    formData.append('hasAudio', hasAudio);
 
     const res = await fetch(`${serverUrl}/upload/local`, {
       method: 'POST',
@@ -61,6 +66,7 @@ export async function uploadToServer(blob, type, destination, jwt, resolution = 
       let errorMsg = `Local upload failed: ${res.status}`;
       try { const d = await res.json(); errorMsg = d.detail || d.error || errorMsg; }
       catch { /* ignore */ }
+      log.error(errorMsg);
       throw new Error(errorMsg);
     }
     return;
@@ -75,7 +81,9 @@ export async function uploadToServer(blob, type, destination, jwt, resolution = 
     if (tokenRes.status === 401) {
       chrome.storage.local.remove('user');
     }
-    throw new Error('Google session expired. Please sign out and log in again.');
+    const msg = 'Google session expired. Please sign out and log in again.';
+    log.error(msg);
+    throw new Error(msg);
   }
   const { access_token } = await tokenRes.json();
 
@@ -88,9 +96,13 @@ export async function uploadToServer(blob, type, destination, jwt, resolution = 
   if (!driveRes.ok) {
     const errObj = await driveRes.json().catch(() => ({}));
     if (driveRes.status === 403 || errObj.error?.message?.toLowerCase().includes('quota')) {
-      throw new Error('Google Drive Storage is FULL. Please upgrade or clear space to sync.');
+      const msg = 'Google Drive Storage is FULL. Please upgrade or clear space to sync.';
+      log.error(msg);
+      throw new Error(msg);
     }
-    throw new Error(`Drive upload failed: ${driveRes.statusText}`);
+    const msg = `Drive upload failed: ${driveRes.statusText}`;
+    log.error(msg);
+    throw new Error(msg);
   }
   const { id: fileId } = await driveRes.json();
 
@@ -109,16 +121,21 @@ export async function uploadToServer(blob, type, destination, jwt, resolution = 
   }
 
   // 3. Save lightweight metadata to server (bypasses Vercel 4.5 MB limit)
-  const metaRes = await fetch(`${serverUrl}/upload/metadata`, {
-    method: 'POST',
-    headers: { 'Authorization': `Bearer ${jwt}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ title: filename, type, size: sizeStr, mimeType, driveUrl: finalDriveUrl }),
-  });
-  if (!metaRes.ok) {
-    let errorMsg = `Metadata save failed: ${metaRes.status}`;
-    try { const d = await metaRes.json(); errorMsg = d.detail || d.error || errorMsg; }
-    catch { /* ignore */ }
-    throw new Error(errorMsg);
+  try {
+    const metaRes = await fetch(`${serverUrl}/upload/metadata`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${jwt}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: filename, type, size: sizeStr, mimeType, driveUrl: finalDriveUrl, hasAudio }),
+    });
+    if (!metaRes.ok) {
+      let errorMsg = `Metadata save failed: ${metaRes.status}`;
+      try { const d = await metaRes.json(); errorMsg = d.detail || d.error || errorMsg; }
+      catch { /* ignore */ }
+      throw new Error(errorMsg);
+    }
+    return metaRes.json();
+  } catch (error) {
+    log.error('Upload to server failed', error);
+    throw error;
   }
-  return metaRes.json();
 }

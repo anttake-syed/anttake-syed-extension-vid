@@ -21,8 +21,8 @@ let autoSaveCountdown = 5;
 
 // Listen for successful login from background.js
 chrome.storage.onChanged.addListener((changes, area) => {
-  if (area === 'local' && (changes.user_cloud || changes.user_local)) {
-    const relevantChange = pendingSaveMode === 'localhost' ? changes.user_local : changes.user_cloud;
+  if (area === 'local' && (changes.user_cloud || changes.user_local || changes.user)) {
+    const relevantChange = pendingSaveMode === 'localhost' ? changes.user_local : (changes.user_cloud || changes.user);
     if (relevantChange) {
       const newUser = relevantChange.newValue;
       updateAuthPanel(newUser);
@@ -393,8 +393,8 @@ async function init() {
 
   // Check initial connection status & render auth panel accordingly
   // We default to showing the cloud user status if no pending mode is set
-  chrome.storage.local.get(['user_cloud', 'user_local', 'autoSavePref'], (res) => {
-    updateAuthPanel(res.user_cloud);
+  chrome.storage.local.get(['user_cloud', 'user_local', 'user', 'autoSavePref'], (res) => {
+    updateAuthPanel(res.user_cloud || res.user);
 
     // Setup auto-save toggles
     const toggles = document.querySelectorAll('.auto-save-toggle');
@@ -580,7 +580,8 @@ async function processSave(mode) {
       }
 
       const userKey = mode === 'localhost' ? 'user_local' : 'user_cloud';
-      const { [userKey]: user } = await chrome.storage.local.get([userKey]);
+      const res = await chrome.storage.local.get([userKey, 'user']);
+      const user = res[userKey] || res.user;
       
       if (user && user.jwt && navigator.onLine) {
         document.body.style.pointerEvents = 'none';

@@ -3,8 +3,9 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = "file:./antcapture.db"
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 model Capture {
@@ -28,6 +29,7 @@ model UserSettings {
   storagePreference String   @default("both")
   updatedAt         DateTime @updatedAt
 }
+
 model Feedback {
   id        Int      @id @default(autoincrement())
   email     String

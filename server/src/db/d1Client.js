@@ -99,15 +99,75 @@ function coerceRow(row) {
   return r;
 }
 
+// ── Relations Map for `include` ─────────────────────────────────────────────
+const RELATIONS = {
+  User: {
+    subscription: { table: 'Subscription', fkey: 'userId', type: 'one' },
+    storageAccount: { table: 'StorageAccount', fkey: 'userId', type: 'one' },
+    googleDriveConnection: { table: 'GoogleDriveConnection', fkey: 'userId', type: 'one' },
+    usage: { table: 'Usage', fkey: 'userId', type: 'one' }
+  },
+  Subscription: {
+    plan: { table: 'Plan', fkey: 'id', localKey: 'planId', type: 'one' }
+  },
+  Capture: {
+    storageObject: { table: 'StorageObject', fkey: 'captureId', type: 'one' }
+  },
+  Board: {
+    items: { table: 'BoardItem', fkey: 'boardId', type: 'many' }
+  },
+  BoardItem: {
+    board: { table: 'Board', fkey: 'id', localKey: 'boardId', type: 'one' },
+    capture: { table: 'Capture', fkey: 'id', localKey: 'captureId', type: 'one' }
+  }
+};
+
+async function resolveIncludes(modelName, rows, includeObj) {
+  if (!rows || rows.length === 0 || !includeObj) return rows;
+  const rels = RELATIONS[modelName];
+  if (!rels) return rows;
+
+  for (const row of rows) {
+    for (const [key, val] of Object.entries(includeObj)) {
+      if (!val) continue;
+      const rel = rels[key];
+      if (!rel) continue;
+
+      let subRows = [];
+      if (rel.localKey) {
+        // BelongsTo (e.g. Subscription -> Plan)
+        if (row[rel.localKey]) {
+          subRows = await query(`SELECT * FROM "${rel.table}" WHERE "${rel.fkey}" = ?`, [row[rel.localKey]]);
+        }
+      } else {
+        // HasOne / HasMany (e.g. User -> Subscription)
+        subRows = await query(`SELECT * FROM "${rel.table}" WHERE "${rel.fkey}" = ?`, [row.id]);
+      }
+      
+      subRows = subRows.map(coerceRow);
+      
+      // Recursive nested include
+      if (typeof val === 'object' && val.include) {
+        subRows = await resolveIncludes(rel.table, subRows, val.include);
+      }
+      
+      row[key] = rel.type === 'one' ? (subRows[0] || null) : subRows;
+    }
+  }
+  return rows;
+}
+
 // ── Model factory ─────────────────────────────────────────────────────────────
 function makeModel(tableName) {
   return {
     async findUnique({ where, include } = {}) {
       const { clause, params } = buildWhere(where);
-      const rows = await query(`SELECT * FROM "${tableName}" ${clause} LIMIT 1`, params);
-      return rows[0] ? coerceRow(rows[0]) : null;
-      // Note: `include` (relations) is not auto-resolved in this thin client.
-      // Controllers that need relations will need separate queries or helper methods.
+      let rows = await query(`SELECT * FROM "${tableName}" ${clause} LIMIT 1`, params);
+      rows = rows.map(coerceRow);
+      if (include && rows.length > 0) {
+        rows = await resolveIncludes(tableName, rows, include);
+      }
+      return rows[0] || null;
     },
 
     async findMany({ where = {}, orderBy = {}, include } = {}) {
@@ -116,8 +176,12 @@ function makeModel(tableName) {
       const orderClause = orderKeys.length
         ? 'ORDER BY ' + orderKeys.map(k => `"${k}" ${orderBy[k] === 'desc' ? 'DESC' : 'ASC'}`).join(', ')
         : '';
-      const rows = await query(`SELECT * FROM "${tableName}" ${clause} ${orderClause}`, params);
-      return rows.map(coerceRow);
+      let rows = await query(`SELECT * FROM "${tableName}" ${clause} ${orderClause}`, params);
+      rows = rows.map(coerceRow);
+      if (include && rows.length > 0) {
+        rows = await resolveIncludes(tableName, rows, include);
+      }
+      return rows;
     },
 
     async create({ data }) {

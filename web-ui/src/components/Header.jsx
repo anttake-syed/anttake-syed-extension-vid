@@ -13,7 +13,7 @@ const PAGE_TITLES = {
 
 const PAGE_SUBTITLES = {
   Settings: 'Manage your account and preferences.',
-  Feedback: "We'd love to hear from you.",
+  Feedback: 'Share your thoughts or report a bug.',
   Privacy: 'Important information about AntCapture.',
   Security: 'Important information about AntCapture.',
   Documentation: 'Important information about AntCapture.',

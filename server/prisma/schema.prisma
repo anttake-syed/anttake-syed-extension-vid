@@ -1,39 +1,238 @@
-generator client {
-  provider = "prisma-client-js"
-}
-
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
 }
 
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
+}
+
+// ── Identity ─────────────────────────────────────────────────────────────────
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  name          String?
+  picture       String?
+  googleId      String?  @unique
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  sessions             Session[]
+  captures             Capture[]
+  storageAccounts      StorageAccount[]
+  subscription         Subscription?
+  usage                Usage?
+  googleDrive          GoogleDriveConnection?
+  boards               Board[]
+  lemonSqueezyCustomer LemonSqueezyCustomer?
+}
+
+model Session {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken   String   
+  refreshToken  String?  
+  expiryDate    BigInt?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// ── Capture ───────────────────────────────────────────────────────────────────
 model Capture {
-  id              Int      @id @default(autoincrement())
-  email           String
-  title           String?
-  type            String
-  size            String?
-  mimeType        String?
-  fileUrl         String
-  driveUrl        String?
-  storageLocation String   @default("drive")
-  mediaData       Bytes?
-  hasAudio        Boolean  @default(true)
-  createdAt       DateTime @default(now())
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type          String   // image | video | audio | document | file | webpage
+  title         String?
+  description   String?
+  sourceUrl     String?
+  mimeType      String?
+  hasAudio      Boolean  @default(false)
+  status        String   @default("active") // active | deleted | processing
+  metadata      String?  // JSON string
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  storageObject StorageObject?
+  boardItems    BoardItem[]
 }
 
-model UserSettings {
-  id                Int      @id @default(autoincrement())
-  email             String   @unique
-  storagePreference String   @default("both")
+// ── Storage ───────────────────────────────────────────────────────────────────
+model StorageObject {
+  id                String   @id @default(cuid())
+  captureId         String   @unique
+  capture           Capture  @relation(fields: [captureId], references: [id], onDelete: Cascade)
+  storageAccountId  String?
+  storageAccount    StorageAccount? @relation(fields: [storageAccountId], references: [id])
+  provider          String   // local | self_hosted | cloud | google_drive
+  providerObjectId  String?  
+  providerMeta      String?  // JSON string
+  filename          String?
+  sizeBytes         BigInt?
+  checksum          String?
+  status            String   @default("ready") // pending | ready | failed | deleted
+  createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 }
 
-model Feedback {
-  id        Int      @id @default(autoincrement())
-  email     String
-  type      String   @default("bug")
-  message   String
-  createdAt DateTime @default(now())
+model StorageAccount {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider      String
+  isDefault     Boolean  @default(false)
+  config        String?  // JSON string
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  storageObjects StorageObject[]
 }
+
+model StorageOperation {
+  id            String   @id @default(cuid())
+  captureId     String
+  provider      String
+  operation     String   
+  status        String   
+  errorMessage  String?
+  durationMs    Int?
+  createdAt     DateTime @default(now())
+}
+
+// ── Google Drive ──────────────────────────────────────────────────────────────
+model GoogleDriveConnection {
+  id            String   @id @default(cuid())
+  userId        String   @unique
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  isConnected   Boolean  @default(true)
+  usedBytes     BigInt?
+  limitBytes    BigInt?
+  lastSyncedAt  DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// ── Plans & Subscriptions ─────────────────────────────────────────────────────
+model Plan {
+  id                String   @id @default(cuid())
+  name              String   @unique  
+  displayName       String
+  priceMonthly      Int?     // cents
+  priceYearly       Int?     // cents
+  currency          String   @default("USD")
+  cloudStorageBytes BigInt   @default(0)  
+  maxFileSizeBytes  BigInt   @default(104857600)  
+  googleDriveEnabled Boolean @default(true)
+  boardLimit        Int      @default(0)  
+  captureLimit      Int      @default(0)  
+  features          String?  // JSON string
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  subscriptions     Subscription[]
+}
+
+model Subscription {
+  id                String   @id @default(cuid())
+  userId            String   @unique
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  planId            String
+  plan              Plan     @relation(fields: [planId], references: [id])
+  status            String   @default("active") // active | trialing | past_due | canceled | unpaid | expired
+  currentPeriodStart DateTime?
+  currentPeriodEnd   DateTime?
+  cancelAtPeriodEnd  Boolean @default(false)
+  lsCustomerId      String?  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+// ── Usage Tracking ─────────────────────────────────────────────────────────────
+model Usage {
+  id                String   @id @default(cuid())
+  userId            String   @unique
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cloudBytes        BigInt   @default(0)  
+  cloudObjectCount  Int      @default(0)
+  driveBytes        BigInt   @default(0)  
+  driveObjectCount  Int      @default(0)
+  uploadBytesMonth  BigInt   @default(0)
+  downloadBytesMonth BigInt  @default(0)
+  periodStart       DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+// ── Whiteboards ───────────────────────────────────────────────────────────────
+model Board {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title         String   @default("Untitled Board")
+  width         Int      @default(1920)
+  height        Int      @default(1080)
+  background    String   @default("#1a1a2e")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  items         BoardItem[]
+}
+
+model BoardItem {
+  id            String   @id @default(cuid())
+  boardId       String
+  board         Board    @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  captureId     String?
+  capture       Capture? @relation(fields: [captureId], references: [id], onDelete: SetNull)
+  type          String   @default("capture")  
+  x             Float    @default(0)
+  y             Float    @default(0)
+  width         Float    @default(300)
+  height        Float    @default(200)
+  rotation      Float    @default(0)
+  zIndex        Int      @default(0)
+  content       String?  // JSON string
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// ── LemonSqueezy Billing ─────────────────────────────────────────────────────
+model LemonSqueezyCustomer {
+  id                String   @id @default(cuid())
+  userId            String   @unique
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lsCustomerId      String   @unique   
+  lsSubscriptionId  String?  @unique   
+  lsVariantId       String?            
+  lsOrderId         String?            
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  payments          LemonSqueezyPayment[]
+  events            LemonSqueezyEvent[]
+}
+
+model LemonSqueezyPayment {
+  id              String   @id @default(cuid())
+  customerId      String
+  customer        LemonSqueezyCustomer @relation(fields: [customerId], references: [id])
+  lsOrderItemId   String?  @unique
+  amount          Int      
+  currency        String   @default("USD")
+  status          String   
+  billingReason   String?  
+  createdAt       DateTime @default(now())
+}
+
+model LemonSqueezyEvent {
+  id              String   @id @default(cuid())
+  customerId      String?
+  customer        LemonSqueezyCustomer? @relation(fields: [customerId], references: [id])
+  eventName       String   
+  lsEventId       String   @unique  
+  payload         String   // JSON string
+  processedAt     DateTime @default(now())
+}
+

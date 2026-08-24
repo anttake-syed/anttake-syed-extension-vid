@@ -1,19 +1,21 @@
 // Icon map — proper icons per nav item
-const MAIN_NAV = ['Dashboard', 'My Library', 'Settings', 'Feedback'];
-const SECONDARY_NAV = ['Privacy', 'Security', 'Documentation'];
+const MAIN_NAV = ['Dashboard', 'My Library', 'Whiteboards', 'Settings', 'Feedback'];
+const SECONDARY_NAV = ['Pricing', 'Privacy', 'Security', 'Documentation'];
 
 const NAV_ICONS = {
   Dashboard:     'dashboard',
   'My Library':  'photo_library',
+  Whiteboards:   'draw',
   Settings:      'settings',
   Feedback:      'chat_bubble',
+  Pricing:       'payments',
   Privacy:       'shield',
   Security:      'lock',
   Documentation: 'article',
 };
 
 // Items that don't require login
-const PUBLIC_ITEMS = ['Dashboard', 'Privacy', 'Security', 'Documentation'];
+const PUBLIC_ITEMS = ['Dashboard', 'Pricing', 'Privacy', 'Security', 'Documentation'];
 
 export default function Sidebar({ activeNav, isAuthenticated, onNavClick, onSignIn, onLogout }) {
   const renderNavItem = (item, secondary = false) => (

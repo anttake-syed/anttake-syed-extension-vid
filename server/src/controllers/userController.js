@@ -1,4 +1,4 @@
-const prisma = require('../db/prisma');
+const prisma = require('../db/index');
 
 exports.updateName = (req, res) => {
   const { name } = req.body;

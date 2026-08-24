@@ -18,8 +18,13 @@ export function useCaptures(user, isAuthenticated) {
       });
       if (!res.ok) {throw new Error(`HTTP ${res.status}`);}
       const data = await res.json();
-      // Map captures: use fileUrl as src for local BLOBs
-      setCaptures((data.captures || []).map((c) => ({ ...c, src: c.fileUrl || c.src })));
+      setCaptures((data.captures || []).map((c) => {
+        let src = c.fileUrl || c.src;
+        if (src && src.startsWith('/')) {
+          src = `${SERVER_URL}${src}`;
+        }
+        return { ...c, src };
+      }));
     } catch (err) {
       console.error('Failed to fetch captures:', err);
     } finally {

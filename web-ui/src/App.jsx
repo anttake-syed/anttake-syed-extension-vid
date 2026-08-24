@@ -14,13 +14,20 @@ import MediaModal from './components/MediaModal.jsx';
 import Dashboard from './components/Dashboard.jsx';
 import Library from './components/Library.jsx';
 import Settings from './components/Settings.jsx';
-import FeedbackForm from './components/FeedbackForm.jsx';
+import Pricing from './components/Pricing.jsx';
+import SubscriptionManage from './components/SubscriptionManage.jsx';
+import Whiteboards from './components/Whiteboards.jsx';
+import WhiteboardEditor from './components/WhiteboardEditor.jsx';
+
 import StaticPage from './components/StaticPage.jsx';
 import ServerHealthBadge from './components/ServerHealthBadge.jsx';
 
 const NAV_TO_PATH = {
   'Dashboard': '/',
   'My Library': '/library',
+  'Whiteboards': '/whiteboards',
+  'Pricing': '/pricing',
+  'Subscription': '/subscription',
   'Settings': '/settings',
   'Feedback': '/feedback',
   'Privacy': '/privacy-policy',
@@ -29,6 +36,63 @@ const NAV_TO_PATH = {
 };
 
 const PATH_TO_NAV = Object.fromEntries(Object.entries(NAV_TO_PATH).map(([k, v]) => [v, k]));
+
+// ── Feedback Page ──────────────────────────────────────────────────────────────
+// Replace this URL with your actual Google Form embed link.
+// In Google Forms: Send → Embed → copy the src="..." URL from the <iframe> tag.
+const GOOGLE_FORM_EMBED_URL = 'YOUR_GOOGLE_FORM_EMBED_URL_HERE';
+
+function FeedbackPage() {
+  return (
+    <div style={{ padding: '36px 40px', maxWidth: '800px' }}>
+      <div style={{ marginBottom: '28px' }}>
+        <h1 style={{ fontSize: '26px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '8px' }}>
+          Feedback
+        </h1>
+        <p style={{ color: 'var(--text-muted)', fontSize: '15px' }}>
+          Found a bug, have a feature idea, or just want to say hi? Fill out the form below.
+        </p>
+      </div>
+      {GOOGLE_FORM_EMBED_URL === 'YOUR_GOOGLE_FORM_EMBED_URL_HERE' ? (
+        <div style={{
+          padding: '48px 32px',
+          background: 'var(--card-bg)',
+          borderRadius: '16px',
+          border: '1px solid var(--border)',
+          textAlign: 'center',
+          color: 'var(--text-muted)',
+        }}>
+          <span className="material-symbols-outlined" style={{ fontSize: '48px', marginBottom: '16px', display: 'block', color: 'var(--accent)' }}>
+            assignment
+          </span>
+          <p style={{ fontSize: '15px', marginBottom: '8px', color: 'var(--text-primary)', fontWeight: 600 }}>
+            Google Form not configured yet
+          </p>
+          <p style={{ fontSize: '13px' }}>
+            Set <code style={{ background: 'var(--border)', padding: '2px 6px', borderRadius: '4px' }}>GOOGLE_FORM_EMBED_URL</code> in <code style={{ background: 'var(--border)', padding: '2px 6px', borderRadius: '4px' }}>App.jsx</code> to your Google Form embed link.
+          </p>
+        </div>
+      ) : (
+        <iframe
+          src={GOOGLE_FORM_EMBED_URL}
+          width="100%"
+          height="800"
+          frameBorder="0"
+          marginHeight="0"
+          marginWidth="0"
+          title="AntCapture Feedback Form"
+          style={{
+            borderRadius: '16px',
+            border: '1px solid var(--border)',
+            background: 'var(--card-bg)',
+          }}
+        >
+          Loading…
+        </iframe>
+      )}
+    </div>
+  );
+}
 
 export default function App() {
   const { user, isAuthenticated, isInitializing, logout, updateUser } = useAuth();
@@ -49,6 +113,7 @@ export default function App() {
     return params.get('nav') || 'Dashboard';
   });
   const [activeMedia, setActiveMedia] = useState(null);
+  const [activeBoard, setActiveBoard] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
 
@@ -214,10 +279,18 @@ export default function App() {
 
 
         {/* ── Page Content ── */}
-        {activeNav === 'Settings' && isAuthenticated ? (
-          <Settings user={user} captures={captures} dbStats={dbStats} onNameUpdate={handleNameUpdate} onDeleteAllCaptures={handleDeleteAllCaptures} onDeleteAccount={handleDeleteAccount} storagePreference={storagePreference} saveStoragePreference={saveStoragePreference} savingPref={savingPref} />
-        ) : activeNav === 'Feedback' && isAuthenticated ? (
-          <FeedbackForm user={user} />
+        {activeBoard ? (
+          <WhiteboardEditor board={activeBoard} onClose={() => setActiveBoard(null)} />
+        ) : activeNav === 'Settings' && isAuthenticated ? (
+          <Settings user={user} captures={captures} dbStats={dbStats} onNameUpdate={handleNameUpdate} onDeleteAllCaptures={handleDeleteAllCaptures} onDeleteAccount={handleDeleteAccount} storagePreference={storagePreference} saveStoragePreference={saveStoragePreference} savingPref={savingPref} onManageSubscription={() => setActiveNav('Subscription')} />
+        ) : activeNav === 'Subscription' && isAuthenticated ? (
+          <SubscriptionManage user={user} />
+        ) : activeNav === 'Whiteboards' ? (
+          <Whiteboards user={user} isAuthenticated={isAuthenticated} onSignIn={() => setShowModal(true)} onOpenBoard={setActiveBoard} />
+        ) : activeNav === 'Pricing' ? (
+          <Pricing user={user} isAuthenticated={isAuthenticated} onSignIn={() => setShowModal(true)} />
+        ) : activeNav === 'Feedback' ? (
+          <FeedbackPage />
         ) : activeNav === 'Privacy' ? (
           <StaticPage
             title="Privacy Policy"

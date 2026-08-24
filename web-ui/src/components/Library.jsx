@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { SERVER_URL } from '../config.js';
 
 const DriveLogoSVG = ({ size = 20 }) => (
   <svg viewBox="0 0 87.3 78" width={size} height={size} xmlns="http://www.w3.org/2000/svg">
@@ -10,6 +11,15 @@ const DriveLogoSVG = ({ size = 20 }) => (
     <path d="M27.45 52.9H0l13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2L59.85 52.9z" fill="#ffba00"/>
   </svg>
 );
+
+const getFullSrc = (src) => {
+  if (!src) return '';
+  const url = src.startsWith('/') ? `${SERVER_URL}${src}` : src;
+  const userStr = localStorage.getItem('user');
+  const token = userStr ? JSON.parse(userStr).jwt : '';
+  if (!token) return url;
+  return url.includes('?') ? `${url}&token=${token}` : `${url}?token=${token}`;
+};
 
 function MediaCard({ item, onOpen, viewMode }) {
   const [videoHovered, setVideoHovered] = useState(false);
@@ -28,8 +38,8 @@ function MediaCard({ item, onOpen, viewMode }) {
         {/* Thumbnail */}
         <div style={{ width: '72px', height: '48px', borderRadius: '8px', overflow: 'hidden', background: '#0f172a', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           {item.storageLocation === 'drive' ? <DriveLogoSVG size={20} />
-            : item.type === 'image' && item.src ? <img src={item.src} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-            : item.type === 'video' && item.src ? <video src={item.src} style={{ width: '100%', height: '100%', objectFit: 'cover' }} muted />
+            : item.type === 'image' && item.src ? <img src={getFullSrc(item.src)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            : item.type === 'video' && item.src ? <video src={getFullSrc(item.src)} style={{ width: '100%', height: '100%', objectFit: 'cover' }} muted />
             : <span className="material-symbols-rounded" style={{ fontSize: '22px', color: '#475569' }}>{item.type === 'video' ? 'videocam' : 'image'}</span>}
         </div>
 
@@ -63,11 +73,11 @@ function MediaCard({ item, onOpen, viewMode }) {
           )}
         </div>
 
-        {/* Storage badge */}
+        {/* Storage badge — V2 providers */}
         <div style={{ flexShrink: 0 }}>
-          {item.storageLocation === 'drive' && <DriveLogoSVG size={16} />}
-          {item.storageLocation === 'local' && <span className="material-symbols-rounded" style={{ fontSize: '16px', color: '#6366f1' }}>hard_drive</span>}
-          {item.storageLocation === 'both' && <span style={{ fontSize: '11px', color: '#f59e0b', fontWeight: 600 }}>BOTH</span>}
+          {item.storageLocation === 'google_drive' && <DriveLogoSVG size={16} />}
+          {(item.storageLocation === 'local' || item.storageLocation === 'self_hosted') && <span className="material-symbols-rounded" style={{ fontSize: '16px', color: '#6366f1' }}>hard_drive</span>}
+          {item.storageLocation === 'cloud' && <span className="material-symbols-rounded" style={{ fontSize: '16px', color: '#38bdf8' }}>cloud</span>}
         </div>
 
         <span className="material-symbols-rounded" style={{ fontSize: '18px', color: '#475569', flexShrink: 0 }}>chevron_right</span>
@@ -91,13 +101,13 @@ function MediaCard({ item, onOpen, viewMode }) {
             <span style={{ fontSize: '10px', color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Private on Drive</span>
           </div>
         ) : item.type === 'image' && item.src ? (
-          <img src={item.src} alt={item.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          <img src={getFullSrc(item.src)} alt={item.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
         ) : item.type === 'video' && item.src ? (
           <div style={{ position: 'relative', width: '100%', height: '100%' }}
             onMouseEnter={() => setVideoHovered(true)}
             onMouseLeave={() => setVideoHovered(false)}
           >
-            <video src={item.src} style={{ width: '100%', height: '100%', objectFit: 'cover' }} muted
+            <video src={getFullSrc(item.src)} style={{ width: '100%', height: '100%', objectFit: 'cover' }} muted
               onMouseOver={e => e.target.play()} onMouseOut={e => { e.target.pause(); e.target.currentTime = 0; }} />
             <div style={{
               position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -134,15 +144,19 @@ function MediaCard({ item, onOpen, viewMode }) {
           )}
         </div>
 
-        
-        {/* Storage badges */}
+        {/* Storage badges — V2 providers */}
         <div style={{ position: 'absolute', top: '8px', right: '8px', display: 'flex', gap: '4px' }}>
-          {(item.storageLocation === 'local' || item.storageLocation === 'both') && (
-            <div style={{ background: 'rgba(0,0,0,0.6)', borderRadius: '6px', padding: '4px', display: 'flex', alignItems: 'center' }} title="Saved locally">
+          {(item.storageLocation === 'local' || item.storageLocation === 'self_hosted') && (
+            <div style={{ background: 'rgba(0,0,0,0.6)', borderRadius: '6px', padding: '4px', display: 'flex', alignItems: 'center' }} title="Saved locally on disk">
               <span className="material-symbols-rounded" style={{ fontSize: '14px', color: '#818cf8' }}>hard_drive</span>
             </div>
           )}
-          {(item.storageLocation === 'drive' || item.storageLocation === 'both') && (
+          {item.storageLocation === 'cloud' && (
+            <div style={{ background: 'rgba(0,0,0,0.6)', borderRadius: '6px', padding: '4px', display: 'flex', alignItems: 'center' }} title="Saved in Cloud (R2)">
+              <span className="material-symbols-rounded" style={{ fontSize: '14px', color: '#38bdf8' }}>cloud</span>
+            </div>
+          )}
+          {item.storageLocation === 'google_drive' && (
             <div style={{ background: 'rgba(0,0,0,0.6)', borderRadius: '6px', padding: '4px', display: 'flex', alignItems: 'center' }} title="Saved in Google Drive">
               <DriveLogoSVG size={14} />
             </div>

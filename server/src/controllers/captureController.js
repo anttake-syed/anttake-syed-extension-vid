@@ -1,36 +1,49 @@
-const { google } = require('googleapis');
 const prisma = require('../db/prisma');
-const { getValidOAuthClient } = require('../models/helpers');
+const storageRouter = require('../services/storageRouter');
 
 exports.getCaptures = async (req, res) => {
   try {
     const captures = await prisma.capture.findMany({
-      where: { email: req.user.email },
+      where: { userId: req.user.id, status: 'active' },
       orderBy: { createdAt: 'desc' },
+      include: { storageObject: true }
     });
+
     const shaped = captures.map(c => {
-      // Derive extension from stored mimeType (strips codec params like ;codecs=vp9)
       const mime = (c.mimeType || '').split(';')[0].trim();
       let ext = c.type === 'video' ? '.webm' : '.png';
-      if (mime.includes('mp4'))  {ext = '.mp4';}
-      else if (mime.includes('webm')) {ext = '.webm';}
-      else if (mime.includes('png'))  {ext = '.png';}
-      else if (mime.includes('jpeg') || mime.includes('jpg')) {ext = '.jpg';}
+      if (mime.includes('mp4'))  ext = '.mp4';
+      else if (mime.includes('webm')) ext = '.webm';
+      else if (mime.includes('png'))  ext = '.png';
+      else if (mime.includes('jpeg') || mime.includes('jpg')) ext = '.jpg';
+
+      const provider = c.storageObject?.provider;
+      const filename = c.storageObject?.providerObjectId || `${c.id}${ext}`;
+
+      // For local files: return the direct static URL — no auth needed, no redirect
+      // For cloud/drive: use the /captures/:id/media auth-gated redirect
+      let src;
+      if (provider === 'local' || provider === 'self_hosted') {
+        src = `/uploads/${filename}`;
+      } else {
+        src = `/captures/${c.id}/media`;
+      }
+      
       return {
         id: c.id,
         title: c.title,
         type: c.type,
-        size: c.size,
+        size: c.storageObject?.sizeBytes ? Number(c.storageObject.sizeBytes) : 0,
         date: c.createdAt,
         mimeType: mime || (c.type === 'video' ? 'video/webm' : 'image/png'),
-        fileUrl: c.fileUrl,
-        src: c.fileUrl,
-        driveUrl: c.driveUrl,
-        storageLocation: c.storageLocation,
+        fileUrl: src,
+        src,
+        storageLocation: provider || 'unknown',
         hasAudio: c.hasAudio,
         ext,
       };
     });
+
     res.json({ captures: shaped });
   } catch (err) {
     console.error('Fetch error:', err);
@@ -38,125 +51,113 @@ exports.getCaptures = async (req, res) => {
   }
 };
 
-exports.uploadMetadata = async (req, res) => {
+exports.uploadCapture = async (req, res) => {
   try {
-    const { title, type, size, mimeType, driveUrl, hasAudio } = req.body;
-    
-    if (!driveUrl) {return res.status(400).json({ error: 'driveUrl is required' });}
+    const { title, type, mimeType, hasAudio, provider, driveUrl } = req.body;
+    const targetProvider = provider || 'local';
 
-    const record = await prisma.capture.create({
+    // 1. Create the Capture shell in the database first
+    const capture = await prisma.capture.create({
       data: {
-        email: req.user.email,
+        userId: req.user.id,
         title: title || `Capture ${new Date().toLocaleString()}`,
         type: type === 'video' ? 'video' : 'image',
-        size: size || 'Unknown',
         mimeType: mimeType || (type === 'video' ? 'video/webm' : 'image/png'),
-        fileUrl: driveUrl, // Deprecated, but keeping for schema compat
-        driveUrl: driveUrl,
-        storageLocation: 'drive',
-        hasAudio: hasAudio === undefined ? true : hasAudio,
-      },
+        hasAudio: hasAudio === 'true' || hasAudio === true,
+        status: 'processing' // Will be active once upload succeeds
+      }
     });
 
-    console.log(`✨ Metadata saved! ID: ${record.id} | User: ${req.user.email}`);
-    res.json({ success: true, record });
-  } catch (err) {
-    console.error('Metadata save error:', err);
-    res.status(500).json({ error: 'Metadata save failed', detail: err.message });
-  }
-};
+    // 2. If it's a direct Drive upload from the extension (legacy compatibility)
+    if (driveUrl) {
+      const storageObject = await prisma.storageObject.create({
+        data: {
+          captureId: capture.id,
+          provider: 'google_drive',
+          providerObjectId: driveUrl.match(/[-\w]{25,}/)?.[0] || driveUrl,
+          status: 'ready'
+        }
+      });
+      await prisma.capture.update({
+        where: { id: capture.id },
+        data: { status: 'active' }
+      });
+      return res.json({ success: true, record: capture, storageObject });
+    }
 
-exports.uploadLocal = async (req, res) => {
-  try {
-    const { title, type, size, mimeType, hasAudio } = req.body;
-    
+    // 3. Otherwise, we route the file buffer through our new StorageRouter
     if (!req.file) {
-      console.log(`❌ [SYNC REJECTED] No file attached in request from ${req.user.email}`);
+      await prisma.capture.delete({ where: { id: capture.id } });
       return res.status(400).json({ error: 'No file uploaded' });
     }
 
-    console.log(`\n📥 [INCOMING SYNC] Receiving local file from ${req.user.email}...`);
-    console.log(`   - File Type: ${mimeType || type}`);
-    console.log(`   - File Size: ${size || 'Unknown'}`);
-    console.log(`   - Buffer Size: ${req.file.size} bytes`);
+    const mime = (mimeType || '').split(';')[0].trim();
+    let ext = type === 'video' ? 'webm' : 'png';
+    if (mime.includes('mp4'))  ext = 'mp4';
+    else if (mime.includes('webm')) ext = 'webm';
+    else if (mime.includes('jpeg') || mime.includes('jpg')) ext = 'jpg';
+    else if (mime.includes('png')) ext = 'png';
+    
+    const filename = `${capture.id}.${ext}`;
+    const options = { accessToken: req.user.access_token, refreshToken: req.user.refresh_token };
 
-    const record = await prisma.capture.create({
-      data: {
-        email: req.user.email,
-        title: title || `Capture ${new Date().toLocaleString()}`,
-        type: type === 'video' ? 'video' : 'image',
-        size: size || 'Unknown',
-        mimeType: mimeType || (type === 'video' ? 'video/webm' : 'image/png'),
-        fileUrl: '', // Will update after getting ID
-        driveUrl: '',
-        storageLocation: 'local',
-        hasAudio: (hasAudio === 'true' || hasAudio === true) ? true : false,
-        mediaData: req.file.buffer, // Save binary data directly to SQLite
-      },
-    });
+    const result = await storageRouter.routeUpload(
+      req.user, 
+      req.file.buffer, 
+      filename, 
+      capture.mimeType, 
+      targetProvider, 
+      capture.id,
+      options
+    );
 
-    const fileUrl = `http://localhost:3001/captures/media/${record.id}`;
+    if (!result.success) {
+      // If it failed, delete the shell capture
+      await prisma.capture.delete({ where: { id: capture.id } });
+      return res.status(500).json(result);
+    }
 
+    // 4. Mark capture as active
     await prisma.capture.update({
-      where: { id: record.id },
-      data: { fileUrl, driveUrl: fileUrl }
+      where: { id: capture.id },
+      data: { status: 'active' }
     });
 
-    console.log(`✅ [SYNC SUCCESS] File saved to SQLite database!`);
-    console.log(`   - DB Record ID: ${record.id}`);
-    console.log(`   - Local URL: ${fileUrl}\n`);
-    res.json({ success: true, record, fileUrl });
+    const so = result.storageObject;
+    res.json({ 
+      success: true, 
+      record: capture, 
+      storageObject: so ? { ...so, sizeBytes: so.sizeBytes != null ? Number(so.sizeBytes) : null } : null,
+      accessUrl: result.accessUrl
+    });
+
   } catch (err) {
-    console.error('❌ [SYNC ERROR] Local save failed:', err);
-    res.status(500).json({ error: 'Local file save failed', detail: err.message });
-  }
-};
-
-// Removed deprecated sync endpoints
-
-exports.removeDrive = async (req, res) => {
-  try {
-    if (!req.user.access_token) {return res.status(401).json({ error: 'No Google token' });}
-    const record = await prisma.capture.findUnique({ where: { id: parseInt(req.params.id, 10), email: req.user.email } });
-    if (!record || !record.driveUrl)
-      {return res.status(404).json({ error: 'Capture not found or has no Drive file' });}
-
-    const fileIdMatch = record.driveUrl.match(/[-\w]{25,}/);
-    if (!fileIdMatch) {return res.status(400).json({ error: 'Invalid Drive URL format' });}
-
-    const userOauth2Client = await getValidOAuthClient(req.user);
-    const drive = google.drive({ version: 'v3', auth: userOauth2Client });
-    await drive.files.delete({ fileId: fileIdMatch[0] });
-    await prisma.capture.delete({ where: { id: record.id } });
-    res.json({ success: true });
-  } catch (err) {
-    console.error('Remove drive error:', err.message);
-    res.status(500).json({ error: 'Failed to remove from Google Drive', detail: err.message });
+    console.error('Upload error:', err);
+    res.status(500).json({ error: 'Upload failed', detail: err.message });
   }
 };
 
 exports.deleteCapture = async (req, res) => {
   try {
-    const record = await prisma.capture.findUnique({
-      where: { id: parseInt(req.params.id, 10) },
+    const capture = await prisma.capture.findUnique({
+      where: { id: req.params.id },
+      include: { storageObject: true }
     });
-    if (!record || record.email !== req.user.email)
-      {return res.status(404).json({ error: 'Not found' });}
 
-    if (record.driveUrl && req.user.access_token) {
-      try {
-        const fileIdMatch = record.driveUrl.match(/[-\w]{25,}/);
-        if (fileIdMatch) {
-          const userOauth2Client = await getValidOAuthClient(req.user);
-          const drive = google.drive({ version: 'v3', auth: userOauth2Client });
-          await drive.files.delete({ fileId: fileIdMatch[0] });
-        }
-      } catch (driveErr) {
-        console.error('Drive delete failed (continuing):', driveErr.message);
-      }
+    if (!capture || capture.userId !== req.user.id) {
+      return res.status(404).json({ error: 'Not found' });
     }
 
-    await prisma.capture.delete({ where: { id: record.id } });
+    // Attempt to delete from provider
+    if (capture.storageObject) {
+      await storageRouter.deleteFile(capture.storageObject, {
+        accessToken: req.user.access_token,
+        refreshToken: req.user.refresh_token
+      });
+    }
+
+    // Delete from DB
+    await prisma.capture.delete({ where: { id: capture.id } });
     res.json({ success: true });
   } catch (err) {
     console.error('Delete capture error:', err);
@@ -170,11 +171,14 @@ exports.renameCapture = async (req, res) => {
     if (!title || typeof title !== 'string' || !title.trim()) {
       return res.status(400).json({ error: 'A valid title is required' });
     }
+    
     const record = await prisma.capture.findUnique({
-      where: { id: parseInt(req.params.id, 10) },
+      where: { id: req.params.id },
     });
-    if (!record || record.email !== req.user.email)
-      { return res.status(404).json({ error: 'Not found' }); }
+
+    if (!record || record.userId !== req.user.id) {
+      return res.status(404).json({ error: 'Not found' });
+    }
 
     const updated = await prisma.capture.update({
       where: { id: record.id },
@@ -189,106 +193,67 @@ exports.renameCapture = async (req, res) => {
 
 exports.deleteAll = async (req, res) => {
   try {
-    const { count } = await prisma.capture.deleteMany({ where: { email: req.user.email } });
+    const captures = await prisma.capture.findMany({
+      where: { userId: req.user.id },
+      include: { storageObject: true }
+    });
+
+    for (const c of captures) {
+      if (c.storageObject) {
+        await storageRouter.deleteFile(c.storageObject, {
+          accessToken: req.user.access_token,
+          refreshToken: req.user.refresh_token
+        });
+      }
+    }
+
+    const { count } = await prisma.capture.deleteMany({ where: { userId: req.user.id } });
     console.log(`🗑 Deleted ${count} captures for ${req.user.email}`);
     res.json({ success: true, deleted: count });
   } catch (err) {
-    console.error('Delete captures error:', err);
+    console.error('Delete all captures error:', err);
     res.status(500).json({ error: 'Failed to delete captures' });
   }
 };
 
 exports.getMedia = async (req, res) => {
   try {
-    // Explicit CORS headers on this endpoint — the browser's <video> element
-    // sends Range requests that can bypass the global CORS middleware chain.
-    // Without these, cross-origin 206 responses are silently rejected by Chrome.
-    // NOTE: We rely on the global corsMiddleware for Origin and Credentials to avoid illegal combinations.
-    res.set('Access-Control-Expose-Headers', 'Content-Range, Accept-Ranges, Content-Length, Content-Type');
-
-    // Handle preflight OPTIONS request for the media endpoint
-    if (req.method === 'OPTIONS') {
-      res.set('Access-Control-Allow-Methods', 'GET, OPTIONS');
-      res.set('Access-Control-Allow-Headers', 'Authorization, Range');
-      return res.status(204).end();
-    }
-
-    const record = await prisma.capture.findUnique({
-      where: { id: parseInt(req.params.id, 10) }
+    const capture = await prisma.capture.findUnique({
+      where: { id: req.params.id },
+      include: { storageObject: true }
     });
 
-    if (!record || !record.mediaData) {
-      return res.status(404).send('Media not found in database');
+    if (!capture || capture.userId !== req.user.id || !capture.storageObject) {
+      return res.status(404).send('Media not found');
     }
 
-    // Strip codec params: "video/webm;codecs=vp9,opus" → "video/webm"
-    const rawMime = record.mimeType || (record.type === 'video' ? 'video/webm' : 'image/png');
-    let mimeType = rawMime.split(';')[0].trim();
+    const LocalProvider = require('../providers/LocalProvider');
+    const CloudProvider = require('../providers/CloudProvider');
+    const GoogleDriveProvider = require('../providers/GoogleDriveProvider');
 
-    // Prisma returns a Buffer from SQLite Bytes columns, but normalise it
-    // anyway so .length, .slice() and Buffer.byteLength() are always reliable.
-    const buffer = Buffer.isBuffer(record.mediaData)
-      ? record.mediaData
-      : Buffer.from(record.mediaData);
-
-    const totalSize = buffer.length;
-
-    // ── Magic Byte Sniffing (Fixes Video Previews) ─────────────────────────
-    // If the file was saved as an .mp4 (for download compatibility) but is 
-    // actually a WebM container (Chrome fallback), the browser <video> tag 
-    // will refuse to play it if served with Content-Type: video/mp4.
-    // We check the first 4 bytes for the EBML header (WebM) to serve the correct MIME.
-    if (record.type === 'video' && totalSize >= 4) {
-      if (buffer[0] === 0x1A && buffer[1] === 0x45 && buffer[2] === 0xDF && buffer[3] === 0xA3) {
-        mimeType = 'video/webm';
-      }
-    }
-
-    // ── Handle Range Requests for Video Streaming ───────────────────────────
-    if (req.headers.range) {
-      const range = req.headers.range;
-      const parts = range.replace(/bytes=/, '').split('-');
-
-      let start, end;
-
-      if (parts[0] === '') {
-        // Suffix range (e.g. bytes=-500) — used by MP4 to fetch moov atom at end
-        const suffixLen = parseInt(parts[1], 10);
-        start = Math.max(0, totalSize - suffixLen);
-        end = totalSize - 1;
-      } else {
-        start = parseInt(parts[0], 10);
-        end = parts[1] ? parseInt(parts[1], 10) : totalSize - 1;
-      }
-
-      // Clamp to valid range
-      end = Math.min(end, totalSize - 1);
-      start = Math.max(0, start);
-
-      if (start > end) {
-        res.set('Content-Range', `bytes */${totalSize}`);
-        return res.status(416).send('Range Not Satisfiable');
-      }
-
-      const chunkSize = end - start + 1;
-      res.set({
-        'Content-Range': `bytes ${start}-${end}/${totalSize}`,
-        'Accept-Ranges': 'bytes',
-        'Content-Length': chunkSize,
-        'Content-Type': mimeType,
-        'Cache-Control': 'no-cache, no-store',
+    let accessUrl;
+    const provider = capture.storageObject.provider;
+    
+    // Dynamically get the access URL
+    if (provider === 'local' || provider === 'self_hosted') {
+      accessUrl = await LocalProvider.getAccessUrl(capture.storageObject.providerObjectId);
+    } else if (provider === 'cloud') {
+      accessUrl = await CloudProvider.getAccessUrl(capture.storageObject.providerObjectId);
+    } else if (provider === 'google_drive') {
+      accessUrl = await GoogleDriveProvider.getAccessUrl(capture.storageObject.providerObjectId, {
+        userId: req.user.id,
+        accessToken: req.user.access_token,
+        refreshToken: req.user.refresh_token
       });
-      return res.status(206).send(buffer.subarray(start, end + 1));
     }
 
-    // ── No Range header: send entire file ───────────────────────────────────
-    res.set({
-      'Content-Length': totalSize,
-      'Content-Type': mimeType,
-      'Accept-Ranges': 'bytes',
-      'Cache-Control': 'no-cache, no-store',
-    });
-    return res.status(200).send(buffer);
+    if (!accessUrl) {
+      return res.status(404).send('Provider URL could not be resolved');
+    }
+
+    // Redirect the browser to the actual file URL
+    // (This avoids having to stream it through our server and handles Range requests automatically via the provider!)
+    res.redirect(accessUrl);
 
   } catch (err) {
     console.error('Serve media error:', err);

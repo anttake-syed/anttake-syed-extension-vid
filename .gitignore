@@ -11,3 +11,5 @@ marketing/
 # Local build planning & architecture notes — never commit
 _build-info/
 _manual-tests/
+.vercel
+.env*

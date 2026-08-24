@@ -38,6 +38,40 @@ exports.googleCallback = async (req, res) => {
     const { data: userInfo } = await oauth2.userinfo.get();
     console.log(`✨ Authenticated: ${userInfo.email}`);
 
+    // V2: Upsert user into SQLite DB
+    const prisma = require('../db/index');
+    const user = await prisma.user.upsert({
+      where: { email: userInfo.email },
+      update: {
+        name: userInfo.name,
+        picture: userInfo.picture,
+        googleId: userInfo.id,
+      },
+      create: {
+        email: userInfo.email,
+        name: userInfo.name,
+        picture: userInfo.picture,
+        googleId: userInfo.id,
+      }
+    });
+
+    // Upsert session (one session per user for now)
+    await prisma.session.upsert({
+      where: { id: user.id },
+      update: {
+        accessToken: tokens.access_token || '',
+        refreshToken: tokens.refresh_token || null,
+        expiryDate: tokens.expiry_date ? BigInt(tokens.expiry_date) : null,
+      },
+      create: {
+        id: user.id, // reuse user ID as session ID for simplicity
+        userId: user.id,
+        accessToken: tokens.access_token || '',
+        refreshToken: tokens.refresh_token || null,
+        expiryDate: tokens.expiry_date ? BigInt(tokens.expiry_date) : null,
+      }
+    });
+
     let source = 'web', mode = 'redirect', origin = 'https://antcapture.anttake.com';
     try {
       if (state?.startsWith('{')) {
@@ -50,8 +84,10 @@ exports.googleCallback = async (req, res) => {
       console.warn('State parse failed');
     }
 
+    // V2 JWT: embed user ID + tokens (tokens still needed for Drive access)
     const jwtToken = jwt.sign(
       {
+        id: user.id,
         name: userInfo.name,
         email: userInfo.email,
         picture: userInfo.picture,
@@ -60,7 +96,7 @@ exports.googleCallback = async (req, res) => {
         expiry_date: tokens.expiry_date,
       },
       process.env.JWT_SECRET,
-      { expiresIn: '30d' }  // 30 days — keeps active users signed in
+      { expiresIn: '30d' }
     );
 
     if (mode === 'popup') {

@@ -95,8 +95,11 @@ function showToast(msg, type = 'success', durationMs = 2500) {
     box-shadow: 0 10px 25px rgba(0,0,0,0.5); backdrop-filter: blur(4px);
     transition: opacity 0.3s ease; user-select: text; cursor: pointer;
   `;
-  toast.innerHTML = `<span class="material-symbols-rounded" style="font-size:16px;">${isErr ? 'error' : 'check_circle'}</span> <span>${msg}</span>`;
-  
+  toast.innerHTML = `
+    <span class="material-symbols-rounded" style="font-size:16px;">${isErr ? 'error' : 'check_circle'}</span> 
+    <span style="flex:1;">${msg}</span>
+    ${isErr ? '<span class="material-symbols-rounded" style="font-size:14px; opacity:0.7; margin-left:8px;" title="Click to copy error">content_copy</span>' : ''}
+  `;
   container.appendChild(toast);
   
   const startTimer = () => {
@@ -245,7 +248,13 @@ async function init() {
   }
 
   if (!itemId && !opfsParam) {
-    mediaContainer.innerHTML = '<div style="color:#f87171; padding:20px;">Error: No item ID provided in URL.</div>';
+    mediaContainer.innerHTML = `<div style="color:#f87171; padding:28px; font-size:15px; display:flex; flex-direction:column; gap:14px; align-items:center; max-width:480px; margin:0 auto;">
+      <span class="material-symbols-rounded" style="font-size:52px;">link_off</span>
+      <div style="font-weight:700; font-size:17px;">Invalid Link</div>
+      <div style="color:#cbd5e1; text-align:center; line-height:1.6;">This preview link is incomplete or broken. We couldn't identify which recording to show.</div>
+      <button id="invalidLinkCloseBtn" style="margin-top:8px; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15); color:#e2e8f0; padding:10px 24px; border-radius:8px; font-size:14px; font-weight:600; cursor:pointer;">Close Window</button>
+    </div>`;
+    document.getElementById('invalidLinkCloseBtn')?.addEventListener('click', () => window.close());
     return;
   }
 
@@ -308,12 +317,30 @@ async function init() {
     }
   } catch (err) {
     console.error('Failed to get media:', err);
-    mediaContainer.innerHTML = `<div style="color:#f87171; padding:20px;">Database Error: ${err.message}</div>`;
+    mediaContainer.innerHTML = `<div style="color:#f87171; padding:28px; font-size:15px; display:flex; flex-direction:column; gap:14px; align-items:center; max-width:480px; margin:0 auto;">
+      <span class="material-symbols-rounded" style="font-size:52px;">storage</span>
+      <div style="font-weight:700; font-size:17px;">Storage Error</div>
+      <div style="color:#cbd5e1; text-align:center; line-height:1.6;">We encountered an issue while trying to load your recording from local storage.</div>
+      <div style="background:rgba(99,102,241,0.12); border:1px solid rgba(99,102,241,0.3); border-radius:8px; padding:12px 16px; color:#a5b4fc; font-size:13px; text-align:center; line-height:1.5;">
+        <span class="material-symbols-rounded" style="font-size:15px; vertical-align:middle; margin-right:4px;">lightbulb</span>Tip: ${err.message || 'Try reloading the page or restarting the browser.'}
+      </div>
+      <button id="dbErrorCloseBtn" style="margin-top:8px; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15); color:#e2e8f0; padding:10px 24px; border-radius:8px; font-size:14px; font-weight:600; cursor:pointer;">Close Window</button>
+    </div>`;
+    document.getElementById('dbErrorCloseBtn')?.addEventListener('click', () => window.close());
     return;
   }
 
   if (!currentItem || !currentItem.blob) {
-    mediaContainer.innerHTML = '<div style="color:#f87171; padding:20px;">Error: Capture not found or already deleted from local storage.</div>';
+    mediaContainer.innerHTML = `<div style="color:#f87171; padding:28px; font-size:15px; display:flex; flex-direction:column; gap:14px; align-items:center; max-width:480px; margin:0 auto;">
+      <span class="material-symbols-rounded" style="font-size:52px;">visibility_off</span>
+      <div style="font-weight:700; font-size:17px;">Recording Not Found</div>
+      <div style="color:#cbd5e1; text-align:center; line-height:1.6;">We couldn't find this recording. It may have been already saved, permanently deleted, or lost due to a page reload.</div>
+      <div style="background:rgba(99,102,241,0.12); border:1px solid rgba(99,102,241,0.3); border-radius:8px; padding:12px 16px; color:#a5b4fc; font-size:13px; text-align:center; line-height:1.5;">
+        <span class="material-symbols-rounded" style="font-size:15px; vertical-align:middle; margin-right:4px;">lightbulb</span>Tip: Check your AntCapture dashboard or downloads folder for the file.
+      </div>
+      <button id="notFoundCloseBtn" style="margin-top:8px; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15); color:#e2e8f0; padding:10px 24px; border-radius:8px; font-size:14px; font-weight:600; cursor:pointer;">Close Window</button>
+    </div>`;
+    document.getElementById('notFoundCloseBtn')?.addEventListener('click', () => window.close());
     return;
   }
 
@@ -414,13 +441,44 @@ async function init() {
   });
 
   // Check initial connection status & render auth panel accordingly
-  // We default to showing the cloud user status if no pending mode is set
   chrome.storage.local.get(['user_cloud', 'user_local', 'user', 'autoSavePref'], (res) => {
     updateAuthPanel(res.user_cloud || res.user);
+
+    const storageBadge = document.getElementById('storageBadge');
+    const storageBadgeLabel = document.getElementById('storageBadgeLabel');
+    const storageBadgeIcon = document.getElementById('storageBadgeIcon');
+    
+    function updateStorageBadge(mode) {
+      if (!storageBadge || !storageBadgeLabel || !storageBadgeIcon) return;
+      if (mode === 'none') {
+        storageBadge.style.display = 'none';
+        return;
+      }
+      storageBadge.style.display = 'flex';
+      if (mode === 'computer') {
+        storageBadgeIcon.textContent = 'download';
+        storageBadgeIcon.style.color = '#38bdf8';
+        storageBadgeLabel.textContent = 'Local Disk (Downloads)';
+      } else if (mode === 'localhost') {
+        storageBadgeIcon.textContent = 'dns';
+        storageBadgeIcon.style.color = '#818cf8';
+        storageBadgeLabel.textContent = 'Self-Hosted Server';
+      } else if (mode === 'cloud') {
+        storageBadgeIcon.textContent = 'cloud';
+        storageBadgeIcon.style.color = '#38bdf8';
+        storageBadgeLabel.textContent = 'Cloud (R2)';
+      } else if (mode === 'drive-only') {
+        storageBadgeIcon.textContent = 'add_to_drive';
+        storageBadgeIcon.style.color = '#4ade80';
+        storageBadgeLabel.textContent = 'Google Drive';
+      }
+    }
 
     // Setup auto-save toggles
     const toggles = document.querySelectorAll('.auto-save-toggle');
     const currentPref = res.autoSavePref || 'none';
+    
+    updateStorageBadge(currentPref);
     
     toggles.forEach(toggle => {
       if (toggle.dataset.mode === currentPref) {
@@ -435,11 +493,14 @@ async function init() {
           chrome.storage.local.set({ autoSavePref: 'none' });
           toggle.classList.remove('active');
           toggle.title = "Set as Auto-Save Default";
+          updateStorageBadge('none');
           showToast("Auto-save disabled");
           if (autoSaveTimer) {
             clearInterval(autoSaveTimer);
-            const badge = document.getElementById('autoSaveBadge');
-            if (badge) badge.remove();
+            if (activeCountdownToast) {
+              activeCountdownToast.remove();
+              activeCountdownToast = null;
+            }
           }
         } else {
           // Enable for this mode
@@ -450,6 +511,7 @@ async function init() {
           });
           toggle.classList.add('active');
           toggle.title = "Current Auto-Save Default (Click to disable)";
+          updateStorageBadge(mode);
           showToast(`Auto-save enabled!`);
           // Immediately start countdown for THIS session too
           startAutoSaveCountdown(mode);
@@ -605,12 +667,21 @@ async function processSave(mode) {
       const res = await chrome.storage.local.get([userKey, 'user']);
       const user = res[userKey] || res.user;
       
-      if (user && user.jwt && navigator.onLine) {
+      const isLocalHost = mode === 'localhost';
+      const hasValidUser = user && user.jwt;
+      
+      if ((hasValidUser || isLocalHost) && navigator.onLine) {
         document.body.style.pointerEvents = 'none';
-        await uploadToServer(blob, type, mode, user.jwt, resolution, format, customName, hasAudio);
+        
+        // Pass mock token 'local-mode' if no user is signed in but we are on localhost
+        const tokenToUse = hasValidUser ? user.jwt : 'local-mode';
+        
+        await uploadToServer(blob, type, mode, tokenToUse, resolution, format, customName, hasAudio);
+        
         chrome.storage.local.get(['captureCount'], (r) =>
           chrome.storage.local.set({ captureCount: (r.captureCount || 0) + 1 })
         );
+        
         let msgTitle, msgText;
         if (mode === 'localhost') {
            msgTitle = `${label} saved`;
@@ -619,14 +690,15 @@ async function processSave(mode) {
            msgTitle = mode === 'cloud' ? `${label} synced` : `${label} saved to Drive`;
            msgText  = mode === 'cloud' ? 'Saved to AntCapture web app and Google Drive.' : 'Uploaded directly to Google Drive.';
         }
+        
         notify(mode === 'localhost' ? 'capture-local' : (mode === 'cloud' ? 'capture-cloud' : 'capture-drive'), msgTitle, msgText);
         isSaved = true;
         await deleteCurrentItem();
         await showSuccessAndClose(mode === 'localhost' ? 'Saved to Self-Hosted!' : (mode === 'cloud' ? 'Saved to Cloud & Drive!' : 'Uploaded to Google Drive!'));
       } else {
-        if (!user || !user.jwt) {
+        if (!hasValidUser && !isLocalHost) {
           pendingSaveMode = mode;
-          const targetName = mode === 'localhost' ? 'Self-Hosted Server' : (mode === 'cloud' ? 'AntCapture Web & Drive' : 'Google Drive');
+          const targetName = mode === 'cloud' ? 'AntCapture Web & Drive' : 'Google Drive';
           updateAuthPanel(null, `Sign in with Google to save to ${targetName}.`);
           return;
         }

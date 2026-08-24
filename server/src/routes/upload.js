@@ -4,11 +4,11 @@ const requireAuth = require('../middleware/auth');
 const captureController = require('../controllers/captureController');
 const multer = require('multer');
 
-// Setup multer memory storage (no disk uploads)
-const storage = multer.memoryStorage();
-const upload = multer({ storage: storage });
+// Multer: memory storage (file buffer passed directly to storageRouter)
+const upload = multer({ storage: multer.memoryStorage() });
 
-router.post('/metadata', requireAuth, captureController.uploadMetadata);
-router.post('/local', requireAuth, upload.single('file'), captureController.uploadLocal);
+// Single unified endpoint for all upload modes (local, cloud, google_drive)
+// The `provider` field in req.body decides where the file goes
+router.post('/', requireAuth, upload.single('file'), captureController.uploadCapture);
 
 module.exports = router;

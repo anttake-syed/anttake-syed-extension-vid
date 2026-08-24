@@ -82,10 +82,11 @@ body {
 /* Media Preview Container */
 .media-container { 
   display: flex; 
-  align-items: center; 
+  align-items: stretch; 
   justify-content: center; 
   width: 100%; 
   height: 100%;
+  min-height: 400px;
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7); 
   border-radius: 12px; 
   overflow: hidden;
@@ -94,7 +95,9 @@ body {
   transition: all 0.3s ease;
 }
 
-img, video { 
+/* Only apply these defaults to img/video outside the player */
+body > img, body > video,
+.main-content > img, .main-content > video {
   max-width: 100%; 
   max-height: 100%; 
   object-fit: contain; 

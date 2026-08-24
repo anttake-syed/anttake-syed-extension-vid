@@ -1,5 +1,5 @@
 const jwt = require('jsonwebtoken');
-const prisma = require('../db/prisma');
+const prisma = require('../db/index');
 
 // Cached local admin user so we don't hit the DB on every request
 let _localAdminUser = null;

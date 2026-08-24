@@ -1,5 +1,5 @@
 const { google } = require('googleapis');
-const prisma = require('../db/prisma');
+const prisma = require('../db/index');
 const { formatBytes, getValidOAuthClient } = require('../models/helpers');
 
 exports.getStats = async (req, res) => {

@@ -8,6 +8,7 @@
     "dev": "node --watch src/index.js",
     "start": "node src/index.js",
     "setup": "prisma generate && prisma db push",
+    "setup:d1": "node scripts/setup-d1.js",
     "postinstall": "prisma generate",
     "lint": "eslint ."
   },

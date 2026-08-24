@@ -39,7 +39,7 @@ exports.googleCallback = async (req, res) => {
     console.log(`✨ Authenticated: ${userInfo.email}`);
 
     // V2: Upsert user into SQLite DB
-    const prisma = require('../db/prisma');
+    const prisma = require('../db/index');
     const user = await prisma.user.upsert({
       where: { email: userInfo.email },
       update: {

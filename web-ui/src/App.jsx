@@ -280,7 +280,7 @@ export default function App() {
 
         {/* ── Page Content ── */}
         {activeBoard ? (
-          <WhiteboardEditor board={activeBoard} onClose={() => setActiveBoard(null)} />
+          <WhiteboardEditor board={activeBoard} onClose={() => setActiveBoard(null)} user={user} />
         ) : activeNav === 'Settings' && isAuthenticated ? (
           <Settings user={user} captures={captures} dbStats={dbStats} onNameUpdate={handleNameUpdate} onDeleteAllCaptures={handleDeleteAllCaptures} onDeleteAccount={handleDeleteAccount} storagePreference={storagePreference} saveStoragePreference={saveStoragePreference} savingPref={savingPref} onManageSubscription={() => setActiveNav('Subscription')} />
         ) : activeNav === 'Subscription' && isAuthenticated ? (

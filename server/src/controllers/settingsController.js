@@ -1,4 +1,4 @@
-const prisma = require('../db/prisma');
+const prisma = require('../db/index');
 
 exports.getSettings = async (req, res) => {
   try {

@@ -1,4 +1,4 @@
-const prisma = require('../db/prisma');
+const prisma = require('../db/index');
 const storageRouter = require('../services/storageRouter');
 
 exports.getCaptures = async (req, res) => {

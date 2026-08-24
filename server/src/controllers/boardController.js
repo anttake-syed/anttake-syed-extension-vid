@@ -10,7 +10,7 @@ exports.getBoards = async (req, res) => {
     res.json({ boards: boards.map(b => ({ ...b, name: b.title })) });
   } catch (err) {
     console.error('Fetch boards error:', err);
-    res.status(500).json({ error: 'Failed to fetch boards' });
+    res.status(500).json({ error: `Failed to fetch boards: ${err.message}` });
   }
 };
 
@@ -50,7 +50,7 @@ exports.createBoard = async (req, res) => {
     res.json({ success: true, board: { ...board, name: board.title } });
   } catch (err) {
     console.error('Create board error:', err);
-    res.status(500).json({ error: 'Failed to create board' });
+    res.status(500).json({ error: `Failed to create board: ${err.message}` });
   }
 };
 

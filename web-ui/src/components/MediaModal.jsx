@@ -363,6 +363,7 @@ export default function MediaModal({ item, onClose, user, onSyncSuccess, onDelet
 
               <video
                 key={item.id}
+                src={item.src}
                 controls
                 autoPlay
                 style={{ width: '100%', height: '100%', objectFit: 'contain', outline: 'none', background: '#000', display: 'block', opacity: mediaLoading ? 0 : 1, transition: 'opacity 0.35s ease' }}
@@ -373,7 +374,6 @@ export default function MediaModal({ item, onClose, user, onSyncSuccess, onDelet
                   setMediaLoading(false);
                 }}
               >
-                <source src={item.src} type={item.mimeType || 'video/webm'} />
                 Your browser does not support the video tag.
               </video>
             </div>

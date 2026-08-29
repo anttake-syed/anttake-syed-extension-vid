@@ -1,6 +1,7 @@
 const { google } = require('googleapis');
 const prisma = require('../db/index');
 const { formatBytes, getValidOAuthClient } = require('../models/helpers');
+const logger = require('../utils/logger');
 
 exports.getStats = async (req, res) => {
   try {
@@ -50,7 +51,7 @@ exports.getStats = async (req, res) => {
           driveLimit = parseInt(aboutRes.data.storageQuota.limit, 10) || 0;
         }
       } catch (e) {
-        console.error('Drive stats error:', e.message);
+        logger.warn('stats', 'drive-quota-fetch-failed', { requestId: req.requestId, userId: req.user.id, error: e });
       }
     }
 
@@ -85,7 +86,7 @@ exports.getStats = async (req, res) => {
       storageServer: (process.env.SERVER_MODE || process.env.STORAGE_BACKEND) === 'cloud' ? 'cloud' : 'local',
     });
   } catch (err) {
-    console.error('Stats error:', err.message);
+    logger.error('stats', 'get-stats-failed', { requestId: req.requestId, userId: req.user.id, error: err });
     res.status(500).json({ error: 'Failed to fetch stats' });
   }
 };

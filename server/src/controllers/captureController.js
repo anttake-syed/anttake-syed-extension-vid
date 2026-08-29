@@ -1,5 +1,6 @@
 const prisma = require('../db/index');
 const storageRouter = require('../services/storageRouter');
+const logger = require('../utils/logger');
 
 exports.getCaptures = async (req, res) => {
   try {
@@ -46,7 +47,7 @@ exports.getCaptures = async (req, res) => {
 
     res.json({ captures: shaped });
   } catch (err) {
-    console.error('Fetch error:', err);
+    logger.error('capture', 'get-captures-failed', { requestId: req.requestId, userId: req.user.id, error: err });
     res.status(500).json({ error: 'Failed to fetch captures' });
   }
 };
@@ -132,7 +133,7 @@ exports.uploadCapture = async (req, res) => {
     });
 
   } catch (err) {
-    console.error('Upload error:', err);
+    logger.error('capture', 'upload-capture-failed', { requestId: req.requestId, userId: req.user.id, error: err });
     res.status(500).json({ error: 'Upload failed', detail: err.message });
   }
 };
@@ -160,7 +161,7 @@ exports.deleteCapture = async (req, res) => {
     await prisma.capture.delete({ where: { id: capture.id } });
     res.json({ success: true });
   } catch (err) {
-    console.error('Delete capture error:', err);
+    logger.error('capture', 'delete-capture-failed', { requestId: req.requestId, userId: req.user.id, captureId: req.params.id, error: err });
     res.status(500).json({ error: 'Failed to delete capture' });
   }
 };
@@ -186,7 +187,7 @@ exports.renameCapture = async (req, res) => {
     });
     res.json({ success: true, title: updated.title });
   } catch (err) {
-    console.error('Rename capture error:', err);
+    logger.error('capture', 'rename-capture-failed', { requestId: req.requestId, userId: req.user.id, captureId: req.params.id, error: err });
     res.status(500).json({ error: 'Failed to rename capture' });
   }
 };
@@ -208,10 +209,10 @@ exports.deleteAll = async (req, res) => {
     }
 
     const { count } = await prisma.capture.deleteMany({ where: { userId: req.user.id } });
-    console.log(`🗑 Deleted ${count} captures for ${req.user.email}`);
+    logger.info('capture', 'delete-all', { requestId: req.requestId, userId: req.user.id, count });
     res.json({ success: true, deleted: count });
   } catch (err) {
-    console.error('Delete all captures error:', err);
+    logger.error('capture', 'delete-all-failed', { requestId: req.requestId, userId: req.user.id, error: err });
     res.status(500).json({ error: 'Failed to delete captures' });
   }
 };
@@ -256,7 +257,7 @@ exports.getMedia = async (req, res) => {
     res.redirect(accessUrl);
 
   } catch (err) {
-    console.error('Serve media error:', err);
+    logger.error('capture', 'serve-media-failed', { requestId: req.requestId, userId: req.user.id, captureId: req.params.id, error: err });
     res.status(500).send('Failed to load media');
   }
 };

@@ -1,0 +1,10 @@
+
+> server@1.0.0 dev
+> node --watch src/index.js
+
+◇ injected env (23) from .env // tip: ⌘ custom filepath { path: '/custom/path/.env' }
+
+[32m✨ AntCapture V2 server running at http://localhost:3001[0m
+[36m📦 Storage mode: 💾 Local (SQLite + Filesystem)[0m
+
+Completed running 'src/index.js'

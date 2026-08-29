@@ -50,5 +50,6 @@ class RingBuffer {
 }
 
 const errorRingBuffer = new RingBuffer(MAX_ENTRIES);
+const activityRingBuffer = new RingBuffer(300); // 300 entries for activity stream
 
-module.exports = { errorRingBuffer };
+module.exports = { errorRingBuffer, activityRingBuffer };

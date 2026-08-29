@@ -266,15 +266,16 @@ function ErrorRow({ entry, onExpand, expanded }) {
 // ── Main Component ────────────────────────────────────────────────────────────
 export default function AdminDiagnostics({ user }) {
   const [health,       setHealth]       = useState(null);
-  const [errors,       setErrors]       = useState([]);
+  const [activity,     setActivity]     = useState([]);
   const [sysInfo,      setSysInfo]      = useState(null);
   const [loading,      setLoading]      = useState(false);
   const [errLoading,   setErrLoading]   = useState(false);
+  const [actLoading,   setActLoading]   = useState(false);
   const [lastRun,      setLastRun]      = useState(null);
   const [selectedCheck, setSelectedCheck] = useState(null);
   const [expandedError, setExpandedError] = useState(null);
   const [forbidden,    setForbidden]    = useState(false);
-  const [tab,          setTab]          = useState('health'); // 'health' | 'errors'
+  const [tab,          setTab]          = useState('health'); // 'health' | 'errors' | 'activity' | 'info'
 
   const authHeader = { Authorization: `Bearer ${user?.jwt}` };
 
@@ -315,10 +316,27 @@ export default function AdminDiagnostics({ user }) {
     }
   }, [user?.jwt]);
 
+  // ── Fetch activity ─────────────────────────────────────────────────────────
+  const fetchActivity = useCallback(async () => {
+    setActLoading(true);
+    try {
+      const r = await fetch(`${SERVER_URL}/api/admin/diagnostics/activity`, { headers: authHeader });
+      if (r.status === 403) { setForbidden(true); return; }
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const data = await r.json();
+      setActivity(data.activity || []);
+    } catch (e) {
+      console.error('Activity fetch error:', e);
+    } finally {
+      setActLoading(false);
+    }
+  }, [user?.jwt]);
+
   useEffect(() => {
     fetchHealth();
     fetchErrors();
-  }, [fetchHealth, fetchErrors]);
+    fetchActivity();
+  }, [fetchHealth, fetchErrors, fetchActivity]);
 
   // ── Forbidden ──────────────────────────────────────────────────────────────
   if (forbidden) {
@@ -368,7 +386,7 @@ export default function AdminDiagnostics({ user }) {
           </p>
         </div>
         <button
-          onClick={() => { fetchHealth(); fetchErrors(); }}
+          onClick={() => { fetchHealth(); fetchErrors(); fetchActivity(); }}
           disabled={loading}
           style={{
             display: 'flex', alignItems: 'center', gap: '8px',
@@ -390,9 +408,10 @@ export default function AdminDiagnostics({ user }) {
       {/* ── Tab bar ── */}
       <div style={{ display: 'flex', gap: '4px', marginBottom: '24px', background: '#1e293b', borderRadius: '12px', padding: '4px', width: 'fit-content' }}>
         {[
-          { id: 'health', label: 'Health Checks', icon: 'check_circle' },
-          { id: 'errors', label: `Recent Errors${errors.length ? ` (${errors.length})` : ''}`, icon: 'error' },
-          { id: 'info',   label: 'System Info', icon: 'info' },
+          { id: 'health',   label: 'Health Checks', icon: 'check_circle' },
+          { id: 'activity', label: 'Live Activity', icon: 'bolt' },
+          { id: 'errors',   label: `Recent Errors${errors.length ? ` (${errors.length})` : ''}`, icon: 'error' },
+          { id: 'info',     label: 'System Info', icon: 'info' },
         ].map(t => (
           <button
             key={t.id}
@@ -426,6 +445,69 @@ export default function AdminDiagnostics({ user }) {
             ))}
           </div>
         </>
+      )}
+
+      {/* ── Activity Tab ── */}
+      {tab === 'activity' && (
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+            <div style={{ fontSize: '14px', color: '#64748b' }}>
+              {actLoading ? 'Loading…' : `${activity.length} recent events (in-memory, resets on restart)`}
+            </div>
+            <button
+              onClick={fetchActivity}
+              style={{
+                background: 'none', border: '1px solid #1e293b', borderRadius: '8px',
+                color: '#94a3b8', cursor: 'pointer', padding: '6px 12px',
+                fontSize: '12px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px',
+              }}
+            >
+              <span className="material-symbols-rounded" style={{ fontSize: '14px' }}>refresh</span>
+              Refresh
+            </button>
+          </div>
+
+          {activity.length === 0 ? (
+            <div style={{
+              background: 'rgba(99,102,241,0.06)', border: '1px solid rgba(99,102,241,0.15)',
+              borderRadius: '14px', padding: '40px', textAlign: 'center',
+            }}>
+              <span className="material-symbols-rounded" style={{ fontSize: '40px', color: '#6366f1', display: 'block', marginBottom: '12px' }}>
+                history
+              </span>
+              <div style={{ fontSize: '15px', fontWeight: 600, color: '#f1f5f9', marginBottom: '6px' }}>
+                No activity recorded
+              </div>
+              <div style={{ fontSize: '13px', color: '#64748b' }}>
+                Server activity will appear here as it happens.
+              </div>
+            </div>
+          ) : (
+            <div style={{ overflow: 'auto', borderRadius: '12px', border: '1px solid #1e293b' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+                <thead>
+                  <tr style={{ background: '#1e293b', color: '#64748b', textAlign: 'left' }}>
+                    {['Time', 'Level', 'Feature', 'Operation', 'Details', 'Request ID', ''].map(h => (
+                      <th key={h} style={{ padding: '10px 14px', fontWeight: 600, fontSize: '11px', letterSpacing: '0.05em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {activity.map((entry, i) => (
+                    <ErrorRow
+                      key={i}
+                      entry={entry}
+                      onExpand={e => setExpandedError(expandedError === e ? null : e)}
+                      expanded={expandedError === entry}
+                    />
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
       )}
 
       {/* ── Errors Tab ── */}

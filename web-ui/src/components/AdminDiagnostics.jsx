@@ -266,6 +266,7 @@ function ErrorRow({ entry, onExpand, expanded }) {
 // ── Main Component ────────────────────────────────────────────────────────────
 export default function AdminDiagnostics({ user }) {
   const [health,       setHealth]       = useState(null);
+  const [errors,       setErrors]       = useState([]);   // ← restored — was accidentally removed
   const [activity,     setActivity]     = useState([]);
   const [sysInfo,      setSysInfo]      = useState(null);
   const [loading,      setLoading]      = useState(false);
@@ -275,7 +276,7 @@ export default function AdminDiagnostics({ user }) {
   const [selectedCheck, setSelectedCheck] = useState(null);
   const [expandedError, setExpandedError] = useState(null);
   const [forbidden,    setForbidden]    = useState(false);
-  const [tab,          setTab]          = useState('health'); // 'health' | 'errors' | 'activity' | 'info'
+  const [tab,          setTab]          = useState('health');
 
   const authHeader = { Authorization: `Bearer ${user?.jwt}` };
 

@@ -32,7 +32,7 @@
 
 const logger  = require('../utils/logger');
 const prisma  = require('../db/index');
-const { errorRingBuffer } = require('../utils/errorBuffer');
+const { errorRingBuffer, activityRingBuffer } = require('../utils/errorBuffer');
 
 // ── Check runner helper ───────────────────────────────────────────────────────
 async function runCheck(name, fn) {
@@ -250,6 +250,11 @@ function getRecentErrors() {
   return errorRingBuffer.get();
 }
 
+// ── Recent activity ───────────────────────────────────────────────────────────
+function getRecentActivity() {
+  return activityRingBuffer.get();
+}
+
 // ── Controller: GET /api/admin/diagnostics/health ─────────────────────────────
 exports.getSystemHealth = async (req, res) => {
   const adminUserId = req.dbUser?.id || req.user?.id;
@@ -318,6 +323,19 @@ exports.getRecentErrors = async (req, res) => {
 
   const errors = getRecentErrors();
   res.json({ errors, count: errors.length });
+};
+
+// ── Controller: GET /api/admin/diagnostics/activity ───────────────────────────
+exports.getRecentActivity = async (req, res) => {
+  const adminUserId = req.dbUser?.id || req.user?.id;
+  
+  logger.info('diagnostics', 'recent-activity-fetch', {
+    requestId: req.requestId,
+    userId:    adminUserId,
+  });
+
+  const activity = getRecentActivity();
+  res.json({ activity, count: activity.length });
 };
 
 // ── Controller: GET /api/admin/diagnostics/info ───────────────────────────────

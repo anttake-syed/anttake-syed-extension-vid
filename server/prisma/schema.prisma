@@ -15,6 +15,7 @@ model User {
   name          String?
   picture       String?
   googleId      String?  @unique
+  role          String   @default("user")  // "user" | "admin" — checked server-side by requireAdmin
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -171,6 +172,7 @@ model Board {
   userId        String
   user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   title         String   @default("Untitled Board")
+  thumbnail     String?  // base64 JPEG preview, updated on every save
   width         Int      @default(1920)
   height        Int      @default(1080)
   background    String   @default("#1a1a2e")

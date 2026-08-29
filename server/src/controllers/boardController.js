@@ -1,4 +1,5 @@
 const prisma = require('../db/index');
+const logger = require('../utils/logger');
 
 exports.getBoards = async (req, res) => {
   try {
@@ -6,11 +7,10 @@ exports.getBoards = async (req, res) => {
       where: { userId: req.user.id },
       orderBy: { updatedAt: 'desc' }
     });
-    // Expose `name` alias on each board (schema uses `title` but frontend sends/reads `name`)
     res.json({ boards: boards.map(b => ({ ...b, name: b.title })) });
   } catch (err) {
-    console.error('Fetch boards error:', err);
-    res.status(500).json({ error: 'Failed to fetch boards' });
+    logger.error('board', 'get-boards-failed', { requestId: req.requestId, userId: req.user.id, error: err });
+    res.status(500).json({ error: `Failed to fetch boards: ${err.message}` });
   }
 };
 
@@ -20,20 +20,22 @@ exports.createBoard = async (req, res) => {
     const { name, title, width, height, background } = req.body;
     const boardTitle = (name || title || '').trim() || 'Untitled Board';
     
-    // Check quota
-    const user = await prisma.user.findUnique({
-      where: { id: req.user.id },
-      include: { subscription: { include: { plan: true } } }
-    });
+    // Check quota ONLY in cloud mode
+    if (process.env.SERVER_MODE === 'cloud') {
+      const user = await prisma.user.findUnique({
+        where: { id: req.user.id },
+        include: { subscription: { include: { plan: true } } }
+      });
 
-    const plan = (user.subscription?.status === 'active' && user.subscription.plan)
-      ? user.subscription.plan
-      : await prisma.plan.findUnique({ where: { name: 'free' } });
+      const plan = (user.subscription?.status === 'active' && user.subscription.plan)
+        ? user.subscription.plan
+        : await prisma.plan.findUnique({ where: { name: 'free' } });
 
-    const currentBoardCount = await prisma.board.count({ where: { userId: req.user.id } });
+      const currentBoardCount = await prisma.board.count({ where: { userId: req.user.id } });
 
-    if (plan.boardLimit > 0 && currentBoardCount >= plan.boardLimit) {
-      return res.status(403).json({ error: `Board limit reached (${plan.boardLimit} for ${plan.displayName} plan)` });
+      if (plan && plan.boardLimit > 0 && currentBoardCount >= plan.boardLimit) {
+        return res.status(403).json({ error: `Board limit reached (${plan.boardLimit} for ${plan.displayName} plan)` });
+      }
     }
 
     const board = await prisma.board.create({
@@ -49,8 +51,8 @@ exports.createBoard = async (req, res) => {
     // Expose `name` alias so the frontend doesn't need to know the schema column is `title`
     res.json({ success: true, board: { ...board, name: board.title } });
   } catch (err) {
-    console.error('Create board error:', err);
-    res.status(500).json({ error: 'Failed to create board' });
+    logger.error('board', 'create-board-failed', { requestId: req.requestId, userId: req.user.id, error: err });
+    res.status(500).json({ error: `Failed to create board: ${err.message}` });
   }
 };
 
@@ -75,15 +77,14 @@ exports.getBoard = async (req, res) => {
 
     res.json({ board });
   } catch (err) {
-    console.error('Get board error:', err);
+    logger.error('board', 'get-board-failed', { requestId: req.requestId, userId: req.user.id, boardId: req.params.id, error: err });
     res.status(500).json({ error: 'Failed to get board' });
   }
 };
 
 exports.updateBoard = async (req, res) => {
   try {
-    // Accept `name` or `title` from the request
-    const { name, title, width, height, background } = req.body;
+    const { name, title, thumbnail, width, height, background } = req.body;
     const newTitle = (name || title || '').trim() || undefined;
     const board = await prisma.board.findUnique({ where: { id: req.params.id } });
 
@@ -93,12 +94,18 @@ exports.updateBoard = async (req, res) => {
 
     const updated = await prisma.board.update({
       where: { id: req.params.id },
-      data: { title: newTitle, width, height, background }
+      data: {
+        ...(newTitle  && { title: newTitle }),
+        ...(thumbnail !== undefined && { thumbnail }),
+        ...(width     && { width }),
+        ...(height    && { height }),
+        ...(background && { background }),
+      }
     });
 
     res.json({ success: true, board: { ...updated, name: updated.title } });
   } catch (err) {
-    console.error('Update board error:', err);
+    logger.error('board', 'update-board-failed', { requestId: req.requestId, userId: req.user.id, boardId: req.params.id, error: err });
     res.status(500).json({ error: 'Failed to update board' });
   }
 };
@@ -114,7 +121,7 @@ exports.deleteBoard = async (req, res) => {
     await prisma.board.delete({ where: { id: req.params.id } });
     res.json({ success: true });
   } catch (err) {
-    console.error('Delete board error:', err);
+    logger.error('board', 'delete-board-failed', { requestId: req.requestId, userId: req.user.id, boardId: req.params.id, error: err });
     res.status(500).json({ error: 'Failed to delete board' });
   }
 };
@@ -148,7 +155,7 @@ exports.addBoardItem = async (req, res) => {
 
     res.json({ success: true, item });
   } catch (err) {
-    console.error('Add board item error:', err);
+    logger.error('board', 'add-item-failed', { requestId: req.requestId, userId: req.user.id, boardId: req.params.id, error: err });
     res.status(500).json({ error: 'Failed to add board item' });
   }
 };
@@ -173,7 +180,7 @@ exports.updateBoardItem = async (req, res) => {
 
     res.json({ success: true, item: updated });
   } catch (err) {
-    console.error('Update board item error:', err);
+    logger.error('board', 'update-item-failed', { requestId: req.requestId, userId: req.user.id, itemId: req.params.itemId, error: err });
     res.status(500).json({ error: 'Failed to update board item' });
   }
 };
@@ -192,7 +199,7 @@ exports.deleteBoardItem = async (req, res) => {
     await prisma.boardItem.delete({ where: { id: item.id } });
     res.json({ success: true });
   } catch (err) {
-    console.error('Delete board item error:', err);
+    logger.error('board', 'delete-item-failed', { requestId: req.requestId, userId: req.user.id, itemId: req.params.itemId, error: err });
     res.status(500).json({ error: 'Failed to delete board item' });
   }
 };

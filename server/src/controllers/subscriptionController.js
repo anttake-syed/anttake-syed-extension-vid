@@ -1,5 +1,6 @@
 const prisma = require('../db/index');
 const lemonSqueezyService = require('../services/lemonSqueezyService');
+const logger = require('../utils/logger');
 
 exports.createCheckout = async (req, res) => {
   try {
@@ -25,7 +26,7 @@ exports.createCheckout = async (req, res) => {
 
     res.json({ success: true, checkoutUrl });
   } catch (err) {
-    console.error('Create checkout error:', err);
+    logger.error('subscription', 'create-checkout-failed', { requestId: req.requestId, userId: req.user.id, error: err });
     res.status(500).json({ error: 'Failed to create checkout session' });
   }
 };
@@ -43,7 +44,7 @@ exports.getSubscription = async (req, res) => {
 
     res.json({ subscription: user.subscription });
   } catch (err) {
-    console.error('Get subscription error:', err);
+    logger.error('subscription', 'get-subscription-failed', { requestId: req.requestId, userId: req.user.id, error: err });
     res.status(500).json({ error: 'Failed to fetch subscription' });
   }
 };

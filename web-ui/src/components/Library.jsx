@@ -39,7 +39,7 @@ function MediaCard({ item, onOpen, viewMode }) {
         <div style={{ width: '72px', height: '48px', borderRadius: '8px', overflow: 'hidden', background: '#0f172a', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           {item.storageLocation === 'drive' ? <DriveLogoSVG size={20} />
             : item.type === 'image' && item.src ? <img src={getFullSrc(item.src)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-            : item.type === 'video' && item.src ? <video src={getFullSrc(item.src)} style={{ width: '100%', height: '100%', objectFit: 'cover' }} muted />
+            : item.type === 'video' && item.src ? <video src={`${getFullSrc(item.src)}#t=0.5`} preload="metadata" style={{ width: '100%', height: '100%', objectFit: 'cover' }} muted />
             : <span className="material-symbols-rounded" style={{ fontSize: '22px', color: '#475569' }}>{item.type === 'video' ? 'videocam' : 'image'}</span>}
         </div>
 
@@ -107,8 +107,8 @@ function MediaCard({ item, onOpen, viewMode }) {
             onMouseEnter={() => setVideoHovered(true)}
             onMouseLeave={() => setVideoHovered(false)}
           >
-            <video src={getFullSrc(item.src)} style={{ width: '100%', height: '100%', objectFit: 'cover' }} muted
-              onMouseOver={e => e.target.play()} onMouseOut={e => { e.target.pause(); e.target.currentTime = 0; }} />
+            <video src={`${getFullSrc(item.src)}#t=0.5`} preload="metadata" style={{ width: '100%', height: '100%', objectFit: 'cover' }} muted
+              onMouseOver={e => e.target.play()} onMouseOut={e => { e.target.pause(); e.target.currentTime = 0.5; }} />
             <div style={{
               position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
               pointerEvents: 'none', transition: 'opacity 0.2s',

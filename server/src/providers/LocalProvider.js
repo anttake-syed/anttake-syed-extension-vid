@@ -8,13 +8,21 @@ const UPLOADS_DIR = path.join(__dirname, '..', '..', 'uploads');
 class LocalProvider extends BaseProvider {
   constructor() {
     super();
-    // Ensure the uploads directory exists on startup
+    // NOTE: Do NOT create the directory here — Vercel's serverless filesystem
+    // is read-only, so mkdirSync in the constructor crashes every request.
+    // Directory creation is deferred to _ensureUploadsDir(), called only when
+    // an actual write is needed (i.e. only in local/self-hosted mode).
+  }
+
+  _ensureUploadsDir() {
     if (!fs.existsSync(UPLOADS_DIR)) {
       fs.mkdirSync(UPLOADS_DIR, { recursive: true });
     }
   }
 
   async upload(buffer, filename, mimeType, options = {}) {
+    // Ensure the uploads dir exists right before the first write (lazy init)
+    this._ensureUploadsDir();
     const filePath = path.join(UPLOADS_DIR, filename);
     
     // Write the binary buffer directly to the file system

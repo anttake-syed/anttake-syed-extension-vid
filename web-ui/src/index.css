@@ -1,5 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap');
-
 :root {
   --bg-primary: #020617;
   --bg-secondary: #0f172a;
@@ -16,6 +14,20 @@
   --radius-lg: 20px;
   --radius-md: 14px;
   --radius-sm: 10px;
+
+  /* ── Video Player Design Tokens ───────────────────────────────────── */
+  /* These pull from the existing palette so the player auto-follows theme changes */
+  --video-progress:        var(--primary);                    /* played fill + thumb   */
+  --video-progress-glow:   var(--primary-glow);              /* thumb glow on hover   */
+  --video-progress-track:  rgba(255, 255, 255, 0.12);       /* unplayed track        */
+  --video-buffer:          rgba(255, 255, 255, 0.22);       /* buffered overlay      */
+  --video-control-bg:      rgba(2, 6, 23, 0.88);            /* controls bar bg       */
+  --video-control-hover:   rgba(99, 102, 241, 0.15);        /* button hover bg       */
+  --video-control-color:   var(--text-main);                /* icon color            */
+  --video-control-muted:   var(--text-muted);               /* timestamp color       */
+  --video-thumb-size:      14px;
+  --video-track-height:    4px;
+  --video-track-hover-height: 6px;
 }
 
 *,
@@ -32,6 +44,7 @@ body {
   color: var(--text-main);
   min-height: 100vh;
   line-height: 1.5;
+  overflow-y: scroll;
 }
 
 /* ── Layout ─────────────────────────────────────────────── */
@@ -987,4 +1000,423 @@ body {
   text-align: center;
   line-height: 1.6;
   max-width: 280px;
+}
+
+/* ── Responsive Design ───────────────────────────────────── */
+/* Global visibility rules */
+.sidebar-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  backdrop-filter: blur(2px);
+  z-index: 999;
+}
+
+.sidebar-overlay.open {
+  display: block;
+}
+
+.hamburger-btn {
+  display: none;
+}
+
+@media (max-width: 992px) {
+  .layout {
+    grid-template-columns: 220px 1fr;
+  }
+  .main-content {
+    padding: 24px 20px;
+  }
+}
+
+@media (max-width: 768px) {
+  .layout {
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    width: 260px;
+    z-index: 1000;
+    transform: translateX(-100%);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 4px 0 24px rgba(0,0,0,0.5);
+  }
+  
+  .sidebar.open {
+    transform: translateX(0);
+  }
+  
+  .header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+  }
+  
+  .header-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+  
+  .hamburger-btn {
+    display: flex !important;
+    background: transparent;
+    border: none;
+    color: var(--text-main);
+    cursor: pointer;
+    padding: 4px;
+    margin-right: 12px;
+  }
+  
+  .title-section {
+    display: flex;
+    align-items: center;
+  }
+  
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   VIDEO PLAYER COMPONENT SYSTEM
+   All styles driven by design tokens declared in :root.
+   Never put video-specific CSS outside this block.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+/* ── Container ──────────────────────────────────────────────────────────── */
+.vp-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background: #000;
+  display: flex;
+  flex-direction: column;
+  outline: none;
+  overflow: hidden;
+  user-select: none;
+}
+
+.vp-container:focus-visible { outline: 2px solid var(--video-progress); }
+.vp-hide-cursor { cursor: none; }
+
+/* ── Raw video element ──────────────────────────────────────────────────── */
+.vp-video-wrapper {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+  cursor: pointer;
+}
+
+.vp-video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+  outline: none;
+  /* hide browser default controls — we draw our own */
+}
+
+/* ── Status overlays ────────────────────────────────────────────────────── */
+.vp-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  pointer-events: none;
+}
+
+.vp-overlay-loading { background: rgba(2, 6, 23, 0.65); color: var(--text-dim); font-size: 14px; }
+.vp-overlay-error   { background: rgba(2, 6, 23, 0.82); pointer-events: all; gap: 10px; }
+
+.vp-overlay-icon  { font-size: 48px; color: #f87171; }
+.vp-overlay-title { font-size: 17px; font-weight: 600; color: var(--text-main); }
+.vp-overlay-sub   { font-size: 13px; color: var(--text-dim); text-align: center; max-width: 320px; line-height: 1.5; }
+
+/* Loading spinner */
+.vp-spinner {
+  width: 40px; height: 40px;
+  border: 3px solid rgba(255,255,255,0.12);
+  border-top-color: var(--video-progress);
+  border-radius: 50%;
+  animation: vp-spin 0.75s linear infinite;
+}
+@keyframes vp-spin { to { transform: rotate(360deg); } }
+
+/* Retry button (inside error overlay) */
+.vp-retry-btn {
+  margin-top: 8px;
+  padding: 8px 20px;
+  background: rgba(99, 102, 241, 0.12);
+  color: #818cf8;
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.vp-retry-btn:hover { background: rgba(99, 102, 241, 0.22); }
+
+/* ── Big play button overlay ────────────────────────────────────────────── */
+.vp-play-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  /* transparent — only the circle is visible */
+}
+
+.vp-play-circle {
+  width: 68px; height: 68px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.55);
+  border: 1.5px solid rgba(255,255,255,0.18);
+  display: flex; align-items: center; justify-content: center;
+  backdrop-filter: blur(4px);
+  transition: transform 0.15s, background 0.15s;
+}
+.vp-play-overlay:hover .vp-play-circle {
+  transform: scale(1.08);
+  background: rgba(99, 102, 241, 0.25);
+}
+.vp-play-circle .material-symbols-rounded { font-size: 38px; color: #fff; margin-left: 3px; }
+
+/* ── Controls wrapper ───────────────────────────────────────────────────── */
+.vp-controls-wrapper {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  z-index: 20;
+  transition: opacity 0.25s ease, transform 0.25s ease;
+  /* gradient behind controls for legibility */
+  background: linear-gradient(to top, rgba(2,6,23,0.9) 0%, transparent 100%);
+  padding-top: 48px;
+}
+
+.vp-controls-visible  { opacity: 1;  transform: translateY(0); pointer-events: all; }
+.vp-controls-hidden   { opacity: 0;  transform: translateY(4px); pointer-events: none; }
+
+/* ── Controls bar ───────────────────────────────────────────────────────── */
+.vp-controls {
+  padding: 0 12px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.vp-controls-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+}
+
+.vp-controls-left,
+.vp-controls-right {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* ── Icon buttons ───────────────────────────────────────────────────────── */
+.vp-btn {
+  background: none;
+  border: none;
+  padding: 6px;
+  border-radius: 6px;
+  color: var(--video-control-color);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s;
+  flex-shrink: 0;
+}
+.vp-btn:hover { background: var(--video-control-hover); }
+.vp-btn .material-symbols-rounded { font-size: 22px; }
+
+/* ── Volume slider ──────────────────────────────────────────────────────── */
+.vp-volume {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 72px;
+  height: var(--video-track-height);
+  border-radius: 999px;
+  background: var(--video-progress-track);
+  cursor: pointer;
+  outline: none;
+  position: relative;
+}
+.vp-volume::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 12px; height: 12px;
+  border-radius: 50%;
+  background: var(--video-progress);
+  cursor: pointer;
+  box-shadow: 0 0 0 2px var(--video-progress-glow);
+}
+.vp-volume::-moz-range-thumb {
+  width: 12px; height: 12px;
+  border-radius: 50%;
+  background: var(--video-progress);
+  border: none;
+  cursor: pointer;
+}
+
+/* ── Timestamp label ────────────────────────────────────────────────────── */
+.vp-timestamp {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--video-control-muted);
+  white-space: nowrap;
+  padding-left: 4px;
+  letter-spacing: 0.02em;
+}
+
+/* ── Progress / Seek track ──────────────────────────────────────────────── */
+.vp-track {
+  position: relative;
+  width: 100%;
+  height: 18px;               /* hit area — larger than visual */
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  border-radius: 999px;
+  outline: none;
+}
+
+.vp-track::before {
+  /* visual track — rendered via ::before to keep the hit area tall */
+  content: '';
+  position: absolute;
+  left: 0; right: 0;
+  height: var(--video-track-height);
+  border-radius: 999px;
+  background: var(--video-progress-track);
+  transition: height 0.15s;
+}
+
+.vp-track:hover::before,
+.vp-track:focus-visible::before {
+  height: var(--video-track-hover-height);
+}
+
+/* Buffered fill */
+.vp-track-buffer {
+  position: absolute;
+  left: 0;
+  height: var(--video-track-height);
+  border-radius: 999px;
+  background: var(--video-buffer);
+  pointer-events: none;
+  transition: height 0.15s;
+}
+.vp-track:hover .vp-track-buffer,
+.vp-track:focus-visible .vp-track-buffer { height: var(--video-track-hover-height); }
+
+/* Played fill (contains the thumb as a child) */
+.vp-track-played {
+  position: absolute;
+  left: 0;
+  height: var(--video-track-height);
+  border-radius: 999px;
+  background: var(--video-progress);
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  transition: height 0.15s;
+}
+.vp-track:hover .vp-track-played,
+.vp-track:focus-visible .vp-track-played { height: var(--video-track-hover-height); }
+
+/* Thumb */
+.vp-thumb {
+  width: var(--video-thumb-size);
+  height: var(--video-thumb-size);
+  border-radius: 50%;
+  background: var(--video-progress);
+  box-shadow: 0 0 0 3px var(--video-progress-glow);
+  transform: scale(0);       /* hidden by default */
+  transition: transform 0.15s;
+  flex-shrink: 0;
+  margin-right: calc(var(--video-thumb-size) / -2);
+}
+.vp-track:hover .vp-thumb,
+.vp-track:focus-visible .vp-thumb { transform: scale(1); }
+
+/* ── VideoViewer error boundary ─────────────────────────────────────────── */
+.vv-error-boundary {
+  width: 100%;
+  height: 100%;
+  min-height: 320px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 32px;
+  background: var(--bg-secondary);
+  text-align: center;
+}
+
+.vv-eb-icon  { font-size: 52px; color: #f87171; }
+.vv-eb-title { font-size: 18px; font-weight: 700; color: var(--text-main); margin: 0; }
+.vv-eb-sub   { font-size: 14px; color: var(--text-dim); line-height: 1.6; max-width: 340px; }
+
+.vv-eb-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.vv-eb-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 18px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.vv-eb-btn .material-symbols-rounded { font-size: 16px; }
+
+.vv-eb-btn-retry {
+  background: rgba(99, 102, 241, 0.12);
+  color: #818cf8;
+  border: 1px solid rgba(99, 102, 241, 0.3);
+}
+.vv-eb-btn-retry:hover { background: rgba(99, 102, 241, 0.22); }
+
+.vv-eb-btn-close {
+  background: var(--bg-tertiary);
+  color: var(--text-main);
+  border: 1px solid var(--glass-border);
+}
+.vv-eb-btn-close:hover { background: #273244; }
+
+.vv-eb-trace {
+  font-family: monospace;
+  font-size: 11px;
+  color: #ef4444;
+  background: rgba(0,0,0,0.4);
+  border-radius: 6px;
+  padding: 10px 14px;
+  max-width: 100%;
+  overflow-x: auto;
+  text-align: left;
+  margin-top: 8px;
 }

@@ -1,5 +1,6 @@
 const { google } = require('googleapis');
 const jwt = require('jsonwebtoken');
+const logger = require('../utils/logger');
 
 const oauth2Client = new google.auth.OAuth2(
   process.env.GOOGLE_CLIENT_ID,
@@ -36,7 +37,10 @@ exports.googleCallback = async (req, res) => {
 
     const oauth2 = google.oauth2({ auth: oauth2Client, version: 'v2' });
     const { data: userInfo } = await oauth2.userinfo.get();
-    console.log(`✨ Authenticated: ${userInfo.email}`);
+    logger.info('auth', 'google-callback-success', {
+      requestId: req.requestId,
+      email: userInfo.email
+    });
 
     // V2: Upsert user into SQLite DB
     const prisma = require('../db/index');
@@ -80,8 +84,8 @@ exports.googleCallback = async (req, res) => {
         mode = parsed.mode || mode;
         origin = parsed.origin || origin;
       }
-    } catch {
-      console.warn('State parse failed');
+    } catch (parseErr) {
+      logger.warn('auth', 'state-parse-failed', { requestId: req.requestId, error: parseErr });
     }
 
     // V2 JWT: embed user ID + tokens (tokens still needed for Drive access)
@@ -121,7 +125,7 @@ exports.googleCallback = async (req, res) => {
 
     return res.redirect(`${origin}?auth_data=${jwtToken}`);
   } catch (err) {
-    console.error('OAuth error:', err.message);
+    logger.error('auth', 'google-callback-error', { requestId: req.requestId, error: err });
     res.status(500).send(`Authentication failed: ${err.message}`);
   }
 };
@@ -149,7 +153,7 @@ exports.getGoogleToken = async (req, res) => {
     const { token } = await oauth2Client.getAccessToken();
     res.json({ access_token: token });
   } catch (err) {
-    console.error('Failed to get Google token:', err.message);
+    logger.error('auth', 'get-google-token-failed', { requestId: req.requestId, userId: req.user?.id, error: err });
     res.status(401).json({ error: 'Failed to retrieve Google token' });
   }
 };

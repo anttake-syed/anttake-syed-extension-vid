@@ -3,9 +3,12 @@ const logger = require('../utils/logger');
 
 exports.getSettings = async (req, res) => {
   try {
-    const settings = await prisma.userSettings.findUnique({ where: { email: req.user.email } });
-    let pref = settings?.storagePreference || 'local';
-    if (pref === 'both') {pref = 'local';}
+    const user = await prisma.user.findUnique({
+      where: { id: req.user.id },
+      select: { storagePreference: true },
+    });
+    let pref = user?.storagePreference || 'local';
+    if (pref === 'both') { pref = 'local'; }
     res.json({ storagePreference: pref });
   } catch (err) {
     logger.error('settings', 'get-settings-failed', { requestId: req.requestId, userId: req.user.id, error: err });
@@ -20,13 +23,12 @@ exports.saveSettings = async (req, res) => {
     return res.status(400).json({ error: 'Invalid storagePreference. Must be: local or drive.' });
   }
   try {
-    const settings = await prisma.userSettings.upsert({
-      where: { email: req.user.email },
-      update: { storagePreference },
-      create: { email: req.user.email, storagePreference },
+    await prisma.user.update({
+      where: { id: req.user.id },
+      data: { storagePreference },
     });
     logger.info('settings', 'update-preference', { requestId: req.requestId, userId: req.user.id, storagePreference });
-    res.json({ success: true, storagePreference: settings.storagePreference });
+    res.json({ success: true, storagePreference });
   } catch (err) {
     logger.error('settings', 'save-settings-failed', { requestId: req.requestId, userId: req.user.id, error: err });
     res.status(500).json({ error: 'Failed to save settings' });

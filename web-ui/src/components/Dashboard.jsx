@@ -1,4 +1,7 @@
 import React, { useState } from 'react';
+import { parseStorageState, parseDriveState } from '../services/storage/StorageService';
+import StorageUsageCard from './storage/StorageUsageCard';
+import StorageUsageBar from './storage/StorageUsageBar';
 
 // Update this once the extension is approved on the Chrome Web Store
 const CHROME_STORE_URL = '#';
@@ -158,18 +161,18 @@ function StatCard({ icon, value, label, sub, isAuthenticated, onSignIn, isDrive 
     <div
       className={`stat-card ${!isAuthenticated ? 'blurred' : ''}`}
       onClick={() => !isAuthenticated && onSignIn()}
-      style={{ cursor: !isAuthenticated ? 'pointer' : 'default' }}
+      style={{ cursor: !isAuthenticated ? 'pointer' : 'default', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center' }}
     >
-      <div className="stat-icon">
+      <div className="stat-icon" style={{ marginBottom: '8px' }}>
         {isDrive ? <DriveLogoSVG size={28} /> : (
           <span className="material-symbols-rounded" style={{ fontSize: '28px' }}>{icon}</span>
         )}
       </div>
       <div className="stat-value">{isAuthenticated ? value : '—'}</div>
       <div className="stat-label">{label}</div>
-      {isAuthenticated && sub && <div style={{ fontSize: '11px', color: '#475569', marginTop: '4px' }}>{sub}</div>}
+      {isAuthenticated && sub && <div style={{ fontSize: '11px', color: '#475569', marginTop: '8px' }}>{sub}</div>}
       {!isAuthenticated && (
-        <div className="lock-overlay">
+        <div className="lock-overlay" style={{ justifyContent: 'center' }}>
           <span className="material-symbols-rounded" style={{ fontSize: '18px', verticalAlign: 'middle' }}>lock</span> Sign in to view
         </div>
       )}
@@ -264,12 +267,13 @@ function MediaThumb({ item, onOpen }) {
 
 export default function Dashboard({ isAuthenticated, isLocalMode, stats, captures, loadingCaptures, dbStats, onSignIn, onOpenMedia, onGoToLibrary }) {
   const recentCaptures = captures.slice(0, 6);
-  const driveUsedPct = dbStats?.driveLimitBytes > 0
-    ? Math.min(100, Math.round((dbStats.driveUsageBytes / dbStats.driveLimitBytes) * 100))
-    : null;
 
   const greetingHour = new Date().getHours();
   const greeting = greetingHour < 12 ? 'Good morning' : greetingHour < 17 ? 'Good afternoon' : 'Good evening';
+
+  // Compute unified storage states
+  const mainStorageState = parseStorageState(dbStats, isLocalMode);
+  const driveStorageState = parseDriveState(dbStats);
 
   return (
     <>
@@ -329,44 +333,26 @@ export default function Dashboard({ isAuthenticated, isLocalMode, stats, capture
         ))}
       </section>
 
-      {/* ── Storage Health Bar (Cloud) ── */}
-      {isAuthenticated && !isLocalMode && dbStats && (dbStats.cloudCount > 0 || dbStats.cloudLimitBytes > 0) && (
-        <div style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: '12px', padding: '16px 20px', marginBottom: '28px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '10px' }}>
-            <span className="material-symbols-rounded" style={{ fontSize: '20px', color: '#38bdf8' }}>cloud</span>
-            <span style={{ color: '#94a3b8', fontWeight: 600, fontSize: '12px' }}>Cloud Storage (R2)</span>
-            <span style={{ marginLeft: 'auto', fontSize: '12px', color: dbStats.cloudBytes / dbStats.cloudLimitBytes > 0.8 ? '#f87171' : '#94a3b8' }}>
-              {dbStats.cloudBytesFormatted} / {dbStats.cloudLimitFormatted} &bull; {dbStats.planName} Plan
-            </span>
-          </div>
-          <div style={{ height: '6px', background: '#0f172a', borderRadius: '999px', overflow: 'hidden' }}>
-            <div style={{ height: '100%', width: `${Math.min(100, Math.round((dbStats.cloudBytes / dbStats.cloudLimitBytes) * 100))}%`, background: 'linear-gradient(90deg,#38bdf8,#6366f1)', borderRadius: '999px', transition: 'width 0.6s ease' }} />
-          </div>
-          {dbStats.driveCount > 0 && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '12px' }}>
-              <DriveLogoSVG size={14} />
-              <span style={{ fontSize: '12px', color: '#94a3b8' }}>
-                {dbStats.driveUsageFormatted} / {dbStats.driveLimitFormatted} used on Google Drive
-              </span>
-            </div>
+      {/* ── Storage Health Bar ── */}
+      {isAuthenticated && (
+        <>
+          <StorageUsageBar 
+            storageState={mainStorageState} 
+            icon={isLocalMode ? 'hard_drive' : 'cloud'} 
+          />
+          {driveStorageState && (
+            <StorageUsageBar 
+              storageState={driveStorageState} 
+              icon="drive" 
+              extraInfo={
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#94a3b8', fontSize: '12px' }}>
+                  <DriveLogoSVG size={14} />
+                  <span>{driveStorageState.usedFormatted} / {driveStorageState.totalFormatted} used on Google Drive</span>
+                </div>
+              }
+            />
           )}
-        </div>
-      )}
-
-      {/* ── Storage Health Bar (Local) — local mode only ── */}
-      {isAuthenticated && isLocalMode && dbStats && (
-        <div style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: '12px', padding: '16px 20px', marginBottom: '28px', display: 'flex', alignItems: 'center', gap: '16px' }}>
-          <span className="material-symbols-rounded" style={{ fontSize: '24px', color: '#818cf8' }}>hard_drive</span>
-          <div style={{ flex: 1 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '6px' }}>
-              <span style={{ color: '#94a3b8', fontWeight: 600 }}>Local Disk Storage</span>
-              <span style={{ color: '#818cf8' }}>{dbStats.localBytesFormatted || '0 B'} Used</span>
-            </div>
-            <div style={{ height: '6px', background: '#0f172a', borderRadius: '999px', overflow: 'hidden' }}>
-              <div style={{ height: '100%', width: `${Math.min(100, Math.max(2, (dbStats.localBytes / 1073741824) * 100))}%`, background: 'linear-gradient(90deg,#6366f1,#8b5cf6)', borderRadius: '999px', transition: 'width 0.6s ease' }} />
-            </div>
-          </div>
-        </div>
+        </>
       )}
 
       {/* ── Recent Activity ── */}

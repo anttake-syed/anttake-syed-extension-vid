@@ -36,7 +36,6 @@ const PLANS = [
       { ok: true, text: 'Google Drive auto-sync' },
       { ok: true, text: 'Unlimited whiteboards' },
       { ok: true, text: 'Priority support' },
-      { ok: true, text: 'No ads, ever' },
       { ok: true, text: 'Early access to new features' },
     ],
   },
@@ -54,10 +53,6 @@ const FAQ = [
   {
     q: 'What does "no infinite canvas" mean?',
     a: 'Our whiteboards use a focused, fixed-size canvas instead of endless scroll. Sessions stay clean, exports stay sharp.',
-  },
-  {
-    q: 'Do you show ads?',
-    a: 'Never. AntCapture is completely ad-free on every plan.',
   },
   {
     q: 'What payment methods are accepted?',
@@ -264,7 +259,6 @@ export default function Pricing({ user, isAuthenticated, onSignIn }) {
       {/* ── Trust bar ── */}
       <div style={{ display: 'flex', justifyContent: 'center', gap: '32px', flexWrap: 'wrap', marginBottom: '64px' }}>
         {[
-          { icon: 'no_photography', text: 'Zero Ads' },
           { icon: 'lock',           text: 'Private by Default' },
           { icon: 'crop_free',      text: 'No Infinite Canvas' },
           { icon: 'payments',       text: 'Powered by LemonSqueezy' },
@@ -299,16 +293,24 @@ export default function Pricing({ user, isAuthenticated, onSignIn }) {
                 {item.q}
                 <span
                   className="material-symbols-rounded"
-                  style={{ fontSize: '20px', color: '#475569', flexShrink: 0, transition: 'transform 0.2s', transform: openFaq === i ? 'rotate(180deg)' : 'none' }}
+                  style={{ fontSize: '20px', color: '#475569', flexShrink: 0, transition: 'transform 0.3s ease', transform: openFaq === i ? 'rotate(180deg)' : 'none' }}
                 >
                   expand_more
                 </span>
               </button>
-              {openFaq === i && (
-                <div style={{ padding: '0 20px 16px', color: '#64748b', fontSize: '14px', lineHeight: 1.7 }}>
-                  {item.a}
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateRows: openFaq === i ? '1fr' : '0fr',
+                  transition: 'grid-template-rows 0.3s ease',
+                }}
+              >
+                <div style={{ overflow: 'hidden' }}>
+                  <div style={{ padding: '0 20px 16px', color: '#64748b', fontSize: '14px', lineHeight: 1.7 }}>
+                    {item.a}
+                  </div>
                 </div>
-              )}
+              </div>
             </div>
           ))}
         </div>

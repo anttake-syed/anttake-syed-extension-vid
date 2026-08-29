@@ -1,6 +1,7 @@
 // Icon map — proper icons per nav item
 const MAIN_NAV = ['Dashboard', 'My Library', 'Whiteboards', 'Settings', 'Feedback'];
 const SECONDARY_NAV = ['Pricing', 'Privacy', 'Security', 'Documentation'];
+const ADMIN_NAV = ['Diagnostics'];  // Only visible when authenticated; access is verified server-side
 
 const NAV_ICONS = {
   Dashboard:     'dashboard',
@@ -12,12 +13,13 @@ const NAV_ICONS = {
   Privacy:       'shield',
   Security:      'lock',
   Documentation: 'article',
+  Diagnostics:   'monitor_heart',
 };
 
 // Items that don't require login
 const PUBLIC_ITEMS = ['Dashboard', 'Pricing', 'Privacy', 'Security', 'Documentation'];
 
-export default function Sidebar({ activeNav, isAuthenticated, onNavClick, onSignIn, onLogout }) {
+export default function Sidebar({ activeNav, isAuthenticated, onNavClick, onSignIn, onLogout, mobileMenuOpen }) {
   const renderNavItem = (item, secondary = false) => (
     <li
       key={item}
@@ -39,7 +41,7 @@ export default function Sidebar({ activeNav, isAuthenticated, onNavClick, onSign
   );
 
   return (
-    <aside className="sidebar">
+    <aside className={`sidebar ${mobileMenuOpen ? 'open' : ''}`}>
       <div className="logo">
         <svg viewBox="0 0 40 40" width="24" height="24" fill="none" style={{ flexShrink: 0 }}>
           <circle cx="20" cy="20" r="20" fill="url(#sidebar-grad)" />
@@ -88,6 +90,27 @@ export default function Sidebar({ activeNav, isAuthenticated, onNavClick, onSign
         <ul className="nav-list" style={{ marginTop: '4px' }}>
           {SECONDARY_NAV.map((item) => renderNavItem(item, true))}
         </ul>
+
+        {/* ── Admin navigation (only shown when authenticated) ── */}
+        {isAuthenticated && (
+          <>
+            <div style={{
+              margin: '10px 16px 6px',
+              borderTop: '1px solid rgba(255,255,255,0.06)',
+              position: 'relative',
+            }}>
+              <span style={{
+                position: 'absolute', top: '-9px', left: '8px',
+                background: '#0f172a', padding: '0 6px',
+                fontSize: '10px', fontWeight: '600', color: '#4f46e5',
+                textTransform: 'uppercase', letterSpacing: '0.08em',
+              }}>Admin</span>
+            </div>
+            <ul className="nav-list" style={{ marginTop: '4px' }}>
+              {ADMIN_NAV.map((item) => renderNavItem(item, true))}
+            </ul>
+          </>
+        )}
       </nav>
 
       <div className="sidebar-footer">

@@ -21,18 +21,20 @@ import WhiteboardEditor from './components/WhiteboardEditor.jsx';
 
 import StaticPage from './components/StaticPage.jsx';
 import ServerHealthBadge from './components/ServerHealthBadge.jsx';
+import AdminDiagnostics from './components/AdminDiagnostics.jsx';
 
 const NAV_TO_PATH = {
-  'Dashboard': '/',
-  'My Library': '/library',
-  'Whiteboards': '/whiteboards',
-  'Pricing': '/pricing',
+  'Dashboard':    '/',
+  'My Library':   '/library',
+  'Whiteboards':  '/whiteboards',
+  'Pricing':      '/pricing',
   'Subscription': '/subscription',
-  'Settings': '/settings',
-  'Feedback': '/feedback',
-  'Privacy': '/privacy-policy',
-  'Security': '/security',
-  'Documentation': '/documentation'
+  'Settings':     '/settings',
+  'Feedback':     '/feedback',
+  'Privacy':      '/privacy-policy',
+  'Security':     '/security',
+  'Documentation': '/documentation',
+  'Diagnostics':  '/admin/diagnostics',
 };
 
 const PATH_TO_NAV = Object.fromEntries(Object.entries(NAV_TO_PATH).map(([k, v]) => [v, k]));
@@ -105,27 +107,51 @@ export default function App() {
 
   const [activeNav, setActiveNav] = useState(() => {
     const path = window.location.pathname;
-    // Check path first
+    if (path.startsWith('/whiteboard/')) return 'Whiteboards';
+    if (path.startsWith('/capture/')) return 'My Library';
     if (PATH_TO_NAV[path]) {return PATH_TO_NAV[path];}
     
-    // Fallback to query params for legacy links
     const params = new URLSearchParams(window.location.search);
     return params.get('nav') || 'Dashboard';
   });
+  
+  const [activeBoard, setActiveBoard] = useState(() => {
+    const match = window.location.pathname.match(/^\/whiteboard\/([^/]+)/);
+    return match ? { id: match[1] } : null;
+  });
+
   const [activeMedia, setActiveMedia] = useState(null);
-  const [activeBoard, setActiveBoard] = useState(null);
+  
+  const [pendingCaptureId, setPendingCaptureId] = useState(() => {
+    const match = window.location.pathname.match(/^\/capture\/([^/]+)/);
+    return match ? match[1] : null;
+  });
+
+  useEffect(() => {
+    if (pendingCaptureId && captures.length > 0 && !activeMedia) {
+      const found = captures.find(c => c.id === pendingCaptureId);
+      if (found) {
+        setActiveMedia(found);
+        setPendingCaptureId(null);
+      }
+    }
+  }, [pendingCaptureId, captures, activeMedia]);
+  const [wbRefreshKey, setWbRefreshKey] = useState(0);
   const [showModal, setShowModal] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // Sync state to URL and Document Title
   useEffect(() => {
     document.title = `${activeNav} - AntCapture`;
     
+    if (activeBoard || activeMedia) return;
+    
     const targetPath = NAV_TO_PATH[activeNav] || '/';
     if (window.location.pathname !== targetPath) {
       window.history.pushState(null, '', targetPath);
     }
-  }, [activeNav]);
+  }, [activeNav, activeBoard, activeMedia]);
 
   // Close login modal automatically on successful login
   useEffect(() => {
@@ -138,6 +164,26 @@ export default function App() {
   useEffect(() => {
     const handlePopState = () => {
       const path = window.location.pathname;
+      
+      const boardMatch = path.match(/^\/whiteboard\/([^/]+)/);
+      if (boardMatch) {
+        setActiveBoard({ id: boardMatch[1] });
+        setActiveNav('Whiteboards');
+        return;
+      } else {
+        setActiveBoard(null);
+      }
+      
+      const captureMatch = path.match(/^\/capture\/([^/]+)/);
+      if (captureMatch) {
+        setPendingCaptureId(captureMatch[1]);
+        setActiveNav('My Library');
+        return;
+      } else {
+        setActiveMedia(null);
+        setPendingCaptureId(null);
+      }
+      
       if (PATH_TO_NAV[path]) {
         setActiveNav(PATH_TO_NAV[path]);
       } else {
@@ -149,12 +195,11 @@ export default function App() {
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
-  // Stats derived from captures + dbStats
   const stats = [
     { label: 'Total Captures', value: (dbStats?.total ?? captures.length).toString(), icon: 'folder' },
     {
       label: 'Local Storage Used',
-      value: dbStats?.dbSizeFormatted ?? '0 B',
+      value: dbStats?.localBytesFormatted ?? '0 B',
       icon: 'hard_drive',
       sub: dbStats ? `${dbStats.localCount} files local` : null,
     },
@@ -164,7 +209,7 @@ export default function App() {
       value: dbStats?.appDriveFormatted ?? '0 B',
       icon: 'drive',
       isDrive: true,
-      sub: dbStats ? `${dbStats.driveCount} files on Drive${dbStats.driveLimitBytes > 0 ? ` (Overall: ${dbStats.driveUsageFormatted} / ${dbStats.driveLimitFormatted})` : ''}` : null,
+      sub: dbStats ? `${dbStats.driveCount} files on Drive` : null,
     }] : []),
     {
       label: 'This Week',
@@ -214,6 +259,73 @@ export default function App() {
 
   // ── Render ─────────────────────────────────────────────────────────────────
   if (isInitializing) {
+    let pageSkeleton;
+    if (activeNav === 'Pricing') {
+      pageSkeleton = (
+        <div style={{ maxWidth: '860px', margin: '0 auto', width: '100%' }}>
+          <div style={{ textAlign: 'center', marginBottom: '48px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <div className="skeleton-box" style={{ width: '340px', height: '42px', borderRadius: '8px', marginBottom: '16px' }}></div>
+            <div className="skeleton-box" style={{ width: '440px', height: '24px', borderRadius: '6px', marginBottom: '32px' }}></div>
+            <div className="skeleton-box" style={{ width: '180px', height: '36px', borderRadius: '12px' }}></div>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', marginBottom: '64px' }}>
+            <div className="skeleton-box" style={{ height: '380px', borderRadius: '22px' }}></div>
+            <div className="skeleton-box" style={{ height: '380px', borderRadius: '22px' }}></div>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxWidth: '640px', margin: '0 auto' }}>
+            <div className="skeleton-box" style={{ height: '56px', borderRadius: '14px' }}></div>
+            <div className="skeleton-box" style={{ height: '56px', borderRadius: '14px' }}></div>
+            <div className="skeleton-box" style={{ height: '56px', borderRadius: '14px' }}></div>
+          </div>
+        </div>
+      );
+    } else if (activeNav === 'Whiteboards') {
+      pageSkeleton = (
+        <div style={{ maxWidth: 1280, margin: '0 auto', width: '100%' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 24, alignItems: 'center' }}>
+            <div>
+              <div className="skeleton-box" style={{ width: '200px', height: '32px', borderRadius: '6px', marginBottom: '8px' }}></div>
+              <div className="skeleton-box" style={{ width: '100px', height: '16px', borderRadius: '4px' }}></div>
+            </div>
+            <div className="skeleton-box" style={{ width: '140px', height: '40px', borderRadius: '10px' }}></div>
+          </div>
+          <div style={{ display: 'flex', gap: '10px', marginBottom: 22 }}>
+            <div className="skeleton-box" style={{ width: '260px', height: '36px', borderRadius: '9px' }}></div>
+            <div className="skeleton-box" style={{ width: '120px', height: '36px', borderRadius: '9px' }}></div>
+            <div className="skeleton-box" style={{ width: '120px', height: '36px', borderRadius: '9px' }}></div>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '18px' }}>
+            {[1, 2, 3, 4, 5, 6].map(i => (
+              <div key={i} className="skeleton-box" style={{ height: '220px', borderRadius: '14px' }}></div>
+            ))}
+          </div>
+        </div>
+      );
+    } else if (activeNav === 'My Library') {
+      pageSkeleton = (
+        <div style={{ maxWidth: 1280, margin: '0 auto', width: '100%' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 24, alignItems: 'center' }}>
+            <div className="skeleton-box" style={{ width: '180px', height: '32px', borderRadius: '6px' }}></div>
+            <div className="skeleton-box" style={{ width: '240px', height: '38px', borderRadius: '10px' }}></div>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '20px' }}>
+            {[1, 2, 3, 4, 5, 6, 7, 8].map(i => (
+              <div key={i} className="skeleton-box" style={{ height: '240px', borderRadius: '14px' }}></div>
+            ))}
+          </div>
+        </div>
+      );
+    } else {
+      pageSkeleton = (
+        <>
+          <div className="skeleton-box" style={{ width: '100%', height: '140px', borderRadius: '16px', marginBottom: '28px' }}></div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
+            {[1, 2, 3].map(i => <div key={i} className="skeleton-box" style={{ width: '100%', height: '140px', borderRadius: '16px' }}></div>)}
+          </div>
+        </>
+      );
+    }
+
     return (
       <div className="layout">
         <aside className="sidebar" style={{ pointerEvents: 'none' }}>
@@ -230,10 +342,7 @@ export default function App() {
             <div className="skeleton-box" style={{ width: '240px', height: '36px', borderRadius: '8px' }}></div>
             <div className="skeleton-box" style={{ width: '160px', height: '42px', borderRadius: '21px' }}></div>
           </div>
-          <div className="skeleton-box" style={{ width: '100%', height: '140px', borderRadius: '16px', marginBottom: '28px' }}></div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
-            {[1, 2, 3].map(i => <div key={i} className="skeleton-box" style={{ width: '100%', height: '140px', borderRadius: '16px' }}></div>)}
-          </div>
+          {pageSkeleton}
         </main>
       </div>
     );
@@ -247,18 +356,29 @@ export default function App() {
           item={activeMedia}
           user={user}
           dbStats={dbStats}
-          onClose={() => setActiveMedia(null)}
+          onClose={() => { 
+            setActiveMedia(null);
+            const targetPath = NAV_TO_PATH[activeNav] || '/';
+            window.history.pushState(null, '', targetPath);
+          }}
           onSyncSuccess={() => { refresh(); setActiveMedia(null); }}
           onDelete={(id) => { deleteCapture(id); setActiveMedia(null); }}
         />
       )}
 
+      {/* Mobile Sidebar Overlay */}
+      <div 
+        className={`sidebar-overlay ${mobileMenuOpen ? 'open' : ''}`} 
+        onClick={() => setMobileMenuOpen(false)}
+      />
+
       <Sidebar
         activeNav={activeNav}
         isAuthenticated={isAuthenticated}
-        onNavClick={setActiveNav}
-        onSignIn={() => setShowModal(true)}
-        onLogout={handleLogout}
+        onNavClick={(nav) => { setActiveNav(nav); setActiveBoard(null); setActiveMedia(null); setMobileMenuOpen(false); }}
+        onSignIn={() => { setShowModal(true); setMobileMenuOpen(false); }}
+        onLogout={() => { handleLogout(); setMobileMenuOpen(false); }}
+        mobileMenuOpen={mobileMenuOpen}
       />
 
       <main className="main-content">
@@ -270,7 +390,8 @@ export default function App() {
           setShowProfileMenu={setShowProfileMenu}
           onSignIn={() => setShowModal(true)}
           onLogout={handleLogout}
-          onNavClick={setActiveNav}
+          onNavClick={(nav) => { setActiveNav(nav); setActiveBoard(null); setActiveMedia(null); }}
+          onMenuClick={() => setMobileMenuOpen(true)}
         />
         {/* Server health pill — only visible in local/self-hosted mode */}
         <div style={{ position: 'fixed', top: '14px', right: '20px', zIndex: 200 }}>
@@ -280,13 +401,18 @@ export default function App() {
 
         {/* ── Page Content ── */}
         {activeBoard ? (
-          <WhiteboardEditor board={activeBoard} onClose={() => setActiveBoard(null)} user={user} />
+          <WhiteboardEditor board={activeBoard} onClose={() => { 
+            setActiveBoard(null);
+            const targetPath = NAV_TO_PATH[activeNav] || '/';
+            window.history.pushState(null, '', targetPath);
+            setWbRefreshKey(k => k + 1); 
+          }} user={user} />
         ) : activeNav === 'Settings' && isAuthenticated ? (
           <Settings user={user} captures={captures} dbStats={dbStats} onNameUpdate={handleNameUpdate} onDeleteAllCaptures={handleDeleteAllCaptures} onDeleteAccount={handleDeleteAccount} storagePreference={storagePreference} saveStoragePreference={saveStoragePreference} savingPref={savingPref} onManageSubscription={() => setActiveNav('Subscription')} />
         ) : activeNav === 'Subscription' && isAuthenticated ? (
           <SubscriptionManage user={user} />
         ) : activeNav === 'Whiteboards' ? (
-          <Whiteboards user={user} isAuthenticated={isAuthenticated} onSignIn={() => setShowModal(true)} onOpenBoard={setActiveBoard} />
+          <Whiteboards key={wbRefreshKey} user={user} isAuthenticated={isAuthenticated} onSignIn={() => setShowModal(true)} onOpenBoard={setActiveBoard} />
         ) : activeNav === 'Pricing' ? (
           <Pricing user={user} isAuthenticated={isAuthenticated} onSignIn={() => setShowModal(true)} />
         ) : activeNav === 'Feedback' ? (
@@ -413,6 +539,8 @@ TROUBLESHOOTING
 - Upload failing? Check that your server is running on port 3001.
 - Extension not recording? Make sure you've granted screen share permission when prompted by Chrome.`}
           />
+        ) : activeNav === 'Diagnostics' && isAuthenticated ? (
+          <AdminDiagnostics user={user} />
         ) : activeNav === 'My Library' ? (
           <Library
             captures={captures}

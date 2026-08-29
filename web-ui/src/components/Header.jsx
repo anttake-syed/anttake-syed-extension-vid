@@ -21,15 +21,20 @@ const PAGE_SUBTITLES = {
   'My Library': 'Your recordings and screenshots, synced across all devices.',
 };
 
-export default function Header({ activeNav, isAuthenticated, user, showProfileMenu, setShowProfileMenu, onSignIn, onLogout, onNavClick }) {
+export default function Header({ activeNav, isAuthenticated, user, showProfileMenu, setShowProfileMenu, onSignIn, onLogout, onNavClick, onMenuClick }) {
   const title = PAGE_TITLES[activeNav] || activeNav;
   const subtitle = PAGE_SUBTITLES[activeNav] || '';
 
   return (
     <header className="header">
       <div className="title-section">
-        <h1>{title}</h1>
-        <p>{subtitle}</p>
+        <button className="hamburger-btn" onClick={onMenuClick} aria-label="Open menu">
+          <span className="material-symbols-rounded">menu</span>
+        </button>
+        <div>
+          <h1>{title}</h1>
+          <p>{subtitle}</p>
+        </div>
       </div>
 
       <div className="header-actions">

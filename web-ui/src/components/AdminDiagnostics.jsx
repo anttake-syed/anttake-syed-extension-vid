@@ -1,0 +1,539 @@
+import React, { useState, useEffect, useCallback } from 'react';
+import { SERVER_URL } from '../config.js';
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function statusColor(status) {
+  if (status === 'PASS')    return '#22c55e';
+  if (status === 'FAIL')    return '#ef4444';
+  if (status === 'HEALTHY') return '#22c55e';
+  if (status === 'DEGRADED') return '#f59e0b';
+  if (status === 'DOWN')    return '#ef4444';
+  return '#94a3b8';
+}
+function statusBg(status) {
+  if (status === 'PASS' || status === 'HEALTHY') return 'rgba(34,197,94,0.08)';
+  if (status === 'FAIL' || status === 'DOWN')    return 'rgba(239,68,68,0.08)';
+  if (status === 'DEGRADED') return 'rgba(245,158,11,0.08)';
+  return 'rgba(148,163,184,0.08)';
+}
+function statusIcon(status) {
+  if (status === 'PASS')    return 'check_circle';
+  if (status === 'FAIL')    return 'cancel';
+  if (status === 'HEALTHY') return 'check_circle';
+  if (status === 'DEGRADED') return 'warning';
+  if (status === 'DOWN')    return 'cancel';
+  return 'help';
+}
+function levelColor(level) {
+  const l = level?.toUpperCase();
+  if (l === 'ERROR') return '#ef4444';
+  if (l === 'WARN')  return '#f59e0b';
+  if (l === 'INFO')  return '#6366f1';
+  return '#94a3b8';
+}
+function timeAgo(isoStr) {
+  if (!isoStr) return '';
+  const diff = Date.now() - new Date(isoStr).getTime();
+  const s = Math.floor(diff / 1000);
+  if (s < 60)  return `${s}s ago`;
+  const m = Math.floor(s / 60);
+  if (m < 60)  return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24)  return `${h}h ago`;
+  return new Date(isoStr).toLocaleDateString();
+}
+function fmtDuration(ms) {
+  if (ms === undefined || ms === null) return '';
+  if (ms < 1000) return `${ms}ms`;
+  return `${(ms / 1000).toFixed(1)}s`;
+}
+
+// ── Subcomponents ─────────────────────────────────────────────────────────────
+function OverallBadge({ status, pass, fail, durationMs }) {
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: '16px',
+      background: statusBg(status),
+      border: `1px solid ${statusColor(status)}30`,
+      borderRadius: '16px', padding: '20px 28px',
+      marginBottom: '28px',
+    }}>
+      <span className="material-symbols-rounded" style={{ fontSize: '40px', color: statusColor(status) }}>
+        {statusIcon(status)}
+      </span>
+      <div style={{ flex: 1 }}>
+        <div style={{ fontSize: '22px', fontWeight: 700, color: statusColor(status), lineHeight: 1.2 }}>
+          System {status}
+        </div>
+        <div style={{ fontSize: '13px', color: '#94a3b8', marginTop: '4px' }}>
+          {pass} passed · {fail} failed · {fmtDuration(durationMs)} total
+        </div>
+      </div>
+      <div style={{
+        fontSize: '11px', fontWeight: 600, letterSpacing: '0.08em',
+        color: statusColor(status), textTransform: 'uppercase',
+        background: `${statusColor(status)}18`, padding: '4px 10px', borderRadius: '6px',
+      }}>
+        {status}
+      </div>
+    </div>
+  );
+}
+
+function CheckCard({ check, onClick }) {
+  return (
+    <div
+      onClick={() => onClick(check)}
+      style={{
+        background: 'var(--card-bg, #1e293b)',
+        border: `1px solid ${statusColor(check.status)}28`,
+        borderRadius: '12px', padding: '16px 20px',
+        cursor: 'pointer',
+        transition: 'all 0.15s ease',
+        display: 'flex', alignItems: 'center', gap: '14px',
+      }}
+      onMouseEnter={e => e.currentTarget.style.background = statusBg(check.status)}
+      onMouseLeave={e => e.currentTarget.style.background = 'var(--card-bg, #1e293b)'}
+    >
+      <span className="material-symbols-rounded" style={{ fontSize: '22px', color: statusColor(check.status), flexShrink: 0 }}>
+        {statusIcon(check.status)}
+      </span>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: '13px', fontWeight: 600, color: '#f1f5f9', marginBottom: '2px' }}>
+          {check.name}
+        </div>
+        {check.error && (
+          <div style={{ fontSize: '11px', color: '#ef4444', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {check.error}
+          </div>
+        )}
+      </div>
+      <div style={{
+        fontSize: '11px', fontWeight: 700, letterSpacing: '0.06em',
+        color: statusColor(check.status), flexShrink: 0,
+      }}>
+        {check.status}
+      </div>
+      <div style={{ fontSize: '11px', color: '#64748b', flexShrink: 0 }}>
+        {fmtDuration(check.durationMs)}
+      </div>
+    </div>
+  );
+}
+
+function CheckDetailModal({ check, onClose }) {
+  if (!check) return null;
+  return (
+    <div
+      style={{
+        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        zIndex: 1000, backdropFilter: 'blur(4px)',
+      }}
+      onClick={onClose}
+    >
+      <div
+        style={{
+          background: '#0f172a', border: '1px solid #1e293b',
+          borderRadius: '20px', padding: '32px', width: '520px', maxWidth: '95vw',
+          maxHeight: '80vh', overflowY: 'auto',
+        }}
+        onClick={e => e.stopPropagation()}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
+          <span className="material-symbols-rounded" style={{ fontSize: '28px', color: statusColor(check.status) }}>
+            {statusIcon(check.status)}
+          </span>
+          <div>
+            <div style={{ fontSize: '18px', fontWeight: 700, color: '#f1f5f9' }}>{check.name}</div>
+            <div style={{ fontSize: '12px', color: '#64748b' }}>
+              {check.status} · {fmtDuration(check.durationMs)}
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', fontSize: '20px' }}
+          >
+            <span className="material-symbols-rounded">close</span>
+          </button>
+        </div>
+
+        {check.error && (
+          <div style={{
+            background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)',
+            borderRadius: '10px', padding: '16px', marginBottom: '16px',
+          }}>
+            <div style={{ fontSize: '11px', fontWeight: 700, color: '#ef4444', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+              Error
+            </div>
+            <div style={{ fontSize: '13px', color: '#fca5a5', fontFamily: 'monospace', wordBreak: 'break-all' }}>
+              {check.error}
+            </div>
+            {check.code && (
+              <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '6px' }}>Code: {check.code}</div>
+            )}
+          </div>
+        )}
+
+        {check.detail && (
+          <div style={{
+            background: '#1e293b', borderRadius: '10px', padding: '16px',
+          }}>
+            <div style={{ fontSize: '11px', fontWeight: 700, color: '#6366f1', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+              Details
+            </div>
+            <pre style={{
+              fontSize: '12px', color: '#94a3b8', margin: 0,
+              fontFamily: 'monospace', whiteSpace: 'pre-wrap', wordBreak: 'break-all',
+            }}>
+              {JSON.stringify(check.detail, null, 2)}
+            </pre>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ErrorRow({ entry, onExpand, expanded }) {
+  const ts  = entry.timestamp ? new Date(entry.timestamp).toLocaleTimeString() : '';
+  const ago = timeAgo(entry.timestamp);
+  return (
+    <>
+      <tr
+        onClick={() => onExpand(entry)}
+        style={{ cursor: 'pointer', transition: 'background 0.1s' }}
+        onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.02)'}
+        onMouseLeave={e => e.currentTarget.style.background = ''}
+      >
+        <td style={{ padding: '10px 14px', whiteSpace: 'nowrap' }}>
+          <span style={{ fontSize: '12px', color: '#64748b' }}>{ts}</span>
+          <span style={{ fontSize: '11px', color: '#475569', marginLeft: '6px' }}>({ago})</span>
+        </td>
+        <td style={{ padding: '10px 14px' }}>
+          <span style={{
+            fontSize: '10px', fontWeight: 700, letterSpacing: '0.06em',
+            color: levelColor(entry.level),
+            background: `${levelColor(entry.level)}15`,
+            padding: '2px 7px', borderRadius: '4px', textTransform: 'uppercase',
+          }}>
+            {entry.level}
+          </span>
+        </td>
+        <td style={{ padding: '10px 14px', fontSize: '12px', color: '#6366f1', fontFamily: 'monospace' }}>
+          {entry.feature}
+        </td>
+        <td style={{ padding: '10px 14px', fontSize: '12px', color: '#94a3b8', fontFamily: 'monospace' }}>
+          {entry.operation}
+        </td>
+        <td style={{ padding: '10px 14px', maxWidth: '260px' }}>
+          <span style={{
+            fontSize: '12px', color: '#fca5a5',
+            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block',
+          }}>
+            {entry.error?.message || entry.meta?.message || '—'}
+          </span>
+        </td>
+        <td style={{ padding: '10px 14px' }}>
+          <span style={{ fontSize: '10px', color: '#475569', fontFamily: 'monospace' }}>
+            {entry.requestId?.slice(0, 12) || '—'}
+          </span>
+        </td>
+        <td style={{ padding: '10px 14px' }}>
+          <span className="material-symbols-rounded" style={{ fontSize: '16px', color: '#475569' }}>
+            {expanded ? 'expand_less' : 'expand_more'}
+          </span>
+        </td>
+      </tr>
+      {expanded && (
+        <tr>
+          <td colSpan={7} style={{ padding: '0 14px 12px 14px', background: 'rgba(99,102,241,0.04)' }}>
+            <pre style={{
+              fontSize: '11px', color: '#94a3b8', margin: 0,
+              fontFamily: 'monospace', whiteSpace: 'pre-wrap', wordBreak: 'break-all',
+              maxHeight: '240px', overflowY: 'auto',
+              background: '#0f172a', borderRadius: '8px', padding: '12px',
+            }}>
+              {JSON.stringify(entry, null, 2)}
+            </pre>
+          </td>
+        </tr>
+      )}
+    </>
+  );
+}
+
+// ── Main Component ────────────────────────────────────────────────────────────
+export default function AdminDiagnostics({ user }) {
+  const [health,       setHealth]       = useState(null);
+  const [errors,       setErrors]       = useState([]);
+  const [sysInfo,      setSysInfo]      = useState(null);
+  const [loading,      setLoading]      = useState(false);
+  const [errLoading,   setErrLoading]   = useState(false);
+  const [lastRun,      setLastRun]      = useState(null);
+  const [selectedCheck, setSelectedCheck] = useState(null);
+  const [expandedError, setExpandedError] = useState(null);
+  const [forbidden,    setForbidden]    = useState(false);
+  const [tab,          setTab]          = useState('health'); // 'health' | 'errors'
+
+  const authHeader = { Authorization: `Bearer ${user?.jwt}` };
+
+  // ── Fetch health ───────────────────────────────────────────────────────────
+  const fetchHealth = useCallback(async () => {
+    setLoading(true);
+    try {
+      const r = await fetch(`${SERVER_URL}/api/admin/diagnostics/health`, { headers: authHeader });
+      if (r.status === 403) { setForbidden(true); return; }
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const data = await r.json();
+      setHealth(data);
+      setLastRun(new Date());
+
+      // Also fetch sysInfo
+      const r2 = await fetch(`${SERVER_URL}/api/admin/diagnostics/info`, { headers: authHeader });
+      if (r2.ok) setSysInfo(await r2.json());
+    } catch (e) {
+      console.error('Health fetch error:', e);
+    } finally {
+      setLoading(false);
+    }
+  }, [user?.jwt]);
+
+  // ── Fetch errors ───────────────────────────────────────────────────────────
+  const fetchErrors = useCallback(async () => {
+    setErrLoading(true);
+    try {
+      const r = await fetch(`${SERVER_URL}/api/admin/diagnostics/errors`, { headers: authHeader });
+      if (r.status === 403) { setForbidden(true); return; }
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const data = await r.json();
+      setErrors(data.errors || []);
+    } catch (e) {
+      console.error('Errors fetch error:', e);
+    } finally {
+      setErrLoading(false);
+    }
+  }, [user?.jwt]);
+
+  useEffect(() => {
+    fetchHealth();
+    fetchErrors();
+  }, [fetchHealth, fetchErrors]);
+
+  // ── Forbidden ──────────────────────────────────────────────────────────────
+  if (forbidden) {
+    return (
+      <div style={{
+        display: 'flex', flexDirection: 'column', alignItems: 'center',
+        justifyContent: 'center', minHeight: '60vh', gap: '16px', textAlign: 'center',
+      }}>
+        <span className="material-symbols-rounded" style={{ fontSize: '64px', color: '#ef4444' }}>block</span>
+        <div style={{ fontSize: '22px', fontWeight: 700, color: '#f1f5f9' }}>403 Forbidden</div>
+        <div style={{ fontSize: '14px', color: '#94a3b8', maxWidth: '400px' }}>
+          Your account does not have admin access. Contact the server administrator to grant your account the admin role.
+        </div>
+      </div>
+    );
+  }
+
+  // ── Loading skeleton ───────────────────────────────────────────────────────
+  if (loading && !health) {
+    return (
+      <div style={{ padding: '36px 40px', maxWidth: '1000px' }}>
+        <div style={{ marginBottom: '32px' }}>
+          <div className="skeleton-box" style={{ width: '280px', height: '32px', borderRadius: '8px', marginBottom: '8px' }} />
+          <div className="skeleton-box" style={{ width: '200px', height: '16px', borderRadius: '4px' }} />
+        </div>
+        <div className="skeleton-box" style={{ height: '80px', borderRadius: '16px', marginBottom: '28px' }} />
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px' }}>
+          {[...Array(10)].map((_, i) => (
+            <div key={i} className="skeleton-box" style={{ height: '68px', borderRadius: '12px' }} />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ padding: '36px 40px', maxWidth: '1000px' }}>
+      {/* ── Header ── */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '28px' }}>
+        <div>
+          <h1 style={{ fontSize: '26px', fontWeight: 800, color: '#f1f5f9', margin: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span className="material-symbols-rounded" style={{ fontSize: '28px', color: '#6366f1' }}>monitor_heart</span>
+            System Diagnostics
+          </h1>
+          <p style={{ color: '#64748b', fontSize: '13px', margin: '6px 0 0' }}>
+            Live health checks · Admin only · {lastRun ? `Last run ${timeAgo(lastRun.toISOString())}` : 'Not yet run'}
+          </p>
+        </div>
+        <button
+          onClick={() => { fetchHealth(); fetchErrors(); }}
+          disabled={loading}
+          style={{
+            display: 'flex', alignItems: 'center', gap: '8px',
+            padding: '10px 18px', borderRadius: '10px',
+            background: loading ? '#1e293b' : '#6366f1',
+            color: loading ? '#64748b' : 'white',
+            border: 'none', cursor: loading ? 'not-allowed' : 'pointer',
+            fontSize: '13px', fontWeight: 600, transition: 'all 0.15s',
+          }}
+        >
+          <span className="material-symbols-rounded" style={{
+            fontSize: '16px',
+            animation: loading ? 'spin 1s linear infinite' : 'none',
+          }}>refresh</span>
+          {loading ? 'Running…' : 'Run Checks'}
+        </button>
+      </div>
+
+      {/* ── Tab bar ── */}
+      <div style={{ display: 'flex', gap: '4px', marginBottom: '24px', background: '#1e293b', borderRadius: '12px', padding: '4px', width: 'fit-content' }}>
+        {[
+          { id: 'health', label: 'Health Checks', icon: 'check_circle' },
+          { id: 'errors', label: `Recent Errors${errors.length ? ` (${errors.length})` : ''}`, icon: 'error' },
+          { id: 'info',   label: 'System Info', icon: 'info' },
+        ].map(t => (
+          <button
+            key={t.id}
+            onClick={() => setTab(t.id)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '6px',
+              padding: '8px 16px', borderRadius: '8px', border: 'none', cursor: 'pointer',
+              background: tab === t.id ? '#6366f1' : 'transparent',
+              color: tab === t.id ? 'white' : '#64748b',
+              fontSize: '13px', fontWeight: 600, transition: 'all 0.15s',
+            }}
+          >
+            <span className="material-symbols-rounded" style={{ fontSize: '15px' }}>{t.icon}</span>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* ── Health Checks Tab ── */}
+      {tab === 'health' && health && (
+        <>
+          <OverallBadge
+            status={health.overallStatus}
+            pass={health.pass}
+            fail={health.fail}
+            durationMs={health.durationMs}
+          />
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px' }}>
+            {health.checks?.map(check => (
+              <CheckCard key={check.name} check={check} onClick={setSelectedCheck} />
+            ))}
+          </div>
+        </>
+      )}
+
+      {/* ── Errors Tab ── */}
+      {tab === 'errors' && (
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+            <div style={{ fontSize: '14px', color: '#64748b' }}>
+              {errLoading ? 'Loading…' : `${errors.length} recent error${errors.length !== 1 ? 's' : ''} (in-memory, resets on restart)`}
+            </div>
+            <button
+              onClick={fetchErrors}
+              style={{
+                background: 'none', border: '1px solid #1e293b', borderRadius: '8px',
+                color: '#94a3b8', cursor: 'pointer', padding: '6px 12px',
+                fontSize: '12px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px',
+              }}
+            >
+              <span className="material-symbols-rounded" style={{ fontSize: '14px' }}>refresh</span>
+              Refresh
+            </button>
+          </div>
+
+          {errors.length === 0 ? (
+            <div style={{
+              background: 'rgba(34,197,94,0.06)', border: '1px solid rgba(34,197,94,0.15)',
+              borderRadius: '14px', padding: '40px', textAlign: 'center',
+            }}>
+              <span className="material-symbols-rounded" style={{ fontSize: '40px', color: '#22c55e', display: 'block', marginBottom: '12px' }}>
+                check_circle
+              </span>
+              <div style={{ fontSize: '15px', fontWeight: 600, color: '#f1f5f9', marginBottom: '6px' }}>
+                No errors recorded
+              </div>
+              <div style={{ fontSize: '13px', color: '#64748b' }}>
+                Error events appear here as they occur. Check your cloud logging dashboard for full history.
+              </div>
+            </div>
+          ) : (
+            <div style={{ overflow: 'auto', borderRadius: '12px', border: '1px solid #1e293b' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+                <thead>
+                  <tr style={{ background: '#1e293b', color: '#64748b', textAlign: 'left' }}>
+                    {['Time', 'Level', 'Feature', 'Operation', 'Error', 'Request ID', ''].map(h => (
+                      <th key={h} style={{ padding: '10px 14px', fontWeight: 600, fontSize: '11px', letterSpacing: '0.05em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {errors.map((entry, i) => (
+                    <ErrorRow
+                      key={i}
+                      entry={entry}
+                      onExpand={e => setExpandedError(expandedError === e ? null : e)}
+                      expanded={expandedError === entry}
+                    />
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── System Info Tab ── */}
+      {tab === 'info' && (
+        <div>
+          {sysInfo ? (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '14px' }}>
+              {[
+                { label: 'Mode',        value: sysInfo.mode,        icon: 'cloud' },
+                { label: 'Environment', value: sysInfo.environment, icon: 'code' },
+                { label: 'Node.js',     value: sysInfo.nodeVersion, icon: 'terminal' },
+                { label: 'Uptime',      value: `${Math.floor(sysInfo.uptime / 60)}m ${sysInfo.uptime % 60}s`, icon: 'schedule' },
+                { label: 'RSS Memory',  value: sysInfo.memory?.rss,       icon: 'memory' },
+                { label: 'Heap Used',   value: sysInfo.memory?.heapUsed,  icon: 'storage' },
+                { label: 'Heap Total',  value: sysInfo.memory?.heapTotal, icon: 'dns' },
+                { label: 'Checked At',  value: new Date(sysInfo.checkedAt).toLocaleTimeString(), icon: 'access_time' },
+              ].map(({ label, value, icon }) => (
+                <div key={label} style={{
+                  background: 'var(--card-bg, #1e293b)', borderRadius: '12px',
+                  padding: '18px 20px', border: '1px solid #1e293b22',
+                  display: 'flex', alignItems: 'center', gap: '14px',
+                }}>
+                  <span className="material-symbols-rounded" style={{ fontSize: '20px', color: '#6366f1' }}>{icon}</span>
+                  <div>
+                    <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{label}</div>
+                    <div style={{ fontSize: '14px', color: '#f1f5f9', fontWeight: 600, marginTop: '2px', fontFamily: 'monospace' }}>{value}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div style={{ color: '#64748b', fontSize: '14px', padding: '32px', textAlign: 'center' }}>
+              Run health checks first to load system info.
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Check Detail Modal ── */}
+      <CheckDetailModal check={selectedCheck} onClose={() => setSelectedCheck(null)} />
+
+      {/* ── Spin animation ── */}
+      <style>{`
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+      `}</style>
+    </div>
+  );
+}

@@ -1,5 +1,6 @@
 const crypto = require('crypto');
 const prisma = require('../db/index');
+const logger = require('../utils/logger');
 
 const WEBHOOK_SECRET = process.env.LS_WEBHOOK_SECRET;
 
@@ -13,7 +14,7 @@ exports.handleWebhook = async (req, res) => {
     const signature = Buffer.from(req.get('X-Signature') || '', 'utf8');
 
     if (!crypto.timingSafeEqual(digest, signature)) {
-      console.error('Invalid LemonSqueezy webhook signature');
+      logger.warn('webhook', 'invalid-signature', { requestId: req.requestId, ip: req.ip });
       return res.status(403).send('Invalid signature');
     }
 
@@ -24,7 +25,7 @@ exports.handleWebhook = async (req, res) => {
     const attributes = obj.attributes;
     const customData = payload.meta.custom_data;
 
-    console.log(`[Webhook] Received LemonSqueezy Event: ${eventName}`);
+    logger.info('webhook', 'event-received', { requestId: req.requestId, eventName });
 
     // 3. Process events
     if (eventName === 'subscription_created' || eventName === 'subscription_updated') {
@@ -106,7 +107,7 @@ exports.handleWebhook = async (req, res) => {
 
     res.status(200).send('Webhook processed');
   } catch (err) {
-    console.error('Webhook error:', err);
+    logger.error('webhook', 'processing-error', { requestId: req.requestId, error: err });
     res.status(500).send('Webhook error');
   }
 };

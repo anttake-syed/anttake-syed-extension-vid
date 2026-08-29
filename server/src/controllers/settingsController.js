@@ -1,4 +1,5 @@
 const prisma = require('../db/index');
+const logger = require('../utils/logger');
 
 exports.getSettings = async (req, res) => {
   try {
@@ -6,7 +7,8 @@ exports.getSettings = async (req, res) => {
     let pref = settings?.storagePreference || 'local';
     if (pref === 'both') {pref = 'local';}
     res.json({ storagePreference: pref });
-  } catch {
+  } catch (err) {
+    logger.error('settings', 'get-settings-failed', { requestId: req.requestId, userId: req.user.id, error: err });
     res.status(500).json({ error: 'Failed to load settings' });
   }
 };
@@ -23,9 +25,10 @@ exports.saveSettings = async (req, res) => {
       update: { storagePreference },
       create: { email: req.user.email, storagePreference },
     });
-    console.log(`⚙️ Storage preference → ${storagePreference.toUpperCase()} for ${req.user.email}`);
+    logger.info('settings', 'update-preference', { requestId: req.requestId, userId: req.user.id, storagePreference });
     res.json({ success: true, storagePreference: settings.storagePreference });
-  } catch {
+  } catch (err) {
+    logger.error('settings', 'save-settings-failed', { requestId: req.requestId, userId: req.user.id, error: err });
     res.status(500).json({ error: 'Failed to save settings' });
   }
 };

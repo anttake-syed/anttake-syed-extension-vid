@@ -5,6 +5,7 @@ CREATE TABLE "User" (
     "name" TEXT,
     "picture" TEXT,
     "googleId" TEXT,
+    "role" TEXT NOT NULL DEFAULT 'user',
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" DATETIME NOT NULL
 );

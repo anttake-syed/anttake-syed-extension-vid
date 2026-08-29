@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { SERVER_URL, IS_LOCAL_MODE } from '../config';
 import ConfirmDeleteModal from './ConfirmDeleteModal';
+import VideoViewer from './video/VideoViewer.jsx';
 
 const DriveLogoSVG = ({ size = 18 }) => (
   <svg viewBox="0 0 87.3 78" width={size} height={size} xmlns="http://www.w3.org/2000/svg" style={{ flexShrink: 0 }}>
@@ -13,7 +14,51 @@ const DriveLogoSVG = ({ size = 18 }) => (
   </svg>
 );
 
-export default function MediaModal({ item, onClose, user, onSyncSuccess, onDelete, dbStats }) {
+const getFullSrc = (src, jwt) => {
+  if (!src) return '';
+  const url = src.startsWith('/') ? `${SERVER_URL}${src}` : src;
+  if (!jwt) return url;
+  return url.includes('?') ? `${url}&token=${jwt}` : `${url}?token=${jwt}`;
+};
+
+class MediaModalErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    console.error("MediaModal crashed:", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="modal-overlay fadeIn" onClick={this.props.onClose} style={{ zIndex: 1000, background: 'rgba(2, 6, 23, 0.92)', backdropFilter: 'blur(8px)', padding: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div className="modal-card fadeInScale" onClick={e => e.stopPropagation()} style={{ background: '#0f172a', border: '1px solid rgba(239, 68, 68, 0.3)', borderRadius: '16px', padding: '32px', maxWidth: '420px', width: '100%', textAlign: 'center', boxShadow: '0 32px 80px rgba(0,0,0,0.8)' }}>
+            <span className="material-symbols-rounded" style={{ fontSize: '48px', color: '#f87171', marginBottom: '16px' }}>error</span>
+            <h2 style={{ fontSize: '20px', fontWeight: 600, color: '#f8fafc', margin: '0 0 12px' }}>Video Player Error</h2>
+            <p style={{ fontSize: '14px', color: '#94a3b8', margin: '0 0 24px', lineHeight: 1.5 }}>
+              The media player encountered an unexpected error and had to close. Please try again.
+            </p>
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
+              <button onClick={() => this.setState({ hasError: false, error: null })} style={{ background: 'rgba(99,102,241,0.1)', color: '#818cf8', border: '1px solid rgba(99,102,241,0.3)', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer', fontWeight: 600 }}>Retry</button>
+              <button onClick={this.props.onClose} style={{ background: '#1e293b', color: '#f8fafc', border: '1px solid #334155', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer', fontWeight: 600 }}>Close</button>
+            </div>
+            {this.state.error && <div style={{ marginTop: '24px', padding: '12px', background: 'rgba(0,0,0,0.3)', borderRadius: '6px', fontSize: '11px', color: '#ef4444', textAlign: 'left', overflowX: 'auto', fontFamily: 'monospace' }}>{this.state.error.toString()}</div>}
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+function MediaModalContent({ item, onClose, user, onSyncSuccess, onDelete, dbStats }) {
   const [syncingDrive, setSyncingDrive] = useState(false);
   const [syncingLocal, setSyncingLocal] = useState(false);
   const [removingLocal, setRemovingLocal] = useState(false);
@@ -25,6 +70,22 @@ export default function MediaModal({ item, onClose, user, onSyncSuccess, onDelet
   const [titleValue, setTitleValue] = useState(item?.title || '');
   const [titleSaving, setTitleSaving] = useState(false);
   const [mediaLoading, setMediaLoading] = useState(true);
+
+  useEffect(() => {
+    if (item?.id && item?.title) {
+      const slug = item.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'untitled';
+      const targetUrl = `/capture/${item.id}/${slug}`;
+      const currentPath = window.location.pathname;
+      
+      if (currentPath !== targetUrl) {
+        if (currentPath.startsWith(`/capture/${item.id}`)) {
+          window.history.replaceState(null, '', targetUrl);
+        } else {
+          window.history.pushState(null, '', targetUrl);
+        }
+      }
+    }
+  }, [item?.id, item?.title]);
 
   if (!item) {return null;}
 
@@ -96,7 +157,7 @@ export default function MediaModal({ item, onClose, user, onSyncSuccess, onDelet
     e.stopPropagation();
     if (!item.src) {return;}
     try {
-      const response = await fetch(item.src);
+      const response = await fetch(getFullSrc(item.src, user?.jwt));
       if (!response.ok) {throw new Error('Download failed from server');}
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
@@ -285,106 +346,28 @@ export default function MediaModal({ item, onClose, user, onSyncSuccess, onDelet
               </div>
             </div>
           ) : item.type === 'video' ? (
-            <div style={{ position: 'relative', width: '100%', flex: 1, minHeight: '420px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#000', overflow: 'hidden' }}>
-
-              {/* ── Professional loading skeleton ── */}
-              {mediaLoading && (
-                <div style={{
-                  position: 'absolute', inset: 0, zIndex: 10,
-                  display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '18px',
-                  background: 'linear-gradient(135deg, #020617 0%, #0d1526 100%)',
-                  borderRadius: '8px',
-                }}>
-                  {/* Pulsing play-circle icon */}
-                  <div style={{
-                    width: '72px', height: '72px', borderRadius: '50%',
-                    background: 'rgba(99,102,241,0.1)', border: '1.5px solid rgba(99,102,241,0.2)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    animation: 'modalSkeletonPulse 1.8s ease-in-out infinite',
-                  }}>
-                    <span className="material-symbols-rounded" style={{ fontSize: '34px', color: 'rgba(129,140,248,0.55)' }}>
-                      play_circle
-                    </span>
-                  </div>
-
-                  {/* Label */}
-                  <div style={{ fontSize: '14px', fontWeight: 600, color: 'rgba(148,163,184,0.65)', letterSpacing: '0.02em' }}>
-                    Preparing video…
-                  </div>
-
-                  {/* Shimmer progress bar */}
-                  <div style={{ width: '130px', height: '2px', background: 'rgba(255,255,255,0.05)', borderRadius: '2px', overflow: 'hidden' }}>
-                    <div style={{
-                      height: '100%', width: '40%',
-                      background: 'linear-gradient(90deg, transparent, rgba(99,102,241,0.55), transparent)',
-                      animation: 'modalSkeletonSweep 1.4s ease-in-out infinite',
-                    }} />
-                  </div>
-
-                  <style>{`
-                    @keyframes modalSkeletonPulse {
-                      0%, 100% { transform: scale(1);    opacity: 0.7; }
-                      50%       { transform: scale(1.07); opacity: 1;   }
-                    }
-                    @keyframes modalSkeletonSweep {
-                      0%   { transform: translateX(-250%); }
-                      100% { transform: translateX(400%);  }
-                    }
-                  `}</style>
-                </div>
-              )}
-
-              {/* Resolution + Format badge overlay */}
-              {!mediaLoading && (() => {
-                const mime = item.mimeType || '';
-                const formatLabel = mime.includes('mp4') ? 'MP4' : mime.includes('webm') ? 'WebM' : (mime.split('/')[1] || 'Video').toUpperCase();
-                const resMatch = (item.size || '').match(/(\d+)p/);
-                const resLabel = resMatch ? resMatch[1] + 'p' : null;
-                return (
-                  <div style={{ position: 'absolute', top: '12px', left: '12px', zIndex: 5, display: 'flex', gap: '6px', alignItems: 'center', pointerEvents: 'none' }}>
-                    {resLabel && (
-                      <span style={{ background: 'rgba(0,0,0,0.72)', backdropFilter: 'blur(4px)', border: '1px solid rgba(255,255,255,0.15)', color: '#f8fafc', fontSize: '11px', fontWeight: '700', letterSpacing: '0.05em', padding: '3px 8px', borderRadius: '5px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                        <span style={{ fontSize: '10px', opacity: 0.7 }}>&#9646;</span>
-                        {resLabel}
-                      </span>
-                    )}
-                    <span style={{ background: 'rgba(0,0,0,0.72)', backdropFilter: 'blur(4px)', border: '1px solid rgba(99,102,241,0.35)', color: '#818cf8', fontSize: '11px', fontWeight: '700', letterSpacing: '0.05em', padding: '3px 8px', borderRadius: '5px' }}>
-                      {formatLabel}
-                    </span>
-                    <span title={(item.hasAudio === false) ? 'No Audio' : 'Contains Audio'} style={{ background: 'rgba(0,0,0,0.72)', backdropFilter: 'blur(4px)', border: `1px solid ${(item.hasAudio === false) ? 'rgba(239, 68, 68, 0.5)' : 'rgba(255,255,255,0.15)'}`, color: 'white', fontSize: '11px', fontWeight: '700', letterSpacing: '0.05em', padding: '3px 6px', borderRadius: '5px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                      <span className="material-symbols-rounded" style={{ fontSize: '14px', color: (item.hasAudio === false) ? '#f87171' : 'white' }}>
-                        {(item.hasAudio === false) ? 'volume_off' : 'volume_up'}
-                      </span>
-                      {(item.hasAudio === false) ? 'Muted' : 'Audio'}
-                    </span>
-                  </div>
-                );
-              })()}
-
-              <video
-                key={item.id}
-                src={item.src}
-                controls
-                autoPlay
-                style={{ width: '100%', height: '100%', objectFit: 'contain', outline: 'none', background: '#000', display: 'block', opacity: mediaLoading ? 0 : 1, transition: 'opacity 0.35s ease' }}
-                onCanPlay={() => setMediaLoading(false)}
-                onLoadedData={() => setMediaLoading(false)}
-                onError={(e) => {
-                  console.error('Video error:', e.target.error?.message || e.target.error);
-                  setMediaLoading(false);
-                }}
-              >
-                Your browser does not support the video tag.
-              </video>
+            <div style={{ flex: 1, minHeight: '420px', display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#000' }}>
+              <VideoViewer
+                src={getFullSrc(item.src, user?.jwt)}
+                onClose={onClose}
+              />
             </div>
           ) : (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', flex: 1, background: '#000', padding: '16px' }}>
-              <img src={item.src} style={{ maxWidth: '100%', maxHeight: '70vh', objectFit: 'contain', borderRadius: '8px', display: 'block' }} alt={item.title} />
+              <img src={getFullSrc(item.src, user?.jwt)} style={{ maxWidth: '100%', maxHeight: '70vh', objectFit: 'contain', borderRadius: '8px', display: 'block' }} alt={item.title} />
             </div>
           )}
         </div>
       </div>
     </div>
     </>
+  );
+}
+
+export default function MediaModal(props) {
+  return (
+    <MediaModalErrorBoundary onClose={props.onClose}>
+      <MediaModalContent {...props} />
+    </MediaModalErrorBoundary>
   );
 }

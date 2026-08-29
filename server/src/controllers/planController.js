@@ -1,4 +1,5 @@
 const prisma = require('../db/index');
+const logger = require('../utils/logger');
 
 exports.getPlans = async (req, res) => {
   try {
@@ -8,7 +9,7 @@ exports.getPlans = async (req, res) => {
     });
     res.json({ plans });
   } catch (err) {
-    console.error('Fetch plans error:', err);
+    logger.error('plan', 'get-plans-failed', { requestId: req.requestId, error: err });
     res.status(500).json({ error: 'Failed to fetch plans' });
   }
 };

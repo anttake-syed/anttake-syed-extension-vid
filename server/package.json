@@ -11,6 +11,7 @@
     "setup:d1": "node scripts/setup-d1.js",
     "migrate:d1": "node scripts/migrate-d1.js",
     "test:d1": "node scripts/test-d1.js",
+    "vercel-build": "node scripts/migrate-d1.js",
     "postinstall": "prisma generate",
     "lint": "eslint ."
   },

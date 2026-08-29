@@ -32,12 +32,12 @@ const LEVEL_RANK = { debug: 0, info: 1, warn: 2, error: 3 };
 const MIN_RANK   = LEVEL_RANK[LOG_LEVEL] ?? 1;
 
 // Lazy-load to avoid circular dependency during module init
-let _errorBuffer = null;
-function getErrorBuffer() {
-  if (!_errorBuffer) {
-    try { _errorBuffer = require('./errorBuffer').errorRingBuffer; } catch { /* ignore */ }
+let _buffers = null;
+function getBuffers() {
+  if (!_buffers) {
+    try { _buffers = require('./errorBuffer'); } catch { /* ignore */ }
   }
-  return _errorBuffer;
+  return _buffers;
 }
 
 // ── Sensitive key scrubber ────────────────────────────────────────────────────
@@ -87,9 +87,12 @@ function emit(level, feature, operation, data = {}) {
     ...(Object.keys(rest).length > 0 && { meta: scrub(rest) }),
   };
 
-  // Push ERROR entries into the in-memory ring buffer (for diagnostics page)
+  // Push all entries into the in-memory activity ring buffer
+  getBuffers()?.activityRingBuffer?.push(entry);
+
+  // Push ERROR entries into the in-memory error ring buffer (for diagnostics page)
   if (level === 'error') {
-    getErrorBuffer()?.push(entry);
+    getBuffers()?.errorRingBuffer?.push(entry);
   }
 
   // Cloud: JSON to stdout (Vercel/CF picks it up natively)

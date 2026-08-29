@@ -16,6 +16,7 @@ model User {
   picture       String?
   googleId      String?  @unique
   role          String   @default("user")  // "user" | "admin" — checked server-side by requireAdmin
+  storagePreference String @default("local") // "local" | "drive"
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 

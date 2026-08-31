@@ -3,46 +3,54 @@ const BaseProvider = require('./BaseProvider');
 class UploadThingProvider extends BaseProvider {
   constructor() {
     super();
-    // Only initialize if the user has added UploadThing token to their .env file (v7 format)
+    // UploadThing v7: single UPLOADTHING_TOKEN replaces separate secret + appId
     this.token = process.env.UPLOADTHING_TOKEN;
   }
 
-  /**
-   * Unlike R2/S3 which uses simple presigned URLs, UploadThing typically handles 
-   * intents and webhooks through its own Express route wrapper (createRouteHandler).
-   * 
-   * However, using UTApi from 'uploadthing/server', you can also generate 
-   * presigned URLs manually if you prefer the standard PUT fetch flow in the extension.
-   */
-  async createUploadIntent(filename, mimeType, sizeBytes, options = {}) {
+  _getUTApi() {
     if (!this.token) throw new Error('UploadThing not configured (missing UPLOADTHING_TOKEN)');
-
-    // In a fully native UploadThing setup, you would typically use @uploadthing/express 
-    // to mount a /api/uploadthing route. But if you want to keep the exact same direct-PUT 
-    // extension flow we just built, you can request upload tokens directly using UTApi here.
-
-    // NOTE: This requires the 'uploadthing' package to be installed.
     const { UTApi } = require('uploadthing/server');
-    const utapi = new UTApi();
-
-    // Since UploadThing expects to manage the upload lifecycle, the exact implementation
-    // here depends on whether you use their browser SDK in the extension, or their REST API.
-    // Assuming a standard REST approach:
-    throw new Error('UploadThing direct intent generation requires the @uploadthing/browser SDK on the client, or configuring createRouteHandler in Express.');
+    return new UTApi();
   }
 
+  /**
+   * Server-side upload: receives a Buffer from multer, pushes it to UploadThing via UTApi.
+   * This is the correct v7 flow for server-originated uploads.
+   */
+  async upload(buffer, filename, mimeType, options = {}) {
+    const utapi = this._getUTApi();
+
+    // UTApi.uploadFiles() expects a File-like object
+    const file = new File([buffer], filename, { type: mimeType });
+    const response = await utapi.uploadFiles(file);
+
+    if (response.error) {
+      throw new Error(`UploadThing upload error: ${response.error.message}`);
+    }
+
+    const uploaded = response.data;
+    return {
+      providerObjectId: uploaded.key,       // UploadThing file key
+      sizeBytes:        uploaded.size || buffer.length,
+      providerMeta:     { url: uploaded.url, name: uploaded.name }
+    };
+  }
+
+  /**
+   * Returns the public CDN URL for a file by its UploadThing key.
+   */
   async getAccessUrl(providerObjectId, options = {}) {
-    // UploadThing public URLs typically follow this format:
     return `https://utfs.io/f/${providerObjectId}`;
   }
 
+  /**
+   * Deletes a file from UploadThing by its key.
+   */
   async delete(providerObjectId, options = {}) {
     if (!this.token) return false;
-
     try {
-      const { UTApi } = require('uploadthing/server');
-      const utapi = new UTApi();
-      await utapi.deleteFiles(providerObjectId);
+      const utapi = this._getUTApi();
+      await utapi.deleteFiles([providerObjectId]);
       return true;
     } catch (err) {
       console.error(`UploadThingProvider: Failed to delete ${providerObjectId}`, err);
@@ -51,14 +59,12 @@ class UploadThingProvider extends BaseProvider {
   }
 
   async exists(providerObjectId, options = {}) {
-    if (!this.secret) return false;
-
+    if (!this.token) return false;
     try {
-      // We can try to fetch the file metadata to check existence
-      const accessUrl = await this.getAccessUrl(providerObjectId);
-      const res = await fetch(accessUrl, { method: 'HEAD' });
+      const url = await this.getAccessUrl(providerObjectId);
+      const res = await fetch(url, { method: 'HEAD', signal: AbortSignal.timeout(3000) });
       return res.ok;
-    } catch (err) {
+    } catch {
       return false;
     }
   }

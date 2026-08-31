@@ -1,6 +1,7 @@
 const LocalProvider = require('../providers/LocalProvider');
 const SelfHostedProvider = require('../providers/SelfHostedProvider');
 const CloudProvider = require('../providers/CloudProvider');
+const UploadThingProvider = require('../providers/UploadThingProvider');
 const GoogleDriveProvider = require('../providers/GoogleDriveProvider');
 const EntitlementService = require('./entitlementService');
 const prisma = require('../db/index');
@@ -8,9 +9,12 @@ const prisma = require('../db/index');
 class StorageService {
   _getProviderInstance(providerName) {
     switch (providerName) {
-      case 'local': return LocalProvider;
-      case 'self_hosted': return SelfHostedProvider;
-      case 'cloud': return CloudProvider;
+      case 'local':        return LocalProvider;
+      case 'self_hosted':  return SelfHostedProvider;
+      case 'cloud':
+        // Auto-select UploadThing if token is configured, otherwise fall back to CloudProvider (R2)
+        return process.env.UPLOADTHING_TOKEN ? UploadThingProvider : CloudProvider;
+      case 'upload_thing': return UploadThingProvider;
       case 'google_drive': return GoogleDriveProvider;
       default: throw new Error(`Unknown storage provider: ${providerName}`);
     }

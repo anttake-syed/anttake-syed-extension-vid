@@ -2,7 +2,7 @@
 // Handles uploading blobs to the server via the unified /upload endpoint.
 // The 'provider' field tells the server where to store the file:
 //   'local'        → saves to /uploads folder on server disk (offline, self-hosted)
-//   'cloud'        → saves to Cloudflare R2 (requires subscription)
+//   'cloud'        → saves to UploadThing (requires subscription)
 //   'google_drive' → saves to the user's personal Google Drive
 
 import { DEV_SERVER_URL, PROD_SERVER_URL } from '../shared/config.js';
@@ -67,81 +67,9 @@ export async function uploadToServer(blob, type, destination, jwt, resolution = 
     provider = 'google_drive';
   }
 
-  // ── V2 Unified Upload ───────────────────────────────────────────────────────
-  
-  // Decoupled architecture for cloud:
-  // 1. Get upload intent (presigned URL)
-  // 2. PUT directly to cloud provider (bypassing our node server)
-  // 3. Confirm upload
-  if (provider === 'cloud') {
-    // Step 1: Intent
-    const intentRes = await fetch(`${serverUrl}/upload-intent`, {
-      method: 'POST',
-      headers: { 
-        'Authorization': `Bearer ${jwt || 'local-mode'}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        title: filename,
-        type,
-        mimeType,
-        hasAudio,
-        provider,
-        sizeBytes: blob.size
-      }),
-    });
-
-    if (!intentRes.ok) {
-      const data = await intentRes.json().catch(() => ({}));
-      if (data.error === 'quota_exceeded') {
-        throw new Error('Your cloud storage is full. Please upgrade your plan.');
-      }
-      throw new Error(data.detail || data.error || data.message || `Upload intent failed: ${intentRes.status}`);
-    }
-
-    const intentData = await intentRes.json();
-    
-    // Step 2: Direct Upload to Provider (Cloudflare R2/S3)
-    log.info(`Received upload intent, uploading directly to provider...`);
-    const putRes = await fetch(intentData.uploadUrl, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': mimeType
-      },
-      body: blob
-    });
-
-    if (!putRes.ok) {
-      throw new Error(`Direct cloud upload failed with status: ${putRes.status}`);
-    }
-
-    // Step 3: Confirm
-    log.info(`Direct upload complete, confirming with server...`);
-    const confirmRes = await fetch(`${serverUrl}/upload-complete`, {
-      method: 'POST',
-      headers: { 
-        'Authorization': `Bearer ${jwt || 'local-mode'}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        captureId: intentData.captureId,
-        providerObjectId: intentData.providerObjectId,
-        sizeBytes: blob.size,
-        providerMeta: {}
-      })
-    });
-
-    if (!confirmRes.ok) {
-      const data = await confirmRes.json().catch(() => ({}));
-      throw new Error(data.error || 'Failed to confirm upload with server');
-    }
-
-    const result = await confirmRes.json();
-    log.info(`✅ Upload complete. Provider: ${provider} | File: ${filename}`);
-    return result;
-  }
-
-  // Fallback / Legacy behavior for Local or Google Drive
+  // ── Unified upload for ALL providers (local, cloud, google_drive) ─────────────
+  // Cloud uploads go through the server which uses UTApi to push to UploadThing.
+  // This keeps the extension simple and provider-agnostic.
   const formData = new FormData();
   formData.append('file', blob, filename);
   formData.append('title', filename);
@@ -159,16 +87,13 @@ export async function uploadToServer(blob, type, destination, jwt, resolution = 
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
 
-    // ── Drive Fallback Handling ────────────────────────────────────────────────
-    // If the server signals that Drive is full, relay the message to edit.js
-    // so it can prompt the user to switch to Cloud storage instead.
+    // Drive is full — relay to edit.js so it can prompt to switch to Cloud
     if (data.fallbackRequired && data.reason === 'drive_full') {
       const fallbackErr = new Error(data.message || 'Google Drive is full.');
       fallbackErr.code = 'DRIVE_FULL_FALLBACK';
       throw fallbackErr;
     }
 
-    // ── Quota exceeded on Cloud ────────────────────────────────────────────────
     if (data.error === 'quota_exceeded') {
       throw new Error('Your cloud storage is full. Please upgrade your plan.');
     }

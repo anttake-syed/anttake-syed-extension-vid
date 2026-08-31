@@ -68,6 +68,80 @@ export async function uploadToServer(blob, type, destination, jwt, resolution = 
   }
 
   // ── V2 Unified Upload ───────────────────────────────────────────────────────
+  
+  // Decoupled architecture for cloud:
+  // 1. Get upload intent (presigned URL)
+  // 2. PUT directly to cloud provider (bypassing our node server)
+  // 3. Confirm upload
+  if (provider === 'cloud') {
+    // Step 1: Intent
+    const intentRes = await fetch(`${serverUrl}/upload-intent`, {
+      method: 'POST',
+      headers: { 
+        'Authorization': `Bearer ${jwt || 'local-mode'}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        title: filename,
+        type,
+        mimeType,
+        hasAudio,
+        provider,
+        sizeBytes: blob.size
+      }),
+    });
+
+    if (!intentRes.ok) {
+      const data = await intentRes.json().catch(() => ({}));
+      if (data.error === 'quota_exceeded') {
+        throw new Error('Your cloud storage is full. Please upgrade your plan.');
+      }
+      throw new Error(data.detail || data.error || data.message || `Upload intent failed: ${intentRes.status}`);
+    }
+
+    const intentData = await intentRes.json();
+    
+    // Step 2: Direct Upload to Provider (Cloudflare R2/S3)
+    log.info(`Received upload intent, uploading directly to provider...`);
+    const putRes = await fetch(intentData.uploadUrl, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': mimeType
+      },
+      body: blob
+    });
+
+    if (!putRes.ok) {
+      throw new Error(`Direct cloud upload failed with status: ${putRes.status}`);
+    }
+
+    // Step 3: Confirm
+    log.info(`Direct upload complete, confirming with server...`);
+    const confirmRes = await fetch(`${serverUrl}/upload-complete`, {
+      method: 'POST',
+      headers: { 
+        'Authorization': `Bearer ${jwt || 'local-mode'}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        captureId: intentData.captureId,
+        providerObjectId: intentData.providerObjectId,
+        sizeBytes: blob.size,
+        providerMeta: {}
+      })
+    });
+
+    if (!confirmRes.ok) {
+      const data = await confirmRes.json().catch(() => ({}));
+      throw new Error(data.error || 'Failed to confirm upload with server');
+    }
+
+    const result = await confirmRes.json();
+    log.info(`✅ Upload complete. Provider: ${provider} | File: ${filename}`);
+    return result;
+  }
+
+  // Fallback / Legacy behavior for Local or Google Drive
   const formData = new FormData();
   formData.append('file', blob, filename);
   formData.append('title', filename);

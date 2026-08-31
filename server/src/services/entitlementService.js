@@ -91,6 +91,32 @@ class QuotaService {
       }
     });
   }
+
+  /**
+   * Checks if the user is allowed to create a new board (Limit: 1,000 boards per user)
+   */
+  async checkBoardQuota(userId) {
+    const currentBoardCount = await prisma.board.count({ where: { userId } });
+    const limit = 1000;
+    
+    if (currentBoardCount >= limit) {
+      return { allowed: false, reason: 'board_limit_reached', limit, current: currentBoardCount };
+    }
+    return { allowed: true };
+  }
+
+  /**
+   * Checks if the board can accept a new object (Limit: 5,000 objects per board)
+   */
+  async checkBoardItemQuota(boardId) {
+    const currentItemCount = await prisma.boardItem.count({ where: { boardId } });
+    const limit = 5000;
+
+    if (currentItemCount >= limit) {
+      return { allowed: false, reason: 'board_object_limit_reached', limit, current: currentItemCount };
+    }
+    return { allowed: true };
+  }
 }
 
 module.exports = new QuotaService();

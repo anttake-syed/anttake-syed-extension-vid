@@ -1,5 +1,6 @@
 const prisma = require('../db/index');
 const logger = require('../utils/logger');
+const EntitlementService = require('../services/entitlementService');
 
 exports.getBoards = async (req, res) => {
   try {
@@ -16,25 +17,14 @@ exports.getBoards = async (req, res) => {
 
 exports.createBoard = async (req, res) => {
   try {
-    // Accept both `name` (sent by frontend) and `title` (canonical field name)
     const { name, title, width, height, background } = req.body;
     const boardTitle = (name || title || '').trim() || 'Untitled Board';
     
     // Check quota ONLY in cloud mode
     if (process.env.SERVER_MODE === 'cloud') {
-      const user = await prisma.user.findUnique({
-        where: { id: req.user.id },
-        include: { subscription: { include: { plan: true } } }
-      });
-
-      const plan = (user.subscription?.status === 'active' && user.subscription.plan)
-        ? user.subscription.plan
-        : await prisma.plan.findUnique({ where: { name: 'free' } });
-
-      const currentBoardCount = await prisma.board.count({ where: { userId: req.user.id } });
-
-      if (plan && plan.boardLimit > 0 && currentBoardCount >= plan.boardLimit) {
-        return res.status(403).json({ error: `Board limit reached (${plan.boardLimit} for ${plan.displayName} plan)` });
+      const quotaCheck = await EntitlementService.checkBoardQuota(req.user.id);
+      if (!quotaCheck.allowed) {
+        return res.status(403).json({ error: `Board limit reached (${quotaCheck.limit} boards per user)` });
       }
     }
 
@@ -48,7 +38,6 @@ exports.createBoard = async (req, res) => {
       }
     });
 
-    // Expose `name` alias so the frontend doesn't need to know the schema column is `title`
     res.json({ success: true, board: { ...board, name: board.title } });
   } catch (err) {
     logger.error('board', 'create-board-failed', { requestId: req.requestId, userId: req.user.id, error: err });
@@ -133,6 +122,14 @@ exports.addBoardItem = async (req, res) => {
     const board = await prisma.board.findUnique({ where: { id: req.params.id } });
     if (!board || board.userId !== req.user.id) {
       return res.status(404).json({ error: 'Board not found' });
+    }
+
+    // Enforce 5,000 objects per board limit
+    if (process.env.SERVER_MODE === 'cloud') {
+      const quotaCheck = await EntitlementService.checkBoardItemQuota(board.id);
+      if (!quotaCheck.allowed) {
+        return res.status(403).json({ error: `Board object limit reached (${quotaCheck.limit} objects per board)` });
+      }
     }
 
     // If adding a capture, verify ownership

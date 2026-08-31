@@ -23,6 +23,25 @@ class CloudProvider extends BaseProvider {
     }
   }
 
+  async createUploadIntent(filename, mimeType, sizeBytes, options = {}) {
+    if (!this.client) throw new Error('CloudProvider not configured (missing R2 env vars)');
+
+    const command = new PutObjectCommand({
+      Bucket: this.bucketName,
+      Key: filename,
+      ContentType: mimeType,
+      ContentLength: sizeBytes,
+    });
+
+    const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
+    const uploadUrl = await getSignedUrl(this.client, command, { expiresIn: 3600 });
+
+    return {
+      uploadUrl,
+      providerObjectId: filename,
+    };
+  }
+
   async upload(buffer, filename, mimeType, options = {}) {
     if (!this.client) throw new Error('CloudProvider not configured (missing R2 env vars)');
 
@@ -45,16 +64,10 @@ class CloudProvider extends BaseProvider {
   async getAccessUrl(providerObjectId, options = {}) {
     if (!this.client) throw new Error('CloudProvider not configured');
 
-    // Generate a pre-signed URL that expires in 1 hour
-    // Or if they have a custom R2 domain, we could just return `https://${process.env.R2_PUBLIC_DOMAIN}/${providerObjectId}`
     if (process.env.R2_PUBLIC_DOMAIN) {
       return `https://${process.env.R2_PUBLIC_DOMAIN}/${providerObjectId}`;
     }
 
-    // Fallback to pre-signed URL if no public domain is configured
-    // Note: getObject command needs to be imported if we do pre-signed URLs, 
-    // but typically R2 buckets for public images are just exposed via a custom domain.
-    // For now, we will assume a public domain or error out.
     throw new Error('R2_PUBLIC_DOMAIN is required to generate access URLs for Cloudflare R2');
   }
 

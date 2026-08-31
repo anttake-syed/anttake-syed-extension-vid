@@ -1,5 +1,5 @@
 const prisma = require('../db/index');
-const storageRouter = require('../services/storageRouter');
+const StorageService = require('../services/storageService');
 const logger = require('../utils/logger');
 
 exports.getCaptures = async (req, res) => {
@@ -102,7 +102,7 @@ exports.uploadCapture = async (req, res) => {
     const filename = `${capture.id}.${ext}`;
     const options = { accessToken: req.user.access_token, refreshToken: req.user.refresh_token };
 
-    const result = await storageRouter.routeUpload(
+    const result = await StorageService.routeUpload(
       req.user, 
       req.file.buffer, 
       filename, 
@@ -151,7 +151,7 @@ exports.deleteCapture = async (req, res) => {
 
     // Attempt to delete from provider
     if (capture.storageObject) {
-      await storageRouter.deleteFile(capture.storageObject, {
+      await StorageService.deleteFile(capture.storageObject, {
         accessToken: req.user.access_token,
         refreshToken: req.user.refresh_token
       });
@@ -201,7 +201,7 @@ exports.deleteAll = async (req, res) => {
 
     for (const c of captures) {
       if (c.storageObject) {
-        await storageRouter.deleteFile(c.storageObject, {
+        await StorageService.deleteFile(c.storageObject, {
           accessToken: req.user.access_token,
           refreshToken: req.user.refresh_token
         });
@@ -259,5 +259,92 @@ exports.getMedia = async (req, res) => {
   } catch (err) {
     logger.error('capture', 'serve-media-failed', { requestId: req.requestId, userId: req.user.id, captureId: req.params.id, error: err });
     res.status(500).send('Failed to load media');
+  }
+};
+exports.createUploadIntent = async (req, res) => {
+  try {
+    const { title, type, mimeType, hasAudio, provider, sizeBytes } = req.body;
+    const targetProvider = provider || 'cloud';
+
+    if (!sizeBytes) {
+      return res.status(400).json({ error: 'sizeBytes is required' });
+    }
+
+    const AssetService = require('../services/assetService');
+    const storageService = require('../services/storageService');
+
+    // 1. Asset Service: Create pending asset shell
+    const { capture } = await AssetService.createPendingAsset(req.user, title, type, mimeType, hasAudio, targetProvider);
+
+    // Prepare filename based on type
+    const mime = (mimeType || '').split(';')[0].trim();
+    let ext = type === 'video' ? 'webm' : 'png';
+    if (mime.includes('mp4'))  ext = 'mp4';
+    else if (mime.includes('webm')) ext = 'webm';
+    else if (mime.includes('jpeg') || mime.includes('jpg')) ext = 'jpg';
+    else if (mime.includes('png')) ext = 'png';
+    
+    const filename = `${capture.id}.${ext}`;
+    const options = { accessToken: req.user.access_token, refreshToken: req.user.refresh_token };
+
+    // 2. Storage Service: Create intent (checks entitlement & asks provider for URL)
+    const result = await storageService.createUploadIntent(
+      req.user,
+      filename,
+      mimeType,
+      sizeBytes,
+      targetProvider,
+      capture.id,
+      options
+    );
+
+    if (!result.success) {
+      await prisma.capture.delete({ where: { id: capture.id } });
+      return res.status(500).json(result);
+    }
+
+    res.json({
+      success: true,
+      captureId: capture.id,
+      uploadUrl: result.uploadUrl,
+      providerObjectId: result.providerObjectId,
+      targetProvider: result.targetProvider
+    });
+
+  } catch (err) {
+    logger.error('capture', 'upload-intent-failed', { requestId: req.requestId, userId: req.user.id, error: err });
+    res.status(500).json({ error: 'Upload intent failed', detail: err.message });
+  }
+};
+
+exports.confirmUpload = async (req, res) => {
+  try {
+    const { captureId, providerObjectId, sizeBytes, providerMeta } = req.body;
+    
+    if (!captureId || !providerObjectId || !sizeBytes) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    const AssetService = require('../services/assetService');
+    const storageService = require('../services/storageService');
+
+    const result = await AssetService.markAssetReady(captureId, req.user, providerObjectId, sizeBytes, providerMeta);
+    
+    const providerInstance = storageService._getProviderInstance(result.storageObject.provider);
+    const accessUrl = await providerInstance.getAccessUrl(providerObjectId, { userId: req.user.id });
+
+    res.json({
+      success: true,
+      record: result.capture,
+      storageObject: {
+        ...result.storageObject,
+        sizeBytes: Number(result.storageObject.sizeBytes)
+      },
+      accessUrl
+    });
+
+  } catch (err) {
+    logger.error('capture', 'confirm-upload-failed', { requestId: req.requestId, userId: req.user.id, error: err });
+    res.status(500).json({ error: 'Confirm upload failed', detail: err.message });
   }
 };

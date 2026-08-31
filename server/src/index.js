@@ -92,6 +92,20 @@ app.use('/plans',        generalLimiter, planRoutes);
 app.use('/subscription', generalLimiter, subscriptionRoutes);
 app.use('/api/admin',    generalLimiter, adminRoutes); // ← Protected admin API
 
+// ── UploadThing Route ─────────────────────────────────────────────────────────
+const { createRouteHandler } = require("uploadthing/express");
+const { uploadRouter } = require("./routes/uploadthing");
+app.use(
+  "/api/uploadthing",
+  createRouteHandler({
+    router: uploadRouter,
+    config: {
+      uploadthingSecret: process.env.UPLOADTHING_SECRET,
+      uploadthingId: process.env.UPLOADTHING_APP_ID,
+    }
+  })
+);
+
 // ── Global error handler ──────────────────────────────────────────────────────
 // Catches any unhandled errors thrown inside route handlers.
 // Logs them via the structured logger before sending a generic 500.

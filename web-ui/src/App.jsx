@@ -24,17 +24,19 @@ import ServerHealthBadge from './components/ServerHealthBadge.jsx';
 import AdminDiagnostics from './components/AdminDiagnostics.jsx';
 
 const NAV_TO_PATH = {
-  'Dashboard':    '/',
-  'My Library':   '/library',
-  'Whiteboards':  '/whiteboards',
-  'Pricing':      '/pricing',
-  'Subscription': '/subscription',
-  'Settings':     '/settings',
-  'Feedback':     '/feedback',
-  'Privacy':      '/privacy-policy',
-  'Security':     '/security',
-  'Documentation': '/documentation',
-  'Diagnostics':  '/admin/diagnostics',
+  'Dashboard':      '/',
+  'My Library':     '/library',
+  'Whiteboards':    '/whiteboards',
+  'Pricing':        '/pricing',
+  'Subscription':   '/subscription',
+  'Settings':       '/settings',
+  'Feedback':       '/feedback',
+  'Privacy':        '/privacy-policy',
+  'Terms':          '/terms-of-service',
+  'Refund Policy':  '/refund-policy',
+  'Security':       '/security',
+  'Documentation':  '/documentation',
+  'Diagnostics':    '/admin/diagnostics',
 };
 
 const PATH_TO_NAV = Object.fromEntries(Object.entries(NAV_TO_PATH).map(([k, v]) => [v, k]));
@@ -417,6 +419,86 @@ export default function App() {
           <Pricing user={user} isAuthenticated={isAuthenticated} onSignIn={() => setShowModal(true)} />
         ) : activeNav === 'Feedback' ? (
           <FeedbackPage />
+        ) : activeNav === 'Terms' ? (
+          <StaticPage
+            title="Terms of Service"
+            content={`Last updated: August 2025
+
+Please read these Terms of Service ("Terms") carefully before using AntCapture. By accessing or using the Service, you agree to be bound by these Terms.
+
+1. ACCEPTANCE OF TERMS
+By creating an account or using AntCapture, you confirm that you are at least 18 years old and agree to these Terms and our Privacy Policy.
+
+2. DESCRIPTION OF SERVICE
+AntCapture is a screen capture, video recording, and cloud storage tool available as a browser extension and web dashboard. We offer a Cloud subscription plan and a free self-hosted option.
+
+3. SUBSCRIPTION AND BILLING
+- Cloud Plan: $10/month billed annually ($120/year) or $12/month billed monthly.
+- Billing is processed securely via LemonSqueezy. By subscribing, you authorise us to charge your chosen payment method on a recurring basis.
+- Prices are in USD and inclusive of any applicable taxes where required by law.
+- You may cancel your subscription at any time from the Settings page. Cancellation takes effect at the end of the current billing period — you retain access until that date.
+
+4. FREE / SELF-HOSTED TIER
+The self-hosted version of AntCapture is free and open-source. You are responsible for your own infrastructure, storage, and security. We provide no uptime guarantee or support for self-hosted deployments.
+
+5. ACCEPTABLE USE
+You agree not to:
+- Use AntCapture to capture, store, or share content that violates any law or third-party rights.
+- Attempt to reverse-engineer, resell, or exploit the Service commercially without written permission.
+- Use the Service to collect or store sensitive personal data of others without their consent.
+
+6. INTELLECTUAL PROPERTY
+AntCapture and its original content, features, and functionality are owned by AntCapture and protected by applicable intellectual property laws. Your captures and data remain yours.
+
+7. DISCLAIMER OF WARRANTIES
+The Service is provided "as is" without warranties of any kind, express or implied, including but not limited to fitness for a particular purpose or uninterrupted availability.
+
+8. LIMITATION OF LIABILITY
+To the maximum extent permitted by law, AntCapture shall not be liable for any indirect, incidental, or consequential damages arising from your use of the Service.
+
+9. CHANGES TO TERMS
+We may update these Terms at any time. We will notify you of significant changes via email or an in-app notice. Continued use after changes constitutes acceptance.
+
+10. GOVERNING LAW
+These Terms are governed by and construed in accordance with applicable law. Any disputes shall be resolved through binding arbitration or the courts of the applicable jurisdiction.
+
+11. CONTACT
+For questions about these Terms, please reach us through the Feedback page or the Custom plan contact form on our Pricing page.`}
+          />
+        ) : activeNav === 'Refund Policy' ? (
+          <StaticPage
+            title="Refund Policy"
+            content={`Last updated: August 2025
+
+We want you to be completely satisfied with AntCapture. This Refund Policy explains your rights and our process.
+
+1. MONEY-BACK GUARANTEE
+We offer a 14-day money-back guarantee for new Cloud plan subscriptions. If you are not satisfied for any reason, contact us within 14 days of your initial purchase and we will issue a full refund — no questions asked.
+
+2. HOW TO REQUEST A REFUND
+- Email us through the Feedback page or the contact form on our Pricing page.
+- Include the email address associated with your account and your reason for the refund request (optional but helpful).
+- Refunds are typically processed within 5–10 business days depending on your bank or card provider.
+
+3. RENEWALS
+- Subscription renewals (monthly or annual) are not refundable after the renewal date has passed, except where required by applicable law.
+- If you wish to avoid a renewal charge, please cancel your subscription at least 24 hours before the next billing date from the Settings page.
+
+4. PARTIAL REFUNDS
+We do not issue partial or pro-rated refunds for unused time within a billing period, except where required by law.
+
+5. PAYMENT PROCESSOR
+All payments are securely handled by LemonSqueezy. Refunds will be returned to the original payment method used at checkout.
+
+6. EXCEPTIONS
+Refunds may be denied if we reasonably determine that the policy is being abused (e.g., repeated purchase-and-refund cycles).
+
+7. SELF-HOSTED / FREE TIER
+The self-hosted version of AntCapture is free and no refunds are applicable.
+
+8. CONTACT
+For refund requests or billing questions, please use the contact form on our Pricing page or reach us through the Feedback page. We respond within 1 business day.`}
+          />
         ) : activeNav === 'Privacy' ? (
           <StaticPage
             title="Privacy Policy"
@@ -470,7 +552,27 @@ If you have Auto-Save enabled in Settings, a 5-second countdown begins immediate
 STORAGE OPTIONS
 • Local: Saves directly to your computer or self-hosted server's database. Fast and completely private.
 • Google Drive: Uploads directly to a private folder in your Google Drive. Files do not touch our servers.
-• Both: Keeps a local copy for instant access and backs up to Google Drive automatically.`}
+• Both: Keeps a local copy for instant access and backs up to Google Drive automatically.
+
+VOIDBOARD — LIMITS & HOW MEDIA WORKS
+Each account can create up to 1,000 VoidBoards. Each board can hold up to 5,000 objects (shapes, text, images, videos, and other elements).
+
+HOW MEDIA GETS INTO YOUR BOARDS
+AntCapture does not support direct file uploads from your computer into the web UI, cloud, or VoidBoard. All media must come through one of these two paths:
+
+1. Chrome Extension (primary method)
+   Take a screenshot or record a video directly using the AntCapture Chrome extension. The capture is saved to your cloud library automatically. You can then insert it into any VoidBoard from your library.
+
+2. Google Drive (external media)
+   If you have existing images or videos on your device that you want to use in a board, upload them to your Google Drive first. From there, you can link or insert them into your VoidBoard via the Drive integration.
+
+IMPORTANT: There is no drag-and-drop or file-picker upload directly into the web UI or whiteboard canvas. Only media captured by the extension or linked from Google Drive can be used.
+
+HOW WHITEBOARD MEDIA STORAGE WORKS
+Media shown inside a VoidBoard is never duplicated. The actual file (image or video) lives in your cloud library or Google Drive. The whiteboard stores only the reference to that media — its position on the canvas, size, layer order, and any other layout data. This means:
+• Your storage is not used twice for the same file.
+• Moving or resizing media on the canvas does not affect the original file.
+• Deleting a capture from your library will remove it from any board it was placed in.`}
           />
         ) : activeNav === 'Security' ? (
           <StaticPage
@@ -501,44 +603,7 @@ EXTENSION SECURITY
 REPORTING ISSUES
 If you discover a security vulnerability, please report it responsibly through the Feedback page rather than publicly disclosing it.`}
           />
-        ) : activeNav === 'Documentation' ? (
-          <StaticPage
-            title="Documentation"
-            content={`Welcome to AntCapture — your screen capture and cloud sync tool.
 
-GETTING STARTED
-1. Sign In
-   Click the AntCapture icon in your Chrome toolbar and sign in with Google. You only need to sign in once — the extension remembers your session.
-
-2. Sign In to the Web Dashboard
-   Visit this dashboard and sign in with the same Google account. Your captures will appear automatically.
-
-TAKING SCREENSHOTS
-- Click the AntCapture extension icon
-- Click "Take Screenshot"
-- The screenshot saves to your computer and syncs to your dashboard automatically
-
-RECORDING YOUR SCREEN
-- Click the AntCapture extension icon
-- Click "Record Screen" and choose what to share (tab, window, or entire screen)
-- Click "Stop Recording" when finished
-- The recording saves locally and syncs to your dashboard
-
-STORAGE OPTIONS
-In Settings you can choose where your captures are stored:
-- Local — stored securely in our database, accessible from any browser
-- Google Drive — uploaded directly to your personal Google Drive
-
-You can also sync individual captures between Local and Drive from the capture card menu.
-
-YOUR LIBRARY
-The My Library page shows all your captures. You can filter by videos or screenshots, preview any capture, and download or open it in Google Drive.
-
-TROUBLESHOOTING
-- Captures not appearing? Make sure you're signed in to both the extension and the dashboard with the same Google account.
-- Upload failing? Check that your server is running on port 3001.
-- Extension not recording? Make sure you've granted screen share permission when prompted by Chrome.`}
-          />
         ) : activeNav === 'Diagnostics' && isAuthenticated ? (
           <AdminDiagnostics user={user} />
         ) : activeNav === 'My Library' ? (

@@ -1,23 +1,25 @@
 // Icon map — proper icons per nav item
 const MAIN_NAV = ['Dashboard', 'My Library', 'Whiteboards', 'Settings', 'Feedback'];
-const SECONDARY_NAV = ['Pricing', 'Privacy', 'Security', 'Documentation'];
+const SECONDARY_NAV = ['Pricing', 'Privacy', 'Terms', 'Refund Policy', 'Security', 'Documentation'];
 const ADMIN_NAV = ['Diagnostics'];  // Only visible when authenticated; access is verified server-side
 
 const NAV_ICONS = {
-  Dashboard:     'dashboard',
-  'My Library':  'photo_library',
-  Whiteboards:   'draw',
-  Settings:      'settings',
-  Feedback:      'chat_bubble',
-  Pricing:       'payments',
-  Privacy:       'shield',
-  Security:      'lock',
-  Documentation: 'article',
-  Diagnostics:   'monitor_heart',
+  Dashboard:       'dashboard',
+  'My Library':    'photo_library',
+  Whiteboards:     'draw',
+  Settings:        'settings',
+  Feedback:        'chat_bubble',
+  Pricing:         'payments',
+  Privacy:         'shield',
+  Terms:           'gavel',
+  'Refund Policy': 'assignment_return',
+  Security:        'lock',
+  Documentation:   'article',
+  Diagnostics:     'monitor_heart',
 };
 
 // Items that don't require login
-const PUBLIC_ITEMS = ['Dashboard', 'Pricing', 'Privacy', 'Security', 'Documentation'];
+const PUBLIC_ITEMS = ['Dashboard', 'Pricing', 'Privacy', 'Terms', 'Refund Policy', 'Security', 'Documentation'];
 
 export default function Sidebar({ activeNav, isAuthenticated, onNavClick, onSignIn, onLogout, mobileMenuOpen }) {
   const renderNavItem = (item, secondary = false) => (

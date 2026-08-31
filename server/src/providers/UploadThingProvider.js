@@ -3,9 +3,8 @@ const BaseProvider = require('./BaseProvider');
 class UploadThingProvider extends BaseProvider {
   constructor() {
     super();
-    // Only initialize if the user has added UploadThing keys to their .env file
-    this.secret = process.env.UPLOADTHING_SECRET;
-    this.appId = process.env.UPLOADTHING_APP_ID;
+    // Only initialize if the user has added UploadThing token to their .env file (v7 format)
+    this.token = process.env.UPLOADTHING_TOKEN;
   }
 
   /**
@@ -16,7 +15,7 @@ class UploadThingProvider extends BaseProvider {
    * presigned URLs manually if you prefer the standard PUT fetch flow in the extension.
    */
   async createUploadIntent(filename, mimeType, sizeBytes, options = {}) {
-    if (!this.secret) throw new Error('UploadThing not configured (missing UPLOADTHING_SECRET)');
+    if (!this.token) throw new Error('UploadThing not configured (missing UPLOADTHING_TOKEN)');
 
     // In a fully native UploadThing setup, you would typically use @uploadthing/express 
     // to mount a /api/uploadthing route. But if you want to keep the exact same direct-PUT 
@@ -38,7 +37,7 @@ class UploadThingProvider extends BaseProvider {
   }
 
   async delete(providerObjectId, options = {}) {
-    if (!this.secret) return false;
+    if (!this.token) return false;
 
     try {
       const { UTApi } = require('uploadthing/server');

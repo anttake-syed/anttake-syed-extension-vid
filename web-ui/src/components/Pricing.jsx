@@ -5,12 +5,12 @@ const CLOUD_FEATURES = [
   '25 GB cloud storage',
   'Screenshot + video capture',
   'Cloud library',
-  'VoidBoard — up to 1,000 boards',
+  'Whiteboard — up to 1,000 boards',
   'Up to 5,000 objects per board',
-  'Search + Buzzes search',
-  'Keyboard shortcut',
-  'GoBoard Drive',
-  'Expert & sharing',
+  'Search + fuzzy search',
+  'Keyboard shortcuts',
+  'Google Drive integration',
+  'Export & sharing'
 ];
 
 const SELF_HOSTED_FEATURES = [

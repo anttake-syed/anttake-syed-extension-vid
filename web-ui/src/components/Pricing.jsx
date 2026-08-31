@@ -68,8 +68,11 @@ export default function Pricing({ user, isAuthenticated, onSignIn }) {
       if (!res.ok) throw new Error(data.error || 'Checkout failed');
       window.location.href = data.checkoutUrl;
     } catch (err) {
-      alert(err.message);
       setCheckoutLoading(false);
+      const msg = err.message?.includes('not configured')
+        ? 'Billing is not yet configured. Please contact support.'
+        : err.message || 'Something went wrong. Please try again.';
+      alert(msg);
     }
   };
 

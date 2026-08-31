@@ -192,57 +192,64 @@ async function checkAuthentication() {
   return { jwtConfigured: true, secretLength: secret.length };
 }
 
-/** 9. Object storage — check R2 / cloud storage config */
-async function checkObjectStorage() {
-  const isCloud = process.env.SERVER_MODE === 'cloud';
-  if (!isCloud) {
-    // In local mode, check that uploads dir is writable
-    const fs   = require('fs');
-    const path = require('path');
-    const dir  = path.join(__dirname, '..', '..', 'uploads');
-    if (!fs.existsSync(dir)) {
-      throw new Error('uploads/ directory does not exist. Run npm run setup.');
-    }
-    return { mode: 'local', uploadsDir: true };
+/** 9. UploadThing — verify token is configured and SDK responds */
+async function checkUploadThing() {
+  const token = process.env.UPLOADTHING_TOKEN;
+  if (!token) {
+    throw new Error('UPLOADTHING_TOKEN is not set — file uploads to cloud will fail');
   }
-
-  // Cloud: check R2 credentials are present
-  const required = ['R2_ACCOUNT_ID', 'R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY', 'R2_BUCKET_NAME'];
-  const missing  = required.filter(k => !process.env[k]);
-  if (missing.length > 0) {
-    throw new Error(`Missing R2 env vars: ${missing.join(', ')}`);
-  }
-
-  // Optionally ping R2 bucket existence (fast HEAD check)
+  // Verify token looks like a valid Base64 JSON v7 token (not just any string)
   try {
-    const { S3Client, HeadBucketCommand } = require('@aws-sdk/client-s3');
-    const client = new S3Client({
-      region:   'auto',
-      endpoint: `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
-      credentials: {
-        accessKeyId:     process.env.R2_ACCESS_KEY_ID,
-        secretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
-      },
-    });
-    await client.send(new HeadBucketCommand({ Bucket: process.env.R2_BUCKET_NAME }));
-    return { mode: 'cloud-r2', bucketReachable: true, bucket: process.env.R2_BUCKET_NAME };
-  } catch (err) {
-    throw new Error(`R2 bucket unreachable: ${err.message}`);
+    const decoded = JSON.parse(Buffer.from(token, 'base64').toString('utf8'));
+    if (!decoded.apiKey && !decoded.secret && !decoded.appId) {
+      throw new Error('Token decoded but missing expected fields (apiKey/appId)');
+    }
+    return { configured: true, appId: decoded.appId || '(embedded)' };
+  } catch (decodeErr) {
+    // Token may be non-standard format — at minimum check it's non-empty
+    if (token.length < 20) {
+      throw new Error('UPLOADTHING_TOKEN appears invalid (too short)');
+    }
+    return { configured: true, note: 'Token present, format not verified' };
   }
 }
 
-/** 10. Media access — verify the public URL is configured */
-async function checkMediaAccess() {
-  const isCloud = process.env.SERVER_MODE === 'cloud';
-  if (!isCloud) {
-    const serverUrl = process.env.SERVER_URL || `http://localhost:${process.env.PORT || 3001}`;
-    return { mode: 'local', servingAt: `${serverUrl}/uploads/` };
+/** 10. LemonSqueezy — verify billing config is set up correctly */
+async function checkLemonSqueezy() {
+  const missing = [];
+  if (!process.env.LS_API_KEY)              missing.push('LS_API_KEY');
+  if (!process.env.LS_STORE_ID)             missing.push('LS_STORE_ID');
+  if (!process.env.LS_WEBHOOK_SECRET)       missing.push('LS_WEBHOOK_SECRET');
+  if (!process.env.LS_VARIANT_CLOUD_MONTHLY) missing.push('LS_VARIANT_CLOUD_MONTHLY');
+  if (!process.env.LS_VARIANT_CLOUD_YEARLY)  missing.push('LS_VARIANT_CLOUD_YEARLY');
+
+  if (missing.length > 0) {
+    throw new Error(`Missing billing env vars: ${missing.join(', ')}`);
   }
-  const domain = process.env.R2_PUBLIC_DOMAIN;
-  if (!domain) {
-    throw new Error('R2_PUBLIC_DOMAIN is not set — media URLs cannot be resolved');
-  }
-  return { mode: 'cloud', publicDomain: `https://${domain}` };
+
+  // Live ping — fetch store info from LemonSqueezy API
+  const response = await fetch(`https://api.lemonsqueezy.com/v1/stores/${process.env.LS_STORE_ID}`, {
+    headers: {
+      'Accept':        'application/vnd.api+json',
+      'Authorization': `Bearer ${process.env.LS_API_KEY}`,
+    },
+    signal: AbortSignal.timeout(5000),
+  });
+
+  if (response.status === 401) throw new Error('LS_API_KEY is invalid — unauthorized');
+  if (response.status === 404) throw new Error('LS_STORE_ID not found in LemonSqueezy');
+  if (!response.ok) throw new Error(`LemonSqueezy API returned ${response.status}`);
+
+  const body = await response.json();
+  const storeName = body?.data?.attributes?.name || 'Unknown';
+
+  return {
+    configured:   true,
+    storeId:      process.env.LS_STORE_ID,
+    storeName,
+    variantKeys:  ['LS_VARIANT_CLOUD_MONTHLY', 'LS_VARIANT_CLOUD_YEARLY'],
+    webhookSet:   true,
+  };
 }
 
 // ── Recent errors ─────────────────────────────────────────────────────────────
@@ -267,16 +274,16 @@ exports.getSystemHealth = async (req, res) => {
   const startAll = Date.now();
 
   // Run all checks (in parallel where safe, sequential for CRUD to keep orderly)
-  const [apiCheck, d1ConnCheck, schemaCheck, readCheck, writeCheck, authCheck, storageCheck, mediaCheck] =
+  const [apiCheck, d1ConnCheck, schemaCheck, readCheck, writeCheck, authCheck, uploadThingCheck, lemonSqueezyCheck] =
     await Promise.all([
       runCheck('API',                   checkApi),
       runCheck('D1 Connection',         checkD1Connection),
       runCheck('D1 Schema/Migrations',  checkD1Schema),
       runCheck('Database Read',         checkDatabaseRead),
       runCheck('Database Write',        checkDatabaseWrite),
-      runCheck('Authentication',        checkAuthentication),
-      runCheck('Object Storage',        checkObjectStorage),
-      runCheck('Media Access',          checkMediaAccess),
+      runCheck('Authentication (JWT)',  checkAuthentication),
+      runCheck('UploadThing',           checkUploadThing),
+      runCheck('LemonSqueezy Billing',  checkLemonSqueezy),
     ]);
 
   // CRUD checks depend on a valid userId — run after parallel batch
@@ -285,7 +292,7 @@ exports.getSystemHealth = async (req, res) => {
 
   const checks = [
     apiCheck, d1ConnCheck, schemaCheck, readCheck, writeCheck,
-    boardCheck, captureCheck, authCheck, storageCheck, mediaCheck,
+    boardCheck, captureCheck, authCheck, uploadThingCheck, lemonSqueezyCheck,
   ];
 
   const totalMs  = Date.now() - startAll;

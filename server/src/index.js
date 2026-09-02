@@ -20,6 +20,8 @@ const planRoutes         = require('./routes/plans');
 const subscriptionRoutes = require('./routes/subscription');
 const adminRoutes        = require('./routes/admin');       // ← NEW: protected admin routes
 const webhookRoutes      = require('./routes/webhook');     // LemonSqueezy — uses express.raw internally
+const { uploadRouter }   = require('./routes/uploadthing');
+const { createRouteHandler } = require("uploadthing/express");
 
 const app = express();
 
@@ -92,8 +94,14 @@ app.use('/plans',        generalLimiter, planRoutes);
 app.use('/subscription', generalLimiter, subscriptionRoutes);
 app.use('/api/admin',    generalLimiter, adminRoutes); // ← Protected admin API
 
-// (UploadThing SDK route removed — uploads now go through POST /upload)
-// If you need to add UploadThing server-side hooks in future, re-add createRouteHandler here.
+// ── UploadThing Endpoint for Direct Client Uploads ────────────────────────────
+// Provides presigned URLs and handles onUploadComplete webhooks from UploadThing.
+app.use(
+  "/api/uploadthing",
+  createRouteHandler({
+    router: uploadRouter
+  })
+);
 
 // ── Global error handler ──────────────────────────────────────────────────────
 // Catches any unhandled errors thrown inside route handlers.

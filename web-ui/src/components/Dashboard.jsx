@@ -343,7 +343,7 @@ export default function Dashboard({ isAuthenticated, isLocalMode, stats, capture
           {driveStorageState && (
             <StorageUsageBar 
               storageState={driveStorageState} 
-              icon="drive" 
+              icon={<DriveLogoSVG size={20} />} 
               extraInfo={
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#94a3b8', fontSize: '12px' }}>
                   <DriveLogoSVG size={14} />

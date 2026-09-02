@@ -21,7 +21,11 @@ export default function StorageUsageBar({ storageState, icon, extraInfo }) {
   return (
     <div style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: '12px', padding: '16px 20px', marginBottom: '28px', display: 'flex', alignItems: 'center', gap: '16px' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '32px', height: '32px', background: 'rgba(255,255,255,0.05)', borderRadius: '8px' }}>
-        <span className="material-symbols-rounded" style={{ fontSize: '20px', color }}>{icon}</span>
+        {typeof icon === 'string' ? (
+          <span className="material-symbols-rounded" style={{ fontSize: '20px', color }}>{icon}</span>
+        ) : (
+          icon
+        )}
       </div>
       <div style={{ flex: 1 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '8px' }}>

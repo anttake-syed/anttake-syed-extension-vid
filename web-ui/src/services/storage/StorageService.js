@@ -20,7 +20,7 @@ export function parseStorageState(dbStats, isLocalMode) {
     totalFormatted: '0 B',
     percentage: 0,
     type: isLocalMode ? 'local' : 'cloud',
-    planName: dbStats.planName || 'Local',
+    planName: dbStats.planName && dbStats.planName !== 'Free' ? dbStats.planName : null,
   };
 
   if (isLocalMode) {
@@ -38,7 +38,7 @@ export function parseStorageState(dbStats, isLocalMode) {
     state.totalBytes = dbStats.cloudLimitBytes || 0;
     state.usedFormatted = dbStats.cloudBytesFormatted || '0 B';
     state.totalFormatted = dbStats.cloudLimitFormatted || 'Unknown';
-    state.label = 'Cloud Storage (R2)';
+    state.label = 'AntCapture Cloud Storage';
   }
 
   // Calculate percentage

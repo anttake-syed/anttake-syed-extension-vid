@@ -119,9 +119,9 @@ export default function SubscriptionManage({ user }) {
       <div style={{ width: '80px', height: '80px', background: '#1e293b', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px' }}>
         <span className="material-symbols-rounded" style={{ fontSize: '40px', color: '#64748b' }}>star_outline</span>
       </div>
-      <h2 style={{ fontSize: '28px', color: 'white', marginBottom: '12px' }}>You are on the Free Plan</h2>
+      <h2 style={{ fontSize: '28px', color: 'white', marginBottom: '12px' }}>No Active Subscription</h2>
       <p style={{ color: '#94a3b8', fontSize: '16px', lineHeight: '1.6', marginBottom: '32px' }}>
-        Upgrade to a paid plan to unlock Cloud Sync, unlimited Drive backups, and the Whiteboard Editor.
+        Subscribe to an AntCapture Cloud plan to unlock unlimited cloud storage, screen recording sync, and the Whiteboard Editor.
       </p>
       <a
         href="/pricing"

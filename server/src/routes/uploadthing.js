@@ -26,56 +26,67 @@ const uploadRouter = {
       sizeBytes: require('zod').z.number().optional(), // for quota check
     }).optional())
     .middleware(async ({ req, input }) => {
-      // ── 1. Authenticate via JWT from Authorization header ────────────────────
-      const authHeader = req.headers.authorization;
-      if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        throw new Error("Unauthorized: missing bearer token");
-      }
-      const token = authHeader.split(' ')[1];
-      let decoded;
       try {
-        decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback_secret');
-      } catch (err) {
-        throw new Error("Unauthorized: invalid token");
-      }
+        // Log the incoming request context for debugging
+        logger.info('uploadthing', 'middleware-start', {
+          headersKeys: req.headers.keys ? Array.from(req.headers.keys()) : Object.keys(req.headers || {}),
+          hasAuthorization: req.headers.get ? !!req.headers.get('authorization') : !!req.headers?.authorization,
+          input
+        });
 
-      // ── 2. Quota check BEFORE allowing the upload ────────────────────────────
-      // Use the client-reported sizeBytes; the actual file size is enforced by
-      // UploadThing's own maxFileSize limit above.
-      const sizeBytes = input?.sizeBytes || 0;
-      const quotaCheck = await EntitlementService.checkQuota(decoded.id, sizeBytes, 'upload_thing');
-      if (!quotaCheck.allowed) {
-        throw new Error(`Quota exceeded: ${quotaCheck.reason}`);
-      }
-
-      // ── 3. Create pending D1 asset BEFORE the upload starts ──────────────────
-      // D1 is the source of truth. The asset starts as 'processing' and is
-      // promoted to 'active' once the onUploadComplete callback fires.
-      const { capture } = await AssetService.createPendingAsset(
-        { id: decoded.id },
-        input?.title || `Capture ${new Date().toLocaleString()}`,
-        input?.type  || 'video',
-        input?.mimeType || 'application/octet-stream',
-        input?.hasAudio ?? false,
-        'upload_thing'
-      );
-
-      // Record the upload-intent timestamp for diagnostics
-      await prisma.storageOperation.create({
-        data: {
-          captureId: capture.id,
-          provider:  'upload_thing',
-          operation: 'upload_intent',
-          status:    'pending'
+        // ── 1. Authenticate via JWT from Authorization header ────────────────────
+        // UploadThing v7 might pass a standard Web Request (where req.headers is a Headers object)
+        // or an Express request. We support both safely.
+        const authHeader = req.headers.get ? req.headers.get('authorization') : req.headers?.authorization;
+        
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+          throw new Error("Unauthorized: missing bearer token");
         }
-      }).catch(() => {}); // non-fatal
+        const token = authHeader.split(' ')[1];
+        let decoded;
+        try {
+          decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback_secret');
+        } catch (err) {
+          throw new Error("Unauthorized: invalid token");
+        }
 
-      logger.info('uploadthing', 'upload-intent', {
-        userId: decoded.id, captureId: capture.id, sizeBytes
-      });
+        // ── 2. Quota check BEFORE allowing the upload ────────────────────────────
+        const sizeBytes = input?.sizeBytes || 0;
+        const quotaCheck = await EntitlementService.checkQuota(decoded.id, sizeBytes, 'upload_thing');
+        if (!quotaCheck.allowed) {
+          throw new Error(`Quota exceeded: ${quotaCheck.reason}`);
+        }
 
-      // Return metadata — UploadThing passes this to onUploadComplete
-      return { userId: decoded.id, captureId: capture.id };
+        // ── 3. Create pending D1 asset BEFORE the upload starts ──────────────────
+        const { capture } = await AssetService.createPendingAsset(
+          { id: decoded.id },
+          input?.title || `Capture ${new Date().toLocaleString()}`,
+          input?.type  || 'video',
+          input?.mimeType || 'application/octet-stream',
+          input?.hasAudio ?? false,
+          'upload_thing'
+        );
+
+        // Record the upload-intent timestamp for diagnostics
+        await prisma.storageOperation.create({
+          data: {
+            captureId: capture.id,
+            provider:  'upload_thing',
+            operation: 'upload_intent',
+            status:    'pending'
+          }
+        }).catch(() => {}); // non-fatal
+
+        logger.info('uploadthing', 'upload-intent', {
+          userId: decoded.id, captureId: capture.id, sizeBytes
+        });
+
+        // Return metadata — UploadThing passes this to onUploadComplete
+        return { userId: decoded.id, captureId: capture.id };
+      } catch (err) {
+        logger.error('uploadthing', 'middleware-error', { error: err.message, stack: err.stack });
+        throw err;
+      }
     })
     .onUploadComplete(async ({ metadata, file }) => {
       // ── 4. Callback: UploadThing tells us the upload succeeded ───────────────

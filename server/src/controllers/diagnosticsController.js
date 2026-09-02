@@ -221,8 +221,14 @@ async function checkUploadThing() {
   }
 
   // Live ping: verify the token can authenticate with UploadThing's API
-  const pingRes = await fetch('https://api.uploadthing.com/v6/listFiles?limit=1', {
-    headers: { 'x-uploadthing-api-key': decoded.apiKey },
+  // Note: /v6/listFiles requires a POST request
+  const pingRes = await fetch('https://api.uploadthing.com/v6/listFiles', {
+    method: 'POST',
+    headers: { 
+      'x-uploadthing-api-key': decoded.apiKey,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ limit: 1 }),
     signal: AbortSignal.timeout(5000),
   }).catch(e => { throw new Error(`UploadThing API unreachable: ${e.message}`); });
 

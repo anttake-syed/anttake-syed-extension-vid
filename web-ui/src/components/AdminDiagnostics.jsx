@@ -277,8 +277,36 @@ export default function AdminDiagnostics({ user }) {
   const [expandedError, setExpandedError] = useState(null);
   const [forbidden,    setForbidden]    = useState(false);
   const [tab,          setTab]          = useState('health');
+  
+  // Capture Lookup state
+  const [captureIdInput, setCaptureIdInput] = useState('');
+  const [captureData, setCaptureData] = useState(null);
+  const [captureLoading, setCaptureLoading] = useState(false);
+  const [captureError, setCaptureError] = useState('');
 
   const authHeader = { Authorization: `Bearer ${user?.jwt}` };
+
+  const fetchCaptureDiagnostics = async (e) => {
+    if (e) e.preventDefault();
+    if (!captureIdInput.trim()) return;
+    
+    setCaptureLoading(true);
+    setCaptureError('');
+    setCaptureData(null);
+    try {
+      const r = await fetch(`${SERVER_URL}/api/admin/diagnostics/capture/${captureIdInput.trim()}`, { headers: authHeader });
+      if (!r.ok) {
+        if (r.status === 404) throw new Error('Capture not found');
+        throw new Error(`HTTP Error ${r.status}`);
+      }
+      const data = await r.json();
+      setCaptureData(data);
+    } catch (err) {
+      setCaptureError(err.message);
+    } finally {
+      setCaptureLoading(false);
+    }
+  };
 
   // ── Fetch health ───────────────────────────────────────────────────────────
   const fetchHealth = useCallback(async () => {
@@ -413,6 +441,7 @@ export default function AdminDiagnostics({ user }) {
           { id: 'activity', label: 'Live Activity', icon: 'bolt' },
           { id: 'errors',   label: `Recent Errors${errors.length ? ` (${errors.length})` : ''}`, icon: 'error' },
           { id: 'info',     label: 'System Info', icon: 'info' },
+          { id: 'capture',  label: 'Capture Lookup', icon: 'search' },
         ].map(t => (
           <button
             key={t.id}
@@ -605,6 +634,83 @@ export default function AdminDiagnostics({ user }) {
           ) : (
             <div style={{ color: '#64748b', fontSize: '14px', padding: '32px', textAlign: 'center' }}>
               Run health checks first to load system info.
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Capture Lookup Tab ── */}
+      {tab === 'capture' && (
+        <div>
+          <form onSubmit={fetchCaptureDiagnostics} style={{ display: 'flex', gap: '12px', marginBottom: '24px' }}>
+            <input
+              type="text"
+              placeholder="Enter Capture ID..."
+              value={captureIdInput}
+              onChange={e => setCaptureIdInput(e.target.value)}
+              style={{
+                flex: 1, padding: '12px 16px', borderRadius: '10px',
+                background: '#1e293b', border: '1px solid #1e293b22',
+                color: 'white', fontSize: '14px'
+              }}
+            />
+            <button
+              type="submit"
+              disabled={captureLoading}
+              style={{
+                padding: '12px 24px', borderRadius: '10px', background: '#6366f1',
+                color: 'white', border: 'none', cursor: 'pointer', fontWeight: 600
+              }}
+            >
+              {captureLoading ? 'Searching...' : 'Lookup'}
+            </button>
+          </form>
+
+          {captureError && (
+            <div style={{ padding: '16px', background: 'rgba(239,68,68,0.1)', color: '#ef4444', borderRadius: '8px' }}>
+              {captureError}
+            </div>
+          )}
+
+          {captureData && (
+            <div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '14px', marginBottom: '24px' }}>
+                {[
+                  { label: 'Capture ID', value: captureData.captureId, icon: 'tag' },
+                  { label: 'User ID', value: captureData.userId, icon: 'person' },
+                  { label: 'Storage Provider', value: captureData.storageProvider, icon: 'cloud' },
+                  { label: 'Upload Status', value: captureData.uploadStatus, icon: 'publish' },
+                  { label: 'Expected Size', value: captureData.expectedSize ? `${(captureData.expectedSize / 1024 / 1024).toFixed(2)} MB` : 'Unknown', icon: 'save' },
+                  { label: 'Uploaded Size', value: captureData.uploadedSize ? `${(captureData.uploadedSize / 1024 / 1024).toFixed(2)} MB` : 'Unknown', icon: 'file_download_done' },
+                  { label: 'D1 Asset Status', value: captureData.d1AssetStatus, icon: 'dns' },
+                  { label: 'UploadThing Key', value: captureData.uploadThingFileKey || 'N/A', icon: 'key' },
+                  { label: 'Callback Received', value: captureData.callbackReceived ? 'Yes' : 'No', icon: 'call_received' },
+                  { label: 'Library Visible', value: captureData.libraryVisible ? 'Yes' : 'No', icon: 'visibility' },
+                  { label: 'Storage Usage', value: captureData.storageUsage, icon: 'data_usage' },
+                ].map(({ label, value, icon }) => (
+                  <div key={label} style={{
+                    background: 'var(--card-bg, #1e293b)', borderRadius: '12px',
+                    padding: '18px 20px', border: '1px solid #1e293b22',
+                    display: 'flex', alignItems: 'center', gap: '14px',
+                  }}>
+                    <span className="material-symbols-rounded" style={{ fontSize: '20px', color: '#6366f1' }}>{icon}</span>
+                    <div>
+                      <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{label}</div>
+                      <div style={{ fontSize: '14px', color: '#f1f5f9', fontWeight: 600, marginTop: '2px', fontFamily: 'monospace' }}>{value}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <h3 style={{ color: '#f1f5f9', fontSize: '16px', marginBottom: '12px' }}>Timestamps</h3>
+              <div style={{ background: '#1e293b', padding: '16px', borderRadius: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {Object.entries(captureData.timestamps).map(([key, val]) => (
+                  <div key={key} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+                    <span style={{ color: '#94a3b8' }}>{key}</span>
+                    <span style={{ color: '#f1f5f9', fontFamily: 'monospace' }}>{val ? new Date(val).toLocaleString() : 'N/A'}</span>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </div>

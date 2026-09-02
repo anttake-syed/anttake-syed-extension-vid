@@ -22,10 +22,14 @@ exports.getCaptures = async (req, res) => {
       const filename = c.storageObject?.providerObjectId || `${c.id}${ext}`;
 
       // For local files: return the direct static URL — no auth needed, no redirect
+      // For upload_thing: return direct UtFS CDN URL — no auth needed, public CDN
       // For cloud/drive: use the /captures/:id/media auth-gated redirect
       let src;
       if (provider === 'local' || provider === 'self_hosted') {
         src = `/uploads/${filename}`;
+      } else if (provider === 'upload_thing') {
+        // Direct UploadThing CDN — no server hop needed
+        src = `https://utfs.io/f/${c.storageObject?.providerObjectId}`;
       } else {
         src = `/captures/${c.id}/media`;
       }
@@ -240,6 +244,10 @@ exports.getMedia = async (req, res) => {
       accessUrl = await LocalProvider.getAccessUrl(capture.storageObject.providerObjectId);
     } else if (provider === 'cloud') {
       accessUrl = await CloudProvider.getAccessUrl(capture.storageObject.providerObjectId);
+    } else if (provider === 'upload_thing') {
+      // UploadThing CDN URL: https://utfs.io/f/<key>
+      // No auth needed — public CDN served by UploadThing
+      accessUrl = `https://utfs.io/f/${capture.storageObject.providerObjectId}`;
     } else if (provider === 'google_drive') {
       accessUrl = await GoogleDriveProvider.getAccessUrl(capture.storageObject.providerObjectId, {
         userId: req.user.id,

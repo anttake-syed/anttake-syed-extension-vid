@@ -7,6 +7,7 @@
 
 import { DEV_SERVER_URL, PROD_SERVER_URL } from '../shared/config.js';
 import { Logger } from '../shared/logger.js';
+import { genUploader } from '../shared/uploadthingClient.js';
 
 const log = Logger.getLogger('Background: Upload');
 
@@ -55,20 +56,59 @@ export async function uploadToServer(blob, type, destination, jwt, resolution = 
 
   // ── Map legacy destination to V2 provider ───────────────────────────────────
   // 'localhost'   → 'local'        (saves to disk on the local server)
-  // 'cloud'       → 'cloud'        (Cloudflare R2)
+  // 'cloud'       → 'upload_thing' (UploadThing direct browser upload)
   // 'drive-only'  → 'google_drive' (user's own Google Drive, no server metadata)
   let provider;
   if (destination === 'localhost') {
     provider = 'local';
   } else if (destination === 'cloud') {
-    provider = 'cloud';
+    provider = 'upload_thing';
   } else {
     // 'drive-only' or any other legacy value
     provider = 'google_drive';
   }
 
-  // ── Unified upload for ALL providers (local, cloud, google_drive) ─────────────
-  // Cloud uploads go through the server which uses UTApi to push to UploadThing.
+  if (provider === 'upload_thing') {
+    // ── Direct browser → UploadThing upload ─────────────────────────────────
+    // The file bytes go DIRECTLY to UploadThing CDN.
+    // Our server only handles auth (middleware) and the completion callback.
+    const { uploadFiles } = genUploader({
+      url: `${serverUrl}/api/uploadthing`,
+      package: 'uploadthing/client',
+      fetch: globalThis.fetch.bind(globalThis), // explicitly use globalThis.fetch for service worker compat
+    });
+
+    try {
+      const file = new File([blob], filename, { type: mimeType });
+
+      // UploadThing v7: pass headers for auth + input for metadata
+      const response = await uploadFiles('media', {
+        files: [file],
+        headers: { Authorization: `Bearer ${jwt}` },
+        // input is passed to the server middleware so it can create the correct
+        // pending D1 asset with the right type/title/hasAudio/sizeBytes
+        input: {
+          title: customFilename || filename,
+          type:  type === 'video' ? 'video' : 'image',
+          mimeType,
+          hasAudio: hasAudio === true,
+          sizeBytes: blob.size,
+        }
+      });
+
+      log.info(`✅ UploadThing direct upload complete | File: ${filename} | Key: ${response?.[0]?.key}`);
+      return { success: true, response };
+    } catch (err) {
+      const msg = err?.message || String(err);
+      if (msg.includes('Quota exceeded') || msg.includes('quota')) {
+        throw new Error('Your cloud storage is full. Please upgrade your plan.');
+      }
+      log.error(`UploadThing upload failed: ${msg}`);
+      throw new Error(msg || 'Cloud upload failed. Check your internet connection and try again.');
+    }
+  }
+
+  // ── Unified upload for ALL providers (local, google_drive) ─────────────
   // This keeps the extension simple and provider-agnostic.
   const formData = new FormData();
   formData.append('file', blob, filename);

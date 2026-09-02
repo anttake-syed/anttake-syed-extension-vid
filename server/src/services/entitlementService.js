@@ -11,10 +11,12 @@ class QuotaService {
    * @returns {Promise<{ allowed: boolean, reason?: string }>}
    */
   async checkQuota(userId, uploadSizeBytes, provider) {
-    // 1. We only enforce our own Cloud quota. 
-    // Drive quota is enforced by Google Drive API directly (403 storageQuotaExceeded)
+    // 1. We only enforce our own Cloud quota.
+    // 'cloud' and 'upload_thing' are both cloud storage — apply the same D1-based quota.
+    // Drive quota is enforced by Google Drive API directly (403 storageQuotaExceeded).
     // Local/Self-hosted quota is limited by physical disk space, ignored here.
-    if (provider !== 'cloud') {
+    const isCloudProvider = provider === 'cloud' || provider === 'upload_thing';
+    if (!isCloudProvider) {
       return { allowed: true };
     }
 

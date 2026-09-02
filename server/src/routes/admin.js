@@ -30,5 +30,6 @@ router.get('/diagnostics/health', diag.getSystemHealth);
 router.get('/diagnostics/errors', diag.getRecentErrors);
 router.get('/diagnostics/activity', diag.getRecentActivity);
 router.get('/diagnostics/info',   diag.getSystemInfo);
+router.get('/diagnostics/capture/:id', diag.getCaptureDiagnostics);
 
 module.exports = router;

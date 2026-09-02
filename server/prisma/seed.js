@@ -7,14 +7,16 @@ async function main() {
   // 1. Free Plan
   await prisma.plan.upsert({
     where: { name: 'free' },
-    update: {},
+    update: {
+      cloudStorageBytes: 25 * 1024 * 1024 * 1024, // 25 GB
+    },
     create: {
       name: 'free',
       displayName: 'Free',
       priceMonthly: 0,
       priceYearly: 0,
       currency: 'USD',
-      cloudStorageBytes: 0, // no cloud storage on free
+      cloudStorageBytes: 25 * 1024 * 1024 * 1024, // 25 GB
       maxFileSizeBytes: 25 * 1024 * 1024, // 25 MB
       googleDriveEnabled: true,
       boardLimit: 0,

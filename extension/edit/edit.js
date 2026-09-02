@@ -94,6 +94,7 @@ function showToast(msg, type = 'success', durationMs = 2500) {
     font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 8px;
     box-shadow: 0 10px 25px rgba(0,0,0,0.5); backdrop-filter: blur(4px);
     transition: opacity 0.3s ease; user-select: text; cursor: pointer;
+    pointer-events: auto;
   `;
   toast.innerHTML = `
     <span class="material-symbols-rounded" style="font-size:16px;">${isErr ? 'error' : 'check_circle'}</span> 
@@ -155,6 +156,11 @@ async function showSuccessAndClose(message) {
         setTimeout(() => {
           overlay.style.display = 'none';
           document.body.style.pointerEvents = 'auto';
+          const sidebar = document.querySelector('.sidebar');
+          if (sidebar) {
+            sidebar.style.pointerEvents = 'auto';
+            sidebar.style.opacity = '1';
+          }
         }, 1500);
       };
     }
@@ -671,7 +677,12 @@ async function processSave(mode) {
       const hasValidUser = user && user.jwt;
       
       if ((hasValidUser || isLocalHost) && navigator.onLine) {
-        document.body.style.pointerEvents = 'none';
+        const sidebar = document.querySelector('.sidebar');
+        if (sidebar) {
+          sidebar.style.pointerEvents = 'none';
+          sidebar.style.opacity = '0.7';
+        }
+        showToast('Saving capture...', 'success', 10000);
         
         // Pass mock token 'local-mode' if no user is signed in but we are on localhost
         const tokenToUse = hasValidUser ? user.jwt : 'local-mode';
@@ -708,7 +719,12 @@ async function processSave(mode) {
     }
   } catch (err) {
     console.error(err);
-    document.body.style.pointerEvents = 'auto';
+    const sidebar = document.querySelector('.sidebar');
+    if (sidebar) {
+      sidebar.style.pointerEvents = 'auto';
+      sidebar.style.opacity = '1';
+    }
+    document.body.style.pointerEvents = 'auto'; // Fallback just in case
     showToast(err.message, 'error', 6000);
   }
 }

@@ -2,6 +2,6 @@
 export const IS_DEV = true; // Set to false when publishing to Chrome Web Store
 
 export const DEV_SERVER_URL  = 'http://localhost:3001';
-export const PROD_SERVER_URL = 'https://api.antcapture.anttake.com';
+export const PROD_SERVER_URL = 'http://localhost:3001'; // Testing feature branch locally
 export const DEV_WEB_UI_URL   = 'http://localhost:5173';
 export const PROD_WEB_UI_URL  = 'https://antcapture.anttake.com';

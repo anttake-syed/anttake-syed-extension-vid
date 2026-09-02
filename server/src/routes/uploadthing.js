@@ -119,6 +119,11 @@ const uploadRouter = {
           sizeBytes: file.size,
           url: file.url
         });
+
+        // Return captureId to the client SDK — the extension reads this from
+        // uploadedFile.serverData.captureId to call /captures/confirm-upload
+        return { captureId: metadata.captureId };
+
       } catch (err) {
         // Mark the pending capture as failed so cleanup jobs can find it
         await prisma.capture.update({

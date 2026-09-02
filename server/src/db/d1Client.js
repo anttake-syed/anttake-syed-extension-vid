@@ -189,7 +189,7 @@ function makeModel(tableName) {
       const now = new Date().toISOString();
       const fullData = { id, ...data };
       
-      const noCreatedAt = ['LemonSqueezyEvent'];
+      const noCreatedAt = ['LemonSqueezyEvent', 'Usage'];
       const noUpdatedAt = ['StorageOperation', 'LemonSqueezyPayment', 'LemonSqueezyEvent'];
       
       if (!noCreatedAt.includes(tableName) && !fullData.createdAt) {

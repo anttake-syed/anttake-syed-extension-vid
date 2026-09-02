@@ -327,6 +327,30 @@ export default function AdminDiagnostics({ user }) {
   const [captureLoading, setCaptureLoading] = useState(false);
   const [captureError, setCaptureError] = useState('');
 
+  // Recovery state
+  const [recoveryResult, setRecoveryResult] = useState(null);
+  const [recoveryLoading, setRecoveryLoading] = useState(false);
+  const [recoveryError, setRecoveryError] = useState('');
+
+  const runRecovery = async () => {
+    setRecoveryLoading(true);
+    setRecoveryResult(null);
+    setRecoveryError('');
+    try {
+      const r = await fetch(`${SERVER_URL}/api/admin/recover-processing`, {
+        method: 'POST',
+        headers: { ...authHeader, 'Content-Type': 'application/json' }
+      });
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`);
+      setRecoveryResult(data);
+    } catch (err) {
+      setRecoveryError(err.message);
+    } finally {
+      setRecoveryLoading(false);
+    }
+  };
+
   const authHeader = { Authorization: `Bearer ${user?.jwt}` };
 
   const fetchCaptureDiagnostics = async (e) => {
@@ -485,6 +509,7 @@ export default function AdminDiagnostics({ user }) {
           { id: 'errors',   label: `Recent Errors${errors.length ? ` (${errors.length})` : ''}`, icon: 'error' },
           { id: 'info',     label: 'System Info', icon: 'info' },
           { id: 'capture',  label: 'Capture Lookup', icon: 'search' },
+          { id: 'recovery', label: 'Recovery Tools', icon: 'build' },
         ].map(t => (
           <button
             key={t.id}
@@ -789,8 +814,72 @@ export default function AdminDiagnostics({ user }) {
         </div>
       )}
 
+      {/* ── Recovery Tab ── */}
+      {tab === 'recovery' && (
+        <div>
+          <div style={{ background: '#1e293b', borderRadius: '12px', padding: '24px', border: '1px solid #1e293b22' }}>
+            <h2 style={{ color: '#f1f5f9', fontSize: '18px', marginTop: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span className="material-symbols-rounded" style={{ color: '#ef4444' }}>build</span>
+              Stuck Capture Recovery
+            </h2>
+            <p style={{ color: '#94a3b8', fontSize: '14px', lineHeight: '1.6' }}>
+              If UploadThing webhook deliveries failed (e.g., due to Vercel timeout), some captures may remain stuck in the <code style={{ color: '#f59e0b' }}>'processing'</code> state even though the file reached the CDN successfully.
+              <br/><br/>
+              This tool fetches all files from the UploadThing CDN and cross-references them with any captures that have been processing for more than 2 minutes. Matching captures will be forcibly activated and added to the database.
+            </p>
+            <div style={{ marginTop: '24px' }}>
+              <button
+                onClick={runRecovery}
+                disabled={recoveryLoading}
+                style={{
+                  background: '#ef4444', color: 'white', padding: '12px 24px', borderRadius: '8px',
+                  fontWeight: 600, border: 'none', cursor: recoveryLoading ? 'not-allowed' : 'pointer',
+                  display: 'flex', alignItems: 'center', gap: '8px', opacity: recoveryLoading ? 0.7 : 1
+                }}
+              >
+                <span className="material-symbols-rounded">{recoveryLoading ? 'hourglass_empty' : 'play_arrow'}</span>
+                {recoveryLoading ? 'Running Recovery...' : 'Run Stuck Capture Recovery'}
+              </button>
+            </div>
+
+            {recoveryError && (
+              <div style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', padding: '16px', borderRadius: '8px', marginTop: '16px' }}>
+                <div style={{ fontWeight: 600, marginBottom: '4px' }}>Recovery Failed</div>
+                <div style={{ fontSize: '14px' }}>{recoveryError}</div>
+              </div>
+            )}
+
+            {recoveryResult && (
+              <div style={{ background: 'rgba(34, 197, 94, 0.1)', border: '1px solid rgba(34, 197, 94, 0.2)', padding: '16px', borderRadius: '8px', marginTop: '16px' }}>
+                <div style={{ color: '#22c55e', fontWeight: 600, marginBottom: '8px' }}>
+                  {recoveryResult.message}
+                </div>
+                <div style={{ color: '#94a3b8', fontSize: '14px', marginBottom: '12px' }}>
+                  Total processing checked: {recoveryResult.total} | Successfully recovered: {recoveryResult.recovered}
+                </div>
+                {recoveryResult.results && recoveryResult.results.length > 0 && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {recoveryResult.results.map((r, i) => (
+                      <div key={i} style={{ background: '#0f172a', padding: '12px', borderRadius: '6px', fontSize: '13px', display: 'flex', justifyContent: 'space-between' }}>
+                        <span style={{ color: '#cbd5e1', fontFamily: 'monospace' }}>{r.id}</span>
+                        {r.status === 'recovered' ? (
+                          <span style={{ color: '#22c55e', fontWeight: 600 }}>Recovered ({r.fileKey})</span>
+                        ) : (
+                          <span style={{ color: '#f59e0b' }}>Skipped: {r.reason}</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* ── Check Detail Modal ── */}
       <CheckDetailModal check={selectedCheck} onClose={() => setSelectedCheck(null)} />
+
 
       {/* ── Spin animation ── */}
       <style>{`

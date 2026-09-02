@@ -395,14 +395,12 @@ exports.getMedia = async (req, res) => {
   }
 };
 
-// ── Legacy endpoints (kept for backwards compat, not used in new flow) ────────
-// TODO: Remove createUploadIntent and confirmUpload once the old direct-upload
-// code path is fully retired. They were part of the browser-direct UploadThing
-// flow that was replaced by the server-proxy approach above.
-exports.createUploadIntent = async (req, res) => {
-  res.status(410).json({ error: 'This endpoint is deprecated. Use POST /upload instead.' });
-};
-
-exports.confirmUpload = async (req, res) => {
-  res.status(410).json({ error: 'This endpoint is deprecated. Use POST /upload instead.' });
-};
+// ── Future: Cloudflare R2 provider ────────────────────────────────────────────
+// To add R2 support:
+//   1. Set R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET_NAME,
+//      R2_PUBLIC_DOMAIN in .env
+//   2. Add case 'r2' in uploadCapture() using CloudProvider.upload()
+//   3. Update getCaptures() to build src from R2_PUBLIC_DOMAIN for provider==='r2'
+//   4. Update getMedia() redirect logic for provider==='r2'
+//   5. No extension changes required — extension sends provider='r2' only
+//   See: server/src/providers/CloudProvider.js (fully implemented, just not wired in)

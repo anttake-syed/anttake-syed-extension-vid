@@ -101,6 +101,15 @@ exports.uploadCapture = async (req, res) => {
       }
     });
 
+    // Diagnostic helper (fire-and-forget to avoid slowing down the upload)
+    const logDiag = (op, status = 'success') => {
+      prisma.storageOperation.create({
+        data: { captureId: capture.id, provider: targetProvider, operation: op, status }
+      }).catch(e => logger.error('capture', 'diag-log-failed', { error: e.message }));
+    };
+
+    logDiag('capture_created');
+
     // ── Google Drive (legacy: extension sends a driveUrl directly) ────────────
     if (driveUrl) {
       await prisma.storageObject.create({
@@ -112,6 +121,7 @@ exports.uploadCapture = async (req, res) => {
         }
       });
       await prisma.capture.update({ where: { id: capture.id }, data: { status: 'active' } });
+      logDiag('database_ready');
       return res.json({ success: true, record: capture });
     }
 
@@ -141,14 +151,18 @@ exports.uploadCapture = async (req, res) => {
       const utapi = new UTApi();
 
       const file = new File([req.file.buffer], filename, { type: mimeType });
+      
+      logDiag('upload_initiated');
       const response = await utapi.uploadFiles(file);
 
       if (response.error) {
+        logDiag('upload_failed', 'failed');
         await prisma.capture.delete({ where: { id: capture.id } });
         logger.error('capture', 'uploadthing-failed', { captureId: capture.id, error: response.error });
         return res.status(500).json({ error: 'Cloud upload failed', detail: response.error.message });
       }
 
+      logDiag('upload_completed');
       const uploaded = response.data;
 
       // Write the storage record and mark capture as active — all in D1, all atomic
@@ -165,6 +179,7 @@ exports.uploadCapture = async (req, res) => {
       });
       await prisma.capture.update({ where: { id: capture.id }, data: { status: 'active' } });
       await EntitlementService.recordUpload(req.user.id, 'upload_thing', uploaded.size || req.file.buffer.length);
+      logDiag('database_ready');
 
       logger.info('capture', 'upload-complete', { userId: req.user.id, captureId: capture.id, key: uploaded.key });
 

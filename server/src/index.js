@@ -96,13 +96,33 @@ app.use('/api/admin',    generalLimiter, adminRoutes); // ← Protected admin AP
 
 // ── UploadThing Endpoint for Direct Client Uploads ────────────────────────────
 // Provides presigned URLs and handles onUploadComplete webhooks from UploadThing.
+const sanitizedUtToken = (process.env.UPLOADTHING_TOKEN || '').replace(/^['"]|['"]$/g, '').trim();
+if (!sanitizedUtToken) {
+  logger.warn('server', 'uploadthing-token-missing', {
+    message: 'UPLOADTHING_TOKEN is not set — cloud uploads will fail'
+  });
+} else {
+  // Validate shape before handing to the SDK
+  try {
+    const decoded = JSON.parse(Buffer.from(sanitizedUtToken, 'base64').toString('utf8'));
+    if (!decoded.apiKey || !decoded.appId || !Array.isArray(decoded.regions)) {
+      logger.error('server', 'uploadthing-token-malformed', { keys: Object.keys(decoded) });
+    } else {
+      logger.info('server', 'uploadthing-token-ok', { appId: decoded.appId, regions: decoded.regions });
+    }
+  } catch (e) {
+    logger.error('server', 'uploadthing-token-invalid-base64', { message: e.message });
+  }
+}
+
 app.use(
   "/api/uploadthing",
   createRouteHandler({
     router: uploadRouter,
     config: {
-      // Explicitly pass sanitized token so it doesn't crash if .env has quotes
-      uploadthingToken: (process.env.UPLOADTHING_TOKEN || '').replace(/^['"]|['"]$/g, '').trim()
+      // 'token' is the correct RouteHandlerConfig field name (not 'uploadthingToken')
+      token: sanitizedUtToken,
+      isDev: false,  // never run dev hooks on Vercel; always use production presigned URLs
     }
   })
 );

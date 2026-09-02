@@ -10,6 +10,7 @@
 
 import { DEV_SERVER_URL, PROD_SERVER_URL } from '../shared/config.js';
 import { Logger } from '../shared/logger.js';
+import { genUploader } from '../shared/uploadthing-client.js';
 
 const log = Logger.getLogger('Background: Upload');
 

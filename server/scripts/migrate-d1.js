@@ -19,8 +19,9 @@ const CF_D1_DATABASE_ID = process.env.CF_D1_DATABASE_ID;
 const CF_API_TOKEN      = process.env.CF_API_TOKEN;
 
 if (!CF_ACCOUNT_ID || !CF_D1_DATABASE_ID || !CF_API_TOKEN) {
-  console.error('\n❌  Missing env vars. Set CF_ACCOUNT_ID, CF_D1_DATABASE_ID, and CF_API_TOKEN in .env\n');
-  process.exit(1);
+  console.warn('\n⚠️  Skipping D1 migrations: Missing CF_ACCOUNT_ID, CF_D1_DATABASE_ID, or CF_API_TOKEN in env.');
+  console.warn('   If this is a Vercel preview deployment, ensure these vars are assigned to the Preview environment.\n');
+  process.exit(0); // Exit 0 to allow the build to succeed without migrations
 }
 
 const BASE_URL = `https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT_ID}/d1/database/${CF_D1_DATABASE_ID}`;

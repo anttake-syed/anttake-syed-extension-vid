@@ -37,15 +37,19 @@ class AssetService {
       throw new Error('Capture not found or unauthorized');
     }
 
-    const targetProvider = capture.storageObject ? capture.storageObject.provider : 'cloud';
+    // The provider is determined by:
+    // 1. If a StorageObject was already created (pre-intent flow), use its provider
+    // 2. Otherwise fall back to 'upload_thing' (direct UploadThing callback flow)
+    const targetProvider = capture.storageObject?.provider || 'upload_thing';
 
-    // Upsert Storage Object
+    // Upsert Storage Object — handles both fresh creates (UT callback) and updates (confirm-upload)
     const storageObject = await prisma.storageObject.upsert({
       where: { captureId },
       update: {
         status: 'ready',
         sizeBytes: BigInt(sizeBytes),
-        providerObjectId: providerObjectId
+        providerObjectId: providerObjectId,
+        providerMeta: JSON.stringify(providerMeta),
       },
       create: {
         captureId,

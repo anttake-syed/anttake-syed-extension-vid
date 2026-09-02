@@ -1,61 +1,116 @@
-const { createUploadthing, createRouteHandler } = require("uploadthing/express");
+const { createUploadthing } = require("uploadthing/express");
 const EntitlementService = require("../services/entitlementService");
 const AssetService = require("../services/assetService");
+const prisma = require("../db/index");
+const logger = require("../utils/logger");
 const jwt = require("jsonwebtoken");
 
 const f = createUploadthing();
 
 const uploadRouter = {
-  // Define a media route
-  media: f({ video: { maxFileSize: "256MB", maxFileCount: 1 }, image: { maxFileSize: "16MB", maxFileCount: 1 } })
-    .middleware(async ({ req, res }) => {
-      // 1. Authenticate
+  // ── Media route: handles both PNG/JPG screenshots and WebM/MP4 videos ─────────
+  // Flow:
+  //   1. middleware(): JWT auth + quota check + create pending D1 asset
+  //   2. Browser uploads DIRECTLY to UploadThing CDN (file bytes never touch our server)
+  //   3. onUploadComplete(): UploadThing calls us back → mark D1 asset as ready
+  media: f({
+    video: { maxFileSize: "256MB", maxFileCount: 1 },
+    image: { maxFileSize: "32MB",  maxFileCount: 1 }
+  })
+    .input(require('zod').z.object({
+      // Client passes these so the middleware can create the correct pending asset
+      title:    require('zod').z.string().optional(),
+      type:     require('zod').z.enum(['video', 'image']).optional(),
+      mimeType: require('zod').z.string().optional(),
+      hasAudio: require('zod').z.boolean().optional(),
+      sizeBytes: require('zod').z.number().optional(), // for quota check
+    }).optional())
+    .middleware(async ({ req, input }) => {
+      // ── 1. Authenticate via JWT from Authorization header ────────────────────
       const authHeader = req.headers.authorization;
       if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        throw new Error("Unauthorized");
+        throw new Error("Unauthorized: missing bearer token");
       }
       const token = authHeader.split(' ')[1];
       let decoded;
       try {
         decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback_secret');
       } catch (err) {
-        throw new Error("Invalid token");
+        throw new Error("Unauthorized: invalid token");
       }
 
-      // 2. We can't know the exact file size before UploadThing starts,
-      // but UploadThing enforces the maxFileSize.
-      // We can do a basic quota check here.
-      const quotaCheck = await EntitlementService.checkQuota(decoded.id, 0, 'upload_thing');
+      // ── 2. Quota check BEFORE allowing the upload ────────────────────────────
+      // Use the client-reported sizeBytes; the actual file size is enforced by
+      // UploadThing's own maxFileSize limit above.
+      const sizeBytes = input?.sizeBytes || 0;
+      const quotaCheck = await EntitlementService.checkQuota(decoded.id, sizeBytes, 'upload_thing');
       if (!quotaCheck.allowed) {
-        throw new Error("Quota exceeded");
+        throw new Error(`Quota exceeded: ${quotaCheck.reason}`);
       }
 
-      // Create a pending asset
+      // ── 3. Create pending D1 asset BEFORE the upload starts ──────────────────
+      // D1 is the source of truth. The asset starts as 'processing' and is
+      // promoted to 'active' once the onUploadComplete callback fires.
       const { capture } = await AssetService.createPendingAsset(
         { id: decoded.id },
-        "UploadThing Capture",
-        "video", // or image, we update it later
-        "application/octet-stream",
-        true,
-        "upload_thing"
+        input?.title || `Capture ${new Date().toLocaleString()}`,
+        input?.type  || 'video',
+        input?.mimeType || 'application/octet-stream',
+        input?.hasAudio ?? false,
+        'upload_thing'
       );
 
+      // Record the upload-intent timestamp for diagnostics
+      await prisma.storageOperation.create({
+        data: {
+          captureId: capture.id,
+          provider:  'upload_thing',
+          operation: 'upload_intent',
+          status:    'pending'
+        }
+      }).catch(() => {}); // non-fatal
+
+      logger.info('uploadthing', 'upload-intent', {
+        userId: decoded.id, captureId: capture.id, sizeBytes
+      });
+
+      // Return metadata — UploadThing passes this to onUploadComplete
       return { userId: decoded.id, captureId: capture.id };
     })
     .onUploadComplete(async ({ metadata, file }) => {
-      // This is the webhook confirming the upload
-      await AssetService.markAssetReady(
-        metadata.captureId,
-        { id: metadata.userId },
-        file.key,
-        file.size,
-        { url: file.url }
-      );
-      
-      console.log(`Upload complete for userId: ${metadata.userId}, file: ${file.url}`);
+      // ── 4. Callback: UploadThing tells us the upload succeeded ───────────────
+      // Mark the D1 asset as ready. This is the ONLY place we write the
+      // UploadThing file key and actual size into D1.
+      try {
+        await AssetService.markAssetReady(
+          metadata.captureId,
+          { id: metadata.userId },
+          file.key,
+          file.size,
+          { url: file.url, name: file.name }
+        );
+
+        logger.info('uploadthing', 'upload-complete', {
+          userId: metadata.userId,
+          captureId: metadata.captureId,
+          fileKey: file.key,
+          sizeBytes: file.size,
+          url: file.url
+        });
+      } catch (err) {
+        // Mark the pending capture as failed so cleanup jobs can find it
+        await prisma.capture.update({
+          where: { id: metadata.captureId },
+          data: { status: 'failed' }
+        }).catch(() => {});
+
+        logger.error('uploadthing', 'upload-complete-error', {
+          userId: metadata.userId,
+          captureId: metadata.captureId,
+          error: err
+        });
+      }
     }),
 };
 
-module.exports = {
-  uploadRouter
-};
+module.exports = { uploadRouter };

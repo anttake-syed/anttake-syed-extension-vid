@@ -18,6 +18,8 @@
     "https://api.antcapture.anttake.com/*",
     "https://antcapture.anttake.com/*",
     "https://www.googleapis.com/*",
+    "https://*.uploadthing.com/*",
+    "https://*.utfs.io/*",
     "http://localhost:3001/*",
     "http://localhost:5173/*"
   ],

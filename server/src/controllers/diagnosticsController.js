@@ -360,3 +360,93 @@ exports.getSystemInfo = async (req, res) => {
     },
   });
 };
+
+// ── Controller: GET /api/admin/diagnostics/capture/:id ─────────────────────────
+exports.getCaptureDiagnostics = async (req, res) => {
+  const adminUserId = req.dbUser?.id || req.user?.id;
+  const captureId = req.params.id;
+  
+  logger.info('diagnostics', 'capture-diagnostics-fetch', {
+    requestId: req.requestId,
+    userId:    adminUserId,
+    captureId
+  });
+
+  try {
+    const capture = await prisma.capture.findUnique({
+      where: { id: captureId },
+      include: {
+        storageObject: true,
+        user: {
+          include: {
+            usage: true,
+            subscription: { include: { plan: true } }
+          }
+        }
+      }
+    });
+
+    if (!capture) {
+      return res.status(404).json({ error: 'Capture not found' });
+    }
+
+    const operations = await prisma.storageOperation.findMany({
+      where: { captureId },
+      orderBy: { createdAt: 'asc' }
+    });
+
+    const user = capture.user;
+    
+    // Calculate storage usage / quota
+    const plan = user.subscription?.plan;
+    const usage = user.usage;
+    
+    let quotaLimit = 'Unlimited';
+    let quotaUsed = '0 MB';
+    if (plan && usage) {
+      quotaLimit = plan.maxFileSizeBytes ? `${(Number(plan.maxFileSizeBytes) / (1024 * 1024)).toFixed(2)} MB` : 'Unlimited';
+      const usedBytes = Number(usage.cloudBytes || 0);
+      quotaUsed = `${(usedBytes / (1024 * 1024)).toFixed(2)} MB`;
+    }
+
+    let providerMeta = {};
+    try {
+      if (capture.storageObject?.providerMeta) {
+        providerMeta = JSON.parse(capture.storageObject.providerMeta);
+      }
+    } catch(e) {}
+
+    const payload = {
+      captureId: capture.id,
+      userId: capture.userId,
+      storageProvider: capture.storageObject?.provider || 'none',
+      uploadStatus: capture.storageObject?.status || 'none',
+      expectedSize: capture.storageObject?.sizeBytes ? Number(capture.storageObject.sizeBytes) : null,
+      uploadedSize: providerMeta.size || null,
+      d1AssetStatus: capture.status,
+      uploadThingFileKey: capture.storageObject?.provider === 'upload_thing' ? capture.storageObject.providerObjectId : null,
+      callbackReceived: capture.storageObject?.status === 'ready',
+      libraryVisible: capture.status === 'active' && capture.storageObject?.status === 'ready',
+      storageUsage: `${quotaUsed} / ${quotaLimit}`,
+      timestamps: {
+        captureCreated: capture.createdAt,
+        uploadStart: operations.find(o => o.operation === 'upload_intent')?.createdAt || null,
+        uploadComplete: operations.find(o => o.operation === 'upload')?.createdAt || null,
+        callback: capture.storageObject?.status === 'ready' ? capture.storageObject?.updatedAt : null,
+        d1Ready: capture.status === 'active' ? capture.updatedAt : null,
+        libraryVisible: (capture.status === 'active' && capture.storageObject?.status === 'ready') ? capture.updatedAt : null
+      },
+      operations: operations.map(o => ({
+        operation: o.operation,
+        status: o.status,
+        createdAt: o.createdAt,
+        durationMs: o.durationMs
+      }))
+    };
+
+    res.json(payload);
+  } catch (err) {
+    logger.error('diagnostics', 'capture-diagnostics-error', { error: err.message });
+    res.status(500).json({ error: 'Failed to fetch capture diagnostics' });
+  }
+};

@@ -57,6 +57,10 @@ const MIGRATIONS = [
     // In case the thumbnail column is missing in older D1 schemas
     sql: `ALTER TABLE "Board" ADD COLUMN "thumbnail" TEXT`,
   },
+  {
+    name: 'update_free_plan_storage',
+    sql: `UPDATE "Plan" SET "cloudStorageBytes" = 26843545600 WHERE "name" = 'free'`,
+  },
 ];
 
 // Errors that are safe to skip (migration already applied)

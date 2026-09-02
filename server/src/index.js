@@ -123,6 +123,8 @@ app.use(
       // 'token' is the correct RouteHandlerConfig field name (not 'uploadthingToken')
       token: sanitizedUtToken,
       isDev: false,  // never run dev hooks on Vercel; always use production presigned URLs
+      // Explicitly set the webhook URL so it doesn't default to a transient Vercel worker URL
+      callbackUrl: process.env.SERVER_MODE === 'cloud' ? 'https://api.antcapture.anttake.com/api/uploadthing' : `${process.env.PROD_SERVER_URL || 'http://localhost:3001'}/api/uploadthing`
     }
   })
 );

@@ -192,26 +192,50 @@ async function checkAuthentication() {
   return { jwtConfigured: true, secretLength: secret.length };
 }
 
-/** 9. UploadThing — verify token is configured and SDK responds */
+/** 9. UploadThing — verify token is configured, correctly formed, and endpoint responds */
 async function checkUploadThing() {
-  const token = process.env.UPLOADTHING_TOKEN;
+  const rawToken = process.env.UPLOADTHING_TOKEN || '';
+  const token = rawToken.replace(/^['"]|['"]$/g, '').trim();
+
   if (!token) {
-    throw new Error('UPLOADTHING_TOKEN is not set — file uploads to cloud will fail');
+    throw new Error('UPLOADTHING_TOKEN is not set — cloud uploads will fail');
   }
-  // Verify token looks like a valid Base64 JSON v7 token (not just any string)
+
+  if (rawToken !== token) {
+    // The env var had surrounding quotes — flag this as a warning-level detail
+    // (we strip them ourselves, but it’s still a misconfiguration worth surfacing)
+    logger.warn('diagnostics', 'uploadthing-token-quoted', {
+      message: 'UPLOADTHING_TOKEN has surrounding quotes in the environment variable. This is auto-corrected but should be fixed in Vercel env settings.'
+    });
+  }
+
+  let decoded;
   try {
-    const decoded = JSON.parse(Buffer.from(token, 'base64').toString('utf8'));
-    if (!decoded.apiKey && !decoded.secret && !decoded.appId) {
-      throw new Error('Token decoded but missing expected fields (apiKey/appId)');
-    }
-    return { configured: true, appId: decoded.appId || '(embedded)' };
-  } catch (decodeErr) {
-    // Token may be non-standard format — at minimum check it's non-empty
-    if (token.length < 20) {
-      throw new Error('UPLOADTHING_TOKEN appears invalid (too short)');
-    }
-    return { configured: true, note: 'Token present, format not verified' };
+    decoded = JSON.parse(Buffer.from(token, 'base64').toString('utf8'));
+  } catch {
+    throw new Error('UPLOADTHING_TOKEN is not valid base64 JSON — re-copy it from the UploadThing dashboard');
   }
+
+  if (!decoded.apiKey || !decoded.appId || !Array.isArray(decoded.regions)) {
+    throw new Error(`Token decoded but is malformed. Keys found: ${Object.keys(decoded).join(', ')}`);
+  }
+
+  // Live ping: verify the token can authenticate with UploadThing's API
+  const pingRes = await fetch('https://api.uploadthing.com/v6/listFiles?limit=1', {
+    headers: { 'x-uploadthing-api-key': decoded.apiKey },
+    signal: AbortSignal.timeout(5000),
+  }).catch(e => { throw new Error(`UploadThing API unreachable: ${e.message}`); });
+
+  if (pingRes.status === 401) throw new Error('UPLOADTHING_TOKEN apiKey is invalid — unauthorized');
+  if (!pingRes.ok && pingRes.status !== 404) throw new Error(`UploadThing API returned ${pingRes.status}`);
+
+  return {
+    configured: true,
+    appId: decoded.appId,
+    regions: decoded.regions,
+    tokenHadQuotes: rawToken !== token,
+    apiReachable: true,
+  };
 }
 
 /** 10. LemonSqueezy — verify billing config is set up correctly */

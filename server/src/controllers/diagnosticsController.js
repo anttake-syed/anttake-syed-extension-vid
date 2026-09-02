@@ -430,8 +430,8 @@ exports.getCaptureDiagnostics = async (req, res) => {
       storageUsage: `${quotaUsed} / ${quotaLimit}`,
       timestamps: {
         captureCreated: capture.createdAt,
-        uploadStart: operations.find(o => o.operation === 'upload_intent')?.createdAt || null,
-        uploadComplete: operations.find(o => o.operation === 'upload')?.createdAt || null,
+        uploadStart: operations.find(o => o.operation === 'upload_initiated' || o.operation === 'upload_intent')?.createdAt || null,
+        uploadComplete: operations.find(o => o.operation === 'upload_completed' || o.operation === 'upload')?.createdAt || null,
         callback: capture.storageObject?.status === 'ready' ? capture.storageObject?.updatedAt : null,
         d1Ready: capture.status === 'active' ? capture.updatedAt : null,
         libraryVisible: (capture.status === 'active' && capture.storageObject?.status === 'ready') ? capture.updatedAt : null

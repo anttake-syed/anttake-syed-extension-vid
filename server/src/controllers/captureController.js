@@ -86,6 +86,105 @@ exports.getCaptures = async (req, res) => {
   }
 };
 
+// ── Confirm an UploadThing direct upload (client-side fallback) ───────────────
+// Called by the extension immediately after uploadFiles() resolves.
+// This is the GUARANTEED path — it does not depend on the UploadThing webhook.
+// The webhook (onUploadComplete) does the same upsert, so double-firing is safe.
+//
+// Body: { captureId, fileKey, sizeBytes, title?, type?, mimeType?, hasAudio? }
+exports.confirmUpload = async (req, res) => {
+  try {
+    const { captureId, fileKey, sizeBytes, title, type, mimeType, hasAudio } = req.body;
+
+    if (!captureId || !fileKey) {
+      return res.status(400).json({ error: 'captureId and fileKey are required' });
+    }
+
+    // Find the pending capture — must belong to this user
+    const capture = await prisma.capture.findUnique({
+      where: { id: captureId },
+      include: { storageObject: true }
+    });
+
+    if (!capture) {
+      // Capture may not exist yet if middleware hasn't created it — create it now
+      const newCapture = await prisma.capture.create({
+        data: {
+          id: captureId, // preserve the ID the middleware created
+          userId: req.user.id,
+          title: title || `Capture ${new Date().toLocaleString()}`,
+          type: type === 'video' ? 'video' : 'image',
+          mimeType: mimeType || (type === 'video' ? 'video/webm' : 'image/png'),
+          hasAudio: hasAudio === true || hasAudio === 'true',
+          status: 'processing'
+        }
+      }).catch(() => null);
+
+      if (!newCapture) {
+        return res.status(404).json({ error: 'Capture not found and could not be created' });
+      }
+    } else if (capture.userId !== req.user.id) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    // If already active (webhook arrived first), just return success
+    const currentStatus = capture?.status;
+    if (currentStatus === 'active') {
+      logger.info('capture', 'confirm-upload-already-active', { captureId, userId: req.user.id });
+      return res.json({ success: true, alreadyActive: true });
+    }
+
+    const bytes = Number(sizeBytes) || 0;
+
+    // Upsert the StorageObject — safe whether webhook ran first or not
+    await prisma.storageObject.upsert({
+      where: { captureId },
+      update: {
+        status: 'ready',
+        sizeBytes: BigInt(bytes),
+        providerObjectId: fileKey,
+        providerMeta: JSON.stringify({ url: `https://utfs.io/f/${fileKey}`, name: fileKey }),
+      },
+      create: {
+        captureId,
+        provider: 'upload_thing',
+        providerObjectId: fileKey,
+        providerMeta: JSON.stringify({ url: `https://utfs.io/f/${fileKey}`, name: fileKey }),
+        filename: fileKey,
+        sizeBytes: BigInt(bytes),
+        status: 'ready'
+      }
+    });
+
+    // Mark the capture active
+    await prisma.capture.update({
+      where: { id: captureId },
+      data: { status: 'active' }
+    });
+
+    // Log the confirmation
+    await prisma.storageOperation.create({
+      data: {
+        captureId,
+        provider: 'upload_thing',
+        operation: 'client_confirm',
+        status: 'success'
+      }
+    }).catch(() => {});
+
+    logger.info('capture', 'confirm-upload-success', {
+      userId: req.user.id, captureId, fileKey, bytes
+    });
+
+    return res.json({ success: true, captureId, fileKey });
+  } catch (err) {
+    logger.error('capture', 'confirm-upload-failed', { requestId: req.requestId, userId: req.user.id, error: err });
+    res.status(500).json({ error: 'Failed to confirm upload' });
+  }
+};
+
+
+
 // ── Upload a capture ──────────────────────────────────────────────────────────
 // Unified endpoint for all providers. The 'provider' field in the request body
 // determines the storage backend. All provider-specific logic lives here or in

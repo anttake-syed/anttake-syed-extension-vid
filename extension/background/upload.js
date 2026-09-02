@@ -76,15 +76,15 @@ export async function uploadToServer(blob, type, destination, jwt, resolution = 
       url: `${serverUrl}/api/uploadthing`,
       package: 'uploadthing/client',
       fetch: globalThis.fetch.bind(globalThis), // explicitly use globalThis.fetch for service worker compat
+      headers: { Authorization: `Bearer ${jwt}` } // Pass headers here so UploadThing sends them to our backend middleware
     });
 
     try {
       const file = new File([blob], filename, { type: mimeType });
 
-      // UploadThing v7: pass headers for auth + input for metadata
+      // UploadThing v7: pass input for metadata
       const response = await uploadFiles('media', {
         files: [file],
-        headers: { Authorization: `Bearer ${jwt}` },
         // input is passed to the server middleware so it can create the correct
         // pending D1 asset with the right type/title/hasAudio/sizeBytes
         input: {

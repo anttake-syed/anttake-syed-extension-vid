@@ -99,7 +99,11 @@ app.use('/api/admin',    generalLimiter, adminRoutes); // ← Protected admin AP
 app.use(
   "/api/uploadthing",
   createRouteHandler({
-    router: uploadRouter
+    router: uploadRouter,
+    config: {
+      // Explicitly pass sanitized token so it doesn't crash if .env has quotes
+      uploadthingToken: (process.env.UPLOADTHING_TOKEN || '').replace(/^['"]|['"]$/g, '').trim()
+    }
   })
 );
 

@@ -144,60 +144,47 @@ export async function uploadToServer(blob, type, destination, jwt, resolution = 
  * @param {Function} onProgress — called with (percent: number) during upload
  * @returns {Promise<object>}   — the server response JSON
  */
-export function uploadWithProgress(blob, type, jwt, opts = {}, onProgress = null) {
+export async function uploadWithProgress(blob, type, jwt, opts = {}, onProgress = null) {
   const { resolution = null, format = null, customFilename = null, hasAudio = true } = opts;
   const { ext, mimeType } = resolveVideoMeta(type, format);
 
   let filename = customFilename || `capture-${Date.now()}`;
   if (!filename.endsWith(`.${ext}`)) filename += `.${ext}`;
 
-  const serverUrl = getServerUrl('cloud'); 
-  const formData = new FormData();
-  formData.append('file',     blob, filename);
-  formData.append('title',    customFilename || filename);
-  formData.append('type',     type);
-  formData.append('mimeType', mimeType);
-  formData.append('hasAudio', String(hasAudio));
-  formData.append('provider', 'upload_thing');
+  const serverUrl = getServerUrl('cloud');
+  log.info(`uploadWithProgress (UploadThing Direct): ${filename} (${(blob.size / 1048576).toFixed(2)} MB)`);
 
-  log.info(`uploadWithProgress: ${filename} (${(blob.size / 1048576).toFixed(2)} MB)`);
-
-  return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    xhr.open('POST', `${serverUrl}/upload`);
-    xhr.setRequestHeader('Authorization', `Bearer ${jwt}`);
-
-    // Report upload progress to the UI
-    xhr.upload.addEventListener('progress', (e) => {
-      if (e.lengthComputable && onProgress) {
-        onProgress(Math.round((e.loaded / e.total) * 100));
-      }
-    });
-
-    xhr.addEventListener('load', () => {
-      if (xhr.status >= 200 && xhr.status < 300) {
-        try {
-          resolve(JSON.parse(xhr.responseText));
-        } catch {
-          resolve({ success: true });
-        }
-      } else {
-        let errMsg = `Upload failed: ${xhr.status}`;
-        try {
-          const data = JSON.parse(xhr.responseText);
-          if (data.error === 'quota_exceeded') {
-            errMsg = 'Your cloud storage is full. Please upgrade your plan.';
-          } else {
-            errMsg = data.detail || data.error || data.message || errMsg;
-          }
-        } catch { /* use raw status */ }
-        reject(new Error(errMsg));
-      }
-    });
-
-    xhr.addEventListener('error', () => reject(new Error('Network error during upload')));
-    xhr.addEventListener('abort', () => reject(new Error('Upload cancelled')));
-
-    xhr.send(formData);
+  const { uploadFiles } = genUploader({
+    url: `${serverUrl}/api/uploadthing`,
+    package: "antcapture-extension"
   });
+
+  try {
+    const file = new File([blob], filename, { type: mimeType });
+    const response = await uploadFiles("media", {
+      files: [file],
+      input: {
+        title: customFilename || filename,
+        type: type,
+        mimeType: mimeType,
+        hasAudio: Boolean(hasAudio),
+        sizeBytes: blob.size,
+      },
+      headers: {
+        "Authorization": `Bearer ${jwt}`,
+      },
+      onUploadProgress: ({ progress }) => {
+        if (onProgress) onProgress(progress);
+      }
+    });
+
+    log.info(`✅ UploadThing Direct Complete:`, response);
+    // The server webhook handles D1, so we just return success
+    return { success: true, files: response };
+  } catch (err) {
+    log.error(`UploadThing Direct Failed:`, err);
+    let errMsg = err.message || "Network error during upload";
+    if (errMsg.includes("Quota exceeded")) errMsg = "Your cloud storage is full. Please upgrade your plan.";
+    throw new Error(errMsg);
+  }
 }

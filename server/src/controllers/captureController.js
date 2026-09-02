@@ -1,7 +1,9 @@
 const prisma = require('../db/index');
 const StorageService = require('../services/storageService');
+const EntitlementService = require('../services/entitlementService');
 const logger = require('../utils/logger');
 
+// ── List all captures for the current user ────────────────────────────────────
 exports.getCaptures = async (req, res) => {
   try {
     const captures = await prisma.capture.findMany({
@@ -21,14 +23,16 @@ exports.getCaptures = async (req, res) => {
       const provider = c.storageObject?.provider;
       const filename = c.storageObject?.providerObjectId || `${c.id}${ext}`;
 
-      // For local files: return the direct static URL — no auth needed, no redirect
-      // For upload_thing: return direct UtFS CDN URL — no auth needed, public CDN
-      // For cloud/drive: use the /captures/:id/media auth-gated redirect
+      // URL strategy:
+      //   local / self_hosted  → static /uploads/<filename> (no auth, no redirect)
+      //   upload_thing         → direct UtFS CDN URL (no auth, public CDN)
+      //   google_drive / cloud → /captures/:id/media (auth-gated server redirect)
       let src;
       if (provider === 'local' || provider === 'self_hosted') {
         src = `/uploads/${filename}`;
       } else if (provider === 'upload_thing') {
-        // Direct UploadThing CDN — no server hop needed
+        // NOTE: UploadThing CDN pattern. If switching to R2, change to:
+        //   src = `https://<your-r2-bucket>.r2.dev/${filename}`;
         src = `https://utfs.io/f/${c.storageObject?.providerObjectId}`;
       } else {
         src = `/captures/${c.id}/media`;
@@ -56,41 +60,61 @@ exports.getCaptures = async (req, res) => {
   }
 };
 
+// ── Upload a capture ──────────────────────────────────────────────────────────
+// Unified endpoint for all providers. The 'provider' field in the request body
+// determines the storage backend. All provider-specific logic lives here or in
+// the provider modules — the extension knows nothing about them.
+//
+// Flow:
+//   1. Auth is enforced by requireAuth middleware (already checked before this runs)
+//   2. Quota is checked here before creating any records
+//   3. Capture shell is created in D1 with status='processing'
+//   4. File is uploaded to the provider (UploadThing, Drive, local disk)
+//   5. D1 record is updated to status='active' with the provider file key
+//
+// NOTE: Adding a new provider (e.g. Cloudflare R2) means:
+//   - Adding a case in the upload_thing block below
+//   - Adding a provider module in /providers/<Name>Provider.js
+//   - Updating getCaptures() src URL logic above
+//   - No extension changes required
 exports.uploadCapture = async (req, res) => {
   try {
     const { title, type, mimeType, hasAudio, provider, driveUrl } = req.body;
     const targetProvider = provider || 'local';
 
-    // 1. Create the Capture shell in the database first
+    // Quota check before creating any DB records
+    const fileSize = req.file?.buffer?.length || 0;
+    const quotaCheck = await EntitlementService.checkQuota(req.user.id, fileSize, targetProvider);
+    if (!quotaCheck.allowed) {
+      return res.status(402).json({ error: 'quota_exceeded', detail: quotaCheck.reason });
+    }
+
+    // Create the Capture shell in D1 — status 'processing' until upload succeeds
     const capture = await prisma.capture.create({
       data: {
-        userId: req.user.id,
-        title: title || `Capture ${new Date().toLocaleString()}`,
-        type: type === 'video' ? 'video' : 'image',
+        userId:   req.user.id,
+        title:    title || `Capture ${new Date().toLocaleString()}`,
+        type:     type === 'video' ? 'video' : 'image',
         mimeType: mimeType || (type === 'video' ? 'video/webm' : 'image/png'),
         hasAudio: hasAudio === 'true' || hasAudio === true,
-        status: 'processing' // Will be active once upload succeeds
+        status:   'processing'
       }
     });
 
-    // 2. If it's a direct Drive upload from the extension (legacy compatibility)
+    // ── Google Drive (legacy: extension sends a driveUrl directly) ────────────
     if (driveUrl) {
-      const storageObject = await prisma.storageObject.create({
+      await prisma.storageObject.create({
         data: {
-          captureId: capture.id,
-          provider: 'google_drive',
+          captureId:        capture.id,
+          provider:         'google_drive',
           providerObjectId: driveUrl.match(/[-\w]{25,}/)?.[0] || driveUrl,
-          status: 'ready'
+          status:           'ready'
         }
       });
-      await prisma.capture.update({
-        where: { id: capture.id },
-        data: { status: 'active' }
-      });
-      return res.json({ success: true, record: capture, storageObject });
+      await prisma.capture.update({ where: { id: capture.id }, data: { status: 'active' } });
+      return res.json({ success: true, record: capture });
     }
 
-    // 3. Otherwise, we route the file buffer through our new StorageRouter
     if (!req.file) {
       await prisma.capture.delete({ where: { id: capture.id } });
       return res.status(400).json({ error: 'No file uploaded' });
@@ -102,36 +126,74 @@ exports.uploadCapture = async (req, res) => {
     else if (mime.includes('webm')) ext = 'webm';
     else if (mime.includes('jpeg') || mime.includes('jpg')) ext = 'jpg';
     else if (mime.includes('png')) ext = 'png';
-    
     const filename = `${capture.id}.${ext}`;
-    const options = { accessToken: req.user.access_token, refreshToken: req.user.refresh_token };
 
+    // ── UploadThing (current cloud provider) ──────────────────────────────────
+    // The server receives the file buffer from the extension and pushes it to
+    // UploadThing via the UTApi. No browser-direct upload, no webhook dependency.
+    //
+    // NOTE: To replace UploadThing with another provider (e.g. Cloudflare R2):
+    //   1. Remove this block
+    //   2. Add a block for your new provider using the same pattern
+    //   3. The extension does NOT need to change
+    if (targetProvider === 'upload_thing') {
+      const { UTApi } = require('uploadthing/server');
+      const utapi = new UTApi();
+
+      const file = new File([req.file.buffer], filename, { type: mimeType });
+      const response = await utapi.uploadFiles(file);
+
+      if (response.error) {
+        await prisma.capture.delete({ where: { id: capture.id } });
+        logger.error('capture', 'uploadthing-failed', { captureId: capture.id, error: response.error });
+        return res.status(500).json({ error: 'Cloud upload failed', detail: response.error.message });
+      }
+
+      const uploaded = response.data;
+
+      // Write the storage record and mark capture as active — all in D1, all atomic
+      await prisma.storageObject.create({
+        data: {
+          captureId:        capture.id,
+          provider:         'upload_thing',
+          providerObjectId: uploaded.key,
+          providerMeta:     JSON.stringify({ url: uploaded.url, name: uploaded.name }),
+          filename:         filename,
+          sizeBytes:        BigInt(uploaded.size || req.file.buffer.length),
+          status:           'ready'
+        }
+      });
+      await prisma.capture.update({ where: { id: capture.id }, data: { status: 'active' } });
+      await EntitlementService.recordUpload(req.user.id, 'upload_thing', uploaded.size || req.file.buffer.length);
+
+      logger.info('capture', 'upload-complete', { userId: req.user.id, captureId: capture.id, key: uploaded.key });
+
+      return res.json({
+        success: true,
+        record: capture,
+        storageObject: { provider: 'upload_thing', providerObjectId: uploaded.key },
+        accessUrl: `https://utfs.io/f/${uploaded.key}`
+      });
+    }
+
+    // ── All other providers (local, google_drive, self_hosted) ─────────────────
+    // StorageService.routeUpload handles the provider-specific upload logic.
+    const options = { accessToken: req.user.access_token, refreshToken: req.user.refresh_token };
     const result = await StorageService.routeUpload(
-      req.user, 
-      req.file.buffer, 
-      filename, 
-      capture.mimeType, 
-      targetProvider, 
-      capture.id,
-      options
+      req.user, req.file.buffer, filename, mimeType, targetProvider, capture.id, options
     );
 
     if (!result.success) {
-      // If it failed, delete the shell capture
       await prisma.capture.delete({ where: { id: capture.id } });
       return res.status(500).json(result);
     }
 
-    // 4. Mark capture as active
-    await prisma.capture.update({
-      where: { id: capture.id },
-      data: { status: 'active' }
-    });
+    await prisma.capture.update({ where: { id: capture.id }, data: { status: 'active' } });
 
     const so = result.storageObject;
-    res.json({ 
-      success: true, 
-      record: capture, 
+    res.json({
+      success: true,
+      record: capture,
       storageObject: so ? { ...so, sizeBytes: so.sizeBytes != null ? Number(so.sizeBytes) : null } : null,
       accessUrl: result.accessUrl
     });
@@ -142,6 +204,7 @@ exports.uploadCapture = async (req, res) => {
   }
 };
 
+// ── Delete a capture ──────────────────────────────────────────────────────────
 exports.deleteCapture = async (req, res) => {
   try {
     const capture = await prisma.capture.findUnique({
@@ -153,7 +216,6 @@ exports.deleteCapture = async (req, res) => {
       return res.status(404).json({ error: 'Not found' });
     }
 
-    // Attempt to delete from provider
     if (capture.storageObject) {
       await StorageService.deleteFile(capture.storageObject, {
         accessToken: req.user.access_token,
@@ -161,7 +223,6 @@ exports.deleteCapture = async (req, res) => {
       });
     }
 
-    // Delete from DB
     await prisma.capture.delete({ where: { id: capture.id } });
     res.json({ success: true });
   } catch (err) {
@@ -170,6 +231,7 @@ exports.deleteCapture = async (req, res) => {
   }
 };
 
+// ── Rename a capture ──────────────────────────────────────────────────────────
 exports.renameCapture = async (req, res) => {
   try {
     const { title } = req.body;
@@ -177,10 +239,7 @@ exports.renameCapture = async (req, res) => {
       return res.status(400).json({ error: 'A valid title is required' });
     }
     
-    const record = await prisma.capture.findUnique({
-      where: { id: req.params.id },
-    });
-
+    const record = await prisma.capture.findUnique({ where: { id: req.params.id } });
     if (!record || record.userId !== req.user.id) {
       return res.status(404).json({ error: 'Not found' });
     }
@@ -196,6 +255,7 @@ exports.renameCapture = async (req, res) => {
   }
 };
 
+// ── Delete all captures for the current user ──────────────────────────────────
 exports.deleteAll = async (req, res) => {
   try {
     const captures = await prisma.capture.findMany({
@@ -221,6 +281,7 @@ exports.deleteAll = async (req, res) => {
   }
 };
 
+// ── Serve media (auth-gated redirect for cloud/drive files) ───────────────────
 exports.getMedia = async (req, res) => {
   try {
     const capture = await prisma.capture.findUnique({
@@ -232,22 +293,20 @@ exports.getMedia = async (req, res) => {
       return res.status(404).send('Media not found');
     }
 
-    const LocalProvider = require('../providers/LocalProvider');
-    const CloudProvider = require('../providers/CloudProvider');
+    const LocalProvider     = require('../providers/LocalProvider');
+    const CloudProvider     = require('../providers/CloudProvider');
     const GoogleDriveProvider = require('../providers/GoogleDriveProvider');
 
     let accessUrl;
     const provider = capture.storageObject.provider;
-    
-    // Dynamically get the access URL
+
     if (provider === 'local' || provider === 'self_hosted') {
       accessUrl = await LocalProvider.getAccessUrl(capture.storageObject.providerObjectId);
+    } else if (provider === 'upload_thing') {
+      // NOTE: If replacing UploadThing, update this URL pattern to match the new provider
+      accessUrl = `https://utfs.io/f/${capture.storageObject.providerObjectId}`;
     } else if (provider === 'cloud') {
       accessUrl = await CloudProvider.getAccessUrl(capture.storageObject.providerObjectId);
-    } else if (provider === 'upload_thing') {
-      // UploadThing CDN URL: https://utfs.io/f/<key>
-      // No auth needed — public CDN served by UploadThing
-      accessUrl = `https://utfs.io/f/${capture.storageObject.providerObjectId}`;
     } else if (provider === 'google_drive') {
       accessUrl = await GoogleDriveProvider.getAccessUrl(capture.storageObject.providerObjectId, {
         userId: req.user.id,
@@ -260,99 +319,21 @@ exports.getMedia = async (req, res) => {
       return res.status(404).send('Provider URL could not be resolved');
     }
 
-    // Redirect the browser to the actual file URL
-    // (This avoids having to stream it through our server and handles Range requests automatically via the provider!)
     res.redirect(accessUrl);
-
   } catch (err) {
     logger.error('capture', 'serve-media-failed', { requestId: req.requestId, userId: req.user.id, captureId: req.params.id, error: err });
     res.status(500).send('Failed to load media');
   }
 };
+
+// ── Legacy endpoints (kept for backwards compat, not used in new flow) ────────
+// TODO: Remove createUploadIntent and confirmUpload once the old direct-upload
+// code path is fully retired. They were part of the browser-direct UploadThing
+// flow that was replaced by the server-proxy approach above.
 exports.createUploadIntent = async (req, res) => {
-  try {
-    const { title, type, mimeType, hasAudio, provider, sizeBytes } = req.body;
-    const targetProvider = provider || 'cloud';
-
-    if (!sizeBytes) {
-      return res.status(400).json({ error: 'sizeBytes is required' });
-    }
-
-    const AssetService = require('../services/assetService');
-    const storageService = require('../services/storageService');
-
-    // 1. Asset Service: Create pending asset shell
-    const { capture } = await AssetService.createPendingAsset(req.user, title, type, mimeType, hasAudio, targetProvider);
-
-    // Prepare filename based on type
-    const mime = (mimeType || '').split(';')[0].trim();
-    let ext = type === 'video' ? 'webm' : 'png';
-    if (mime.includes('mp4'))  ext = 'mp4';
-    else if (mime.includes('webm')) ext = 'webm';
-    else if (mime.includes('jpeg') || mime.includes('jpg')) ext = 'jpg';
-    else if (mime.includes('png')) ext = 'png';
-    
-    const filename = `${capture.id}.${ext}`;
-    const options = { accessToken: req.user.access_token, refreshToken: req.user.refresh_token };
-
-    // 2. Storage Service: Create intent (checks entitlement & asks provider for URL)
-    const result = await storageService.createUploadIntent(
-      req.user,
-      filename,
-      mimeType,
-      sizeBytes,
-      targetProvider,
-      capture.id,
-      options
-    );
-
-    if (!result.success) {
-      await prisma.capture.delete({ where: { id: capture.id } });
-      return res.status(500).json(result);
-    }
-
-    res.json({
-      success: true,
-      captureId: capture.id,
-      uploadUrl: result.uploadUrl,
-      providerObjectId: result.providerObjectId,
-      targetProvider: result.targetProvider
-    });
-
-  } catch (err) {
-    logger.error('capture', 'upload-intent-failed', { requestId: req.requestId, userId: req.user.id, error: err });
-    res.status(500).json({ error: 'Upload intent failed', detail: err.message });
-  }
+  res.status(410).json({ error: 'This endpoint is deprecated. Use POST /upload instead.' });
 };
 
 exports.confirmUpload = async (req, res) => {
-  try {
-    const { captureId, providerObjectId, sizeBytes, providerMeta } = req.body;
-    
-    if (!captureId || !providerObjectId || !sizeBytes) {
-      return res.status(400).json({ error: 'Missing required fields' });
-    }
-
-    const AssetService = require('../services/assetService');
-    const storageService = require('../services/storageService');
-
-    const result = await AssetService.markAssetReady(captureId, req.user, providerObjectId, sizeBytes, providerMeta);
-    
-    const providerInstance = storageService._getProviderInstance(result.storageObject.provider);
-    const accessUrl = await providerInstance.getAccessUrl(providerObjectId, { userId: req.user.id });
-
-    res.json({
-      success: true,
-      record: result.capture,
-      storageObject: {
-        ...result.storageObject,
-        sizeBytes: Number(result.storageObject.sizeBytes)
-      },
-      accessUrl
-    });
-
-  } catch (err) {
-    logger.error('capture', 'confirm-upload-failed', { requestId: req.requestId, userId: req.user.id, error: err });
-    res.status(500).json({ error: 'Confirm upload failed', detail: err.message });
-  }
+  res.status(410).json({ error: 'This endpoint is deprecated. Use POST /upload instead.' });
 };

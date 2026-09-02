@@ -1,7 +1,6 @@
 import { getMediaById, deleteLocalMedia } from '../storage/storage.js';
-import { uploadToServer } from '../background/upload.js';
+import { uploadToServer, uploadWithProgress, getServerUrl } from '../background/upload.js';
 import { notify } from '../background/notify.js';
-import { getServerUrl } from '../background/upload.js';
 import { readOPFSFile, deleteOPFSFile } from '../storage/opfsStorage.js';
 import { AntCapturePlayer } from '../shared/player/AntCapturePlayer.js';
 
@@ -132,6 +131,28 @@ function showToast(msg, type = 'success', durationMs = 2500) {
 
 let successCloseTimer = null;
 let successCountdown = 3;
+
+// ── Upload Progress Bar Helpers ───────────────────────────────────────────────
+function showUploadProgress() {
+  const wrap = document.getElementById('uploadProgressWrap');
+  const fill = document.getElementById('uploadProgressFill');
+  const label = document.getElementById('uploadProgressLabel');
+  if (wrap)  wrap.classList.add('visible');
+  if (fill)  fill.style.width = '0%';
+  if (label) label.textContent = 'Uploading… 0%';
+}
+
+function updateUploadProgress(pct) {
+  const fill = document.getElementById('uploadProgressFill');
+  const label = document.getElementById('uploadProgressLabel');
+  if (fill)  fill.style.width = `${pct}%`;
+  if (label) label.textContent = pct < 100 ? `Uploading… ${pct}%` : 'Processing…';
+}
+
+function hideUploadProgress() {
+  const wrap = document.getElementById('uploadProgressWrap');
+  if (wrap) wrap.classList.remove('visible');
+}
 
 async function showSuccessAndClose(message) {
   const overlay = document.getElementById('successOverlay');
@@ -682,30 +703,45 @@ async function processSave(mode) {
           sidebar.style.pointerEvents = 'none';
           sidebar.style.opacity = '0.7';
         }
-        showToast('Saving capture...', 'success', 10000);
-        
+
         // Pass mock token 'local-mode' if no user is signed in but we are on localhost
         const tokenToUse = hasValidUser ? user.jwt : 'local-mode';
-        
-        await uploadToServer(blob, type, mode, tokenToUse, resolution, format, customName, hasAudio);
-        
+
+        if (mode === 'cloud') {
+          // ── Cloud upload: XHR with real progress bar ──────────────────────────
+          showUploadProgress();
+          try {
+            await uploadWithProgress(blob, type, tokenToUse,
+              { resolution, format, customFilename: customName, hasAudio },
+              (pct) => updateUploadProgress(pct)
+            );
+          } finally {
+            hideUploadProgress();
+          }
+        } else {
+          // ── Local / Drive: standard fetch (no large-file concern) ─────────────
+          showToast('Saving capture...', 'success', 10000);
+          await uploadToServer(blob, type, mode, tokenToUse, resolution, format, customName, hasAudio);
+        }
+
         chrome.storage.local.get(['captureCount'], (r) =>
           chrome.storage.local.set({ captureCount: (r.captureCount || 0) + 1 })
         );
-        
+
         let msgTitle, msgText;
         if (mode === 'localhost') {
            msgTitle = `${label} saved`;
            msgText = 'Stored in your self-hosted library.';
         } else {
            msgTitle = mode === 'cloud' ? `${label} synced` : `${label} saved to Drive`;
-           msgText  = mode === 'cloud' ? 'Saved to AntCapture web app and Google Drive.' : 'Uploaded directly to Google Drive.';
+           msgText  = mode === 'cloud' ? 'Saved to AntCapture web app.' : 'Uploaded directly to Google Drive.';
         }
-        
+
         notify(mode === 'localhost' ? 'capture-local' : (mode === 'cloud' ? 'capture-cloud' : 'capture-drive'), msgTitle, msgText);
         isSaved = true;
         await deleteCurrentItem();
-        await showSuccessAndClose(mode === 'localhost' ? 'Saved to Self-Hosted!' : (mode === 'cloud' ? 'Saved to Cloud & Drive!' : 'Uploaded to Google Drive!'));
+        await showSuccessAndClose(mode === 'localhost' ? 'Saved to Self-Hosted!' : (mode === 'cloud' ? 'Saved to Cloud!' : 'Uploaded to Google Drive!'));
+
       } else {
         if (!hasValidUser && !isLocalHost) {
           pendingSaveMode = mode;

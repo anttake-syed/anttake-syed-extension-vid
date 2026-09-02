@@ -157,6 +157,33 @@
       border-color: rgba(239,68,68,0.4);
       color: #fca5a5;
     }
+    /* ── Upload Progress Bar ─────────────────────────────────────────── */
+    #uploadProgressWrap {
+      display: none;
+      flex-direction: column;
+      gap: 6px;
+      margin-top: 2px;
+    }
+    #uploadProgressWrap.visible { display: flex; }
+    #uploadProgressBar {
+      height: 4px;
+      background: rgba(99,102,241,0.15);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    #uploadProgressFill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #6366f1, #818cf8);
+      border-radius: 4px;
+      transition: width 0.2s ease;
+    }
+    #uploadProgressLabel {
+      font-size: 11px;
+      color: #6366f1;
+      font-weight: 600;
+      text-align: center;
+    }
   </style>
 </head>
 <body>
@@ -229,6 +256,12 @@
         <button class="auto-save-toggle" data-mode="cloud" title="Set as Auto-Save Default">
           <span class="material-symbols-rounded">bolt</span>
         </button>
+      </div>
+
+      <!-- ── Upload Progress (shown during cloud uploads) ── -->
+      <div id="uploadProgressWrap">
+        <div id="uploadProgressBar"><div id="uploadProgressFill"></div></div>
+        <div id="uploadProgressLabel">Uploading… 0%</div>
       </div>
 
       <div style="display:flex; gap:8px; align-items:stretch; width:100%;">

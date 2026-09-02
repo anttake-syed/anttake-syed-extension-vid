@@ -1,0 +1,6 @@
+◇ injected env (16) from .env // tip: ◈ encrypted .env [www.dotenvx.com]
+{"timestamp":"2026-09-02T16:58:17.301Z","level":"INFO","feature":"server","operation":"startup","meta":{"port":"3001","mode":"cloud","nodeVersion":"v20.20.2","env":"development"}}
+
+[32m✨ AntCapture V2 server running at http://localhost:3001[0m
+[36m📦 Storage mode: ☁️  Cloud (Cloudflare D1 + R2)[0m
+

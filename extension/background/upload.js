@@ -180,7 +180,45 @@ export async function uploadWithProgress(blob, type, jwt, opts = {}, onProgress 
     });
 
     log.info(`✅ UploadThing Direct Complete:`, response);
-    // The server webhook handles D1, so we just return success
+
+    // ── Client-side confirmation (guaranteed fallback) ────────────────────────
+    // The UploadThing webhook (onUploadComplete) marks the capture active, but
+    // it can fail or be delayed. We call confirm-upload ourselves so the capture
+    // ALWAYS appears in the Web UI, regardless of webhook delivery.
+    //
+    // The server endpoint is idempotent (upsert) — safe if both paths fire.
+    const uploadedFile = Array.isArray(response) ? response[0] : response;
+    if (uploadedFile?.key) {
+      // The captureId was embedded in the upload metadata by the UT middleware.
+      // The SDK returns it in the serverData field.
+      const captureId = uploadedFile?.serverData?.captureId || uploadedFile?.customId;
+      if (captureId) {
+        try {
+          const confirmRes = await fetch(`${serverUrl}/captures/confirm-upload`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${jwt}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              captureId,
+              fileKey: uploadedFile.key,
+              sizeBytes: blob.size,
+              title: customFilename || filename,
+              type,
+              mimeType,
+              hasAudio: Boolean(hasAudio),
+            }),
+          });
+          const confirmData = await confirmRes.json().catch(() => ({}));
+          log.info(`✅ Confirmed upload in DB:`, confirmData);
+        } catch (confirmErr) {
+          // Non-fatal: webhook may still arrive and activate the capture
+          log.warn(`⚠️ Could not confirm upload (webhook will retry):`, confirmErr.message);
+        }
+      }
+    }
+
     return { success: true, files: response };
   } catch (err) {
     log.error(`UploadThing Direct Failed:`, err);
@@ -189,3 +227,4 @@ export async function uploadWithProgress(blob, type, jwt, opts = {}, onProgress 
     throw new Error(errMsg);
   }
 }
+

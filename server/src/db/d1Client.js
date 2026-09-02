@@ -187,12 +187,17 @@ function makeModel(tableName) {
     async create({ data }) {
       const id = data.id || newId();
       const now = new Date().toISOString();
-      const fullData = {
-        id,
-        createdAt: now,
-        updatedAt: now,
-        ...data,
-      };
+      const fullData = { id, ...data };
+      
+      const noCreatedAt = ['LemonSqueezyEvent'];
+      const noUpdatedAt = ['StorageOperation', 'LemonSqueezyPayment', 'LemonSqueezyEvent'];
+      
+      if (!noCreatedAt.includes(tableName) && !fullData.createdAt) {
+        fullData.createdAt = now;
+      }
+      if (!noUpdatedAt.includes(tableName) && !fullData.updatedAt) {
+        fullData.updatedAt = now;
+      }
 
       const keys = Object.keys(fullData);
       const placeholders = keys.map(() => '?').join(', ');
@@ -213,7 +218,13 @@ function makeModel(tableName) {
 
     async update({ where, data }) {
       const { clause: whereClause, params: whereParams } = buildWhere(where);
-      const updatedData = { ...data, updatedAt: new Date().toISOString() };
+      const updatedData = { ...data };
+      
+      const noUpdatedAt = ['StorageOperation', 'LemonSqueezyPayment', 'LemonSqueezyEvent'];
+      if (!noUpdatedAt.includes(tableName)) {
+        updatedData.updatedAt = new Date().toISOString();
+      }
+      
       const { clause: setClause, params: setParams } = buildSet(updatedData);
 
       await query(

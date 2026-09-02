@@ -125,3 +125,79 @@ export async function uploadToServer(blob, type, destination, jwt, resolution = 
   log.info(`✅ Upload complete. Provider: ${provider} | File: ${filename}`);
   return result;
 }
+
+/**
+ * Uploads a captured Blob to the backend with real-time progress reporting.
+ *
+ * This is used by edit.js when the user clicks "Save to Cloud" — it drives the
+ * upload progress bar in the sidebar. Unlike uploadToServer() which uses fetch(),
+ * this uses XMLHttpRequest which exposes upload progress events.
+ *
+ * Security: The UPLOADTHING_TOKEN never leaves the server. The backend receives
+ * the file buffer, validates quota, creates the D1 record, and pushes to UploadThing.
+ * No storage credentials are ever exposed to the browser or extension.
+ *
+ * @param {Blob}     blob       — the captured file
+ * @param {string}   type       — 'image' | 'video'
+ * @param {string}   jwt        — user JWT for authentication
+ * @param {object}   opts       — { resolution, format, customFilename, hasAudio }
+ * @param {Function} onProgress — called with (percent: number) during upload
+ * @returns {Promise<object>}   — the server response JSON
+ */
+export function uploadWithProgress(blob, type, jwt, opts = {}, onProgress = null) {
+  const { resolution = null, format = null, customFilename = null, hasAudio = true } = opts;
+  const { ext, mimeType } = resolveVideoMeta(type, format);
+
+  let filename = customFilename || `capture-${Date.now()}`;
+  if (!filename.endsWith(`.${ext}`)) filename += `.${ext}`;
+
+  const serverUrl = PROD_SERVER_URL; // always cloud for this path
+  const formData = new FormData();
+  formData.append('file',     blob, filename);
+  formData.append('title',    customFilename || filename);
+  formData.append('type',     type);
+  formData.append('mimeType', mimeType);
+  formData.append('hasAudio', String(hasAudio));
+  formData.append('provider', 'upload_thing');
+
+  log.info(`uploadWithProgress: ${filename} (${(blob.size / 1048576).toFixed(2)} MB)`);
+
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', `${serverUrl}/upload`);
+    xhr.setRequestHeader('Authorization', `Bearer ${jwt}`);
+
+    // Report upload progress to the UI
+    xhr.upload.addEventListener('progress', (e) => {
+      if (e.lengthComputable && onProgress) {
+        onProgress(Math.round((e.loaded / e.total) * 100));
+      }
+    });
+
+    xhr.addEventListener('load', () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          resolve(JSON.parse(xhr.responseText));
+        } catch {
+          resolve({ success: true });
+        }
+      } else {
+        let errMsg = `Upload failed: ${xhr.status}`;
+        try {
+          const data = JSON.parse(xhr.responseText);
+          if (data.error === 'quota_exceeded') {
+            errMsg = 'Your cloud storage is full. Please upgrade your plan.';
+          } else {
+            errMsg = data.detail || data.error || data.message || errMsg;
+          }
+        } catch { /* use raw status */ }
+        reject(new Error(errMsg));
+      }
+    });
+
+    xhr.addEventListener('error', () => reject(new Error('Network error during upload')));
+    xhr.addEventListener('abort', () => reject(new Error('Upload cancelled')));
+
+    xhr.send(formData);
+  });
+}

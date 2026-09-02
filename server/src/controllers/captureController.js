@@ -60,6 +60,10 @@ exports.getCaptures = async (req, res) => {
         src = `/captures/${c.id}/media`;
       }
       
+      // Map provider to standardized UI label
+      let uiLocation = provider || 'unknown';
+      if (provider === 'upload_thing') uiLocation = 'cloud';
+      
       return {
         id: c.id,
         title: c.title,
@@ -69,7 +73,7 @@ exports.getCaptures = async (req, res) => {
         mimeType: mime || (c.type === 'video' ? 'video/webm' : 'image/png'),
         fileUrl: src,
         src,
-        storageLocation: provider || 'unknown',
+        storageLocation: uiLocation,
         hasAudio: c.hasAudio,
         ext,
       };

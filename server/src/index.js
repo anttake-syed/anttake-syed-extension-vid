@@ -30,6 +30,22 @@ const app = express();
 // The webhook route itself applies express.raw() internally.
 app.use('/webhook/ls', webhookRoutes);
 
+// UploadThing route also must come before express.json() because the SDK reads the raw body stream
+const rawUtToken = process.env.UPLOADTHING_TOKEN || '';
+const sanitizedUtToken = rawUtToken.replace(/^['"]|['"]$/g, '').trim();
+
+app.use(
+  "/api/uploadthing",
+  createRouteHandler({
+    router: uploadRouter,
+    config: {
+      token: sanitizedUtToken,
+      isDev: false,
+      callbackUrl: process.env.SERVER_MODE === 'cloud' ? 'https://api.antcapture.anttake.com/api/uploadthing' : `${process.env.PROD_SERVER_URL || 'http://localhost:3001'}/api/uploadthing`
+    }
+  })
+);
+
 // ── Core middleware stack ─────────────────────────────────────────────────────
 // Order matters: requestId first so every subsequent log has an ID.
 app.use(requestId);        // 1. Assign unique ID to every request
@@ -94,9 +110,7 @@ app.use('/plans',        generalLimiter, planRoutes);
 app.use('/subscription', generalLimiter, subscriptionRoutes);
 app.use('/api/admin',    generalLimiter, adminRoutes); // ← Protected admin API
 
-// ── UploadThing Endpoint for Direct Client Uploads ────────────────────────────
-// Provides presigned URLs and handles onUploadComplete webhooks from UploadThing.
-const sanitizedUtToken = (process.env.UPLOADTHING_TOKEN || '').replace(/^['"]|['"]$/g, '').trim();
+// ── Diagnostics validation for UploadThing token ────────────────────────────
 if (!sanitizedUtToken) {
   logger.warn('server', 'uploadthing-token-missing', {
     message: 'UPLOADTHING_TOKEN is not set — cloud uploads will fail'
@@ -115,19 +129,7 @@ if (!sanitizedUtToken) {
   }
 }
 
-app.use(
-  "/api/uploadthing",
-  createRouteHandler({
-    router: uploadRouter,
-    config: {
-      // 'token' is the correct RouteHandlerConfig field name (not 'uploadthingToken')
-      token: sanitizedUtToken,
-      isDev: false,  // never run dev hooks on Vercel; always use production presigned URLs
-      // Explicitly set the webhook URL so it doesn't default to a transient Vercel worker URL
-      callbackUrl: process.env.SERVER_MODE === 'cloud' ? 'https://api.antcapture.anttake.com/api/uploadthing' : `${process.env.PROD_SERVER_URL || 'http://localhost:3001'}/api/uploadthing`
-    }
-  })
-);
+
 
 // ── Global error handler ──────────────────────────────────────────────────────
 // Catches any unhandled errors thrown inside route handlers.

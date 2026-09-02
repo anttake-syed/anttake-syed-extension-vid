@@ -32,27 +32,16 @@ router.get('/diagnostics/activity', diag.getRecentActivity);
 router.get('/diagnostics/info',   diag.getSystemInfo);
 router.get('/diagnostics/capture/:id', diag.getCaptureDiagnostics);
 
-// ── One-shot recovery: activate captures stuck in 'processing' ─────────────────
+// ── One-shot recovery: Sync all UploadThing files to D1 ───────────────────────
 // Use this to fix orphaned captures where UploadThing received the file but the
-// webhook failed to update the DB. Queries UploadThing for all files, then
-// cross-references with processing captures to activate matched ones.
+// webhook failed. Since the webhook failed, the DB has no record of the fileKey.
+// This pulls all files from UploadThing and creates missing records for them.
 router.post('/recover-processing', async (req, res) => {
   const prisma = require('../db/index');
   const logger = require('../utils/logger');
 
   try {
-    // 1. Find all captures stuck in processing for > 2 minutes
-    const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000);
-    const stuckCaptures = await prisma.capture.findMany({
-      where: { status: 'processing', createdAt: { lt: twoMinutesAgo } },
-      include: { storageObject: true }
-    });
-
-    if (stuckCaptures.length === 0) {
-      return res.json({ message: 'No stuck captures found.', recovered: 0 });
-    }
-
-    // 2. Fetch files from UploadThing API to verify what actually made it
+    // 1. Fetch files from UploadThing API
     const rawToken = (process.env.UPLOADTHING_TOKEN || '').replace(/^['\"]|['\"]$/g, '').trim();
     let decoded;
     try {
@@ -73,49 +62,69 @@ router.post('/recover-processing', async (req, res) => {
     }
 
     const { files: utFiles = [] } = await utRes.json();
-    const utFileMap = new Map(utFiles.map(f => [f.key, f]));
 
-    // 3. For each stuck capture that has a storageObject with a fileKey,
-    //    verify the file exists in UT and activate it. For captures without
-    //    a storageObject we cannot recover without the fileKey.
+    // 2. Fetch all existing storage objects in our DB for UploadThing
+    const existingObjects = await prisma.storageObject.findMany({
+      where: { provider: 'upload_thing' },
+      select: { providerObjectId: true, captureId: true }
+    });
+    const existingKeys = new Set(existingObjects.map(o => o.providerObjectId));
+
+    // 3. For any file in UT that is NOT in our DB, create a capture for the Admin
     let recovered = 0;
     const results = [];
 
-    for (const capture of stuckCaptures) {
-      const fileKey = capture.storageObject?.providerObjectId;
-      if (!fileKey) {
-        results.push({ id: capture.id, status: 'skipped', reason: 'no fileKey in storageObject' });
-        continue;
+    for (const utFile of utFiles) {
+      if (existingKeys.has(utFile.key)) {
+        continue; // We already have this file safely in the DB
       }
 
-      const utFile = utFileMap.get(fileKey);
-      if (!utFile) {
-        results.push({ id: capture.id, status: 'skipped', reason: 'file not found in UploadThing' });
-        continue;
-      }
+      // Determine mime/type from name
+      const title = utFile.name || `Recovered File ${utFile.key}`;
+      const isVideo = title.toLowerCase().endsWith('.webm') || title.toLowerCase().endsWith('.mp4');
+      const type = isVideo ? 'video' : 'image';
+      const mime = isVideo ? 'video/webm' : 'image/png';
 
-      // File confirmed in UploadThing — activate the capture
-      await prisma.storageObject.update({
-        where: { captureId: capture.id },
-        data: { status: 'ready', sizeBytes: BigInt(utFile.size || 0) }
+      // Create the capture and storage object
+      const capture = await prisma.capture.create({
+        data: {
+          userId: req.user.id, // Assign to the admin running the recovery
+          title: title,
+          type: type,
+          mimeType: mime,
+          hasAudio: isVideo,
+          status: 'active',
+          createdAt: new Date(utFile.uploadedAt || Date.now())
+        }
       });
-      await prisma.capture.update({
-        where: { id: capture.id },
-        data: { status: 'active' }
+
+      await prisma.storageObject.create({
+        data: {
+          captureId: capture.id,
+          provider: 'upload_thing',
+          providerObjectId: utFile.key,
+          filename: utFile.key,
+          sizeBytes: BigInt(utFile.size || 0),
+          status: 'ready',
+          providerMeta: JSON.stringify({ url: `https://utfs.io/f/${utFile.key}`, name: utFile.name })
+        }
       });
-      await prisma.storageOperation.create({
-        data: { captureId: capture.id, provider: 'upload_thing', operation: 'admin_recover', status: 'success' }
-      }).catch(() => {});
 
       recovered++;
-      results.push({ id: capture.id, status: 'recovered', fileKey, sizeBytes: utFile.size });
-      logger.info('admin', 'recover-processing', { captureId: capture.id, fileKey });
+      results.push({ id: capture.id, status: 'recovered', fileKey: utFile.key, sizeBytes: utFile.size });
+      logger.info('admin', 'sync-recovered-file', { captureId: capture.id, fileKey: utFile.key });
     }
 
+    // Optional: cleanup old stuck processing captures that never made it
+    const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000);
+    await prisma.capture.deleteMany({
+      where: { status: 'processing', createdAt: { lt: twoMinutesAgo } }
+    }).catch(() => {});
+
     return res.json({
-      message: `Recovery complete. ${recovered}/${stuckCaptures.length} captures recovered.`,
+      message: `Sync complete. ${recovered} missing files were restored to your library.`,
       recovered,
-      total: stuckCaptures.length,
+      total: utFiles.length,
       results
     });
   } catch (err) {

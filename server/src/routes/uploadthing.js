@@ -1,4 +1,5 @@
 const { createUploadthing } = require("uploadthing/express");
+const { UploadThingError } = require("uploadthing/server");
 const EntitlementService = require("../services/entitlementService");
 const AssetService = require("../services/assetService");
 const prisma = require("../db/index");
@@ -40,21 +41,21 @@ const uploadRouter = {
         const authHeader = req.headers.get ? req.headers.get('authorization') : req.headers?.authorization;
         
         if (!authHeader || !authHeader.startsWith('Bearer ')) {
-          throw new Error("Unauthorized: missing bearer token");
+          throw new UploadThingError({ code: "UNAUTHORIZED", message: "Missing bearer token" });
         }
         const token = authHeader.split(' ')[1];
         let decoded;
         try {
           decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback_secret');
         } catch (err) {
-          throw new Error("Unauthorized: invalid token");
+          throw new UploadThingError({ code: "UNAUTHORIZED", message: "Invalid token" });
         }
 
         // ── 2. Quota check BEFORE allowing the upload ────────────────────────────
         const sizeBytes = input?.sizeBytes || 0;
         const quotaCheck = await EntitlementService.checkQuota(decoded.id, sizeBytes, 'upload_thing');
         if (!quotaCheck.allowed) {
-          throw new Error(`Quota exceeded: ${quotaCheck.reason}`);
+          throw new UploadThingError({ code: "FORBIDDEN", message: `Quota exceeded: ${quotaCheck.reason}` });
         }
 
         // ── 3. Create pending D1 asset BEFORE the upload starts ──────────────────
@@ -85,7 +86,17 @@ const uploadRouter = {
         return { userId: decoded.id, captureId: capture.id };
       } catch (err) {
         logger.error('uploadthing', 'middleware-error', { error: err.message, stack: err.stack });
-        throw err;
+        
+        // If it's already an UploadThingError, throw it directly
+        if (err.name === 'UploadThingError' || err instanceof UploadThingError) {
+          throw err;
+        }
+
+        // Otherwise, wrap it so the frontend sees the exact failure string
+        throw new UploadThingError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: `Middleware failed: ${err.message}`
+        });
       }
     })
     .onUploadComplete(async ({ metadata, file }) => {

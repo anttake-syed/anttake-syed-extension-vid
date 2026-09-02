@@ -48,6 +48,45 @@ function fmtDuration(ms) {
   return `${(ms / 1000).toFixed(1)}s`;
 }
 
+// ── Copy to clipboard hook ─────────────────────────────────────────────────────────────
+function useCopy() {
+  const [copied, setCopied] = React.useState(null);
+  const copy = (data, id) => {
+    const text = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(id);
+      setTimeout(() => setCopied(null), 2000);
+    });
+  };
+  return { copy, copied };
+}
+
+function CopyBtn({ data, id, label = '', size = '16px', style = {} }) {
+  const { copy, copied } = useCopy();
+  const isCopied = copied === id;
+  return (
+    <button
+      onClick={(e) => { e.stopPropagation(); copy(data, id); }}
+      title={isCopied ? 'Copied!' : `Copy ${label}`}
+      style={{
+        background: isCopied ? 'rgba(34,197,94,0.15)' : 'rgba(148,163,184,0.1)',
+        border: `1px solid ${isCopied ? '#22c55e40' : 'rgba(148,163,184,0.2)'}`,
+        borderRadius: '6px', padding: '3px 7px',
+        cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px',
+        color: isCopied ? '#22c55e' : '#94a3b8',
+        fontSize: '11px', fontWeight: 600, transition: 'all 0.15s',
+        ...style
+      }}
+    >
+      <span className="material-symbols-rounded" style={{ fontSize: size }}>
+        {isCopied ? 'check' : 'content_copy'}
+      </span>
+      {label && <span>{isCopied ? 'Copied!' : label}</span>}
+    </button>
+  );
+}
+
+
 // ── Subcomponents ─────────────────────────────────────────────────────────────
 function OverallBadge({ status, pass, fail, durationMs }) {
   return (
@@ -179,8 +218,11 @@ function CheckDetailModal({ check, onClose }) {
           <div style={{
             background: '#1e293b', borderRadius: '10px', padding: '16px',
           }}>
-            <div style={{ fontSize: '11px', fontWeight: 700, color: '#6366f1', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-              Details
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+              <div style={{ fontSize: '11px', fontWeight: 700, color: '#6366f1', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                Details
+              </div>
+              <CopyBtn data={check} id={`check-detail-${check.name}`} label="Copy" size="13px" />
             </div>
             <pre style={{
               fontSize: '12px', color: '#94a3b8', margin: 0,
@@ -239,7 +281,8 @@ function ErrorRow({ entry, onExpand, expanded }) {
             {entry.requestId?.slice(0, 12) || '—'}
           </span>
         </td>
-        <td style={{ padding: '10px 14px' }}>
+        <td style={{ padding: '10px 14px', display: 'flex', gap: '6px', alignItems: 'center' }}>
+          <CopyBtn data={entry} id={`row-${entry.requestId}-${entry.timestamp}`} size="14px" />
           <span className="material-symbols-rounded" style={{ fontSize: '16px', color: '#475569' }}>
             {expanded ? 'expand_less' : 'expand_more'}
           </span>
@@ -474,6 +517,22 @@ export default function AdminDiagnostics({ user }) {
               <CheckCard key={check.name} check={check} onClick={setSelectedCheck} />
             ))}
           </div>
+          <div style={{ marginTop: '14px', textAlign: 'right' }}>
+            <CopyBtn
+              data={{
+                copied_at: new Date().toISOString(),
+                context: 'AntCapture system health report',
+                overallStatus: health.overallStatus,
+                pass: health.pass,
+                fail: health.fail,
+                durationMs: health.durationMs,
+                checks: health.checks
+              }}
+              id="health-all"
+              label="Copy Full Health Report"
+              size="14px"
+            />
+          </div>
         </>
       )}
 
@@ -547,17 +606,31 @@ export default function AdminDiagnostics({ user }) {
             <div style={{ fontSize: '14px', color: '#64748b' }}>
               {errLoading ? 'Loading…' : `${errors.length} recent error${errors.length !== 1 ? 's' : ''} (in-memory, resets on restart)`}
             </div>
-            <button
-              onClick={fetchErrors}
-              style={{
-                background: 'none', border: '1px solid #1e293b', borderRadius: '8px',
-                color: '#94a3b8', cursor: 'pointer', padding: '6px 12px',
-                fontSize: '12px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px',
-              }}
-            >
-              <span className="material-symbols-rounded" style={{ fontSize: '14px' }}>refresh</span>
-              Refresh
-            </button>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              {errors.length > 0 && (
+                <CopyBtn
+                  data={{
+                    copied_at: new Date().toISOString(),
+                    context: 'AntCapture admin error log',
+                    errors
+                  }}
+                  id="errors-all"
+                  label="Copy All as Prompt"
+                  size="14px"
+                />
+              )}
+              <button
+                onClick={fetchErrors}
+                style={{
+                  background: 'none', border: '1px solid #1e293b', borderRadius: '8px',
+                  color: '#94a3b8', cursor: 'pointer', padding: '6px 12px',
+                  fontSize: '12px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px',
+                }}
+              >
+                <span className="material-symbols-rounded" style={{ fontSize: '14px' }}>refresh</span>
+                Refresh
+              </button>
+            </div>
           </div>
 
           {errors.length === 0 ? (

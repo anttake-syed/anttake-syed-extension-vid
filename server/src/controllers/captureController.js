@@ -3,6 +3,28 @@ const StorageService = require('../services/storageService');
 const EntitlementService = require('../services/entitlementService');
 const logger = require('../utils/logger');
 
+// ── UploadThing: validate token at module load time ───────────────────────────
+// This surfaces a clear error at server startup, not buried in a request handler.
+function getUtApi() {
+  const token = (process.env.UPLOADTHING_TOKEN || '').replace(/^['"]|['"]$/g, '').trim();
+  if (!token) {
+    throw new Error('[UploadThing] UPLOADTHING_TOKEN is not set in .env');
+  }
+  // Validate it decodes to the expected shape before handing it to the SDK
+  let decoded;
+  try {
+    decoded = JSON.parse(Buffer.from(token, 'base64').toString('utf8'));
+  } catch {
+    throw new Error('[UploadThing] UPLOADTHING_TOKEN is not valid base64 JSON. Re-copy it from the UploadThing dashboard.');
+  }
+  if (!decoded.apiKey || !decoded.appId || !Array.isArray(decoded.regions)) {
+    throw new Error(`[UploadThing] Token decoded but is malformed. Got keys: ${Object.keys(decoded).join(', ')}. Expected: apiKey, appId, regions.`);
+  }
+  const { UTApi } = require('uploadthing/server');
+  // Always pass token explicitly — never rely on env being read by the SDK internally
+  return new UTApi({ token });
+}
+
 // ── List all captures for the current user ────────────────────────────────────
 exports.getCaptures = async (req, res) => {
   try {
@@ -147,19 +169,51 @@ exports.uploadCapture = async (req, res) => {
     //   2. Add a block for your new provider using the same pattern
     //   3. The extension does NOT need to change
     if (targetProvider === 'upload_thing') {
-      const { UTApi } = require('uploadthing/server');
-      const utapi = new UTApi();
+      // getUtApi() validates the token and gives a clear error if anything is wrong
+      let utapi;
+      try {
+        utapi = getUtApi();
+      } catch (tokenErr) {
+        logDiag('upload_failed', 'failed');
+        await prisma.capture.delete({ where: { id: capture.id } });
+        logger.error('capture', 'uploadthing-token-invalid', { captureId: capture.id, error: tokenErr.message });
+        return res.status(500).json({
+          error: 'Cloud storage misconfigured',
+          detail: tokenErr.message,
+          fix: 'Check UPLOADTHING_TOKEN in server/.env — copy it fresh from dash.uploadthing.com'
+        });
+      }
 
       const file = new File([req.file.buffer], filename, { type: mimeType });
-      
       logDiag('upload_initiated');
-      const response = await utapi.uploadFiles(file);
+
+      let response;
+      try {
+        response = await utapi.uploadFiles(file);
+      } catch (uploadErr) {
+        // SDK threw (network error, timeout, etc.) — surface full context
+        logDiag('upload_failed', 'failed');
+        await prisma.capture.delete({ where: { id: capture.id } });
+        logger.error('capture', 'uploadthing-sdk-threw', { captureId: capture.id, error: uploadErr.message });
+        return res.status(500).json({
+          error: 'Cloud upload failed (SDK exception)',
+          detail: uploadErr.message
+        });
+      }
 
       if (response.error) {
         logDiag('upload_failed', 'failed');
         await prisma.capture.delete({ where: { id: capture.id } });
-        logger.error('capture', 'uploadthing-failed', { captureId: capture.id, error: response.error });
-        return res.status(500).json({ error: 'Cloud upload failed', detail: response.error.message });
+        logger.error('capture', 'uploadthing-failed', {
+          captureId: capture.id,
+          code:   response.error.code,
+          detail: response.error.message
+        });
+        return res.status(500).json({
+          error: 'Cloud upload failed',
+          code:   response.error.code,
+          detail: response.error.message
+        });
       }
 
       logDiag('upload_completed');

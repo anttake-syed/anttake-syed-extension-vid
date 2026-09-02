@@ -151,7 +151,7 @@ export function uploadWithProgress(blob, type, jwt, opts = {}, onProgress = null
   let filename = customFilename || `capture-${Date.now()}`;
   if (!filename.endsWith(`.${ext}`)) filename += `.${ext}`;
 
-  const serverUrl = PROD_SERVER_URL; // always cloud for this path
+  const serverUrl = getServerUrl('cloud'); 
   const formData = new FormData();
   formData.append('file',     blob, filename);
   formData.append('title',    customFilename || filename);

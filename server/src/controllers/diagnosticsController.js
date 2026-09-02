@@ -220,20 +220,26 @@ async function checkUploadThing() {
     throw new Error(`Token decoded but is malformed. Keys found: ${Object.keys(decoded).join(', ')}`);
   }
 
-  // Live ping: verify the token can authenticate with UploadThing's API
-  // Note: /v6/listFiles requires a POST request
-  const pingRes = await fetch('https://api.uploadthing.com/v6/listFiles', {
+  // Live ping: verify the token can authenticate and get storage usage
+  const pingRes = await fetch('https://api.uploadthing.com/v6/getUsageInfo', {
     method: 'POST',
     headers: { 
       'x-uploadthing-api-key': decoded.apiKey,
       'Content-Type': 'application/json'
     },
-    body: JSON.stringify({ limit: 1 }),
+    body: JSON.stringify({}),
     signal: AbortSignal.timeout(5000),
   }).catch(e => { throw new Error(`UploadThing API unreachable: ${e.message}`); });
 
   if (pingRes.status === 401) throw new Error('UPLOADTHING_TOKEN apiKey is invalid — unauthorized');
   if (!pingRes.ok && pingRes.status !== 404) throw new Error(`UploadThing API returned ${pingRes.status}`);
+
+  let usageData = {};
+  if (pingRes.ok) {
+    try {
+      usageData = await pingRes.json();
+    } catch (e) {}
+  }
 
   return {
     configured: true,
@@ -241,8 +247,11 @@ async function checkUploadThing() {
     regions: decoded.regions,
     tokenHadQuotes: rawToken !== token,
     apiReachable: true,
+    storageUsed: usageData.totalBytes ? `${(usageData.totalBytes / 1024 / 1024).toFixed(2)} MB` : 'Unknown',
+    filesStored: usageData.filesUploaded !== undefined ? usageData.filesUploaded : 'Unknown'
   };
 }
+
 
 /** 10. LemonSqueezy — verify billing config is set up correctly */
 async function checkLemonSqueezy() {

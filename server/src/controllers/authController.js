@@ -142,8 +142,16 @@ exports.authSuccess = (req, res) => {
   `);
 };
 
-exports.getMe = (req, res) => {
-  res.json({ user: { name: req.user.name, email: req.user.email, picture: req.user.picture } });
+exports.getMe = async (req, res) => {
+  // req.user comes from the JWT and never carries a trustworthy role (client-controlled).
+  // Re-read role from the DB, same as requireAdmin does.
+  let role = req.user.role;
+  if (!role) {
+    const prisma = require('../db/index');
+    const dbUser = await prisma.user.findUnique({ where: { id: req.user.id }, select: { role: true } });
+    role = dbUser?.role || 'user';
+  }
+  res.json({ user: { name: req.user.name, email: req.user.email, picture: req.user.picture, role } });
 };
 
 exports.getGoogleToken = async (req, res) => {

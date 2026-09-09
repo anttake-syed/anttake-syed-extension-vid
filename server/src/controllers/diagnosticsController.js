@@ -282,11 +282,57 @@ async function checkLemonSqueezy() {
   const body = await response.json();
   const storeName = body?.data?.attributes?.name || 'Unknown';
 
+  // The store-level ping above only proves the API key + store id work — it
+  // says nothing about whether the configured variant ids are real, or
+  // belong to THIS store. A stale/wrong variant id passes the check above
+  // but makes checkout creation fail every time, which is exactly the
+  // "failed to create checkout session" symptom users hit — so verify each
+  // configured variant directly against the LemonSqueezy API.
+  const variantEnvKeys = ['LS_VARIANT_CLOUD_MONTHLY', 'LS_VARIANT_CLOUD_YEARLY'];
+  const variants = await Promise.all(variantEnvKeys.map(async (envKey) => {
+    const variantId = process.env[envKey];
+    try {
+      const vRes = await fetch(`https://api.lemonsqueezy.com/v1/variants/${variantId}?include=product`, {
+        headers: {
+          'Accept':        'application/vnd.api+json',
+          'Authorization': `Bearer ${process.env.LS_API_KEY}`,
+        },
+        signal: AbortSignal.timeout(5000),
+      });
+
+      if (vRes.status === 404) {
+        return { envKey, variantId, ok: false, reason: 'Variant id does not exist in LemonSqueezy' };
+      }
+      if (!vRes.ok) {
+        return { envKey, variantId, ok: false, reason: `LemonSqueezy API returned ${vRes.status}` };
+      }
+
+      const vBody = await vRes.json();
+      const variantName = vBody?.data?.attributes?.name;
+      const productStoreId = vBody?.included?.find(r => r.type === 'products')?.attributes?.store_id;
+      if (productStoreId != null && String(productStoreId) !== String(process.env.LS_STORE_ID)) {
+        return { envKey, variantId, ok: false, variantName, reason: `Belongs to store ${productStoreId}, not configured LS_STORE_ID (${process.env.LS_STORE_ID})` };
+      }
+      return { envKey, variantId, ok: true, variantName };
+    } catch (err) {
+      return { envKey, variantId, ok: false, reason: err.message };
+    }
+  }));
+
+  const brokenVariants = variants.filter(v => !v.ok);
+  if (brokenVariants.length > 0) {
+    const err = new Error(
+      `Checkout will fail — ${brokenVariants.map(v => `${v.envKey}: ${v.reason}`).join('; ')}`
+    );
+    err.variants = variants;
+    throw err;
+  }
+
   return {
     configured:   true,
     storeId:      process.env.LS_STORE_ID,
     storeName,
-    variantKeys:  ['LS_VARIANT_CLOUD_MONTHLY', 'LS_VARIANT_CLOUD_YEARLY'],
+    variants,
     webhookSet:   true,
   };
 }

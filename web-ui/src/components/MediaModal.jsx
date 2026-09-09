@@ -301,7 +301,7 @@ function MediaModalContent({ item, onClose, user, onSyncSuccess, onDelete, dbSta
                   </button>
                 </>
               )}
-              {IS_LOCAL_MODE && (
+              {item.src && (
                 <button onClick={handleDownload} style={syncBtnStyle('#f1f5f9', 'rgba(255,255,255,0.1)', 'rgba(255,255,255,0.2)')}>
                   <span className="material-symbols-rounded" style={{ fontSize: '16px' }}>download</span>
                   Save to Computer

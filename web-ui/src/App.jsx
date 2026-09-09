@@ -199,11 +199,16 @@ export default function App() {
 
   const stats = [
     { label: 'Total Captures', value: (dbStats?.total ?? captures.length).toString(), icon: 'folder' },
-    {
+    IS_LOCAL_MODE ? {
       label: 'Local Storage Used',
       value: dbStats?.localBytesFormatted ?? '0 B',
       icon: 'hard_drive',
       sub: dbStats ? `${dbStats.localCount} files local` : null,
+    } : {
+      label: 'Cloud Storage Used',
+      value: dbStats?.cloudBytesFormatted ?? '0 B',
+      icon: 'hard_drive',
+      sub: dbStats ? `${dbStats.cloudCount} files in cloud` : null,
     },
     // Only show Google Drive stat in cloud mode
     ...(!IS_LOCAL_MODE && dbStats?.storageServer !== 'local' ? [{

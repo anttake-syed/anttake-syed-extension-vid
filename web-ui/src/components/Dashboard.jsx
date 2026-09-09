@@ -100,6 +100,21 @@ const DriveLogoSVG = ({ size = 20 }) => (
   </svg>
 );
 
+const AntCaptureCloudLogoSVG = ({ size = 20 }) => (
+  <svg viewBox="0 0 40 40" width={size} height={size} fill="none" style={{ flexShrink: 0 }}>
+    <circle cx="20" cy="20" r="20" fill="url(#antcloud-grad)" />
+    <g transform="translate(8, 8) scale(1)">
+      <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z" fill="white" opacity="0.9"/>
+    </g>
+    <defs>
+      <linearGradient id="antcloud-grad" x1="0" y1="0" x2="40" y2="40" gradientUnits="userSpaceOnUse">
+        <stop stopColor="#6366f1" />
+        <stop offset="1" stopColor="#a855f7" />
+      </linearGradient>
+    </defs>
+  </svg>
+);
+
 const ThumbnailVideo = ({ item }) => {
   const [videoHovered, setVideoHovered] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
@@ -239,7 +254,7 @@ function MediaThumb({ item, onOpen }) {
         )}
         {item.storageLocation === 'cloud' && (
           <div style={{ background: 'rgba(0,0,0,0.6)', borderRadius: '6px', padding: '4px', display: 'flex', alignItems: 'center' }} title="Saved in Cloud (R2)">
-            <span className="material-symbols-rounded" style={{ fontSize: '14px', color: '#38bdf8' }}>cloud</span>
+            <AntCaptureCloudLogoSVG size={14} />
           </div>
         )}
         {item.storageLocation === 'google_drive' && (
@@ -338,7 +353,7 @@ export default function Dashboard({ isAuthenticated, isLocalMode, stats, capture
         <>
           <StorageUsageBar 
             storageState={mainStorageState} 
-            icon={isLocalMode ? 'hard_drive' : 'cloud'} 
+            icon={isLocalMode ? 'hard_drive' : <AntCaptureCloudLogoSVG size={20} />} 
           />
           {driveStorageState && (
             <StorageUsageBar 

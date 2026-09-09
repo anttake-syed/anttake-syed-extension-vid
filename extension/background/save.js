@@ -5,7 +5,7 @@
 
 import { getPendingUploads, deleteLocalMedia, saveMediaLocally } from '../storage/storage.js';
 import { notify } from './notify.js';
-import { uploadToServer } from './upload.js';
+import { uploadToServer, uploadWithProgress } from './upload.js';
 import { Logger } from '../shared/logger.js';
 
 const log = Logger.getLogger('Background: Save/Sync');
@@ -59,8 +59,16 @@ export async function syncPendingUploads() {
 
   for (const item of pending) {
     try {
-      // Correct argument order: (blob, type, destination, jwt, resolution, format, customFilename, hasAudio)
-      await uploadToServer(item.blob, item.type, 'cloud', user_cloud.jwt, item.resolution, item.format, null, item.hasAudio !== undefined ? item.hasAudio : true);
+      if (storageMode === 'cloud') {
+        await uploadWithProgress(item.blob, item.type, user_cloud.jwt, {
+          resolution: item.resolution,
+          format: item.format,
+          customFilename: null,
+          hasAudio: item.hasAudio !== undefined ? item.hasAudio : true
+        });
+      } else {
+        await uploadToServer(item.blob, item.type, 'cloud', user_cloud.jwt, item.resolution, item.format, null, item.hasAudio !== undefined ? item.hasAudio : true);
+      }
       log.info(`✅ Synced item ${item.id}`);
       await deleteLocalMedia(item.id);
       synced++;

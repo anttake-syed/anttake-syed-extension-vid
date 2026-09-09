@@ -27,6 +27,26 @@ export function useAuth() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isInitializing, setIsInitializing] = useState(true);
 
+  // The JWT is client-controlled and never carries a trustworthy role, so the
+  // server is always the source of truth for it — fetch it separately and merge.
+  const refreshRole = async (jwt) => {
+    try {
+      const res = await fetch(`${SERVER_URL}/auth/me`, {
+        headers: { Authorization: `Bearer ${jwt}` },
+      });
+      if (!res.ok) {return;}
+      const { user: fresh } = await res.json();
+      setUser((prev) => {
+        if (!prev) {return prev;}
+        const updated = { ...prev, role: fresh.role };
+        localStorage.setItem('antcapture_user', JSON.stringify(updated));
+        return updated;
+      });
+    } catch (_err) {
+      // Network hiccup — admin UI just stays hidden until the next successful check
+    }
+  };
+
   const login = (authData) => {
     try {
       const userData = parseAndValidateJwt(authData);
@@ -39,7 +59,8 @@ export function useAuth() {
       localStorage.setItem('antcapture_user', JSON.stringify(userData));
       setUser(userData);
       setIsAuthenticated(true);
-      
+      refreshRole(authData);
+
       // Sync login to extension immediately
       if (EXTENSION_ID && typeof chrome !== 'undefined' && chrome.runtime?.sendMessage) {
         chrome.runtime.sendMessage(EXTENSION_ID, { action: 'SYNC_USER', user: userData }).catch(()=>{});
@@ -74,7 +95,7 @@ export function useAuth() {
     // Completely bypass authentication for Local Self-Hosted mode
     if (IS_LOCAL_MODE) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      setUser({ name: 'Local Admin', email: 'admin@localhost', jwt: 'local-mode', picture: '' });
+      setUser({ name: 'Local Admin', email: 'admin@localhost', jwt: 'local-mode', picture: '', role: 'admin' });
       setIsAuthenticated(true);
       setIsInitializing(false);
       return;
@@ -93,6 +114,7 @@ export function useAuth() {
           setUser(userData);
           setIsAuthenticated(true);
           jwt = userData.jwt;
+          refreshRole(jwt);
         } else {
           // Token expired — clear it so the login screen shows
           localStorage.removeItem('antcapture_user');

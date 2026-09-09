@@ -59,22 +59,33 @@ export async function syncPendingUploads() {
 
   for (const item of pending) {
     try {
+      let confirmed = true; // uploadToServer's 'else' path always throws on failure, so no throw = confirmed
       if (storageMode === 'cloud') {
-        await uploadWithProgress(item.blob, item.type, user_cloud.jwt, {
+        const result = await uploadWithProgress(item.blob, item.type, user_cloud.jwt, {
           resolution: item.resolution,
           format: item.format,
           customFilename: null,
           hasAudio: item.hasAudio !== undefined ? item.hasAudio : true
         });
+        confirmed = result?.confirmed === true;
       } else {
         await uploadToServer(item.blob, item.type, 'cloud', user_cloud.jwt, item.resolution, item.format, null, item.hasAudio !== undefined ? item.hasAudio : true);
       }
-      log.info(`✅ Synced item ${item.id}`);
-      await deleteLocalMedia(item.id);
-      synced++;
-      chrome.storage.local.get(['captureCount'], (r) =>
-        chrome.storage.local.set({ captureCount: (r.captureCount || 0) + 1 })
-      );
+
+      // Only delete the local queued copy once the server actually confirmed
+      // it — the CDN accepting the bytes is not enough (see uploadWithProgress).
+      // Leave it in the queue to retry next sync if it isn't confirmed yet.
+      if (confirmed) {
+        log.info(`✅ Synced item ${item.id}`);
+        await deleteLocalMedia(item.id);
+        synced++;
+        chrome.storage.local.get(['captureCount'], (r) =>
+          chrome.storage.local.set({ captureCount: (r.captureCount || 0) + 1 })
+        );
+      } else {
+        log.warn(`⚠️ Item ${item.id} uploaded but not yet confirmed — will retry next sync`);
+        errors.push(`${item.id}: uploaded but not confirmed`);
+      }
     } catch (error) {
       log.error(`Sync failed for ${item.id}`, error.message);
       errors.push(error.message);

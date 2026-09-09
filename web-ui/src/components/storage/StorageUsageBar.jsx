@@ -12,10 +12,12 @@ export default function StorageUsageBar({ storageState, icon, extraInfo }) {
   const { status, usedFormatted, totalFormatted, percentage, label, planName, hasNoLimit } = storageState;
   
   const isWarning = status === 'near_limit' || status === 'full';
-  const color = isWarning ? '#f87171' : storageState.type === 'cloud' ? '#38bdf8' : '#818cf8';
-  
+  const color = isWarning ? '#f87171' : '#818cf8';
+
+  // Same #6366f1 → #a855f7 brand gradient as AntCaptureCloudLogoSVG, so the
+  // cloud storage bar visually matches the cloud badge shown elsewhere.
   let gradient = 'linear-gradient(90deg,#6366f1,#8b5cf6)'; // local
-  if (storageState.type === 'cloud') gradient = 'linear-gradient(90deg,#38bdf8,#6366f1)';
+  if (storageState.type === 'cloud') gradient = 'linear-gradient(90deg,#6366f1,#a855f7)';
   if (isWarning) gradient = 'linear-gradient(90deg,#f87171,#ef4444)';
 
   return (

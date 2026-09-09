@@ -43,14 +43,16 @@ export default function VideoPlayer({ src, onError }) {
       const v = videoRef.current;
       if (!v) return;
       setDisplayTime(v.currentTime);
-      // Update buffered
-      if (v.buffered.length > 0 && v.duration > 0) {
-        setBuffered(v.buffered.end(v.buffered.length - 1) / v.duration);
+      // Update buffered — v.duration can still read Infinity for a fixed-up
+      // WebM, so fall back to the resolved `duration` state.
+      const d = isFinite(v.duration) ? v.duration : duration;
+      if (v.buffered.length > 0 && d > 0) {
+        setBuffered(v.buffered.end(v.buffered.length - 1) / d);
       }
       rafRef.current = requestAnimationFrame(tick);
     };
     rafRef.current = requestAnimationFrame(tick);
-  }, []);
+  }, [duration]);
 
   const stopRaf = useCallback(() => {
     if (rafRef.current) {
@@ -81,7 +83,22 @@ export default function VideoPlayer({ src, onError }) {
   const handleLoadedMetadata = () => {
     const v = videoRef.current;
     if (!v) return;
-    setDuration(v.duration);
+    if (isFinite(v.duration)) {
+      setDuration(v.duration);
+    } else {
+      // MediaRecorder-produced WebM has no Duration/Cues element in its
+      // header, so Chromium reports Infinity and treats the file as
+      // unseekable. Forcing a seek near the end makes Chromium scan the
+      // whole file and resolve a real duration (and become seekable) as a
+      // side effect. https://bugs.chromium.org/p/chromium/issues/detail?id=642012
+      const onTimeUpdate = () => {
+        const resolved = isFinite(v.duration) ? v.duration : v.currentTime;
+        setDuration(resolved > 0 ? resolved : 0);
+        v.currentTime = 0;
+      };
+      v.addEventListener('timeupdate', onTimeUpdate, { once: true });
+      v.currentTime = 1e101;
+    }
     setStatus('paused');
   };
 
@@ -140,10 +157,12 @@ export default function VideoPlayer({ src, onError }) {
   const handleSeek = useCallback((time) => {
     const v = videoRef.current;
     if (!v || !isFinite(time)) return;
-    // Clamp to valid range
-    v.currentTime = Math.max(0, Math.min(time, v.duration || 0));
+    // Clamp to the resolved duration (v.duration itself may still read
+    // Infinity for a fixed-up WebM — `duration` state holds the real value).
+    const max = isFinite(duration) && duration > 0 ? duration : Infinity;
+    v.currentTime = Math.max(0, Math.min(time, max));
     setDisplayTime(v.currentTime);
-  }, []);
+  }, [duration]);
 
   const handleVolume = useCallback((vol) => {
     const v = videoRef.current;

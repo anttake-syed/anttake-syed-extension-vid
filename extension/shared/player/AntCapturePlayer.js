@@ -72,6 +72,7 @@ export class AntCapturePlayer {
     this._speedIdx = SPEEDS.indexOf(1); // index into SPEEDS[]
     this._seeking = false;              // drag-seek in progress
     this._blobUrl = null;
+    this._fixedDuration = null;         // Infinity/NaN workaround result — see _resolveDuration()
     this._listeners = [];              // [element, type, handler] for cleanup
 
     this._build();
@@ -337,6 +338,34 @@ export class AntCapturePlayer {
     return btn;
   }
 
+  // ── Duration resolution ───────────────────────────────────────────────────
+  // MediaRecorder-produced WebM blobs have no Duration/Cues element in their
+  // header, so Chromium reports video.duration as Infinity and refuses to
+  // seek. Forcing a seek near the end makes Chromium scan the whole blob and
+  // resolve the real duration as a side effect; we cache it since v.duration
+  // itself can remain Infinity afterwards. This also has the effect of
+  // buffering the file enough that subsequent seeks actually work.
+  // https://bugs.chromium.org/p/chromium/issues/detail?id=642012
+
+  _resolveDuration() {
+    const v = this._video;
+    if (!v || isFinite(v.duration)) return;
+    const onTimeUpdate = () => {
+      this._fixedDuration = isFinite(v.duration) ? v.duration
+        : (isFinite(v.currentTime) && v.currentTime > 0 ? v.currentTime : null);
+      v.currentTime = 0;
+      if (this._timeDur) this._timeDur.textContent = fmtTime(this._getDuration());
+    };
+    v.addEventListener('timeupdate', onTimeUpdate, { once: true });
+    v.currentTime = 1e101;
+  }
+
+  _getDuration() {
+    const v = this._video;
+    if (v && isFinite(v.duration)) return v.duration;
+    return this._fixedDuration || 0;
+  }
+
   // ── Seekbar interaction ───────────────────────────────────────────────────
 
   _wireSeekbar(seekbar) {
@@ -347,8 +376,9 @@ export class AntCapturePlayer {
 
     const seek = (frac) => {
       const v = this._video;
-      if (!v || !isFinite(v.duration)) return;
-      v.currentTime = frac * v.duration;
+      const duration = this._getDuration();
+      if (!v || !duration) return;
+      v.currentTime = frac * duration;
       this._updateSeekUI(frac);
     };
 
@@ -386,6 +416,7 @@ export class AntCapturePlayer {
       v.classList.add('acp-ready');
       this._loadOverlay.classList.add('acp-hidden');
       this._setState('paused');
+      this._resolveDuration();
     });
 
     // 3-second safety net so user never stays stuck on spinner
@@ -405,16 +436,18 @@ export class AntCapturePlayer {
     // ── Time update → seek bar + time display ──
     this._on(v, 'timeupdate', () => {
       if (this._seeking) return;
-      const frac = v.duration ? v.currentTime / v.duration : 0;
+      const duration = this._getDuration();
+      const frac = duration ? v.currentTime / duration : 0;
       this._updateSeekUI(frac);
       if (this._timeCur) this._timeCur.textContent = fmtTime(v.currentTime);
     });
 
     // ── Buffer progress ──
     this._on(v, 'progress', () => {
-      if (!v.duration || !v.buffered.length) return;
+      const duration = this._getDuration();
+      if (!duration || !v.buffered.length) return;
       const buffered = v.buffered.end(v.buffered.length - 1);
-      const frac = buffered / v.duration;
+      const frac = buffered / duration;
       if (this._seekBuffer) this._seekBuffer.style.width = `${frac * 100}%`;
     });
 

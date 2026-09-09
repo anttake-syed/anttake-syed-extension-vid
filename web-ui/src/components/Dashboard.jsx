@@ -146,7 +146,17 @@ const ThumbnailVideo = ({ item }) => {
   );
 };
 
-function StatCard({ icon, value, label, sub, isAuthenticated, onSignIn, isDrive }) {
+function StatCard({ icon, value, label, sub, isAuthenticated, onSignIn, isDrive, loading }) {
+  if (isAuthenticated && loading) {
+    return (
+      <div className="stat-card" style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+        <div className="skeleton-box" style={{ width: '28px', height: '28px', borderRadius: '8px', marginBottom: '8px' }} />
+        <div className="skeleton-box" style={{ width: '52px', height: '22px', borderRadius: '4px', marginBottom: '6px' }} />
+        <div className="skeleton-box" style={{ width: '76px', height: '12px', borderRadius: '4px' }} />
+      </div>
+    );
+  }
+
   return (
     <div
       className={`stat-card ${!isAuthenticated ? 'blurred' : ''}`}

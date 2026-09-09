@@ -187,39 +187,62 @@ export async function uploadWithProgress(blob, type, jwt, opts = {}, onProgress 
     // ALWAYS appears in the Web UI, regardless of webhook delivery.
     //
     // The server endpoint is idempotent (upsert) — safe if both paths fire.
+    //
+    // IMPORTANT: the caller (edit.js) uses `confirmed` to decide whether it's
+    // safe to delete the local backup copy. The file bytes landing on the CDN
+    // is NOT enough — the DB record must actually be activated first, or the
+    // capture uploads successfully but never shows up in the library.
     const uploadedFile = Array.isArray(response) ? response[0] : response;
+    let confirmed = false;
     if (uploadedFile?.key) {
       // The captureId was embedded in the upload metadata by the UT middleware.
       // The SDK returns it in the serverData field.
       const captureId = uploadedFile?.serverData?.captureId || uploadedFile?.customId;
       if (captureId) {
-        try {
-          const confirmRes = await fetch(`${serverUrl}/captures/confirm-upload`, {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${jwt}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              captureId,
-              fileKey: uploadedFile.key,
-              sizeBytes: blob.size,
-              title: customFilename || filename,
-              type,
-              mimeType,
-              hasAudio: Boolean(hasAudio),
-            }),
-          });
-          const confirmData = await confirmRes.json().catch(() => ({}));
-          log.info(`✅ Confirmed upload in DB:`, confirmData);
-        } catch (confirmErr) {
-          // Non-fatal: webhook may still arrive and activate the capture
-          log.warn(`⚠️ Could not confirm upload (webhook will retry):`, confirmErr.message);
+        const confirmBody = JSON.stringify({
+          captureId,
+          fileKey: uploadedFile.key,
+          sizeBytes: blob.size,
+          title: customFilename || filename,
+          type,
+          mimeType,
+          hasAudio: Boolean(hasAudio),
+        });
+
+        const ATTEMPTS = 3;
+        for (let attempt = 1; attempt <= ATTEMPTS && !confirmed; attempt++) {
+          try {
+            const confirmRes = await fetch(`${serverUrl}/captures/confirm-upload`, {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${jwt}`,
+                'Content-Type': 'application/json',
+              },
+              body: confirmBody,
+            });
+            if (confirmRes.ok) {
+              const confirmData = await confirmRes.json().catch(() => ({}));
+              log.info(`✅ Confirmed upload in DB:`, confirmData);
+              confirmed = true;
+            } else {
+              log.warn(`⚠️ confirm-upload attempt ${attempt} failed: HTTP ${confirmRes.status}`);
+            }
+          } catch (confirmErr) {
+            log.warn(`⚠️ confirm-upload attempt ${attempt} threw:`, confirmErr.message);
+          }
+          if (!confirmed && attempt < ATTEMPTS) {
+            await new Promise((r) => setTimeout(r, attempt * 1000));
+          }
         }
+        if (!confirmed) {
+          log.error(`❌ Could not confirm upload after ${ATTEMPTS} attempts — webhook may still activate it, but the capture might not show up yet.`);
+        }
+      } else {
+        log.error(`❌ No captureId returned for uploaded file — cannot confirm activation.`);
       }
     }
 
-    return { success: true, files: response };
+    return { success: true, confirmed, files: response };
   } catch (err) {
     log.error(`UploadThing Direct Failed:`, err);
     let errMsg = err.message || "Network error during upload";

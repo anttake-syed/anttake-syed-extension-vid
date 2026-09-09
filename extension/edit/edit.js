@@ -707,14 +707,16 @@ async function processSave(mode) {
         // Pass mock token 'local-mode' if no user is signed in but we are on localhost
         const tokenToUse = hasValidUser ? user.jwt : 'local-mode';
 
+        let cloudUploadConfirmed = true; // only meaningful when mode === 'cloud'
         if (mode === 'cloud') {
           // ── Cloud upload: XHR with real progress bar ──────────────────────────
           showUploadProgress();
           try {
-            await uploadWithProgress(blob, type, tokenToUse,
+            const uploadResult = await uploadWithProgress(blob, type, tokenToUse,
               { resolution, format, customFilename: customName, hasAudio },
               (pct) => updateUploadProgress(pct)
             );
+            cloudUploadConfirmed = uploadResult?.confirmed === true;
           } finally {
             hideUploadProgress();
           }
@@ -732,6 +734,9 @@ async function processSave(mode) {
         if (mode === 'localhost') {
            msgTitle = `${label} saved`;
            msgText = 'Stored in your self-hosted library.';
+        } else if (mode === 'cloud' && !cloudUploadConfirmed) {
+           msgTitle = `${label} uploaded`;
+           msgText = 'Still confirming with the server — it will appear in My Library shortly. Keeping your local copy until then.';
         } else {
            msgTitle = mode === 'cloud' ? `${label} synced` : `${label} saved to Drive`;
            msgText  = mode === 'cloud' ? 'Saved to AntCapture web app.' : 'Uploaded directly to Google Drive.';
@@ -739,8 +744,14 @@ async function processSave(mode) {
 
         notify(mode === 'localhost' ? 'capture-local' : (mode === 'cloud' ? 'capture-cloud' : 'capture-drive'), msgTitle, msgText);
         isSaved = true;
-        await deleteCurrentItem();
-        await showSuccessAndClose(mode === 'localhost' ? 'Saved to Self-Hosted!' : (mode === 'cloud' ? 'Saved to Cloud!' : 'Uploaded to Google Drive!'));
+        // Only delete the local backup once the server has actually confirmed the
+        // capture is active — the file landing on the CDN is not enough by itself
+        // (see uploadWithProgress's `confirmed` flag). Otherwise a webhook/network
+        // hiccup silently loses the only copy of the capture.
+        if (mode !== 'cloud' || cloudUploadConfirmed) {
+          await deleteCurrentItem();
+        }
+        await showSuccessAndClose(mode === 'localhost' ? 'Saved to Self-Hosted!' : (mode === 'cloud' ? (cloudUploadConfirmed ? 'Saved to Cloud!' : 'Uploaded — confirming...') : 'Uploaded to Google Drive!'));
 
       } else {
         if (!hasValidUser && !isLocalHost) {

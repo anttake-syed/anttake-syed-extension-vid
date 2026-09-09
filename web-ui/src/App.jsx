@@ -377,6 +377,7 @@ export default function App() {
       <Sidebar
         activeNav={activeNav}
         isAuthenticated={isAuthenticated}
+        user={user}
         onNavClick={(nav) => { setActiveNav(nav); setActiveBoard(null); setActiveMedia(null); setMobileMenuOpen(false); }}
         onSignIn={() => { setShowModal(true); setMobileMenuOpen(false); }}
         onLogout={() => { handleLogout(); setMobileMenuOpen(false); }}
@@ -604,7 +605,7 @@ REPORTING ISSUES
 If you discover a security vulnerability, please report it responsibly through the Feedback page rather than publicly disclosing it.`}
           />
 
-        ) : activeNav === 'Diagnostics' && isAuthenticated ? (
+        ) : activeNav === 'Diagnostics' && isAuthenticated && user?.role === 'admin' ? (
           <AdminDiagnostics user={user} />
         ) : activeNav === 'My Library' ? (
           <Library

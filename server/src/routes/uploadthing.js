@@ -136,6 +136,12 @@ const uploadRouter = {
           captureId: metadata.captureId,
           error: err
         });
+
+        // Still return captureId even though markAssetReady failed here — the
+        // file bytes DID land on the CDN, so the client's confirm-upload
+        // fallback needs this id to retry activation itself. Without it, the
+        // client has no way to find this capture and it stays stuck/invisible.
+        return { captureId: metadata.captureId };
       }
     }),
 };

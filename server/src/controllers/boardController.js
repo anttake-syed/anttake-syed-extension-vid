@@ -64,6 +64,15 @@ exports.getBoard = async (req, res) => {
       return res.status(404).json({ error: 'Board not found' });
     }
 
+    // Sorted here (not via a Prisma `orderBy` on the nested include) because
+    // the D1 client's include resolver doesn't support orderBy on relations
+    // — only findMany's top-level orderBy — so an orderBy here would work
+    // locally but silently no-op in production. Most-recently-updated first,
+    // so a stale duplicate board_state item never shadows the real one.
+    if (Array.isArray(board.items)) {
+      board.items.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+    }
+
     res.json({ board });
   } catch (err) {
     logger.error('board', 'get-board-failed', { requestId: req.requestId, userId: req.user.id, boardId: req.params.id, error: err });

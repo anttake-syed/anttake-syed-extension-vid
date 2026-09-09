@@ -356,12 +356,11 @@ export default function Dashboard({ isAuthenticated, isLocalMode, stats, capture
             icon={isLocalMode ? 'hard_drive' : <AntCaptureCloudLogoSVG size={20} />} 
           />
           {driveStorageState && (
-            <StorageUsageBar 
-              storageState={driveStorageState} 
-              icon={<DriveLogoSVG size={20} />} 
+            <StorageUsageBar
+              storageState={driveStorageState}
+              icon={<DriveLogoSVG size={20} />}
               extraInfo={
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#94a3b8', fontSize: '12px' }}>
-                  <DriveLogoSVG size={14} />
                   <span>{driveStorageState.usedFormatted} / {driveStorageState.totalFormatted} used on Google Drive</span>
                 </div>
               }

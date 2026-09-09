@@ -1,7 +1,7 @@
 // Icon map — proper icons per nav item
 const MAIN_NAV = ['Dashboard', 'My Library', 'Whiteboards', 'Settings', 'Feedback'];
 const SECONDARY_NAV = ['Pricing', 'Privacy', 'Terms', 'Refund Policy', 'Security', 'Documentation'];
-const ADMIN_NAV = ['Diagnostics'];  // Only visible when authenticated; access is verified server-side
+const ADMIN_NAV = ['Diagnostics'];  // Only visible to admins; access is also enforced server-side
 
 const NAV_ICONS = {
   Dashboard:       'dashboard',
@@ -21,7 +21,9 @@ const NAV_ICONS = {
 // Items that don't require login
 const PUBLIC_ITEMS = ['Dashboard', 'Pricing', 'Privacy', 'Terms', 'Refund Policy', 'Security', 'Documentation'];
 
-export default function Sidebar({ activeNav, isAuthenticated, onNavClick, onSignIn, onLogout, mobileMenuOpen }) {
+export default function Sidebar({ activeNav, isAuthenticated, user, onNavClick, onSignIn, onLogout, mobileMenuOpen }) {
+  const isAdmin = user?.role === 'admin';
+
   const renderNavItem = (item, secondary = false) => (
     <li
       key={item}
@@ -93,8 +95,8 @@ export default function Sidebar({ activeNav, isAuthenticated, onNavClick, onSign
           {SECONDARY_NAV.map((item) => renderNavItem(item, true))}
         </ul>
 
-        {/* ── Admin navigation (only shown when authenticated) ── */}
-        {isAuthenticated && (
+        {/* ── Admin navigation (only shown to admins) ── */}
+        {isAuthenticated && isAdmin && (
           <>
             <div style={{
               margin: '10px 16px 6px',

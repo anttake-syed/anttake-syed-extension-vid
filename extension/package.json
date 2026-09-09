@@ -5,7 +5,8 @@
   "main": "background.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "zip": "rm -f antcapture-extension.zip && zip -r antcapture-extension.zip . -x 'node_modules/*' -x 'package.json' -x 'package-lock.json' -x 'eslint.config.js' -x '*.zip' -x '.DS_Store' -x '**/.DS_Store'"
   },
   "keywords": [],
   "author": "",

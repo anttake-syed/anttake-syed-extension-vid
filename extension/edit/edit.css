@@ -19,18 +19,23 @@ body {
 }
 
 /* Sidebar Layout */
-.sidebar { 
-  width: 360px; 
-  min-width: 360px; 
-  background: #0f172a; 
-  border-left: 1px solid rgba(255, 255, 255, 0.06); 
-  padding: 24px; 
-  display: flex; 
-  flex-direction: column; 
-  gap: 20px; 
-  box-shadow: -10px 0 30px rgba(0, 0, 0, 0.5); 
-  z-index: 10; 
+.sidebar {
+  width: 360px;
+  min-width: 360px;
+  background: #0f172a;
+  border-left: 1px solid rgba(255, 255, 255, 0.06);
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  box-shadow: -10px 0 30px rgba(0, 0, 0, 0.5);
+  z-index: 10;
   height: 100vh;
+  /* Without this, content that doesn't fit (e.g. the auth panel revealed by
+     a "Drive only" save click) is silently clipped by body's overflow:hidden
+     with no way to reach it — it needs to scroll into view instead. */
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .sidebar-hero {
@@ -286,6 +291,40 @@ label {
 /* Spinner Animation */
 .spinning {
   animation: spin 1.5s linear infinite;
+}
+
+/* ── Responsive layout ──────────────────────────────────────────────────────
+   Below this, the fixed 360px sidebar next to the preview no longer fits
+   comfortably side-by-side. Stack them instead of letting either clip:
+   the preview keeps a reasonable minimum height, and the sidebar becomes
+   its own scroll region sized to whatever's left, so every control
+   (including the auth panel) stays reachable regardless of window size. */
+@media (max-width: 760px), (max-height: 560px) {
+  body {
+    flex-direction: column-reverse; /* preview stays visually first, sidebar below it */
+  }
+
+  .sidebar {
+    width: 100%;
+    min-width: 0;
+    height: auto;
+    max-height: 60vh;
+    flex-shrink: 0;
+    box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.5);
+    border-left: none;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  .main-content {
+    height: auto;
+    flex: 1;
+    min-height: 160px;
+    padding: 16px;
+  }
+
+  .media-container {
+    min-height: 160px;
+  }
 }
 
 @keyframes spin {

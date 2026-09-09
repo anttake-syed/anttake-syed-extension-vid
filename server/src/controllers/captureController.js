@@ -34,7 +34,9 @@ exports.getCaptures = async (req, res) => {
       include: { storageObject: true }
     });
 
-    const shaped = captures.map(c => {
+    const validCaptures = captures.filter(c => c.storageObject && c.storageObject.status === 'ready');
+
+    const shaped = validCaptures.map(c => {
       const mime = (c.mimeType || '').split(';')[0].trim();
       let ext = c.type === 'video' ? '.webm' : '.png';
       if (mime.includes('mp4'))  ext = '.mp4';

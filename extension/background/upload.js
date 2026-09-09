@@ -19,7 +19,14 @@ const log = Logger.getLogger('Background: Upload');
  * In production: cloud calls go to the SaaS backend.
  * In local testing: all calls go to localhost:3001.
  *
- * NOTE: When testing Cloud Mode locally, set all providers to DEV_SERVER_URL temporarily.
+ * NOTE: When testing Cloud Mode locally, set all providers to DEV_SERVER_URL
+ * temporarily. As of manifest.json's Chrome Web Store cleanup, localhost is
+ * no longer in host_permissions/externally_connectable (it can't ship in a
+ * store submission) — for local testing, add
+ *   "http://localhost:3001/*", "http://localhost:5173/*"
+ * back to host_permissions, and "http://localhost:5173/*" back to
+ * externally_connectable.matches, in your local manifest.json only. Do not
+ * commit that change.
  */
 export function getServerUrl(provider) {
   if (provider === 'localhost' || provider === 'local') {

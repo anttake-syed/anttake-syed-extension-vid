@@ -266,6 +266,16 @@ async function checkLemonSqueezy() {
     throw new Error(`Missing billing env vars: ${missing.join(', ')}`);
   }
 
+  // WEB_UI_URL isn't LemonSqueezy-specific, but checkout's redirect_url is
+  // built from it — a missing/malformed value produces a real checkout
+  // failure (LemonSqueezy rejects it as an invalid URL) with no other
+  // warning sign until a user actually hits "Subscribe".
+  try {
+    new URL(process.env.WEB_UI_URL);
+  } catch {
+    throw new Error(`WEB_UI_URL is not a valid absolute URL: "${process.env.WEB_UI_URL}" — checkout's redirect_url will be rejected by LemonSqueezy`);
+  }
+
   // Live ping — fetch store info from LemonSqueezy API
   const response = await fetch(`https://api.lemonsqueezy.com/v1/stores/${process.env.LS_STORE_ID}`, {
     headers: {

@@ -198,6 +198,9 @@ export default function WhiteboardEditor({ board, onClose, user }) {
   const [elements, setElements]           = useState([]);
   const [selectedId, setSelectedId]       = useState(null);
   const [isSaved, setIsSaved]             = useState(false);
+  const [isSaving, setIsSaving]           = useState(false);
+  const [saveError, setSaveError]         = useState(null);
+  const [loadError, setLoadError]         = useState(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [showExitModal, setShowExitModal] = useState(false);
   const [zoom, setZoom]                   = useState(1);
@@ -212,6 +215,8 @@ export default function WhiteboardEditor({ board, onClose, user }) {
   const nameInputRef   = useRef(null);
   const boardThumbItemId = useRef(null);
   const needsCommitRef = useRef(false);
+  const isSavingRef    = useRef(false);
+  const nameCommittedRef = useRef(false);
   
   const historyRef = useRef([[]]);
   const historyStepRef = useRef(0);
@@ -465,6 +470,7 @@ export default function WhiteboardEditor({ board, onClose, user }) {
         }
       } catch (err) {
         console.error('Failed to load board state', err);
+        setLoadError('Could not load this whiteboard\'s saved content. Your last save is still on the server — try refreshing.');
       }
     }
     if (board?.id && user?.jwt) loadBoardState();
@@ -644,10 +650,14 @@ export default function WhiteboardEditor({ board, onClose, user }) {
   };
 
   const onMouseUp = (e) => {
-    if (dragRef.current) { 
-      dragRef.current = null; 
+    if (dragRef.current) {
+      dragRef.current = null;
       needsCommitRef.current = true;
-      setElements(prev => prev);
+      // Must be a new array reference — setElements(prev => prev) is a no-op
+      // React bails out of, so the [elements] effect that flushes
+      // needsCommitRef (and marks hasUnsavedChanges) never fired, silently
+      // losing drag/resize edits if the user didn't separately click Save.
+      setElements(prev => [...prev]);
     }
     if (!drawing.current) return;
     drawing.current = false;
@@ -747,11 +757,17 @@ export default function WhiteboardEditor({ board, onClose, user }) {
   };
 
   const handleNameCommit = () => {
+    // Enter calls this, then blurring the input as it unmounts (setEditingName
+    // below) can fire a native blur that calls this a second time — guard so
+    // the rename PATCH only fires once per edit.
+    if (nameCommittedRef.current) return;
+    nameCommittedRef.current = true;
+
     const trimmed = nameDraft.trim() || generateDefaultName();
     setBoardName(trimmed);
     setEditingName(false);
     setIsSaved(false);
-    
+
     // Save new name to server
     fetch(`${SERVER_URL}/boards/${board.id}`, {
       method: 'PATCH',
@@ -788,9 +804,15 @@ export default function WhiteboardEditor({ board, onClose, user }) {
   };
 
   const handleSave = async () => {
-    setIsSaved(true);
+    // Guard against a second Save firing while the first is still in flight —
+    // both would otherwise see the same stale boardStateItemId and POST two
+    // separate board_state items instead of the second one PATCHing the first.
+    if (isSavingRef.current) return;
+    isSavingRef.current = true;
+    setIsSaving(true);
+    setSaveError(null);
+
     const thumbnail = generateThumbnail();
-    console.log('[WhiteboardEditor] Generated thumbnail:', thumbnail ? `${thumbnail.substring(0, 40)}... (${thumbnail.length} bytes)` : 'NULL');
 
     const elementsToSave = elements.map(el => {
       const { img, ...rest } = (el.type === 'image' ? el : el);
@@ -801,24 +823,25 @@ export default function WhiteboardEditor({ board, onClose, user }) {
       // ── 1. Save elements (board_state) ──
       const stateContent = JSON.stringify({ elements: elementsToSave });
       if (boardStateItemId) {
-        await fetch(`${SERVER_URL}/boards/${board.id}/items/${boardStateItemId}`, {
+        const res = await fetch(`${SERVER_URL}/boards/${board.id}/items/${boardStateItemId}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${user?.jwt}` },
           body: JSON.stringify({ content: stateContent }),
         });
+        if (!res.ok) throw new Error(`Failed to save (HTTP ${res.status})`);
       } else {
         const res = await fetch(`${SERVER_URL}/boards/${board.id}/items`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${user?.jwt}` },
           body: JSON.stringify({ type: 'board_state', content: stateContent }),
         });
+        if (!res.ok) throw new Error(`Failed to save (HTTP ${res.status})`);
         const d = await res.json();
         if (d.item) setBoardStateItemId(d.item.id);
       }
 
       // ── 2. Save thumbnail on the board directly ──
       if (thumbnail) {
-        console.log(`[WhiteboardEditor] Sending PATCH to /boards/${board.id} with thumbnail`);
         const resThumb = await fetch(`${SERVER_URL}/boards/${board.id}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${user?.jwt}` },
@@ -828,11 +851,21 @@ export default function WhiteboardEditor({ board, onClose, user }) {
           console.error('[WhiteboardEditor] Failed to save thumbnail on server:', await resThumb.text());
         }
       }
+
+      // Only clear the unsaved-changes flag and show "Saved!" once the save
+      // actually succeeded — previously both happened unconditionally even
+      // on failure, so a failed save silently looked identical to success
+      // and the user could close the tab believing their work was safe.
+      setHasUnsavedChanges(false);
+      setIsSaved(true);
+      setTimeout(() => setIsSaved(false), 2000);
     } catch (err) {
       console.error('Save failed', err);
+      setSaveError('Save failed — your changes are still here, but not on the server yet. Try again.');
+    } finally {
+      isSavingRef.current = false;
+      setIsSaving(false);
     }
-    setHasUnsavedChanges(false);
-    setTimeout(() => setIsSaved(false), 2000);
   };
   
   const handleClose = async () => {
@@ -870,13 +903,18 @@ export default function WhiteboardEditor({ board, onClose, user }) {
               value={nameDraft}
               onChange={e => setNameDraft(e.target.value)}
               onBlur={handleNameCommit}
-              onKeyDown={e => { if (e.key === 'Enter') handleNameCommit(); if (e.key === 'Escape') setEditingName(false); }}
+              onKeyDown={e => {
+                if (e.key === 'Enter') handleNameCommit();
+                // Suppress the native blur-on-unmount that follows, so Escape
+                // actually cancels instead of still committing the draft name.
+                if (e.key === 'Escape') { nameCommittedRef.current = true; setEditingName(false); }
+              }}
               autoFocus
               style={{ background:'#1e293b', border:'1px solid #6366f1', borderRadius:'8px', color:'#f8fafc', padding:'5px 10px', fontSize:'14px', fontWeight:600, fontFamily:"'Outfit', sans-serif", outline:'none', minWidth:'200px' }}
             />
           ) : (
             <div style={{ display:'flex', alignItems:'center', gap:'6px', cursor:'pointer', group:true }}
-              onClick={() => { setNameDraft(boardName); setEditingName(true); }}>
+              onClick={() => { nameCommittedRef.current = false; setNameDraft(boardName); setEditingName(true); }}>
               <span style={{ fontSize:'14px', fontWeight:700, color:'#f8fafc' }}>{boardName}</span>
               <span className="material-symbols-rounded" style={{ fontSize:'14px', color:'#475569' }}>edit</span>
             </div>
@@ -902,12 +940,19 @@ export default function WhiteboardEditor({ board, onClose, user }) {
           <button onClick={handleClear} title="Clear all" style={{ background:'#1e293b', border:'1px solid #334155', color:'#94a3b8', padding:'6px 10px', borderRadius:'8px', cursor:'pointer', display:'flex', alignItems:'center', gap:'4px', fontSize:'13px', fontFamily:"'Outfit', sans-serif" }}>
             <span className="material-symbols-rounded" style={{ fontSize:'16px' }}>delete_sweep</span>
           </button>
-          <button onClick={handleSave} style={{ background: isSaved ? 'rgba(52,211,153,0.15)' : 'linear-gradient(135deg,#6366f1,#8b5cf6)', border:'none', color: isSaved ? '#34d399' : 'white', padding:'6px 16px', borderRadius:'8px', cursor:'pointer', display:'flex', alignItems:'center', gap:'6px', fontSize:'13px', fontWeight:600, fontFamily:"'Outfit', sans-serif", transition:'all 0.2s' }}>
-            <span className="material-symbols-rounded" style={{ fontSize:'16px' }}>{isSaved ? 'check_circle' : 'save'}</span>
-            {isSaved ? 'Saved!' : 'Save'}
+          <button onClick={handleSave} disabled={isSaving} style={{ background: saveError ? 'rgba(239,68,68,0.15)' : isSaved ? 'rgba(52,211,153,0.15)' : 'linear-gradient(135deg,#6366f1,#8b5cf6)', border:'none', color: saveError ? '#f87171' : isSaved ? '#34d399' : 'white', padding:'6px 16px', borderRadius:'8px', cursor: isSaving ? 'default' : 'pointer', opacity: isSaving ? 0.7 : 1, display:'flex', alignItems:'center', gap:'6px', fontSize:'13px', fontWeight:600, fontFamily:"'Outfit', sans-serif", transition:'all 0.2s' }}>
+            <span className="material-symbols-rounded" style={{ fontSize:'16px' }}>{isSaving ? 'progress_activity' : saveError ? 'error' : isSaved ? 'check_circle' : 'save'}</span>
+            {isSaving ? 'Saving…' : saveError ? 'Save failed' : isSaved ? 'Saved!' : 'Save'}
           </button>
         </div>
       </div>
+
+      {(loadError || saveError) && (
+        <div style={{ background:'rgba(239,68,68,0.1)', borderBottom:'1px solid rgba(239,68,68,0.3)', color:'#f87171', fontSize:'12px', padding:'8px 20px', display:'flex', alignItems:'center', gap:'8px' }}>
+          <span className="material-symbols-rounded" style={{ fontSize:'16px' }}>warning</span>
+          {loadError || saveError}
+        </div>
+      )}
 
       {/* ── Content Row ── */}
       <div style={{ flex:1, display:'flex', overflow:'hidden', position:'relative' }}>

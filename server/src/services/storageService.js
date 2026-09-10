@@ -5,6 +5,7 @@ const UploadThingProvider = require('../providers/UploadThingProvider');
 const GoogleDriveProvider = require('../providers/GoogleDriveProvider');
 const EntitlementService = require('./entitlementService');
 const prisma = require('../db/index');
+const logger = require('../utils/logger');
 
 class StorageService {
   _getProviderInstance(providerName) {
@@ -48,7 +49,7 @@ class StorageService {
         targetProvider
       };
     } catch (err) {
-      console.error(`StorageService Intent Error [${targetProvider}]:`, err);
+      logger.error('storage', 'create-upload-intent-failed', { provider: targetProvider, error: err });
       return { success: false, error: 'intent_failed', message: err.message };
     }
   }
@@ -98,7 +99,11 @@ class StorageService {
         accessUrl: await providerInstance.getAccessUrl(uploadResult.providerObjectId, { userId: user.id, ...options })
       };
     } catch (err) {
-      console.error(`StorageService Error [${targetProvider}]:`, err);
+      // console.error alone never reached the admin diagnostics "Recent
+      // Errors" view (it only reads from the logger's error ring buffer) —
+      // an admin checking there for exactly this class of failure would
+      // have seen nothing. logger.error feeds both stdout and that buffer.
+      logger.error('storage', 'route-upload-failed', { provider: targetProvider, captureId, error: err });
       return { success: false, error: 'upload_failed', message: err.message };
     }
   }

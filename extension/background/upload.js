@@ -124,7 +124,11 @@ export async function uploadToServer(blob, type, destination, jwt, resolution = 
       throw new Error('Your cloud storage is full. Please upgrade your plan.');
     }
 
-    const errorMsg = data.detail || data.error || data.message || `Upload failed: ${res.status}`;
+    // Prefer the specific human-readable reason over a generic machine code —
+    // storageService.js's catch returns { error: 'upload_failed', message: <real reason> },
+    // and `data.error` used to win here, so the real cause (e.g. an expired
+    // Google Drive session) was always masked by the useless "upload_failed" label.
+    const errorMsg = data.detail || data.message || data.error || `Upload failed: ${res.status}`;
     log.error(`Upload failed: ${errorMsg}`);
     throw new Error(errorMsg);
   }

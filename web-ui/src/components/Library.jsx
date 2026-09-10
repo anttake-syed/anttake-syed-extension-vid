@@ -142,7 +142,7 @@ function MediaCard({ item, onOpen, viewMode }) {
             </div>
           )}
           {item.storageLocation === 'cloud' && (
-            <div style={{ background: 'rgba(0,0,0,0.6)', borderRadius: '6px', padding: '4px', display: 'flex', alignItems: 'center' }} title="Saved in Cloud (R2)">
+            <div style={{ background: 'rgba(0,0,0,0.6)', borderRadius: '6px', padding: '4px', display: 'flex', alignItems: 'center' }} title="Saved in AntCapture Cloud">
               <AntCaptureCloudLogoSVG size={14} />
             </div>
           )}

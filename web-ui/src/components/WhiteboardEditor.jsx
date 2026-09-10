@@ -94,10 +94,10 @@ function LibraryPicker({ user, onSelect, onClose, initialTab }) {
           <div style={{ display:'flex', gap:'6px' }}>
             <button style={TAB_STYLE(tab === 'all')} onClick={() => setTab('all')}>All ({captures.length})</button>
             <button style={TAB_STYLE(tab === 'images')} onClick={() => setTab('images')}>
-              <span style={{ marginRight:'6px' }}>🖼️</span>Images ({imgCount})
+              <span className="material-symbols-rounded" style={{ fontSize:'15px', verticalAlign:'middle', marginRight:'6px' }}>image</span>Images ({imgCount})
             </button>
             <button style={TAB_STYLE(tab === 'videos')} onClick={() => setTab('videos')}>
-              <span style={{ marginRight:'6px' }}>🎬</span>Videos ({vidCount})
+              <span className="material-symbols-rounded" style={{ fontSize:'15px', verticalAlign:'middle', marginRight:'6px' }}>movie</span>Videos ({vidCount})
             </button>
           </div>
           {/* Search */}
@@ -203,6 +203,9 @@ export default function WhiteboardEditor({ board, onClose, user }) {
   const [zoom, setZoom]                   = useState(1);
   const [boardStateItemId, setBoardStateItemId] = useState(null);
   const [contextMenu, setContextMenu]     = useState(null); // {x,y,elIdx}
+  const [textPrompt, setTextPrompt]       = useState(null); // {x,y} — replaces native prompt()
+  const [textPromptValue, setTextPromptValue] = useState('');
+  const [mediaLoadError, setMediaLoadError] = useState(null); // replaces native alert()
 
   const canvasRef      = useRef(null);
   const drawing        = useRef(false);
@@ -361,12 +364,15 @@ export default function WhiteboardEditor({ board, onClose, user }) {
       ctx.restore();
     }
 
-    // live shape preview (rect/circle/arrow)
+    // Live shape preview (rect/circle/arrow) — drawn as a guide outline in
+    // the app's brand indigo rather than the user's active draw color, so it
+    // reads as "this is a preview" instead of looking like already-drawn
+    // (and, with a dark draw color, jarringly black) content.
     if (drawing.current && liveShape.current) {
       const { startPt: s, endPt: ep, tool: lt } = liveShape.current;
       ctx.save();
-      ctx.strokeStyle = color;
-      ctx.lineWidth   = strokeSize;
+      ctx.strokeStyle = '#818cf8';
+      ctx.lineWidth   = Math.max(2, strokeSize * 0.75);
       ctx.lineCap     = 'round';
       ctx.setLineDash([6, 4]);
       if (lt === 'rect') {
@@ -386,7 +392,7 @@ export default function WhiteboardEditor({ board, onClose, user }) {
         ctx.lineTo(ep.x - hw * Math.cos(angle - Math.PI/6), ep.y - hw * Math.sin(angle - Math.PI/6));
         ctx.lineTo(ep.x - hw * Math.cos(angle + Math.PI/6), ep.y - hw * Math.sin(angle + Math.PI/6));
         ctx.closePath();
-        ctx.fillStyle = color;
+        ctx.fillStyle = '#818cf8';
         ctx.fill();
       }
       ctx.restore();
@@ -599,11 +605,8 @@ export default function WhiteboardEditor({ board, onClose, user }) {
     }
 
     if (tool === 'text') {
-      const text = prompt('Enter text:');
-      if (text) {
-        const next = [...elements, { type:'text', text, x: pos.x, y: pos.y, color, fontSize: 20 + strokeSize * 2 }];
-        setElements(next); commitToHistory(next);
-      }
+      setTextPromptValue('');
+      setTextPrompt({ x: pos.x, y: pos.y });
       return;
     }
 
@@ -698,7 +701,7 @@ export default function WhiteboardEditor({ board, onClose, user }) {
         commitToHistory(next);
       };
       
-      video.onerror = () => alert("Could not load video for preview.");
+      video.onerror = () => setMediaLoadError('Could not load video for preview.');
       video.load();
     } else {
       const img = new Image();
@@ -710,7 +713,7 @@ export default function WhiteboardEditor({ board, onClose, user }) {
         setElements(next);
         commitToHistory(next);
       };
-      img.onerror = () => alert("Could not load image.");
+      img.onerror = () => setMediaLoadError('Could not load image.');
       img.src = src;
     }
   };
@@ -738,12 +741,21 @@ export default function WhiteboardEditor({ board, onClose, user }) {
     }
   };
 
-  const handleClear = () => { 
-    if (window.confirm('Clear the whiteboard?')) { 
-      setElements([]); 
-      setSelectedId(null); 
+  const handleClear = () => {
+    if (window.confirm('Clear the whiteboard?')) {
+      setElements([]);
+      setSelectedId(null);
       commitToHistory([]);
-    } 
+    }
+  };
+
+  const commitTextPrompt = () => {
+    const text = textPromptValue.trim();
+    if (text && textPrompt) {
+      const next = [...elements, { type:'text', text, x: textPrompt.x, y: textPrompt.y, color, fontSize: 20 + strokeSize * 2 }];
+      setElements(next); commitToHistory(next);
+    }
+    setTextPrompt(null);
   };
 
   const handleNameCommit = () => {
@@ -996,18 +1008,22 @@ export default function WhiteboardEditor({ board, onClose, user }) {
 
       {/* ── Status / Tip Bar ── */}
       <div style={{ height:'32px', background:'#0a0f1e', borderTop:'1px solid #1e293b', display:'flex', alignItems:'center', justifyContent:'space-between', padding:'0 20px', flexShrink:0 }}>
-        <div style={{ display:'flex', alignItems:'center', gap:'20px' }}>
+        <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
           <span style={{ fontSize:'11px', color:'#334155', fontWeight:600, textTransform:'uppercase', letterSpacing:'0.05em' }}>AntCapture Whiteboard</span>
           <span style={{ fontSize:'11px', color:'#334155' }}>·</span>
+          <span className="material-symbols-rounded" style={{ fontSize:'13px', color:'#475569' }}>
+            {TOOLS.find(t => t.id === tool)?.icon || 'near_me'}
+          </span>
           <span style={{ fontSize:'11px', color:'#475569' }}>
-            {tool === 'pen'    && '✏️  Click and drag to draw freely'}
-            {tool === 'eraser' && '🧹  Drag over strokes to erase'}
-            {tool === 'text'   && '📝  Click anywhere to add text'}
-            {tool === 'rect'   && '⬜  Drag to draw a rectangle'}
-            {tool === 'circle' && '⭕  Drag to draw an ellipse'}
-            {tool === 'arrow'  && '➡️  Drag to draw an arrow'}
-            {tool === 'select' && '🖱️  Click an image to select and drag it'}
-            {tool === 'image'  && '🖼️  Pick an image from your library'}
+            {tool === 'pen'    && 'Click and drag to draw freely'}
+            {tool === 'eraser' && 'Drag over strokes to erase'}
+            {tool === 'text'   && 'Click anywhere to add text'}
+            {tool === 'rect'   && 'Drag to draw a rectangle'}
+            {tool === 'circle' && 'Drag to draw an ellipse'}
+            {tool === 'arrow'  && 'Drag to draw an arrow'}
+            {tool === 'select' && 'Click an image to select and drag it'}
+            {tool === 'image'  && 'Pick an image from your library'}
+            {tool === 'video'  && 'Pick a video from your library'}
           </span>
         </div>
         <div style={{ display:'flex', alignItems:'center', gap:'16px' }}>
@@ -1072,6 +1088,47 @@ export default function WhiteboardEditor({ board, onClose, user }) {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Add Text — replaces native prompt() */}
+      {textPrompt && (
+        <div style={{ position:'fixed', inset:0, zIndex:4000, background:'rgba(2,6,23,0.85)', backdropFilter:'blur(8px)', display:'flex', alignItems:'center', justifyContent:'center', padding:'24px' }}
+          onClick={() => setTextPrompt(null)}>
+          <div style={{ background:'#0f172a', border:'1px solid #334155', borderRadius:'20px', width:'380px', maxWidth:'100%', padding:'28px', boxShadow:'0 24px 64px rgba(0,0,0,0.6)' }}
+            onClick={e => e.stopPropagation()}>
+            <h3 style={{ margin:'0 0 16px', fontSize:'16px', fontWeight:700, color:'#f8fafc' }}>Add Text</h3>
+            <input
+              autoFocus
+              value={textPromptValue}
+              onChange={e => setTextPromptValue(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter') commitTextPrompt();
+                if (e.key === 'Escape') setTextPrompt(null);
+              }}
+              placeholder="Type something…"
+              style={{ width:'100%', background:'#1e293b', border:'1px solid #6366f1', borderRadius:'10px', color:'#f8fafc', fontSize:'14px', padding:'10px 14px', outline:'none', fontFamily:"'Outfit', sans-serif", boxSizing:'border-box', marginBottom:'20px' }}
+            />
+            <div style={{ display:'flex', gap:'10px', justifyContent:'flex-end' }}>
+              <button onClick={() => setTextPrompt(null)} style={{ background:'transparent', border:'none', color:'#94a3b8', padding:'9px 14px', borderRadius:'10px', fontSize:'13px', fontWeight:600, cursor:'pointer' }}>
+                Cancel
+              </button>
+              <button onClick={commitTextPrompt} style={{ background:'linear-gradient(135deg,#6366f1,#8b5cf6)', border:'none', color:'white', padding:'9px 18px', borderRadius:'10px', fontSize:'13px', fontWeight:600, cursor:'pointer' }}>
+                Add
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Media load failure — replaces native alert() */}
+      {mediaLoadError && (
+        <div style={{ position:'fixed', bottom:'24px', right:'24px', zIndex:4500, background:'#1e1015', border:'1px solid rgba(239,68,68,0.3)', borderRadius:'14px', padding:'14px 18px', boxShadow:'0 16px 40px rgba(0,0,0,0.5)', display:'flex', alignItems:'center', gap:'12px', maxWidth:'360px' }}>
+          <span className="material-symbols-rounded" style={{ fontSize:'20px', color:'#f87171', flexShrink:0 }}>error</span>
+          <span style={{ fontSize:'13px', color:'#fca5a5', flex:1 }}>{mediaLoadError}</span>
+          <button onClick={() => setMediaLoadError(null)} style={{ background:'none', border:'none', color:'#94a3b8', cursor:'pointer', display:'flex', flexShrink:0 }}>
+            <span className="material-symbols-rounded" style={{ fontSize:'18px' }}>close</span>
+          </button>
         </div>
       )}
     </div>

@@ -7,17 +7,17 @@ const manualBtn = document.getElementById('manual-btn');
 
 function setState(state, extraMsg = '') {
   if (state === 'ready') {
-    iconEl.innerHTML = '⬇️';
+    iconEl.innerHTML = '<span class="material-symbols-rounded" style="color:#818cf8;">download</span>';
     titleEl.textContent = 'Choose where to save';
     msgEl.textContent = extraMsg || 'The "Save As" dialogue should be open. If it is hidden, click the button below.';
-    manualBtn.style.display = 'inline-block';
+    manualBtn.style.display = 'inline-flex';
   } else if (state === 'done') {
-    iconEl.innerHTML = '✅';
+    iconEl.innerHTML = '<span class="material-symbols-rounded" style="color:#34d399;">check_circle</span>';
     titleEl.textContent = 'Saved to your computer!';
     msgEl.textContent = 'Your file has been saved. This tab will close shortly.';
     manualBtn.style.display = 'none';
   } else if (state === 'error') {
-    iconEl.innerHTML = '❌';
+    iconEl.innerHTML = '<span class="material-symbols-rounded" style="color:#f87171;">error</span>';
     titleEl.textContent = 'Something went wrong';
     msgEl.textContent = extraMsg || 'Could not find the media. Please try again.';
     manualBtn.style.display = 'none';
@@ -63,7 +63,7 @@ async function downloadMedia() {
     chrome.downloads.download({ url: objectUrl, filename, saveAs: true }, (downloadId) => {
       if (!downloadId) {
         setState('error', 'Download could not start. Use the button below.');
-        manualBtn.style.display = 'inline-block';
+        manualBtn.style.display = 'inline-flex';
         return;
       }
 
@@ -81,7 +81,7 @@ async function downloadMedia() {
         } else if (delta.state.current === 'interrupted') {
           chrome.downloads.onChanged.removeListener(monitor);
           setState('error', 'Download was interrupted. Click the button below to try again.');
-          manualBtn.style.display = 'inline-block';
+          manualBtn.style.display = 'inline-flex';
         }
       });
     });

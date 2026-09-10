@@ -492,8 +492,8 @@ async function init() {
         storageBadgeLabel.textContent = 'Self-Hosted Server';
       } else if (mode === 'cloud') {
         storageBadgeIcon.textContent = 'cloud';
-        storageBadgeIcon.style.color = '#38bdf8';
-        storageBadgeLabel.textContent = 'Cloud (R2)';
+        storageBadgeIcon.style.color = '#818cf8';
+        storageBadgeLabel.textContent = 'AntCapture Cloud';
       } else if (mode === 'drive-only') {
         storageBadgeIcon.textContent = 'add_to_drive';
         storageBadgeIcon.style.color = '#4ade80';

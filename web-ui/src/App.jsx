@@ -631,6 +631,7 @@ If you discover a security vulnerability, please report it responsibly through t
             onSignIn={() => setShowModal(true)}
             onOpenMedia={setActiveMedia}
             onGoToLibrary={() => setActiveNav('My Library')}
+            onGoToPricing={() => setActiveNav('Pricing')}
           />
         )}
       </main>

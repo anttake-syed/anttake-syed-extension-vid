@@ -352,7 +352,7 @@ exports.uploadCapture = async (req, res) => {
 
     // ── All other providers (local, google_drive, self_hosted) ─────────────────
     // StorageService.routeUpload handles the provider-specific upload logic.
-    const options = { accessToken: req.user.access_token, refreshToken: req.user.refresh_token };
+    const options = { user: req.user };
     const result = await StorageService.routeUpload(
       req.user, req.file.buffer, filename, mimeType, targetProvider, capture.id, options
     );
@@ -391,10 +391,7 @@ exports.deleteCapture = async (req, res) => {
     }
 
     if (capture.storageObject) {
-      await StorageService.deleteFile(capture.storageObject, {
-        accessToken: req.user.access_token,
-        refreshToken: req.user.refresh_token
-      });
+      await StorageService.deleteFile(capture.storageObject, { user: req.user });
     }
 
     await prisma.capture.delete({ where: { id: capture.id } });
@@ -439,10 +436,7 @@ exports.deleteAll = async (req, res) => {
 
     for (const c of captures) {
       if (c.storageObject) {
-        await StorageService.deleteFile(c.storageObject, {
-          accessToken: req.user.access_token,
-          refreshToken: req.user.refresh_token
-        });
+        await StorageService.deleteFile(c.storageObject, { user: req.user });
       }
     }
 
@@ -484,8 +478,7 @@ exports.getMedia = async (req, res) => {
     } else if (provider === 'google_drive') {
       accessUrl = await GoogleDriveProvider.getAccessUrl(capture.storageObject.providerObjectId, {
         userId: req.user.id,
-        accessToken: req.user.access_token,
-        refreshToken: req.user.refresh_token
+        user: req.user,
       });
     }
 

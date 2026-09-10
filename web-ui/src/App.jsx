@@ -197,18 +197,25 @@ export default function App() {
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
+  // dbStats starts null on every fresh page load/refresh until the first
+  // /stats response comes back — show a skeleton during that window instead
+  // of a "0" that immediately jumps to the real number.
+  const statsLoading = isAuthenticated && dbStats === null;
+
   const stats = [
-    { label: 'Total Captures', value: (dbStats?.total ?? captures.length).toString(), icon: 'folder' },
+    { label: 'Total Captures', value: (dbStats?.total ?? captures.length).toString(), icon: 'folder', loading: statsLoading },
     IS_LOCAL_MODE ? {
       label: 'Local Storage Used',
       value: dbStats?.localBytesFormatted ?? '0 B',
       icon: 'hard_drive',
       sub: dbStats ? `${dbStats.localCount} files local` : null,
+      loading: statsLoading,
     } : {
       label: 'Cloud Storage Used',
       value: dbStats?.cloudBytesFormatted ?? '0 B',
       icon: 'hard_drive',
       sub: dbStats ? `${dbStats.cloudCount} files in cloud` : null,
+      loading: statsLoading,
     },
     // Only show Google Drive stat in cloud mode
     ...(!IS_LOCAL_MODE && dbStats?.storageServer !== 'local' ? [{
@@ -217,9 +224,11 @@ export default function App() {
       icon: 'drive',
       isDrive: true,
       sub: dbStats ? `${dbStats.driveCount} files on Drive` : null,
+      loading: statsLoading,
     }] : []),
     {
       label: 'This Week',
+      loading: statsLoading,
       value: captures.filter((c) => {
         // eslint-disable-next-line react-hooks/purity
         const now = Date.now();

@@ -32,6 +32,22 @@ class LemonSqueezyService {
       throw new Error(`Configured LemonSqueezy variant id is not a valid number: "${variantId}"`);
     }
 
+    // redirectUrl was built by string-interpolating WEB_UI_URL directly with
+    // no validation — an unset/empty/malformed env var (missing http(s)://,
+    // stray whitespace, etc.) silently produces a garbage string like
+    // "undefined/dashboard?billing=success", which LemonSqueezy rejects with
+    // exactly the 422 "product_options.redirect_url field format is invalid"
+    // this whole service was surfacing without explaining why. Validate it's
+    // a real absolute URL first, and normalize away a trailing slash so we
+    // don't produce a double slash when appending the path.
+    let redirectUrl;
+    try {
+      const base = new URL(process.env.WEB_UI_URL);
+      redirectUrl = `${base.origin}${base.pathname.replace(/\/$/, '')}/dashboard?billing=success`;
+    } catch {
+      throw new Error(`WEB_UI_URL is not a valid absolute URL: "${process.env.WEB_UI_URL}"`);
+    }
+
     try {
       const { data, error } = await createCheckout(
         numericStoreId,   // SDK requires numeric store ID
@@ -44,7 +60,7 @@ class LemonSqueezyService {
             },
           },
           productOptions: {
-            redirectUrl:         `${process.env.WEB_UI_URL}/dashboard?billing=success`,
+            redirectUrl,
             receiptButtonText:   'Go to Dashboard',
             receiptThankYouNote: 'Thank you for upgrading AntCapture!',
           }

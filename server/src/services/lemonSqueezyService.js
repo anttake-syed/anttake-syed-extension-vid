@@ -18,10 +18,24 @@ class LemonSqueezyService {
       throw new Error('LemonSqueezy is not configured (missing LS_API_KEY or LS_STORE_ID)');
     }
 
+    // parseInt on a malformed env var (empty, whitespace, non-numeric) silently
+    // yields NaN, which JSON.stringify turns into `null` in the request body —
+    // LemonSqueezy then rejects the whole checkout with an opaque 422
+    // "Unprocessable Entity" that gives no hint it was actually a config
+    // problem. Catch it here with a specific, actionable message instead.
+    const numericStoreId = parseInt(this.storeId, 10);
+    const numericVariantId = parseInt(variantId, 10);
+    if (!Number.isFinite(numericStoreId)) {
+      throw new Error(`LS_STORE_ID is not a valid number: "${this.storeId}"`);
+    }
+    if (!Number.isFinite(numericVariantId)) {
+      throw new Error(`Configured LemonSqueezy variant id is not a valid number: "${variantId}"`);
+    }
+
     try {
       const { data, error } = await createCheckout(
-        parseInt(this.storeId, 10),  // SDK requires numeric store ID
-        parseInt(variantId,  10),    // SDK requires numeric variant ID
+        numericStoreId,   // SDK requires numeric store ID
+        numericVariantId, // SDK requires numeric variant ID
         {
           checkoutData: {
             email: userEmail,
@@ -38,7 +52,13 @@ class LemonSqueezyService {
       );
 
       if (error) {
-        throw new Error(`LemonSqueezy API error: ${error.message}`);
+        // The SDK's error.message is often just the HTTP status text (e.g.
+        // "Unprocessable Entity"), which tells you a request was rejected
+        // but not why. Surface whatever additional detail the SDK attached
+        // (cause / body / JSON:API error list) so it isn't silently dropped.
+        const detail = error.cause ?? error.body ?? error.errors ?? null;
+        const detailStr = detail ? ` — ${JSON.stringify(detail)}` : '';
+        throw new Error(`LemonSqueezy API error: ${error.message}${detailStr}`);
       }
 
       if (!data?.data?.attributes?.url) {

@@ -53,6 +53,7 @@ export default function Pricing({ user, isAuthenticated, onSignIn }) {
   const [showContactForm, setShowContactForm] = useState(false);
   const [contactForm, setContactForm]     = useState({ name: '', email: '', message: '' });
   const [contactSent, setContactSent]     = useState(false);
+  const [checkoutError, setCheckoutError] = useState(null); // { message, adminDetail? }
 
   const yearlyPrice  = 10;
   const monthlyPrice = 12;
@@ -60,6 +61,7 @@ export default function Pricing({ user, isAuthenticated, onSignIn }) {
 
   const handleSubscribe = async () => {
     if (!isAuthenticated) { onSignIn(); return; }
+    setCheckoutError(null);
     try {
       setCheckoutLoading(true);
       const res = await fetch(`${SERVER_URL}/subscription/checkout`, {
@@ -71,14 +73,19 @@ export default function Pricing({ user, isAuthenticated, onSignIn }) {
         body: JSON.stringify({ planName: 'cloud', interval: billing }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Checkout failed');
+      if (!res.ok) {
+        // data.error is always a calm, user-safe message from the server —
+        // data.adminDetail (only ever present for admin accounts) carries
+        // the real underlying error for debugging without exposing it to
+        // everyone else.
+        const err = new Error(data.error || 'Checkout failed');
+        err.adminDetail = data.adminDetail;
+        throw err;
+      }
       window.location.href = data.checkoutUrl;
     } catch (err) {
       setCheckoutLoading(false);
-      const msg = err.message?.includes('not configured')
-        ? 'Billing is not yet configured. Please contact support.'
-        : err.message || 'Something went wrong. Please try again.';
-      alert(msg);
+      setCheckoutError({ message: err.message || 'Something went wrong. Please try again.', adminDetail: err.adminDetail });
     }
   };
 
@@ -213,6 +220,20 @@ export default function Pricing({ user, isAuthenticated, onSignIn }) {
               </>
             )}
           </button>
+
+          {checkoutError && (
+            <div style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)', borderRadius: '10px', padding: '12px 14px', margin: '-16px 0 20px', fontSize: '13px', color: '#fca5a5' }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+                <span className="material-symbols-rounded" style={{ fontSize: '16px', marginTop: '1px', flexShrink: 0 }}>error</span>
+                <span>{checkoutError.message}</span>
+              </div>
+              {checkoutError.adminDetail && (
+                <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid rgba(239,68,68,0.2)', fontFamily: 'monospace', fontSize: '11px', color: '#f87171', wordBreak: 'break-word' }}>
+                  <strong>Admin detail:</strong> {checkoutError.adminDetail}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Features */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>

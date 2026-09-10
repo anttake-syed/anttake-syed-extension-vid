@@ -255,7 +255,7 @@ function MediaThumb({ item, onOpen }) {
   );
 }
 
-export default function Dashboard({ isAuthenticated, isLocalMode, stats, captures, loadingCaptures, dbStats, onSignIn, onOpenMedia, onGoToLibrary }) {
+export default function Dashboard({ isAuthenticated, isLocalMode, stats, captures, loadingCaptures, dbStats, onSignIn, onOpenMedia, onGoToLibrary, onGoToPricing }) {
   const recentCaptures = captures.slice(0, 6);
 
   const greetingHour = new Date().getHours();
@@ -326,19 +326,18 @@ export default function Dashboard({ isAuthenticated, isLocalMode, stats, capture
       {/* ── Storage Health Bar ── */}
       {isAuthenticated && (
         <>
-          <StorageUsageBar 
-            storageState={mainStorageState} 
-            icon={isLocalMode ? 'hard_drive' : <AntCaptureCloudLogoSVG size={20} />} 
+          <StorageUsageBar
+            storageState={mainStorageState}
+            icon={isLocalMode ? 'hard_drive' : <AntCaptureCloudLogoSVG size={20} />}
+            ctaLabel="Upgrade Plan"
+            onCtaClick={onGoToPricing}
           />
           {driveStorageState && (
             <StorageUsageBar
               storageState={driveStorageState}
               icon={<DriveLogoSVG size={20} />}
-              extraInfo={
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#94a3b8', fontSize: '12px' }}>
-                  <span>{driveStorageState.usedFormatted} / {driveStorageState.totalFormatted} used on Google Drive</span>
-                </div>
-              }
+              ctaLabel="Get More Storage"
+              ctaHref="https://one.google.com/storage"
             />
           )}
         </>

@@ -4,12 +4,15 @@ import React from 'react';
  * StorageUsageBar — modular presentation for the bottom dashboard storage health bars.
  * Consumes the standardized state from StorageService.
  */
-export default function StorageUsageBar({ storageState, icon, extraInfo }) {
+export default function StorageUsageBar({ storageState, icon, extraInfo, ctaLabel, onCtaClick, ctaHref }) {
   if (!storageState || storageState.status === 'loading') {
     return null; // hide if no data
   }
 
   const { status, usedFormatted, totalFormatted, percentage, label, planName, hasNoLimit } = storageState;
+  // Only offer the upgrade path once storage is actually full — not at
+  // near_limit, so it doesn't nag before it's actually blocking anything.
+  const showCta = status === 'full' && (onCtaClick || ctaHref);
   
   const isWarning = status === 'near_limit' || status === 'full';
   const color = isWarning ? '#f87171' : '#818cf8';
@@ -50,6 +53,25 @@ export default function StorageUsageBar({ storageState, icon, extraInfo }) {
           </div>
         )}
       </div>
+      {showCta && (
+        <a
+          href={ctaHref}
+          target={ctaHref ? '_blank' : undefined}
+          rel={ctaHref ? 'noopener noreferrer' : undefined}
+          onClick={onCtaClick}
+          style={{
+            flexShrink: 0, background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.3)',
+            color: '#f87171', borderRadius: '8px', padding: '7px 14px', fontSize: '12px', fontWeight: 700,
+            cursor: 'pointer', textDecoration: 'none', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '6px',
+            transition: 'all 0.15s',
+          }}
+          onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.2)'; }}
+          onMouseLeave={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.12)'; }}
+        >
+          {ctaLabel || 'Upgrade'}
+          <span className="material-symbols-rounded" style={{ fontSize: '14px' }}>arrow_forward</span>
+        </a>
+      )}
     </div>
   );
 }

@@ -73,6 +73,7 @@ export class AntCapturePlayer {
     this._seeking = false;              // drag-seek in progress
     this._blobUrl = null;
     this._fixedDuration = null;         // Infinity/NaN workaround result — see _resolveDuration()
+    this._resolvingDuration = false;    // true only during the diagnostic seek in _resolveDuration()
     this._listeners = [];              // [element, type, handler] for cleanup
 
     this._build();
@@ -350,7 +351,9 @@ export class AntCapturePlayer {
   _resolveDuration() {
     const v = this._video;
     if (!v || isFinite(v.duration)) return;
+    this._resolvingDuration = true;
     const onTimeUpdate = () => {
+      this._resolvingDuration = false;
       this._fixedDuration = isFinite(v.duration) ? v.duration
         : (isFinite(v.currentTime) && v.currentTime > 0 ? v.currentTime : null);
       v.currentTime = 0;
@@ -470,7 +473,20 @@ export class AntCapturePlayer {
     });
 
     // ── Error ──
-    this._on(v, 'error', () => this._handleVideoError());
+    this._on(v, 'error', () => {
+      // A seek we issue ourselves (see _resolveDuration) can occasionally
+      // trigger a genuine 'error' event on some Chromium builds for
+      // headerless/short WebM files, even though the video already proved
+      // itself decodable by successfully firing loadedmetadata moments
+      // earlier. That's an artifact of our own diagnostic seek, not a real
+      // playback failure — don't show the user a false "can't decode" error
+      // for a file that actually loaded fine.
+      if (this._resolvingDuration) {
+        this._resolvingDuration = false;
+        return;
+      }
+      this._handleVideoError();
+    });
   }
 
   // ── State machine ─────────────────────────────────────────────────────────

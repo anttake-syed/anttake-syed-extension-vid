@@ -55,6 +55,23 @@ class MediaStreamManager {
     });
     bubble.appendChild(vid);
 
+    // This bubble looks identical to the "cam + screen" overlay preview in
+    // webcamBubble.js — nothing distinguishes "only the camera is being
+    // recorded" from "camera overlaid on a screen recording". A small badge
+    // is enough to make that clear without touching the capture pipeline.
+    const badge = document.createElement('div');
+    badge.textContent = 'Camera Only';
+    Object.assign(badge.style, {
+      position: 'absolute', top: '14px', left: '50%',
+      transform: 'translateX(-50%)',
+      background: 'rgba(0,0,0,0.55)', color: '#fff',
+      fontSize: '9px', fontWeight: '600', letterSpacing: '0.03em',
+      padding: '3px 9px', borderRadius: '999px',
+      fontFamily: 'system-ui, -apple-system, sans-serif',
+      pointerEvents: 'none', whiteSpace: 'nowrap',
+    });
+    bubble.appendChild(badge);
+
     // ── Drag support with bounds clamping ────────────────────────────────────
     let dragging = false, sx, sy, il, it;
 

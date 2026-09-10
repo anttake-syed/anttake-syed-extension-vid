@@ -35,6 +35,7 @@ export default function VideoPlayer({ src, onError }) {
   const [displayTime, setDisplayTime] = useState(0);
 
   const hideTimer = useRef(null);
+  const resolvingDurationRef = useRef(false);
 
   // ── rAF loop: update progress display at ~30fps ────────────────────────────
   const startRaf = useCallback(() => {
@@ -92,11 +93,13 @@ export default function VideoPlayer({ src, onError }) {
       // whole file and resolve a real duration (and become seekable) as a
       // side effect. https://bugs.chromium.org/p/chromium/issues/detail?id=642012
       const onTimeUpdate = () => {
+        resolvingDurationRef.current = false;
         const resolved = isFinite(v.duration) ? v.duration : v.currentTime;
         setDuration(resolved > 0 ? resolved : 0);
         v.currentTime = 0;
       };
       v.addEventListener('timeupdate', onTimeUpdate, { once: true });
+      resolvingDurationRef.current = true;
       v.currentTime = 1e101;
     }
     setStatus('paused');
@@ -130,6 +133,17 @@ export default function VideoPlayer({ src, onError }) {
   };
 
   const handleError = () => {
+    // A seek we issue ourselves (see handleLoadedMetadata's duration-resolve
+    // workaround) can occasionally trigger a genuine 'error' event on some
+    // Chromium builds for headerless/short WebM files, even though the video
+    // already proved itself decodable by firing loadedmetadata moments
+    // earlier. That's an artifact of our own diagnostic seek, not a real
+    // playback failure — don't show a false "can't play" error for a file
+    // that actually loaded fine.
+    if (resolvingDurationRef.current) {
+      resolvingDurationRef.current = false;
+      return;
+    }
     stopRaf();
     setStatus('error');
     if (onError) onError();

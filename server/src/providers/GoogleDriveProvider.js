@@ -1,35 +1,32 @@
 const { google } = require('googleapis');
 const { Readable } = require('stream');
 const BaseProvider = require('./BaseProvider');
+const { getValidOAuthClient } = require('../models/helpers');
 
 class GoogleDriveProvider extends BaseProvider {
   /**
-   * Helper to get an authenticated Drive client for a specific user
+   * Helper to get an authenticated Drive client for a specific user.
+   *
+   * Google access tokens expire after ~1 hour, but the JWT a user's browser
+   * holds (and that req.user is decoded from) is valid for 30 days — so a
+   * raw, never-refreshed access token is stale for the vast majority of a
+   * session's lifetime. getValidOAuthClient() checks expiry_date and
+   * transparently refreshes via the refresh_token when needed; using it here
+   * (instead of building a bare OAuth2Client from whatever token was frozen
+   * into the JWT at sign-in) is what actually keeps Drive uploads working.
    */
-  async _getDriveClient(userId, options) {
-    // In a real implementation, we would look up the user's Google OAuth 
-    // access token from the Session table here, but for this abstraction
-    // we'll expect the tokens to be passed in options.
-    const { accessToken, refreshToken } = options;
-    if (!accessToken) {
-      throw new Error('GoogleDriveProvider: Missing accessToken in options');
+  async _getDriveClient(options) {
+    const { user } = options;
+    if (!user?.access_token) {
+      throw new Error('GoogleDriveProvider: no Google account connected (missing access token) — reconnect Google Drive and try again');
     }
 
-    const oauth2Client = new google.auth.OAuth2(
-      process.env.GOOGLE_CLIENT_ID,
-      process.env.GOOGLE_CLIENT_SECRET
-    );
-
-    oauth2Client.setCredentials({
-      access_token: accessToken,
-      refresh_token: refreshToken
-    });
-
+    const oauth2Client = await getValidOAuthClient(user);
     return google.drive({ version: 'v3', auth: oauth2Client });
   }
 
   async upload(buffer, filename, mimeType, options = {}) {
-    const drive = await this._getDriveClient(options.userId, options);
+    const drive = await this._getDriveClient(options);
 
     // Convert buffer to readable stream for Google Drive API
     const stream = new Readable();
@@ -93,7 +90,7 @@ class GoogleDriveProvider extends BaseProvider {
     // If we have the webViewLink in the metadata, we just return that directly without hitting the API.
     // That logic will live in the Controller.
     // If they call this, we must fetch it from Drive:
-    const drive = await this._getDriveClient(options.userId, options);
+    const drive = await this._getDriveClient(options);
     const file = await drive.files.get({
       fileId: providerObjectId,
       fields: 'webViewLink',
@@ -103,7 +100,7 @@ class GoogleDriveProvider extends BaseProvider {
 
   async delete(providerObjectId, options = {}) {
     try {
-      const drive = await this._getDriveClient(options.userId, options);
+      const drive = await this._getDriveClient(options);
       await drive.files.delete({ fileId: providerObjectId });
       return true;
     } catch (err) {
@@ -115,7 +112,7 @@ class GoogleDriveProvider extends BaseProvider {
 
   async exists(providerObjectId, options = {}) {
     try {
-      const drive = await this._getDriveClient(options.userId, options);
+      const drive = await this._getDriveClient(options);
       await drive.files.get({ fileId: providerObjectId, fields: 'id' });
       return true;
     } catch (err) {

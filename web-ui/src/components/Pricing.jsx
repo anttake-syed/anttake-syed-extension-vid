@@ -22,9 +22,9 @@ const CLOUD_FEATURES = [
 const SELF_HOSTED_FEATURES = [
   { text: 'Unlimited local screenshots & recordings', highlight: true },
   { text: 'Browser extension', highlight: true },
-  { text: 'Local library & VoidBoard', highlight: false },
-  { text: 'Self-managed storage on your own server', highlight: false },
-  { text: 'Open-source — run on your infrastructure', highlight: false },
+  { text: 'Local library & VoidBoard', highlight: true },
+  { text: 'Self-managed storage on your own server', highlight: true },
+  { text: 'Open-source — run on your infrastructure', highlight: true },
 ];
 
 const FAQ = [

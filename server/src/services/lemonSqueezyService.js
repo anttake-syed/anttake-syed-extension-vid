@@ -63,6 +63,7 @@ class LemonSqueezyService {
             redirectUrl,
             receiptButtonText:   'Go to Dashboard',
             receiptThankYouNote: 'Thank you for upgrading AntCapture!',
+            enabledVariants:     [numericVariantId],
           }
         }
       );

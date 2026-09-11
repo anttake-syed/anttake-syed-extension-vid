@@ -20,11 +20,11 @@ const CLOUD_FEATURES = [
 ];
 
 const SELF_HOSTED_FEATURES = [
-  'Unlimited local screenshots & recordings',
-  'Browser extension',
-  'Local library & VoidBoard',
-  'Self-managed storage on your own server',
-  'Open-source — run on your infrastructure',
+  { text: 'Unlimited local screenshots & recordings', highlight: true },
+  { text: 'Browser extension', highlight: true },
+  { text: 'Local library & VoidBoard', highlight: false },
+  { text: 'Self-managed storage on your own server', highlight: false },
+  { text: 'Open-source — run on your infrastructure', highlight: false },
 ];
 
 const FAQ = [
@@ -83,6 +83,7 @@ export default function Pricing({ user, isAuthenticated, onSignIn }) {
         throw err;
       }
       window.location.href = data.checkoutUrl;
+      setTimeout(() => setCheckoutLoading(false), 1000);
     } catch (err) {
       setCheckoutLoading(false);
       setCheckoutError({ message: err.message || 'Something went wrong. Please try again.', adminDetail: err.adminDetail });
@@ -324,15 +325,22 @@ export default function Pricing({ user, isAuthenticated, onSignIn }) {
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
               <h3 style={{ fontSize: '17px', fontWeight: 700, color: '#e2e8f0', margin: 0 }}>Self-Hosted</h3>
-              <span style={{ background: 'rgba(100,116,139,0.2)', color: '#64748b', fontSize: '10px', padding: '2px 8px', borderRadius: '4px', fontWeight: 700 }}>FREE</span>
             </div>
             <p style={{ fontSize: '13px', color: '#475569', margin: '0 0 10px', lineHeight: 1.6, maxWidth: '500px' }}>
               Free open-source version. Run AntCapture on your own infrastructure — your server, your storage, your control. No subscription needed.
             </p>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
               {SELF_HOSTED_FEATURES.map((f, i) => (
-                <span key={i} style={{ fontSize: '11px', color: '#475569', background: '#1e293b', border: '1px solid #2d3a50', borderRadius: '6px', padding: '3px 10px' }}>
-                  {f}
+                <span key={i} style={{ 
+                  fontSize: '11px', 
+                  color: f.highlight ? '#f8fafc' : '#475569', 
+                  background: f.highlight ? 'rgba(99,102,241,0.15)' : '#1e293b', 
+                  border: f.highlight ? '1px solid rgba(99,102,241,0.3)' : '1px solid #2d3a50', 
+                  borderRadius: '6px', 
+                  padding: '3px 10px',
+                  fontWeight: f.highlight ? 600 : 400
+                }}>
+                  {f.text}
                 </span>
               ))}
             </div>

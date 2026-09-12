@@ -100,7 +100,7 @@ function FeedbackPage() {
 }
 
 export default function App() {
-  const { user, isAuthenticated, isInitializing, logout, updateUser, hasCloudAccess, subscription, refreshSubscription } = useAuth();
+  const { user, isAuthenticated, isInitializing, isReady, logout, updateUser, hasCloudAccess, subscription, refreshSubscription } = useAuth();
 
   const {
     captures, setCaptures, dbStats,
@@ -420,7 +420,7 @@ export default function App() {
 
         {/* ── Page Content ── */}
         {/* ── PAYWALL GATE — unsubscribed cloud users only see the Pricing page ── */}
-        {isAuthenticated && !hasCloudAccess && !IS_LOCAL_MODE && !isInitializing ? (
+        {isAuthenticated && !hasCloudAccess && !IS_LOCAL_MODE && isReady ? (
           // Allowed through even in paywall mode: Pricing, Subscription, Settings
           // (Settings lets them logout; Subscription shows their current status)
           activeNav === 'Subscription' ? (

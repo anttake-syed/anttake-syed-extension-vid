@@ -3,6 +3,9 @@ const MAIN_NAV = ['Dashboard', 'My Library', 'Whiteboards', 'Settings', 'Feedbac
 const SECONDARY_NAV = ['Pricing', 'Privacy', 'Terms', 'Refund Policy', 'Security', 'Documentation'];
 const ADMIN_NAV = ['Diagnostics'];  // Only visible to admins; access is also enforced server-side
 
+// Items that require a cloud subscription (shown with lock badge when unsubscribed)
+const CLOUD_GATED_ITEMS = ['My Library', 'Whiteboards'];
+
 const NAV_ICONS = {
   Dashboard:       'dashboard',
   'My Library':    'photo_library',
@@ -21,28 +24,41 @@ const NAV_ICONS = {
 // Items that don't require login
 const PUBLIC_ITEMS = ['Dashboard', 'Pricing', 'Privacy', 'Terms', 'Refund Policy', 'Security', 'Documentation'];
 
-export default function Sidebar({ activeNav, isAuthenticated, user, onNavClick, onSignIn, onLogout, mobileMenuOpen }) {
+export default function Sidebar({ activeNav, isAuthenticated, hasCloudAccess = true, user, onNavClick, onSignIn, onLogout, mobileMenuOpen }) {
   const isAdmin = user?.role === 'admin';
+  // Show cloud lock badges when user is signed in but hasn't subscribed
+  const showCloudLock = isAuthenticated && !hasCloudAccess;
 
-  const renderNavItem = (item, secondary = false) => (
-    <li
-      key={item}
-      className={`nav-item ${activeNav === item ? 'active' : ''} ${secondary ? 'nav-item-secondary' : ''}`}
-      onClick={() => {
-        if (PUBLIC_ITEMS.includes(item)) {onNavClick(item);}
-        else if (isAuthenticated) {onNavClick(item);}
-        else {onSignIn();}
-      }}
-    >
-      <span className="nav-icon material-symbols-rounded" style={{ fontSize: secondary ? '18px' : '20px', fontWeight: '300' }}>
-        {NAV_ICONS[item]}
-      </span>
-      {item}
-      {!isAuthenticated && !PUBLIC_ITEMS.includes(item) && (
-        <span className="nav-lock material-symbols-rounded" style={{ fontSize: '14px', marginLeft: 'auto', color: '#475569' }}>lock</span>
-      )}
-    </li>
-  );
+  const renderNavItem = (item, secondary = false) => {
+    const isCloudLocked = showCloudLock && CLOUD_GATED_ITEMS.includes(item);
+    return (
+      <li
+        key={item}
+        className={`nav-item ${activeNav === item ? 'active' : ''} ${secondary ? 'nav-item-secondary' : ''}`}
+        onClick={() => {
+          if (PUBLIC_ITEMS.includes(item)) {onNavClick(item);}
+          else if (isAuthenticated) {onNavClick(item);}
+          else {onSignIn();}
+        }}
+        title={isCloudLocked ? 'Requires AntCapture Cloud plan' : undefined}
+      >
+        <span className="nav-icon material-symbols-rounded" style={{ fontSize: secondary ? '18px' : '20px', fontWeight: '300' }}>
+          {NAV_ICONS[item]}
+        </span>
+        {item}
+        {!isAuthenticated && !PUBLIC_ITEMS.includes(item) && (
+          <span className="nav-lock material-symbols-rounded" style={{ fontSize: '14px', marginLeft: 'auto', color: '#475569' }}>lock</span>
+        )}
+        {isCloudLocked && (
+          <span
+            className="nav-lock material-symbols-rounded"
+            style={{ fontSize: '14px', marginLeft: 'auto', color: '#6366f1', opacity: 0.7 }}
+            title="Cloud plan required"
+          >cloud_off</span>
+        )}
+      </li>
+    );
+  };
 
   return (
     <aside className={`sidebar ${mobileMenuOpen ? 'open' : ''}`}>

@@ -46,7 +46,7 @@ const FAQ = [
   },
 ];
 
-export default function Pricing({ user, isAuthenticated, onSignIn }) {
+export default function Pricing({ user, isAuthenticated, onSignIn, paywalled = false }) {
   const [billing, setBilling]             = useState('yearly');
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [openFaq, setOpenFaq]             = useState(null);
@@ -98,6 +98,42 @@ export default function Pricing({ user, isAuthenticated, onSignIn }) {
 
   return (
     <div style={{ maxWidth: '900px', margin: '0 auto', padding: '48px 20px 100px', fontFamily: "'Outfit', sans-serif" }}>
+
+      {/* ── Paywall Notice — only shown when redirected from a locked feature ── */}
+      {paywalled && isAuthenticated && (
+        <div style={{
+          background: 'linear-gradient(135deg, rgba(99,102,241,0.12), rgba(139,92,246,0.12))',
+          border: '1px solid rgba(99,102,241,0.35)',
+          borderRadius: '18px',
+          padding: '20px 28px',
+          marginBottom: '36px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '16px',
+          flexWrap: 'wrap',
+        }}>
+          <div style={{
+            width: '44px', height: '44px', borderRadius: '50%', flexShrink: 0,
+            background: 'linear-gradient(135deg, rgba(99,102,241,0.25), rgba(139,92,246,0.25))',
+            border: '1px solid rgba(99,102,241,0.4)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <span className="material-symbols-rounded" style={{ fontSize: '22px', color: '#818cf8' }}>lock</span>
+          </div>
+          <div style={{ flex: 1, minWidth: '200px' }}>
+            <div style={{ fontSize: '15px', fontWeight: 700, color: '#f1f5f9', marginBottom: '3px' }}>
+              A subscription is required to use AntCapture Cloud
+            </div>
+            <div style={{ fontSize: '13px', color: '#64748b', lineHeight: 1.6 }}>
+              Your account is active but you don’t have a plan yet. Choose a plan below to unlock cloud storage, whiteboards, and all premium features.
+            </div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.2)', borderRadius: '8px', padding: '6px 14px', flexShrink: 0 }}>
+            <span className="material-symbols-rounded" style={{ fontSize: '14px', color: '#818cf8' }}>account_circle</span>
+            <span style={{ fontSize: '13px', color: '#94a3b8' }}>Signed in as <strong style={{ color: '#c7d2fe' }}>{user?.email}</strong></span>
+          </div>
+        </div>
+      )}
 
       {/* ── Hero ── */}
       <div style={{ textAlign: 'center', marginBottom: '44px' }}>

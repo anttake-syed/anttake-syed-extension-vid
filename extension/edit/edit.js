@@ -772,7 +772,23 @@ async function processSave(mode) {
       sidebar.style.opacity = '1';
     }
     document.body.style.pointerEvents = 'auto'; // Fallback just in case
-    showToast(err.message, 'error', 6000);
+
+    if (err.message && err.message.includes('AntCapture Cloud plan')) {
+      const serverBase = getServerUrl('cloud').replace('/api', '');
+      const pricingUrl = `${serverBase}/pricing`;
+      const htmlMessage = `
+        <div style="display:flex;flex-direction:column;gap:6px;padding:4px 0;">
+          <span style="font-weight:600;font-size:14px;">☁️ Cloud plan required</span>
+          <span style="font-size:13px;opacity:0.9;line-height:1.4;">${err.message}</span>
+          <a href="${pricingUrl}" target="_blank" style="margin-top:4px;display:inline-flex;align-items:center;gap:4px;background:white;color:#4f46e5;padding:6px 12px;border-radius:6px;font-weight:700;text-decoration:none;font-size:13px;width:fit-content;box-shadow:0 2px 5px rgba(0,0,0,0.2);">
+            Upgrade to Cloud
+          </a>
+        </div>
+      `;
+      showToast(htmlMessage, 'error', 12000);
+    } else {
+      showToast(err.message, 'error', 6000);
+    }
   }
 }
 

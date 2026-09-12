@@ -194,6 +194,39 @@ export function useAuth() {
       chrome.runtime.sendMessage(EXTENSION_ID, { action: 'REGISTER_WEB_UI', url: window.location.origin }).catch(()=>{});
     }
 
+    // Handle ?billing=success — user just returned from LemonSqueezy checkout.
+    // The webhook may take a few seconds to reach the server, so we poll until
+    // we see an active subscription (up to 30 seconds), then stop.
+    const billingStatus = params.get('billing');
+    if (billingStatus === 'success' && stored) {
+      window.history.replaceState({}, document.title,
+        window.location.origin + window.location.pathname);
+      let attempts = 0;
+      const maxAttempts = 12; // 12 × 2.5s = 30 seconds
+      const pollJwt = (() => { try { return JSON.parse(stored)?.jwt; } catch { return null; } })();
+      if (pollJwt) {
+        const poll = setInterval(async () => {
+          attempts++;
+          try {
+            const res = await fetch(`${SERVER_URL}/subscription`, {
+              headers: { Authorization: `Bearer ${pollJwt}` },
+            });
+            if (res.ok) {
+              const data = await res.json();
+              if (data.subscription?.status === 'active') {
+                setSubscription(data.subscription);
+                setSubscriptionResolved(true);
+                clearInterval(poll);
+                // Dispatch a custom event so App.jsx can show a success toast
+                window.dispatchEvent(new CustomEvent('antcapture:billing-success'));
+              }
+            }
+          } catch (_err) { /* ignore, retry */ }
+          if (attempts >= maxAttempts) clearInterval(poll);
+        }, 2500);
+      }
+    }
+
     return () => window.removeEventListener('message', handleMessage);
   }, []);
 

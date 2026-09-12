@@ -133,6 +133,15 @@ class QuotaService {
       return { allowed: true };
     }
 
+    const { getCachedSubscription, setCachedSubscription } = require('./subscriptionCache');
+    const cached = getCachedSubscription(userId);
+    if (cached) {
+      if (cached.allowed) {
+        return { allowed: true, isAdmin: cached.isAdmin };
+      }
+      return { allowed: false, reason: 'subscription_required' };
+    }
+
     const user = await prisma.user.findUnique({
       where: { id: userId },
       include: { subscription: true },
@@ -140,11 +149,15 @@ class QuotaService {
 
     if (!user) return { allowed: false, reason: 'user_not_found' };
 
-    // Admin users always have full access
-    if (user.role === 'admin') return { allowed: true, isAdmin: true };
+    const isAdmin = user.role === 'admin';
+    const hasActiveSub = user.subscription?.status === 'active';
+    const allowed = isAdmin || hasActiveSub;
+    
+    setCachedSubscription(userId, { allowed, isAdmin });
 
-    // Active subscription → allowed
-    if (user.subscription?.status === 'active') return { allowed: true };
+    if (allowed) {
+      return { allowed: true, isAdmin };
+    }
 
     return { allowed: false, reason: 'subscription_required' };
   }

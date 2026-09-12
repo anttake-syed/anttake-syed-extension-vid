@@ -173,6 +173,12 @@ exports.handleWebhook = async (req, res) => {
         logger.info('webhook', 'unhandled-event', { eventName });
     }
 
+    // Invalidate the cache for this user if their subscription status changed
+    if (userId) {
+      const { invalidateSubscriptionCache } = require('../services/subscriptionCache');
+      invalidateSubscriptionCache(userId);
+    }
+
     // ── 4. Log event to DB ───────────────────────────────────────────────────
     if (userId) {
       const customer = await prisma.lemonSqueezyCustomer.findUnique({ where: { userId } });

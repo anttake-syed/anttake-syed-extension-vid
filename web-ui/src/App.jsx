@@ -419,18 +419,7 @@ export default function App() {
 
 
         {/* ── Page Content ── */}
-        {/* ── PAYWALL GATE — unsubscribed cloud users only see the Pricing page ── */}
-        {isAuthenticated && !hasCloudAccess && !IS_LOCAL_MODE && isReady ? (
-          // Allowed through even in paywall mode: Pricing, Subscription, Settings
-          // (Settings lets them logout; Subscription shows their current status)
-          activeNav === 'Subscription' ? (
-            <SubscriptionManage user={user} />
-          ) : activeNav === 'Settings' ? (
-            <Settings user={user} captures={captures} dbStats={dbStats} onNameUpdate={handleNameUpdate} onDeleteAllCaptures={handleDeleteAllCaptures} onDeleteAccount={handleDeleteAccount} storagePreference={storagePreference} saveStoragePreference={saveStoragePreference} savingPref={savingPref} onManageSubscription={() => setActiveNav('Subscription')} />
-          ) : (
-            <Pricing user={user} isAuthenticated={isAuthenticated} onSignIn={() => setShowModal(true)} paywalled />
-          )
-        ) : activeBoard ? (
+        {activeBoard ? (
           <WhiteboardEditor board={activeBoard} onClose={() => { 
             setActiveBoard(null);
             const targetPath = NAV_TO_PATH[activeNav] || '/';
@@ -443,7 +432,7 @@ export default function App() {
           <SubscriptionManage user={user} />
         ) : activeNav === 'Whiteboards' ? (
           <LockedFeature
-            isLocked={isAuthenticated && !hasCloudAccess && !IS_LOCAL_MODE}
+            isLocked={isAuthenticated && !hasCloudAccess && !IS_LOCAL_MODE && isReady}
             featureName="VoidBoard — Infinite Whiteboards"
             description="Create unlimited AI-powered whiteboards, add captures, collaborate visually — all with your cloud plan."
             onUpgrade={() => setActiveNav('Pricing')}
@@ -642,13 +631,20 @@ If you discover a security vulnerability, please report it responsibly through t
         ) : activeNav === 'Diagnostics' && isAuthenticated && user?.role === 'admin' ? (
           <AdminDiagnostics user={user} />
         ) : activeNav === 'My Library' ? (
-          <Library
-            captures={captures}
-            loadingCaptures={loadingCaptures}
-            onOpenMedia={setActiveMedia}
-            isAuthenticated={isAuthenticated}
-            onSignIn={() => setShowModal(true)}
-          />
+          <LockedFeature
+            isLocked={isAuthenticated && !hasCloudAccess && !IS_LOCAL_MODE && isReady}
+            featureName="Cloud Library"
+            description="Access all your synced recordings, screenshots, and uploads from anywhere with an active cloud plan."
+            onUpgrade={() => setActiveNav('Pricing')}
+          >
+            <Library
+              captures={captures}
+              loadingCaptures={loadingCaptures}
+              onOpenMedia={setActiveMedia}
+              isAuthenticated={isAuthenticated}
+              onSignIn={() => setShowModal(true)}
+            />
+          </LockedFeature>
         ) : (
           <Dashboard
             isAuthenticated={isAuthenticated}

@@ -134,6 +134,34 @@ export default function Sidebar({ activeNav, isAuthenticated, hasCloudAccess = t
       </nav>
 
       <div className="sidebar-footer">
+        {/* ── Cloud upgrade nudge — only for logged-in, unsubscribed users ── */}
+        {isAuthenticated && !hasCloudAccess && (
+          <div
+            onClick={() => onNavClick('Pricing')}
+            style={{
+              background: 'linear-gradient(135deg, rgba(99,102,241,0.13) 0%, rgba(139,92,246,0.1) 100%)',
+              border: '1px solid rgba(99,102,241,0.25)',
+              borderRadius: '12px',
+              padding: '12px 14px',
+              marginBottom: '10px',
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(99,102,241,0.5)'; e.currentTarget.style.background = 'linear-gradient(135deg, rgba(99,102,241,0.2) 0%, rgba(139,92,246,0.16) 100%)'; }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(99,102,241,0.25)'; e.currentTarget.style.background = 'linear-gradient(135deg, rgba(99,102,241,0.13) 0%, rgba(139,92,246,0.1) 100%)'; }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+              <span className="material-symbols-rounded" style={{ fontSize: '16px', color: '#818cf8' }}>bolt</span>
+              <span style={{ fontSize: '12px', fontWeight: 700, color: '#818cf8', letterSpacing: '0.03em' }}>
+                Upgrade to Cloud
+              </span>
+            </div>
+            <p style={{ margin: 0, fontSize: '11px', color: '#64748b', lineHeight: 1.5 }}>
+              Unlock storage, whiteboards &amp; more. From $12/mo.
+            </p>
+          </div>
+        )}
+
         {isAuthenticated ? (
           <button className="btn-logout" onClick={onLogout}>
             <span className="material-symbols-rounded" style={{ fontSize: '18px' }}>logout</span> Sign Out

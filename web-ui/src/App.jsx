@@ -433,10 +433,9 @@ export default function App() {
         ) : activeNav === 'Whiteboards' ? (
           <LockedFeature
             isLocked={isAuthenticated && !hasCloudAccess && !IS_LOCAL_MODE && isReady}
-            featureName="VoidBoard — Infinite Whiteboards"
-            description="Create unlimited AI-powered whiteboards, add captures, collaborate visually — all with your cloud plan."
+            featureName="Infinite Whiteboards"
+            description="Create unlimited whiteboards, add captures, collaborate visually — all with your cloud plan."
             onUpgrade={() => setActiveNav('Pricing')}
-            onSignOut={logout}
           >
             <Whiteboards key={wbRefreshKey} user={user} isAuthenticated={isAuthenticated} onSignIn={() => setShowModal(true)} onOpenBoard={setActiveBoard} />
           </LockedFeature>
@@ -637,7 +636,6 @@ If you discover a security vulnerability, please report it responsibly through t
             featureName="Cloud Library"
             description="Access all your synced recordings, screenshots, and uploads from anywhere with an active cloud plan."
             onUpgrade={() => setActiveNav('Pricing')}
-            onSignOut={logout}
           >
             <Library
               captures={captures}

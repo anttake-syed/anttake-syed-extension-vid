@@ -14,7 +14,7 @@ import React from 'react';
  *   children     — the actual feature UI (shown blurred behind the lock)
  *   isLocked     — if false, renders children normally (no lock)
  */
-export default function LockedFeature({ featureName, description, onUpgrade, children, isLocked }) {
+export default function LockedFeature({ featureName, description, onUpgrade, onSignOut, children, isLocked }) {
   if (!isLocked) return children;
 
   return (
@@ -127,7 +127,7 @@ export default function LockedFeature({ featureName, description, onUpgrade, chi
               justifyContent: 'center',
               gap: '8px',
               transition: 'all 0.2s',
-              marginBottom: '12px',
+              marginBottom: '16px',
             }}
             onMouseEnter={e => { e.currentTarget.style.filter = 'brightness(1.12)'; }}
             onMouseLeave={e => { e.currentTarget.style.filter = 'none'; }}
@@ -135,6 +135,36 @@ export default function LockedFeature({ featureName, description, onUpgrade, chi
             <span className="material-symbols-rounded" style={{ fontSize: '18px' }}>bolt</span>
             Upgrade to Cloud
           </button>
+
+          {onSignOut && (
+            <button
+              onClick={onSignOut}
+              style={{
+                width: '100%',
+                padding: '12px',
+                borderRadius: '12px',
+                border: '1px solid rgba(255, 255, 255, 0.1)',
+                background: 'transparent',
+                color: '#94a3b8',
+                fontSize: '14px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                fontFamily: "'Outfit', sans-serif",
+                transition: 'all 0.2s',
+                marginBottom: '12px',
+              }}
+              onMouseEnter={e => {
+                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
+                e.currentTarget.style.color = '#cbd5e1';
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.background = 'transparent';
+                e.currentTarget.style.color = '#94a3b8';
+              }}
+            >
+              Sign out
+            </button>
+          )}
 
           <p style={{ fontSize: '12px', color: '#334155', margin: 0 }}>
             From $10/mo · Cancel anytime

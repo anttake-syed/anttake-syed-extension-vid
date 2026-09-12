@@ -106,7 +106,7 @@ export default function App() {
     captures, setCaptures, dbStats,
     storagePreference, loadingCaptures, savingPref,
     saveStoragePreference, deleteCapture, refresh,
-  } = useCaptures(user, isAuthenticated);
+  } = useCaptures(user, isAuthenticated, hasCloudAccess || IS_LOCAL_MODE);
 
   const [activeNav, setActiveNav] = useState(() => {
     const path = window.location.pathname;
@@ -431,14 +431,15 @@ export default function App() {
         ) : activeNav === 'Subscription' && isAuthenticated ? (
           <SubscriptionManage user={user} />
         ) : activeNav === 'Whiteboards' ? (
-          <LockedFeature
-            isLocked={isAuthenticated && !hasCloudAccess && !IS_LOCAL_MODE && isReady}
-            featureName="1,000 Cloud Whiteboards"
-            description="Create up to 1,000 whiteboards, add captures, collaborate visually — all with your cloud plan."
+          <Whiteboards
+            key={wbRefreshKey}
+            user={user}
+            isAuthenticated={isAuthenticated}
+            onSignIn={() => setShowModal(true)}
+            onOpenBoard={setActiveBoard}
+            hasCloudAccess={hasCloudAccess || IS_LOCAL_MODE}
             onUpgrade={() => setActiveNav('Pricing')}
-          >
-            <Whiteboards key={wbRefreshKey} user={user} isAuthenticated={isAuthenticated} onSignIn={() => setShowModal(true)} onOpenBoard={setActiveBoard} />
-          </LockedFeature>
+          />
         ) : activeNav === 'Pricing' ? (
           <Pricing user={user} isAuthenticated={isAuthenticated} onSignIn={() => setShowModal(true)} />
         ) : activeNav === 'Feedback' ? (
@@ -631,20 +632,15 @@ If you discover a security vulnerability, please report it responsibly through t
         ) : activeNav === 'Diagnostics' && isAuthenticated && user?.role === 'admin' ? (
           <AdminDiagnostics user={user} />
         ) : activeNav === 'My Library' ? (
-          <LockedFeature
-            isLocked={isAuthenticated && !hasCloudAccess && !IS_LOCAL_MODE && isReady}
-            featureName="Cloud Library"
-            description="Access all your synced recordings, screenshots, and uploads from anywhere with an active cloud plan."
+          <Library
+            captures={captures}
+            loadingCaptures={loadingCaptures}
+            onOpenMedia={setActiveMedia}
+            isAuthenticated={isAuthenticated}
+            onSignIn={() => setShowModal(true)}
+            hasCloudAccess={hasCloudAccess || IS_LOCAL_MODE}
             onUpgrade={() => setActiveNav('Pricing')}
-          >
-            <Library
-              captures={captures}
-              loadingCaptures={loadingCaptures}
-              onOpenMedia={setActiveMedia}
-              isAuthenticated={isAuthenticated}
-              onSignIn={() => setShowModal(true)}
-            />
-          </LockedFeature>
+          />
         ) : (
           <Dashboard
             isAuthenticated={isAuthenticated}

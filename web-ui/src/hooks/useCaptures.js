@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { SERVER_URL } from '../config';
 
-export function useCaptures(user, isAuthenticated) {
+export function useCaptures(user, isAuthenticated, hasCloudAccess) {
   const [captures, setCaptures] = useState([]);
   const [dbStats, setDbStats] = useState(null);
   const [storagePreference, setStoragePreference] = useState('local');
@@ -10,7 +10,7 @@ export function useCaptures(user, isAuthenticated) {
   const [filter, setFilter] = useState('All');
 
   const fetchCaptures = useCallback(async (jwt, background = false) => {
-    if (!jwt) {return;}
+    if (!jwt || !hasCloudAccess) {return;}
     if (!background) {setLoadingCaptures(true);}
     try {
       const res = await fetch(`${SERVER_URL}/captures`, {
@@ -30,7 +30,7 @@ export function useCaptures(user, isAuthenticated) {
     } finally {
       if (!background) {setLoadingCaptures(false);}
     }
-  }, []);
+  }, [hasCloudAccess]);
 
   const fetchStats = useCallback(async (jwt) => {
     if (!jwt) {return;}
@@ -98,7 +98,7 @@ export function useCaptures(user, isAuthenticated) {
 
   // Initial load + polling
   useEffect(() => {
-    if (!isAuthenticated || !user?.jwt) {
+    if (!isAuthenticated || !user?.jwt || !hasCloudAccess) {
       setCaptures([]);
       setDbStats(null);
       return;
@@ -123,7 +123,7 @@ export function useCaptures(user, isAuthenticated) {
       clearInterval(interval);
       window.removeEventListener('focus', handleFocus);
     };
-  }, [isAuthenticated, user?.jwt, fetchCaptures, fetchStats, fetchSettings]);
+  }, [isAuthenticated, user?.jwt, hasCloudAccess, fetchCaptures, fetchStats, fetchSettings]);
 
   const filteredCaptures = captures.filter((c) => {
     if (filter === 'Videos') {return c.type === 'video';}

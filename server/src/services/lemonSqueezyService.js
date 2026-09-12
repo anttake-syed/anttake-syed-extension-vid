@@ -2,7 +2,16 @@ const { lemonSqueezySetup, createCheckout, getCustomer, getSubscription } = requ
 
 class LemonSqueezyService {
   constructor() {
-    this.apiKey = process.env.LS_API_KEY;
+    this.mode = process.env.LEMONSQUEEZY_MODE || 'test';
+    this.apiKey = this.mode === 'live' 
+      ? process.env.LEMONSQUEEZY_LIVE_API_KEY 
+      : process.env.LEMONSQUEEZY_TEST_API_KEY;
+    
+    // Fallback to legacy LS_API_KEY if the new ones aren't set
+    if (!this.apiKey) {
+      this.apiKey = process.env.LS_API_KEY;
+    }
+
     this.storeId = process.env.LS_STORE_ID;
     
     if (this.apiKey) {

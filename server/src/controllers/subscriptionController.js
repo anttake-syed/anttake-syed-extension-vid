@@ -11,8 +11,14 @@ exports.createCheckout = async (req, res) => {
     }
 
     // Map plan info to LemonSqueezy variant ID securely via ENV vars
-    const envKey = `LS_VARIANT_${planName.toUpperCase()}_${interval.toUpperCase()}`;
-    const variantId = process.env[envKey];
+    const mode = (process.env.LEMONSQUEEZY_MODE || 'test').toUpperCase();
+    
+    // Support the recommended format: LEMONSQUEEZY_TEST_MONTHLY_VARIANT_ID
+    const specificEnvKey = `LEMONSQUEEZY_${mode}_${interval.toUpperCase()}_VARIANT_ID`;
+    // Fallback to legacy format just in case
+    const legacyEnvKey = `LS_VARIANT_${planName.toUpperCase()}_${interval.toUpperCase()}`;
+    
+    const variantId = process.env[specificEnvKey] || process.env[legacyEnvKey];
 
     if (!variantId) {
       return res.status(400).json({ error: 'Invalid plan or interval, or variant not configured' });

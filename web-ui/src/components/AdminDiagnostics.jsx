@@ -708,6 +708,7 @@ export default function AdminDiagnostics({ user }) {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '14px' }}>
               {[
                 { label: 'Mode',        value: sysInfo.mode,        icon: 'cloud' },
+                { label: 'Billing Mode', value: sysInfo.lemonSqueezyMode, icon: 'payments' },
                 { label: 'Environment', value: sysInfo.environment, icon: 'code' },
                 { label: 'Node.js',     value: sysInfo.nodeVersion, icon: 'terminal' },
                 { label: 'Uptime',      value: `${Math.floor(sysInfo.uptime / 60)}m ${sysInfo.uptime % 60}s`, icon: 'schedule' },

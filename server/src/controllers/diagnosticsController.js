@@ -255,12 +255,20 @@ async function checkUploadThing() {
 
 /** 10. LemonSqueezy — verify billing config is set up correctly */
 async function checkLemonSqueezy() {
+  const mode = (process.env.LEMONSQUEEZY_MODE || 'test').toUpperCase();
   const missing = [];
-  if (!process.env.LS_API_KEY)              missing.push('LS_API_KEY');
-  if (!process.env.LS_STORE_ID)             missing.push('LS_STORE_ID');
-  if (!process.env.LS_WEBHOOK_SECRET)       missing.push('LS_WEBHOOK_SECRET');
-  if (!process.env.LS_VARIANT_CLOUD_MONTHLY) missing.push('LS_VARIANT_CLOUD_MONTHLY');
-  if (!process.env.LS_VARIANT_CLOUD_YEARLY)  missing.push('LS_VARIANT_CLOUD_YEARLY');
+
+  const apiKey = process.env[`LEMONSQUEEZY_${mode}_API_KEY`] || process.env.LS_API_KEY;
+  if (!apiKey) missing.push(`LEMONSQUEEZY_${mode}_API_KEY`);
+
+  if (!process.env.LS_STORE_ID) missing.push('LS_STORE_ID');
+  if (!process.env.LS_WEBHOOK_SECRET) missing.push('LS_WEBHOOK_SECRET');
+
+  const monthlyId = process.env[`LEMONSQUEEZY_${mode}_MONTHLY_VARIANT_ID`] || process.env.LS_VARIANT_CLOUD_MONTHLY;
+  if (!monthlyId) missing.push(`LEMONSQUEEZY_${mode}_MONTHLY_VARIANT_ID`);
+
+  const yearlyId = process.env[`LEMONSQUEEZY_${mode}_YEARLY_VARIANT_ID`] || process.env.LS_VARIANT_CLOUD_YEARLY;
+  if (!yearlyId) missing.push(`LEMONSQUEEZY_${mode}_YEARLY_VARIANT_ID`);
 
   if (missing.length > 0) {
     throw new Error(`Missing billing env vars: ${missing.join(', ')}`);
@@ -280,7 +288,7 @@ async function checkLemonSqueezy() {
   const response = await fetch(`https://api.lemonsqueezy.com/v1/stores/${process.env.LS_STORE_ID}`, {
     headers: {
       'Accept':        'application/vnd.api+json',
-      'Authorization': `Bearer ${process.env.LS_API_KEY}`,
+      'Authorization': `Bearer ${apiKey}`,
     },
     signal: AbortSignal.timeout(5000),
   });
@@ -298,14 +306,16 @@ async function checkLemonSqueezy() {
   // but makes checkout creation fail every time, which is exactly the
   // "failed to create checkout session" symptom users hit — so verify each
   // configured variant directly against the LemonSqueezy API.
-  const variantEnvKeys = ['LS_VARIANT_CLOUD_MONTHLY', 'LS_VARIANT_CLOUD_YEARLY'];
-  const variants = await Promise.all(variantEnvKeys.map(async (envKey) => {
-    const variantId = process.env[envKey];
+  const variantEnvKeys = [
+    { key: `LEMONSQUEEZY_${mode}_MONTHLY_VARIANT_ID`, val: monthlyId },
+    { key: `LEMONSQUEEZY_${mode}_YEARLY_VARIANT_ID`, val: yearlyId }
+  ];
+  const variants = await Promise.all(variantEnvKeys.map(async ({key: envKey, val: variantId}) => {
     try {
       const vRes = await fetch(`https://api.lemonsqueezy.com/v1/variants/${variantId}?include=product`, {
         headers: {
           'Accept':        'application/vnd.api+json',
-          'Authorization': `Bearer ${process.env.LS_API_KEY}`,
+          'Authorization': `Bearer ${apiKey}`,
         },
         signal: AbortSignal.timeout(5000),
       });
@@ -340,6 +350,7 @@ async function checkLemonSqueezy() {
 
   return {
     configured:   true,
+    mode:         process.env.LEMONSQUEEZY_MODE || 'test',
     storeId:      process.env.LS_STORE_ID,
     storeName,
     variants,
@@ -445,6 +456,7 @@ exports.getSystemInfo = async (req, res) => {
   res.json({
     checkedAt:   new Date().toISOString(),
     mode:        process.env.SERVER_MODE || 'local',
+    lemonSqueezyMode: process.env.LEMONSQUEEZY_MODE || 'test',
     nodeVersion: process.version,
     uptime:      Math.floor(process.uptime()),
     environment: process.env.NODE_ENV || 'development',

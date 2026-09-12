@@ -22,7 +22,7 @@ import WhiteboardEditor from './components/WhiteboardEditor.jsx';
 import StaticPage from './components/StaticPage.jsx';
 import ServerHealthBadge from './components/ServerHealthBadge.jsx';
 import AdminDiagnostics from './components/AdminDiagnostics.jsx';
-import LockedFeature from './components/LockedFeature.jsx';
+
 
 const NAV_TO_PATH = {
   'Dashboard':      '/',

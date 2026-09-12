@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { SERVER_URL } from '../config.js';
+import CloudUpgradeBanner from './CloudUpgradeBanner';
 
 function generateDefaultName() {
   const now = new Date();
@@ -232,7 +233,7 @@ function ViewToggle({ value, onChange }) {
   );
 }
 
-export default function Whiteboards({ user, isAuthenticated, onSignIn, onOpenBoard }) {
+export default function Whiteboards({ user, isAuthenticated, onSignIn, onOpenBoard, hasCloudAccess, onUpgrade }) {
   const [boards, setBoards] = useState([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
@@ -241,7 +242,7 @@ export default function Whiteboards({ user, isAuthenticated, onSignIn, onOpenBoa
   const [sort, setSort] = useState('updated');
 
   const fetchBoards = useCallback(async () => {
-    if (!isAuthenticated) { setLoading(false); return; }
+    if (!isAuthenticated || !hasCloudAccess) { setLoading(false); return; }
     setLoading(true);
     try {
       const res = await fetch(`${SERVER_URL}/boards`, { headers: { Authorization:`Bearer ${user.jwt}` } });
@@ -249,11 +250,13 @@ export default function Whiteboards({ user, isAuthenticated, onSignIn, onOpenBoa
       setBoards(data.boards || []);
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
-  }, [isAuthenticated, user]);
+  }, [isAuthenticated, user, hasCloudAccess]);
 
   useEffect(() => { fetchBoards(); }, [fetchBoards]);
 
   const handleCreate = async () => {
+    if (!isAuthenticated) { onSignIn(); return; }
+    if (!hasCloudAccess) { onUpgrade(); return; }
     if (creating) return;
     setCreating(true);
     try {
@@ -326,13 +329,13 @@ export default function Whiteboards({ user, isAuthenticated, onSignIn, onOpenBoa
           onClick={handleCreate}
           disabled={creating}
           aria-label="Create new whiteboard"
-          style={{ display:'flex', alignItems:'center', gap:8, background:'linear-gradient(135deg,#6366f1,#8b5cf6)',
+          style={{ display:'flex', alignItems:'center', gap:8, background: !hasCloudAccess ? 'linear-gradient(135deg, #4f46e5, #7c3aed)' : 'linear-gradient(135deg,#6366f1,#8b5cf6)',
             color:'white', padding:'11px 22px', borderRadius:12, fontSize:15, fontWeight:700, border:'none',
             cursor: creating ? 'not-allowed' : 'pointer', boxShadow:'0 4px 20px rgba(99,102,241,.4)',
             fontFamily:"'Outfit',sans-serif", transition:'all 0.18s', opacity: creating ? 0.7 : 1 }}>
           {creating
             ? <div role="status" aria-label="Creating board" style={{ width:16,height:16,border:'2px solid rgba(255,255,255,.3)',borderTop:'2px solid white',borderRadius:'50%',animation:'wb-spin .7s linear infinite'}}/>
-            : <span aria-hidden="true" className="material-symbols-rounded" style={{ fontSize:20 }}>add</span>}
+            : <span aria-hidden="true" className="material-symbols-rounded" style={{ fontSize:20 }}>{!hasCloudAccess ? 'lock' : 'add'}</span>}
           New Board
         </button>
       </div>
@@ -381,6 +384,14 @@ export default function Whiteboards({ user, isAuthenticated, onSignIn, onOpenBoa
         )}
       </div>
 
+      {!hasCloudAccess && isAuthenticated && (
+        <CloudUpgradeBanner
+          featureName="1,000 Cloud Whiteboards"
+          description="Create up to 1,000 whiteboards, add captures, collaborate visually — all with your cloud plan."
+          onUpgrade={onUpgrade}
+        />
+      )}
+
       {/* Content */}
       {loading ? (
         <div role="status" aria-label="Loading boards" style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(280px,1fr))', gap:22 }}>
@@ -394,12 +405,12 @@ export default function Whiteboards({ user, isAuthenticated, onSignIn, onOpenBoa
           </div>
           <h2 style={{ color:'#e5e7eb', margin:'0 0 10px', fontWeight:800, fontSize:24 }}>Start your first board</h2>
           <p style={{ color:'#4b5563', fontSize:15, margin:'0 0 32px', lineHeight:1.75 }}>
-            Create a whiteboard to draw, diagram, or annotate your screenshots.
+            {hasCloudAccess ? "Create a whiteboard to draw, diagram, or annotate your screenshots." : "Upgrade to AntCapture Cloud to start creating whiteboards."}
           </p>
-          <button onClick={handleCreate} style={{ display:'inline-flex', alignItems:'center', gap:9, background:'linear-gradient(135deg,#6366f1,#8b5cf6)',
+          <button onClick={handleCreate} style={{ display:'inline-flex', alignItems:'center', gap:9, background: !hasCloudAccess ? 'linear-gradient(135deg, #4f46e5, #7c3aed)' : 'linear-gradient(135deg,#6366f1,#8b5cf6)',
             color:'white', padding:'13px 28px', borderRadius:12, border:'none', cursor:'pointer',
             fontWeight:700, fontSize:15, fontFamily:"'Outfit',sans-serif", boxShadow:'0 8px 28px rgba(99,102,241,.4)' }}>
-            <span aria-hidden="true" className="material-symbols-rounded" style={{ fontSize:20 }}>add</span>
+            <span aria-hidden="true" className="material-symbols-rounded" style={{ fontSize:20 }}>{!hasCloudAccess ? 'lock' : 'add'}</span>
             Create your first board
           </button>
         </div>

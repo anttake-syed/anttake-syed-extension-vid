@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { SERVER_URL } from '../config.js';
 import { DriveLogoSVG, AntCaptureCloudLogoSVG } from './icons/StorageIcons.jsx';
+import CloudUpgradeBanner from './CloudUpgradeBanner';
 
 const getFullSrc = (src) => {
   if (!src) return '';
@@ -189,7 +190,7 @@ function fuzzyScore(text, query) {
   return qi === query.length ? score : 0; // 0 = no match
 }
 
-export default function Library({ captures, loadingCaptures, onOpenMedia, isAuthenticated, onSignIn }) {
+export default function Library({ captures, loadingCaptures, onOpenMedia, isAuthenticated, onSignIn, hasCloudAccess, onUpgrade }) {
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState('All');
   const [sort, setSort] = useState('newest');
@@ -273,6 +274,14 @@ export default function Library({ captures, loadingCaptures, onOpenMedia, isAuth
 
   return (
     <>
+      {!hasCloudAccess && isAuthenticated && (
+        <CloudUpgradeBanner
+          featureName="Cloud Library"
+          description="Access all your synced recordings, screenshots, and uploads from anywhere with an active cloud plan."
+          onUpgrade={onUpgrade}
+        />
+      )}
+
       {/* ── Toolbar ── */}
       <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap', marginBottom: '20px' }}>
               {/* Search */}

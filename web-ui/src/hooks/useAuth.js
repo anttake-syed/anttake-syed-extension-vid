@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { SERVER_URL, EXTENSION_ID, IS_LOCAL_MODE } from '../config';
 
 // Decode a JWT without a library and check if it is still valid
@@ -26,6 +26,7 @@ export function useAuth() {
   const [user, setUser] = useState(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isInitializing, setIsInitializing] = useState(true);
+  const [subscription, setSubscription] = useState(null);
 
   // The JWT is client-controlled and never carries a trustworthy role, so the
   // server is always the source of truth for it — fetch it separately and merge.
@@ -47,6 +48,26 @@ export function useAuth() {
     }
   };
 
+  // Fetch the user's subscription status from the server.
+  // This is the source of truth for feature gating — never trust the JWT for this.
+  const refreshSubscription = useCallback(async (jwt) => {
+    if (!jwt || jwt === 'local-mode') {
+      // Local self-hosted mode: treat as fully subscribed
+      setSubscription({ status: 'active' });
+      return;
+    }
+    try {
+      const res = await fetch(`${SERVER_URL}/subscription`, {
+        headers: { Authorization: `Bearer ${jwt}` },
+      });
+      if (!res.ok) { setSubscription(null); return; }
+      const data = await res.json();
+      setSubscription(data.subscription || null);
+    } catch (_err) {
+      setSubscription(null);
+    }
+  }, []);
+
   const login = (authData) => {
     try {
       const userData = parseAndValidateJwt(authData);
@@ -60,6 +81,7 @@ export function useAuth() {
       setUser(userData);
       setIsAuthenticated(true);
       refreshRole(authData);
+      refreshSubscription(authData);
 
       // Sync login to extension immediately
       if (EXTENSION_ID && typeof chrome !== 'undefined' && chrome.runtime?.sendMessage) {
@@ -77,6 +99,7 @@ export function useAuth() {
     localStorage.removeItem('antcapture_user');
     setUser(null);
     setIsAuthenticated(false);
+    setSubscription(null);
 
     // Sync logout to extension immediately
     if (EXTENSION_ID && typeof chrome !== 'undefined' && chrome.runtime?.sendMessage) {
@@ -97,6 +120,7 @@ export function useAuth() {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setUser({ name: 'Local Admin', email: 'admin@localhost', jwt: 'local-mode', picture: '', role: 'admin' });
       setIsAuthenticated(true);
+      setSubscription({ status: 'active' }); // local mode = full access
       setIsInitializing(false);
       return;
     }
@@ -115,6 +139,7 @@ export function useAuth() {
           setIsAuthenticated(true);
           jwt = userData.jwt;
           refreshRole(jwt);
+          refreshSubscription(jwt);
         } else {
           // Token expired — clear it so the login screen shows
           localStorage.removeItem('antcapture_user');
@@ -168,5 +193,11 @@ export function useAuth() {
     return () => window.removeEventListener('message', handleMessage);
   }, []);
 
-  return { user, isAuthenticated, isInitializing, login, logout, updateUser };
+  // Computed: true if admin OR active subscription.
+  // Admin role is fetched server-side via refreshRole — never trust JWT for this.
+  const hasCloudAccess = IS_LOCAL_MODE
+    || user?.role === 'admin'
+    || subscription?.status === 'active';
+
+  return { user, isAuthenticated, isInitializing, login, logout, updateUser, subscription, hasCloudAccess, refreshSubscription };
 }

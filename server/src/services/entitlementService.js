@@ -119,6 +119,35 @@ class QuotaService {
     }
     return { allowed: true };
   }
+
+  /**
+   * Checks if the user has an active cloud subscription or admin privileges.
+   * Used by backend routes to gate paid cloud features.
+   *
+   * @param {string} userId - The user's DB id
+   * @returns {Promise<{ allowed: boolean, reason?: string, isAdmin?: boolean }>}
+   */
+  async checkSubscription(userId) {
+    // Local self-hosted mode: no subscriptions required
+    if (process.env.SERVER_MODE === 'local') {
+      return { allowed: true };
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: { subscription: true },
+    });
+
+    if (!user) return { allowed: false, reason: 'user_not_found' };
+
+    // Admin users always have full access
+    if (user.role === 'admin') return { allowed: true, isAdmin: true };
+
+    // Active subscription → allowed
+    if (user.subscription?.status === 'active') return { allowed: true };
+
+    return { allowed: false, reason: 'subscription_required' };
+  }
 }
 
 module.exports = new QuotaService();

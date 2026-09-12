@@ -333,7 +333,7 @@ export default function Pricing({ user, isAuthenticated, onSignIn }) {
               {SELF_HOSTED_FEATURES.map((f, i) => (
                 <span key={i} style={{ 
                   fontSize: '11px', 
-                  color: f.highlight ? '#f8fafc' : '#475569', 
+                  color: f.highlight ? '#f8fafc' : '#94a3b8', 
                   background: f.highlight ? 'rgba(99,102,241,0.15)' : '#1e293b', 
                   border: f.highlight ? '1px solid rgba(99,102,241,0.3)' : '1px solid #2d3a50', 
                   borderRadius: '6px', 

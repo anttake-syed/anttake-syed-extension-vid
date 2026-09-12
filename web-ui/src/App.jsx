@@ -143,6 +143,7 @@ export default function App() {
   const [showModal, setShowModal] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [showBillingToast, setShowBillingToast] = useState(false);
 
   // Sync state to URL and Document Title
   useEffect(() => {
@@ -162,6 +163,16 @@ export default function App() {
       setShowModal(false);
     }
   }, [isAuthenticated]);
+
+  // Listen for billing success event from useAuth polling
+  useEffect(() => {
+    const handler = () => {
+      setShowBillingToast(true);
+      setTimeout(() => setShowBillingToast(false), 6000);
+    };
+    window.addEventListener('antcapture:billing-success', handler);
+    return () => window.removeEventListener('antcapture:billing-success', handler);
+  }, []);
 
   // Handle browser back/forward buttons
   useEffect(() => {
@@ -368,6 +379,28 @@ export default function App() {
   return (
     <div className={`layout ${isAuthenticated ? 'isAuthenticated' : ''}`}>
       {showModal && !IS_LOCAL_MODE && <LoginModal onClose={() => setShowModal(false)} />}
+
+      {/* ── Billing Success Toast ── */}
+      {showBillingToast && (
+        <div style={{
+          position: 'fixed', bottom: '28px', left: '50%', transform: 'translateX(-50%)',
+          zIndex: 9999, display: 'flex', alignItems: 'center', gap: '12px',
+          background: 'linear-gradient(135deg, #166534, #15803d)',
+          border: '1px solid rgba(74,222,128,0.4)',
+          borderRadius: '16px', padding: '16px 24px',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.4), 0 0 0 1px rgba(74,222,128,0.15)',
+          color: 'white', fontFamily: "'Outfit', sans-serif", fontWeight: 600,
+          fontSize: '15px', animation: 'slideUp 0.3s ease',
+          whiteSpace: 'nowrap',
+        }}>
+          <span className="material-symbols-rounded" style={{ fontSize: '22px', color: '#4ade80' }}>check_circle</span>
+          🎉 Welcome to AntCapture Cloud! Your plan is now active.
+          <button
+            onClick={() => setShowBillingToast(false)}
+            style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.6)', cursor: 'pointer', fontSize: '18px', padding: '0 0 0 8px', lineHeight: 1 }}
+          >×</button>
+        </div>
+      )}
       {activeMedia && (
         <MediaModal
           item={activeMedia}

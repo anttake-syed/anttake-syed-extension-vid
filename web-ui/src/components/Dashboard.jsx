@@ -358,13 +358,13 @@ export default function Dashboard({ isAuthenticated, isLocalMode, hasCloudAccess
               <span style={{ fontSize: '11px', fontWeight: 700, color: '#818cf8', letterSpacing: '0.05em' }}>UNLOCK ANTCAPTURE CLOUD</span>
             </div>
             <h3 style={{ margin: '0 0 8px', fontSize: '20px', fontWeight: 700, color: '#f8fafc' }}>
-              Get 25 GB storage, VoidBoard & more
+              Get 25 GB Cloud Storage &amp; more
             </h3>
             <p style={{ margin: '0 0 16px', color: '#94a3b8', fontSize: '14px', lineHeight: 1.6 }}>
               Your account is active but you don't have a cloud plan yet. Upgrade to unlock cloud storage, infinite whiteboards, search, and sharing.
             </p>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-              {['25 GB cloud storage', 'VoidBoard whiteboards', 'Cloud library', 'Search & fuzzy search', 'Sharing'].map(f => (
+              {['25 GB cloud storage', 'Infinite Whiteboards', 'Cloud library', 'Search & fuzzy search', 'Sharing'].map(f => (
                 <span key={f} style={{ fontSize: '12px', color: '#a5b4fc', background: 'rgba(99,102,241,0.12)', border: '1px solid rgba(99,102,241,0.25)', borderRadius: '6px', padding: '3px 10px', fontWeight: 500 }}>
                   ✓ {f}
                 </span>
@@ -391,7 +391,7 @@ export default function Dashboard({ isAuthenticated, isLocalMode, hasCloudAccess
               Upgrade to Cloud
             </button>
             <span style={{ fontSize: '12px', color: '#475569', paddingLeft: '4px' }}>
-              From $10/mo · Cancel anytime
+              From $12/mo &middot; Cancel anytime
             </span>
           </div>
         </div>

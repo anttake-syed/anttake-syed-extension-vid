@@ -22,6 +22,7 @@ import WhiteboardEditor from './components/WhiteboardEditor.jsx';
 import StaticPage from './components/StaticPage.jsx';
 import ServerHealthBadge from './components/ServerHealthBadge.jsx';
 import AdminDiagnostics from './components/AdminDiagnostics.jsx';
+import LockedFeature from './components/LockedFeature.jsx';
 
 const NAV_TO_PATH = {
   'Dashboard':      '/',
@@ -99,7 +100,7 @@ function FeedbackPage() {
 }
 
 export default function App() {
-  const { user, isAuthenticated, isInitializing, logout, updateUser } = useAuth();
+  const { user, isAuthenticated, isInitializing, logout, updateUser, hasCloudAccess, subscription, refreshSubscription } = useAuth();
 
   const {
     captures, setCaptures, dbStats,
@@ -429,7 +430,14 @@ export default function App() {
         ) : activeNav === 'Subscription' && isAuthenticated ? (
           <SubscriptionManage user={user} />
         ) : activeNav === 'Whiteboards' ? (
-          <Whiteboards key={wbRefreshKey} user={user} isAuthenticated={isAuthenticated} onSignIn={() => setShowModal(true)} onOpenBoard={setActiveBoard} />
+          <LockedFeature
+            isLocked={isAuthenticated && !hasCloudAccess && !IS_LOCAL_MODE}
+            featureName="VoidBoard — Infinite Whiteboards"
+            description="Create unlimited AI-powered whiteboards, add captures, collaborate visually — all with your cloud plan."
+            onUpgrade={() => setActiveNav('Pricing')}
+          >
+            <Whiteboards key={wbRefreshKey} user={user} isAuthenticated={isAuthenticated} onSignIn={() => setShowModal(true)} onOpenBoard={setActiveBoard} />
+          </LockedFeature>
         ) : activeNav === 'Pricing' ? (
           <Pricing user={user} isAuthenticated={isAuthenticated} onSignIn={() => setShowModal(true)} />
         ) : activeNav === 'Feedback' ? (
@@ -633,6 +641,8 @@ If you discover a security vulnerability, please report it responsibly through t
           <Dashboard
             isAuthenticated={isAuthenticated}
             isLocalMode={IS_LOCAL_MODE}
+            hasCloudAccess={hasCloudAccess}
+            subscription={subscription}
             stats={stats}
             captures={captures}
             loadingCaptures={loadingCaptures}

@@ -3,153 +3,127 @@ import React from 'react';
 /**
  * LockedFeature — Inline paywall gate.
  *
- * Renders a blurred preview of the feature behind a centred overlay card.
- * The card's design matches the Dashboard upsell banner so the UI feels
- * cohesive across the whole app.
+ * Renders an inline card explaining that a cloud plan is required.
+ * Does NOT blur or show the underlying content (which the user cannot access).
  *
  * Props:
- *   featureName  — e.g. "Cloud Library" or "Infinite Whiteboards"
+ *   featureName  — e.g. "Cloud Library" or "1,000 Cloud Whiteboards"
  *   description  — short description of what this feature does
  *   onUpgrade    — callback to navigate to the pricing page
- *   children     — the actual feature UI (blurred behind the lock card)
- *   isLocked     — if false, renders children normally (no lock)
+ *   children     — the actual feature UI (rendered ONLY if isLocked is false)
+ *   isLocked     — if false, renders children normally
  */
 export default function LockedFeature({ featureName, description, onUpgrade, children, isLocked }) {
   if (!isLocked) return children;
 
   return (
-    <div style={{ position: 'relative', width: '100%', minHeight: '420px', overflow: 'hidden', borderRadius: '20px' }}>
-
-      {/* Blurred feature preview */}
+    <div style={{
+      width: '100%',
+      maxWidth: '800px',
+      margin: '40px auto',
+      padding: '0 24px',
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+    }}>
       <div style={{
-        filter: 'blur(5px)',
-        opacity: 0.28,
-        pointerEvents: 'none',
-        userSelect: 'none',
-      }}>
-        {children}
-      </div>
-
-      {/* Overlay — matches Dashboard upsell banner exactly */}
-      <div style={{
-        position: 'absolute',
-        inset: 0,
+        background: 'linear-gradient(135deg, rgba(99,102,241,0.08) 0%, rgba(139,92,246,0.08) 100%)',
+        border: '1px solid rgba(99,102,241,0.25)',
+        borderRadius: '24px',
+        padding: '40px',
+        width: '100%',
         display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '24px',
+        flexDirection: 'column',
+        alignItems: 'flex-start',
+        gap: '24px',
+        position: 'relative',
+        overflow: 'hidden',
       }}>
+        {/* Decorative glow */}
         <div style={{
-          background: 'linear-gradient(135deg, rgba(9,11,30,0.97) 0%, rgba(15,20,50,0.97) 100%)',
-          backdropFilter: 'blur(24px)',
-          WebkitBackdropFilter: 'blur(24px)',
-          border: '1px solid rgba(99,102,241,0.3)',
-          borderRadius: '20px',
-          padding: '36px 40px',
-          maxWidth: '520px',
-          width: '100%',
-          display: 'flex',
+          position: 'absolute',
+          top: '-60px',
+          right: '-60px',
+          width: '250px',
+          height: '250px',
+          background: 'radial-gradient(circle, rgba(99,102,241,0.12) 0%, transparent 70%)',
+          pointerEvents: 'none',
+        }} />
+
+        {/* Badge */}
+        <div style={{
+          display: 'inline-flex',
           alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: '32px',
-          flexWrap: 'wrap',
-          position: 'relative',
-          overflow: 'hidden',
-          boxShadow: '0 24px 64px rgba(0,0,0,0.55), 0 0 50px rgba(99,102,241,0.06)',
+          gap: '6px',
+          background: 'rgba(99,102,241,0.12)',
+          border: '1px solid rgba(99,102,241,0.25)',
+          borderRadius: '999px',
+          padding: '4px 14px',
         }}>
+          <span className="material-symbols-rounded" style={{ fontSize: '14px', color: '#818cf8' }}>lock</span>
+          <span style={{ fontSize: '12px', fontWeight: 700, color: '#818cf8', letterSpacing: '0.05em' }}>
+            CLOUD PLAN REQUIRED
+          </span>
+        </div>
 
-          {/* Decorative glow — same as Dashboard */}
-          <div style={{
-            position: 'absolute',
-            top: '-50px',
-            right: '-50px',
-            width: '200px',
-            height: '200px',
-            background: 'radial-gradient(circle, rgba(99,102,241,0.14) 0%, transparent 70%)',
-            pointerEvents: 'none',
-          }} />
+        <div>
+          <h2 style={{ margin: '0 0 12px', fontSize: '28px', fontWeight: 800, color: '#f8fafc', lineHeight: 1.2 }}>
+            {featureName}
+          </h2>
+          <p style={{ margin: 0, color: '#94a3b8', fontSize: '16px', lineHeight: 1.6, maxWidth: '600px' }}>
+            {description || `Upgrade to AntCapture Cloud to unlock ${featureName} and all premium features.`}
+          </p>
+        </div>
 
-          {/* Left: text */}
-          <div style={{ flex: 1, minWidth: '220px' }}>
-
-            {/* Badge */}
-            <div style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              background: 'rgba(99,102,241,0.15)',
-              border: '1px solid rgba(99,102,241,0.3)',
-              borderRadius: '999px',
-              padding: '3px 12px',
-              marginBottom: '14px',
-            }}>
-              <span className="material-symbols-rounded" style={{ fontSize: '13px', color: '#818cf8' }}>lock</span>
-              <span style={{ fontSize: '11px', fontWeight: 700, color: '#818cf8', letterSpacing: '0.05em' }}>
-                CLOUD PLAN REQUIRED
-              </span>
-            </div>
-
-            <h3 style={{ margin: '0 0 8px', fontSize: '20px', fontWeight: 700, color: '#f8fafc', lineHeight: 1.25 }}>
-              {featureName}
-            </h3>
-
-            <p style={{ margin: '0 0 18px', color: '#94a3b8', fontSize: '14px', lineHeight: 1.65 }}>
-              {description || `Upgrade to AntCapture Cloud to unlock ${featureName} and all premium features.`}
-            </p>
-
-            {/* Feature pills — same style as Dashboard */}
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '7px' }}>
-              {['25 GB cloud storage', 'Infinite Whiteboards', 'Cloud library', 'Sharing'].map(f => (
-                <span
-                  key={f}
-                  style={{
-                    fontSize: '12px',
-                    color: '#a5b4fc',
-                    background: 'rgba(99,102,241,0.12)',
-                    border: '1px solid rgba(99,102,241,0.25)',
-                    borderRadius: '6px',
-                    padding: '3px 10px',
-                    fontWeight: 500,
-                  }}
-                >
-                  ✓ {f}
-                </span>
-              ))}
-            </div>
-          </div>
-
-          {/* Right: CTA */}
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '10px', flexShrink: 0 }}>
-            <button
-              onClick={onUpgrade}
+        {/* Feature pills */}
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '4px' }}>
+          {['25 GB cloud storage', '1,000 Cloud Whiteboards', 'Cloud library', 'Search & fuzzy search', 'Sharing'].map(f => (
+            <span
+              key={f}
               style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-                color: 'white',
-                borderRadius: '12px',
-                padding: '13px 24px',
-                fontWeight: 700,
-                fontSize: '15px',
-                border: 'none',
-                cursor: 'pointer',
-                fontFamily: "'Outfit', sans-serif",
-                boxShadow: '0 4px 24px rgba(99,102,241,0.35)',
-                transition: 'all 0.2s',
-                whiteSpace: 'nowrap',
+                fontSize: '13px',
+                color: '#a5b4fc',
+                background: 'rgba(99,102,241,0.1)',
+                border: '1px solid rgba(99,102,241,0.2)',
+                borderRadius: '8px',
+                padding: '6px 12px',
+                fontWeight: 500,
               }}
-              onMouseEnter={e => { e.currentTarget.style.filter = 'brightness(1.12)'; }}
-              onMouseLeave={e => { e.currentTarget.style.filter = 'none'; }}
             >
-              <span className="material-symbols-rounded" style={{ fontSize: '18px' }}>bolt</span>
-              Upgrade to Cloud
-            </button>
-
-            <span style={{ fontSize: '12px', color: '#475569', paddingLeft: '4px' }}>
-              From $12/mo &middot; Cancel anytime
+              ✓ {f}
             </span>
-          </div>
+          ))}
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginTop: '12px', flexWrap: 'wrap' }}>
+          <button
+            onClick={onUpgrade}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+              color: 'white',
+              borderRadius: '12px',
+              padding: '14px 28px',
+              fontWeight: 700,
+              fontSize: '16px',
+              border: 'none',
+              cursor: 'pointer',
+              fontFamily: "'Outfit', sans-serif",
+              boxShadow: '0 8px 32px rgba(99,102,241,0.25)',
+              transition: 'all 0.2s',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.filter = 'brightness(1.12)'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
+            onMouseLeave={e => { e.currentTarget.style.filter = 'none'; e.currentTarget.style.transform = 'none'; }}
+          >
+            <span className="material-symbols-rounded" style={{ fontSize: '20px' }}>bolt</span>
+            Upgrade to Cloud
+          </button>
+          
+          <span style={{ fontSize: '14px', color: '#64748b', fontWeight: 500 }}>
+            From $12/mo &middot; Cancel anytime
+          </span>
         </div>
       </div>
     </div>

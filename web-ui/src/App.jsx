@@ -392,6 +392,7 @@ export default function App() {
       <Sidebar
         activeNav={activeNav}
         isAuthenticated={isAuthenticated}
+        hasCloudAccess={hasCloudAccess}
         user={user}
         onNavClick={(nav) => { setActiveNav(nav); setActiveBoard(null); setActiveMedia(null); setMobileMenuOpen(false); }}
         onSignIn={() => { setShowModal(true); setMobileMenuOpen(false); }}
@@ -418,7 +419,18 @@ export default function App() {
 
 
         {/* ── Page Content ── */}
-        {activeBoard ? (
+        {/* ── PAYWALL GATE — unsubscribed cloud users only see the Pricing page ── */}
+        {isAuthenticated && !hasCloudAccess && !IS_LOCAL_MODE && !isInitializing ? (
+          // Allowed through even in paywall mode: Pricing, Subscription, Settings
+          // (Settings lets them logout; Subscription shows their current status)
+          activeNav === 'Subscription' ? (
+            <SubscriptionManage user={user} />
+          ) : activeNav === 'Settings' ? (
+            <Settings user={user} captures={captures} dbStats={dbStats} onNameUpdate={handleNameUpdate} onDeleteAllCaptures={handleDeleteAllCaptures} onDeleteAccount={handleDeleteAccount} storagePreference={storagePreference} saveStoragePreference={saveStoragePreference} savingPref={savingPref} onManageSubscription={() => setActiveNav('Subscription')} />
+          ) : (
+            <Pricing user={user} isAuthenticated={isAuthenticated} onSignIn={() => setShowModal(true)} paywalled />
+          )
+        ) : activeBoard ? (
           <WhiteboardEditor board={activeBoard} onClose={() => { 
             setActiveBoard(null);
             const targetPath = NAV_TO_PATH[activeNav] || '/';

@@ -364,7 +364,7 @@ export default function Dashboard({ isAuthenticated, isLocalMode, hasCloudAccess
               Your account is active but you don't have a cloud plan yet. Upgrade to unlock cloud storage, infinite whiteboards, search, and sharing.
             </p>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-              {['25 GB cloud storage', 'Infinite Whiteboards', 'Cloud library', 'Search & fuzzy search', 'Sharing'].map(f => (
+              {['25 GB cloud storage', '1,000 Cloud Whiteboards', 'Cloud library', 'Search & fuzzy search', 'Sharing'].map(f => (
                 <span key={f} style={{ fontSize: '12px', color: '#a5b4fc', background: 'rgba(99,102,241,0.12)', border: '1px solid rgba(99,102,241,0.25)', borderRadius: '6px', padding: '3px 10px', fontWeight: 500 }}>
                   ✓ {f}
                 </span>

@@ -433,8 +433,8 @@ export default function App() {
         ) : activeNav === 'Whiteboards' ? (
           <LockedFeature
             isLocked={isAuthenticated && !hasCloudAccess && !IS_LOCAL_MODE && isReady}
-            featureName="Infinite Whiteboards"
-            description="Create unlimited whiteboards, add captures, collaborate visually — all with your cloud plan."
+            featureName="1,000 Cloud Whiteboards"
+            description="Create up to 1,000 whiteboards, add captures, collaborate visually — all with your cloud plan."
             onUpgrade={() => setActiveNav('Pricing')}
           >
             <Whiteboards key={wbRefreshKey} user={user} isAuthenticated={isAuthenticated} onSignIn={() => setShowModal(true)} onOpenBoard={setActiveBoard} />

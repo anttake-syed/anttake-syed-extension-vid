@@ -51,7 +51,16 @@ const uploadRouter = {
           throw new UploadThingError({ code: "UNAUTHORIZED", message: "Invalid token" });
         }
 
-        // ── 2. Quota check BEFORE allowing the upload ────────────────────────────
+        // ── 2. Check cloud subscription BEFORE allowing any upload ───────────────
+        const subscriptionCheck = await EntitlementService.checkSubscription(decoded.id);
+        if (!subscriptionCheck.allowed) {
+          throw new UploadThingError({
+            code: "FORBIDDEN",
+            message: "Cloud uploads require an active AntCapture Cloud plan. Visit the dashboard to subscribe.",
+          });
+        }
+
+        // ── 3. Quota check BEFORE allowing the upload ────────────────────────────
         const sizeBytes = input?.sizeBytes || 0;
         const quotaCheck = await EntitlementService.checkQuota(decoded.id, sizeBytes, 'upload_thing');
         if (!quotaCheck.allowed) {

@@ -22,6 +22,7 @@ import WhiteboardEditor from './components/WhiteboardEditor.jsx';
 import StaticPage from './components/StaticPage.jsx';
 import ServerHealthBadge from './components/ServerHealthBadge.jsx';
 import AdminDiagnostics from './components/AdminDiagnostics.jsx';
+import LockedFeature from './components/LockedFeature.jsx';
 
 const NAV_TO_PATH = {
   'Dashboard':      '/',
@@ -99,7 +100,7 @@ function FeedbackPage() {
 }
 
 export default function App() {
-  const { user, isAuthenticated, isInitializing, logout, updateUser } = useAuth();
+  const { user, isAuthenticated, isInitializing, logout, updateUser, hasCloudAccess, subscription, refreshSubscription } = useAuth();
 
   const {
     captures, setCaptures, dbStats,
@@ -391,6 +392,7 @@ export default function App() {
       <Sidebar
         activeNav={activeNav}
         isAuthenticated={isAuthenticated}
+        hasCloudAccess={hasCloudAccess}
         user={user}
         onNavClick={(nav) => { setActiveNav(nav); setActiveBoard(null); setActiveMedia(null); setMobileMenuOpen(false); }}
         onSignIn={() => { setShowModal(true); setMobileMenuOpen(false); }}
@@ -417,7 +419,18 @@ export default function App() {
 
 
         {/* ── Page Content ── */}
-        {activeBoard ? (
+        {/* ── PAYWALL GATE — unsubscribed cloud users only see the Pricing page ── */}
+        {isAuthenticated && !hasCloudAccess && !IS_LOCAL_MODE && !isInitializing ? (
+          // Allowed through even in paywall mode: Pricing, Subscription, Settings
+          // (Settings lets them logout; Subscription shows their current status)
+          activeNav === 'Subscription' ? (
+            <SubscriptionManage user={user} />
+          ) : activeNav === 'Settings' ? (
+            <Settings user={user} captures={captures} dbStats={dbStats} onNameUpdate={handleNameUpdate} onDeleteAllCaptures={handleDeleteAllCaptures} onDeleteAccount={handleDeleteAccount} storagePreference={storagePreference} saveStoragePreference={saveStoragePreference} savingPref={savingPref} onManageSubscription={() => setActiveNav('Subscription')} />
+          ) : (
+            <Pricing user={user} isAuthenticated={isAuthenticated} onSignIn={() => setShowModal(true)} paywalled />
+          )
+        ) : activeBoard ? (
           <WhiteboardEditor board={activeBoard} onClose={() => { 
             setActiveBoard(null);
             const targetPath = NAV_TO_PATH[activeNav] || '/';
@@ -429,7 +442,14 @@ export default function App() {
         ) : activeNav === 'Subscription' && isAuthenticated ? (
           <SubscriptionManage user={user} />
         ) : activeNav === 'Whiteboards' ? (
-          <Whiteboards key={wbRefreshKey} user={user} isAuthenticated={isAuthenticated} onSignIn={() => setShowModal(true)} onOpenBoard={setActiveBoard} />
+          <LockedFeature
+            isLocked={isAuthenticated && !hasCloudAccess && !IS_LOCAL_MODE}
+            featureName="VoidBoard — Infinite Whiteboards"
+            description="Create unlimited AI-powered whiteboards, add captures, collaborate visually — all with your cloud plan."
+            onUpgrade={() => setActiveNav('Pricing')}
+          >
+            <Whiteboards key={wbRefreshKey} user={user} isAuthenticated={isAuthenticated} onSignIn={() => setShowModal(true)} onOpenBoard={setActiveBoard} />
+          </LockedFeature>
         ) : activeNav === 'Pricing' ? (
           <Pricing user={user} isAuthenticated={isAuthenticated} onSignIn={() => setShowModal(true)} />
         ) : activeNav === 'Feedback' ? (
@@ -633,6 +653,8 @@ If you discover a security vulnerability, please report it responsibly through t
           <Dashboard
             isAuthenticated={isAuthenticated}
             isLocalMode={IS_LOCAL_MODE}
+            hasCloudAccess={hasCloudAccess}
+            subscription={subscription}
             stats={stats}
             captures={captures}
             loadingCaptures={loadingCaptures}

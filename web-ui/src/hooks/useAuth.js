@@ -27,6 +27,10 @@ export function useAuth() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isInitializing, setIsInitializing] = useState(true);
   const [subscription, setSubscription] = useState(null);
+  // True once we have received a definitive answer from the /subscription endpoint.
+  // The paywall gate MUST wait for this before activating — otherwise it fires
+  // before the fetch completes and briefly shows the paywall to admins / subscribers.
+  const [subscriptionResolved, setSubscriptionResolved] = useState(false);
 
   // The JWT is client-controlled and never carries a trustworthy role, so the
   // server is always the source of truth for it — fetch it separately and merge.
@@ -52,19 +56,21 @@ export function useAuth() {
   // This is the source of truth for feature gating — never trust the JWT for this.
   const refreshSubscription = useCallback(async (jwt) => {
     if (!jwt || jwt === 'local-mode') {
-      // Local self-hosted mode: treat as fully subscribed
       setSubscription({ status: 'active' });
+      setSubscriptionResolved(true);
       return;
     }
     try {
       const res = await fetch(`${SERVER_URL}/subscription`, {
         headers: { Authorization: `Bearer ${jwt}` },
       });
-      if (!res.ok) { setSubscription(null); return; }
+      if (!res.ok) { setSubscription(null); setSubscriptionResolved(true); return; }
       const data = await res.json();
       setSubscription(data.subscription || null);
     } catch (_err) {
       setSubscription(null);
+    } finally {
+      setSubscriptionResolved(true);
     }
   }, []);
 
@@ -72,7 +78,6 @@ export function useAuth() {
     try {
       const userData = parseAndValidateJwt(authData);
       if (!userData) {
-        // Token is invalid or expired — clear it
         localStorage.removeItem('antcapture_user');
         return null;
       }
@@ -80,10 +85,11 @@ export function useAuth() {
       localStorage.setItem('antcapture_user', JSON.stringify(userData));
       setUser(userData);
       setIsAuthenticated(true);
+      // Reset so paywall gate waits for the new subscription fetch
+      setSubscriptionResolved(false);
       refreshRole(authData);
       refreshSubscription(authData);
 
-      // Sync login to extension immediately
       if (EXTENSION_ID && typeof chrome !== 'undefined' && chrome.runtime?.sendMessage) {
         chrome.runtime.sendMessage(EXTENSION_ID, { action: 'SYNC_USER', user: userData }).catch(()=>{});
       }
@@ -100,8 +106,8 @@ export function useAuth() {
     setUser(null);
     setIsAuthenticated(false);
     setSubscription(null);
+    setSubscriptionResolved(false);
 
-    // Sync logout to extension immediately
     if (EXTENSION_ID && typeof chrome !== 'undefined' && chrome.runtime?.sendMessage) {
       chrome.runtime.sendMessage(EXTENSION_ID, { action: 'SYNC_USER', user: null }).catch(()=>{});
     }
@@ -115,17 +121,16 @@ export function useAuth() {
   };
 
   useEffect(() => {
-    // Completely bypass authentication for Local Self-Hosted mode
+    // Local Self-Hosted mode — bypass everything
     if (IS_LOCAL_MODE) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setUser({ name: 'Local Admin', email: 'admin@localhost', jwt: 'local-mode', picture: '', role: 'admin' });
       setIsAuthenticated(true);
-      setSubscription({ status: 'active' }); // local mode = full access
+      setSubscription({ status: 'active' });
+      setSubscriptionResolved(true);
       setIsInitializing(false);
       return;
     }
 
-    // Load from localStorage — validate expiry before trusting it
     const stored = localStorage.getItem('antcapture_user');
     let jwt = null;
 
@@ -134,31 +139,31 @@ export function useAuth() {
         const userData = JSON.parse(stored);
         const validated = parseAndValidateJwt(userData.jwt);
         if (validated) {
-          // Token is still valid
           setUser(userData);
           setIsAuthenticated(true);
           jwt = userData.jwt;
           refreshRole(jwt);
+          // subscriptionResolved will be set to true inside refreshSubscription
           refreshSubscription(jwt);
         } else {
-          // Token expired — clear it so the login screen shows
           localStorage.removeItem('antcapture_user');
           console.info('Session expired. Please sign in again.');
+          setSubscriptionResolved(true); // No user — nothing to fetch
         }
       } catch (_err) {
         localStorage.removeItem('antcapture_user');
+        setSubscriptionResolved(true);
       }
+    } else {
+      // No stored session — nothing to fetch
+      setSubscriptionResolved(true);
     }
 
     // Handle ?auth_data= from OAuth redirect
     const params = new URLSearchParams(window.location.search);
     const authData = params.get('auth_data');
     if (authData) {
-      const userData = login(authData);
-      if (userData) {
-        jwt = authData;
-        void jwt; // Tell ESLint it is intentionally unused here if we don't need it later
-      }
+      login(authData); // login() resets subscriptionResolved and kicks off fetch
       window.history.replaceState({}, document.title,
         window.location.origin + window.location.pathname);
     }
@@ -185,7 +190,6 @@ export function useAuth() {
       setTimeout(() => setIsInitializing(false), 300);
     }
 
-    // Let the extension know our dynamic URL in case Vite changed ports
     if (EXTENSION_ID && typeof chrome !== 'undefined' && chrome.runtime?.sendMessage) {
       chrome.runtime.sendMessage(EXTENSION_ID, { action: 'REGISTER_WEB_UI', url: window.location.origin }).catch(()=>{});
     }
@@ -193,11 +197,15 @@ export function useAuth() {
     return () => window.removeEventListener('message', handleMessage);
   }, []);
 
-  // Computed: true if admin OR active subscription.
-  // Admin role is fetched server-side via refreshRole — never trust JWT for this.
+  // hasCloudAccess: admin OR active subscription.
+  // Admin role comes from refreshRole (server-side) — never trust JWT for this.
   const hasCloudAccess = IS_LOCAL_MODE
     || user?.role === 'admin'
     || subscription?.status === 'active';
 
-  return { user, isAuthenticated, isInitializing, login, logout, updateUser, subscription, hasCloudAccess, refreshSubscription };
+  // isReady: app has finished both auth init AND subscription fetch.
+  // The paywall gate uses this so it never activates prematurely.
+  const isReady = !isInitializing && subscriptionResolved;
+
+  return { user, isAuthenticated, isInitializing, isReady, login, logout, updateUser, subscription, hasCloudAccess, refreshSubscription };
 }

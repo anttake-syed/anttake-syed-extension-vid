@@ -1,6 +1,30 @@
+const crypto = require('crypto');
 const { google } = require('googleapis');
 const jwt = require('jsonwebtoken');
 const logger = require('../utils/logger');
+const { DEFAULT_WEB_ORIGIN, isAllowedWebOrigin } = require('../utils/allowedOrigins');
+
+const STATE_COOKIE = 'ac_oauth_state';
+const SOURCES = ['web', 'extension'];
+const MODES = ['redirect', 'popup'];
+
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, (c) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  }[c]));
+}
+
+// JSON.stringify alone is not safe inside <script>; escape '<' so a value
+// can never close the script tag.
+function toScriptLiteral(value) {
+  return JSON.stringify(value).replace(/</g, '\\u003c');
+}
+
+function readCookie(req, name) {
+  const match = (req.headers.cookie || '').split(';').map((c) => c.trim())
+    .find((c) => c.startsWith(`${name}=`));
+  return match ? decodeURIComponent(match.slice(name.length + 1)) : null;
+}
 
 const oauth2Client = new google.auth.OAuth2(
   process.env.GOOGLE_CLIENT_ID,
@@ -15,8 +39,24 @@ const SCOPES = [
 ];
 
 exports.googleAuth = (req, res) => {
-  const { source = 'web', mode = 'redirect', origin = 'https://antcapture.anttake.com' } = req.query;
-  const state = JSON.stringify({ source, mode, origin });
+  const { source = 'web', mode = 'redirect', origin = DEFAULT_WEB_ORIGIN } = req.query;
+  // Tokens are delivered to `origin`, so it must be one of our own web apps —
+  // otherwise any site could start a login and receive the victim's JWT.
+  if (!SOURCES.includes(source) || !MODES.includes(mode) || !isAllowedWebOrigin(origin)) {
+    return res.status(400).send('Invalid sign-in request');
+  }
+
+  // Random nonce bound to this browser; checked on callback to block login CSRF.
+  const nonce = crypto.randomBytes(16).toString('hex');
+  res.cookie(STATE_COOKIE, nonce, {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production',
+    path: '/auth',
+    maxAge: 10 * 60 * 1000,
+  });
+
+  const state = JSON.stringify({ source, mode, origin, nonce });
   const url = oauth2Client.generateAuthUrl({
     access_type: 'offline',
     scope: SCOPES,
@@ -28,8 +68,28 @@ exports.googleAuth = (req, res) => {
 
 exports.googleCallback = async (req, res) => {
   const { code, state, error } = req.query;
-  if (error) {return res.status(400).send(`Auth failed: ${error}`);}
+  if (error) {return res.status(400).send(`Auth failed: ${escapeHtml(error)}`);}
   if (!code) {return res.status(400).send('No code received');}
+
+  let source = 'web', mode = 'redirect', origin = DEFAULT_WEB_ORIGIN, nonce = null;
+  try {
+    const parsed = JSON.parse(state || '{}');
+    source = parsed.source || source;
+    mode = parsed.mode || mode;
+    origin = parsed.origin || origin;
+    nonce = parsed.nonce || null;
+  } catch (parseErr) {
+    logger.warn('auth', 'state-parse-failed', { requestId: req.requestId, error: parseErr });
+  }
+
+  const expectedNonce = readCookie(req, STATE_COOKIE);
+  res.clearCookie(STATE_COOKIE, { path: '/auth' });
+  const nonceOk = nonce && expectedNonce && nonce.length === expectedNonce.length &&
+    crypto.timingSafeEqual(Buffer.from(nonce), Buffer.from(expectedNonce));
+  if (!nonceOk || !SOURCES.includes(source) || !MODES.includes(mode) || !isAllowedWebOrigin(origin)) {
+    logger.warn('auth', 'invalid-oauth-state', { requestId: req.requestId });
+    return res.status(400).send('Sign-in expired or invalid. Please try again.');
+  }
 
   try {
     const { tokens } = await oauth2Client.getToken(code);
@@ -76,18 +136,6 @@ exports.googleCallback = async (req, res) => {
       }
     });
 
-    let source = 'web', mode = 'redirect', origin = 'https://antcapture.anttake.com';
-    try {
-      if (state?.startsWith('{')) {
-        const parsed = JSON.parse(state);
-        source = parsed.source || source;
-        mode = parsed.mode || mode;
-        origin = parsed.origin || origin;
-      }
-    } catch (parseErr) {
-      logger.warn('auth', 'state-parse-failed', { requestId: req.requestId, error: parseErr });
-    }
-
     // V2 JWT: embed user ID + tokens (tokens still needed for Drive access)
     const jwtToken = jwt.sign(
       {
@@ -109,9 +157,9 @@ exports.googleCallback = async (req, res) => {
         <body style="background:#0f172a;color:white;display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;margin:0;">
         <div style="text-align:center;">
           <h1 style="color:#6366f1;">✨ Signed in!</h1>
-          <p style="color:#94a3b8;">Welcome, ${userInfo.name}. Closing window...</p>
+          <p style="color:#94a3b8;">Welcome, ${escapeHtml(userInfo.name)}. Closing window...</p>
           <script>
-            window.opener.postMessage({ type: 'AUTH_SUCCESS', auth_data: '${jwtToken}' }, '${origin}');
+            window.opener.postMessage({ type: 'AUTH_SUCCESS', auth_data: ${toScriptLiteral(jwtToken)} }, ${toScriptLiteral(origin)});
             setTimeout(() => window.close(), 800);
           </script>
         </div>
@@ -126,7 +174,7 @@ exports.googleCallback = async (req, res) => {
     return res.redirect(`${origin}?auth_data=${jwtToken}`);
   } catch (err) {
     logger.error('auth', 'google-callback-error', { requestId: req.requestId, error: err });
-    res.status(500).send(`Authentication failed: ${err.message}`);
+    res.status(500).send('Authentication failed. Please try again.');
   }
 };
 

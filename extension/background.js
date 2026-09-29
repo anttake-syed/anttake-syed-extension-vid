@@ -14,6 +14,7 @@ import { syncPendingUploads } from './background/save.js';
 import { notify } from './background/notify.js';
 import { Logger } from './shared/logger.js';
 import { cleanOPFSOrphans, deleteOPFSFile } from './storage/opfsStorage.js';
+import { DEV_SERVER_URL, PROD_SERVER_URL } from './shared/config.js';
 
 const log = Logger.getLogger('Background Worker');
 import {
@@ -437,6 +438,9 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 
   try {
     const url = new URL(currentUrl);
+    // Only trust tokens handed out by our own server — otherwise any page could
+    // plant an attacker's JWT and capture the user's uploads.
+    if (url.pathname !== '/auth/success' || ![DEV_SERVER_URL, PROD_SERVER_URL].includes(url.origin)) return;
     const authData = url.searchParams.get('auth_data');
     if (!authData) return;
 

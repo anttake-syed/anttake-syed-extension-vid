@@ -11,6 +11,8 @@ export default function LoginPage() {
     setLoading(true);
     setError(null);
     const origin = window.location.origin;
+    // Marks that this tab started the login, so useAuth only accepts ?auth_data= we asked for.
+    try { sessionStorage.setItem('antcapture_login_pending', '1'); } catch { /* storage blocked */ }
     window.location.href = `${SERVER_URL}/auth/google?source=web&origin=${encodeURIComponent(origin)}`;
   };
 

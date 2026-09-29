@@ -10,13 +10,16 @@ const WEBHOOK_SECRET = process.env.LS_WEBHOOK_SECRET;
  */
 function getPlanNameFromVariant(variantId) {
   const id = variantId.toString();
-  if (
-    id === process.env.LS_VARIANT_CLOUD_MONTHLY ||
-    id === process.env.LS_VARIANT_CLOUD_YEARLY
-  ) {
-    return 'cloud';
-  }
-  return 'free';
+  // Same env names the checkout uses (subscriptionController), plus legacy ones
+  const cloudVariants = [
+    'LEMONSQUEEZY_TEST_MONTHLY_VARIANT_ID',
+    'LEMONSQUEEZY_TEST_YEARLY_VARIANT_ID',
+    'LEMONSQUEEZY_LIVE_MONTHLY_VARIANT_ID',
+    'LEMONSQUEEZY_LIVE_YEARLY_VARIANT_ID',
+    'LS_VARIANT_CLOUD_MONTHLY',
+    'LS_VARIANT_CLOUD_YEARLY',
+  ].map((name) => process.env[name]).filter(Boolean);
+  return cloudVariants.includes(id) ? 'cloud' : 'free';
 }
 
 exports.handleWebhook = async (req, res) => {
@@ -57,7 +60,10 @@ exports.handleWebhook = async (req, res) => {
 
         const variantId = attributes.variant_id.toString();
         const planName  = getPlanNameFromVariant(variantId);
-        const plan      = await prisma.plan.findUnique({ where: { name: planName } });
+        // Fall back to the free plan row so a paid subscription is still
+        // recorded (and unlocks cloud) if the 'cloud' row hasn't been created.
+        const plan      = await prisma.plan.findUnique({ where: { name: planName } })
+          || await prisma.plan.findUnique({ where: { name: 'free' } });
 
         if (!plan) {
           logger.warn('webhook', 'plan-not-found', { planName, variantId });

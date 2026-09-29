@@ -32,9 +32,9 @@ async function main() {
     }
 
     // 2. Find the Pro Plan
-    const proPlan = await prisma.plan.findUnique({ where: { name: 'cloud-pro' } });
+    const proPlan = await prisma.plan.findUnique({ where: { name: 'cloud' } });
     if (!proPlan) {
-      console.error(`❌ 'cloud-pro' plan not found. Did you run the seed script?`);
+      console.error(`❌ 'cloud' plan not found. Run the seed script first: node prisma/seed.js`);
       process.exit(1);
     }
 

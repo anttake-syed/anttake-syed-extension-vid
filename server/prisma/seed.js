@@ -26,45 +26,25 @@ async function main() {
   });
   console.log('✅ Seeded Free plan');
 
-  // 2. Cloud Basic Plan
+  // 2. AntCapture Cloud — the single paid plan on the Pricing page
   await prisma.plan.upsert({
-    where: { name: 'basic' },
+    where: { name: 'cloud' },
     update: {},
     create: {
-      name: 'basic',
-      displayName: 'Cloud Basic',
-      priceMonthly: 500, // $5.00
-      priceYearly: 4800, // $48.00
+      name: 'cloud',
+      displayName: 'AntCapture Cloud',
+      priceMonthly: 1200, // $12.00
+      priceYearly: 12000, // $120.00
       currency: 'USD',
-      cloudStorageBytes: 10 * 1024 * 1024 * 1024, // 10 GB
-      maxFileSizeBytes: 500 * 1024 * 1024, // 500 MB
+      cloudStorageBytes: 25 * 1024 * 1024 * 1024, // 25 GB
+      maxFileSizeBytes: 256 * 1024 * 1024, // 256 MB (UploadThing per-file limit)
       googleDriveEnabled: true,
-      boardLimit: 10,
+      boardLimit: 1000,
       captureLimit: 0, // unlimited
       isActive: true,
     },
   });
-  console.log('✅ Seeded Cloud Basic plan');
-
-  // 3. Cloud Pro Plan
-  await prisma.plan.upsert({
-    where: { name: 'pro' },
-    update: {},
-    create: {
-      name: 'pro',
-      displayName: 'Cloud Pro',
-      priceMonthly: 1500, // $15.00
-      priceYearly: 14400, // $144.00
-      currency: 'USD',
-      cloudStorageBytes: 100 * 1024 * 1024 * 1024, // 100 GB
-      maxFileSizeBytes: 2 * 1024 * 1024 * 1024, // 2 GB
-      googleDriveEnabled: true,
-      boardLimit: 0, // unlimited
-      captureLimit: 0, // unlimited
-      isActive: true,
-    },
-  });
-  console.log('✅ Seeded Cloud Pro plan');
+  console.log('✅ Seeded Cloud plan');
 
   console.log('🎉 Seeding complete!');
 }

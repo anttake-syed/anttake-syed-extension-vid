@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { SERVER_URL, EXTENSION_ID, IS_LOCAL_MODE } from '../config';
 
 // Decode a JWT without a library and check if it is still valid
@@ -24,6 +24,8 @@ function parseAndValidateJwt(token) {
 
 export function useAuth() {
   const [user, setUser] = useState(null);
+  const userRef = useRef(null);
+  useEffect(() => { userRef.current = user; }, [user]);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isInitializing, setIsInitializing] = useState(true);
   const [subscription, setSubscription] = useState(null);
@@ -199,10 +201,6 @@ export function useAuth() {
       setTimeout(() => setIsInitializing(false), 300);
     }
 
-    if (EXTENSION_ID && typeof chrome !== 'undefined' && chrome.runtime?.sendMessage) {
-      chrome.runtime.sendMessage(EXTENSION_ID, { action: 'REGISTER_WEB_UI', url: window.location.origin }).catch(()=>{});
-    }
-
     // Handle ?billing=success — user just returned from LemonSqueezy checkout.
     // The webhook may take a few seconds to reach the server, so we poll until
     // we see an active subscription (up to 30 seconds), then stop.
@@ -236,7 +234,27 @@ export function useAuth() {
       }
     }
 
-    return () => window.removeEventListener('message', handleMessage);
+    // The extension's content script (authSync.js) copies the signed-in user
+    // into localStorage and fires a 'storage' event — adopt it without a reload.
+    const handleStorage = (event) => {
+      if (event.key && event.key !== 'antcapture_user') {return;}
+      const raw = localStorage.getItem('antcapture_user');
+      if (!raw) {return;}
+      try {
+        const userData = JSON.parse(raw);
+        if (!parseAndValidateJwt(userData.jwt) || userRef.current?.jwt === userData.jwt) {return;}
+        setUser(userData);
+        setIsAuthenticated(true);
+        refreshRole(userData.jwt);
+        refreshSubscription(userData.jwt);
+      } catch { /* ignore malformed data */ }
+    };
+    window.addEventListener('storage', handleStorage);
+
+    return () => {
+      window.removeEventListener('message', handleMessage);
+      window.removeEventListener('storage', handleStorage);
+    };
   }, []);
 
   // hasCloudAccess: admin OR active subscription.

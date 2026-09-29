@@ -14,7 +14,7 @@ import { syncPendingUploads } from './background/save.js';
 import { notify } from './background/notify.js';
 import { Logger } from './shared/logger.js';
 import { cleanOPFSOrphans, deleteOPFSFile } from './storage/opfsStorage.js';
-import { DEV_SERVER_URL, PROD_SERVER_URL } from './shared/config.js';
+import { DEV_SERVER_URL, PROD_SERVER_URL, DEV_WEB_UI_URL, PROD_WEB_UI_URL } from './shared/config.js';
 
 const log = Logger.getLogger('Background Worker');
 import {
@@ -38,7 +38,46 @@ const BADGE_ALARM = '__ant_badge_tick__';
 // ─────────────────────────────────────────────────────────────────────────────
 // Standalone popup window removed
 
+// ── Message sender checks ─────────────────────────────────────────────────────
+// content.js runs on every page, so messages from web pages are limited to the
+// few actions content scripts actually send. Everything else must come from the
+// extension's own pages (popup, editor, options, offscreen document).
+const EXTENSION_ORIGIN = chrome.runtime.getURL('').slice(0, -1);
+const WEB_UI_ORIGINS = [DEV_WEB_UI_URL, PROD_WEB_UI_URL];
+const CONTENT_SCRIPT_ACTIONS = new Set([
+  'CAMERA_BLOB_READY', 'CAMERA_RECORDING_STARTED', 'EXTERNAL_STOP_RECORDING', 'OPEN_EDIT_PAGE',
+  'PAUSE_RECORDING', 'RESUME_RECORDING', 'HUD_TOGGLE_MIC', 'STOP_RECORDING',
+  'GET_USER', 'SYNC_USER',
+]);
+// Auth sync is only accepted from the AntCapture dashboard itself.
+const WEB_UI_ONLY_ACTIONS = new Set(['GET_USER', 'SYNC_USER']);
+
+function getSenderOrigin(sender) {
+  try { return sender.origin || new URL(sender.url).origin; } catch { return ''; }
+}
+
+function isLocalOrigin(origin) {
+  try {
+    const { hostname } = new URL(origin);
+    return hostname === 'localhost' || hostname === '127.0.0.1';
+  } catch { return false; }
+}
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (sender.id !== chrome.runtime.id) return;
+  const senderOrigin = getSenderOrigin(sender);
+  const fromExtensionPage = senderOrigin === EXTENSION_ORIGIN;
+  if (!fromExtensionPage) {
+    const allowed = CONTENT_SCRIPT_ACTIONS.has(message.action) &&
+      (!WEB_UI_ONLY_ACTIONS.has(message.action) || WEB_UI_ORIGINS.includes(senderOrigin));
+    if (!allowed) {
+      log.warn(`Ignored message '${message.action}' from ${senderOrigin || 'unknown sender'}`);
+      return;
+    }
+  }
+  // Pages tell us which server they mean; content scripts are judged by where they run.
+  const authOrigin = fromExtensionPage ? message.origin : senderOrigin;
+
   switch (message.action) {
 
     // ── Recording ────────────────────────────────────────────────────────────
@@ -343,7 +382,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
     // ── Auth ──────────────────────────────────────────────────────────────────
     case 'GET_USER': {
-      const isLocal = message.origin && (message.origin.includes('localhost') || message.origin.includes('127.0.0.1'));
+      const isLocal = isLocalOrigin(authOrigin);
       const userKey = isLocal ? 'user_local' : 'user_cloud';
       chrome.storage.local.get([userKey], (result) => sendResponse({ user: result[userKey] || null }));
       return true;
@@ -351,7 +390,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
     case 'LOGOUT': {
       // If we logout globally, just clear both. Or if we pass origin, clear specific one.
-      const isLocal = message.origin && (message.origin.includes('localhost') || message.origin.includes('127.0.0.1'));
+      const isLocal = isLocalOrigin(authOrigin);
       const userKey = isLocal ? 'user_local' : 'user_cloud';
       chrome.storage.local.remove([userKey], () => {
         const broadcast = (pattern) => {
@@ -366,11 +405,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     }
 
     case 'SYNC_USER': {
-      const isLocal = message.origin && (message.origin.includes('localhost') || message.origin.includes('127.0.0.1'));
+      const isLocal = isLocalOrigin(authOrigin);
       const userKey = isLocal ? 'user_local' : 'user_cloud';
       if (message.user) {
         chrome.storage.local.set({ [userKey]: message.user }, () => {
-          log.info(`User synced from Web UI (${userKey})`, message.user.email);
+          log.info(`User synced from Web UI (${userKey})`);
           syncPendingUploads();
         });
       } else {
@@ -378,14 +417,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       }
       break; // fire-and-forget, no sendResponse
     }
-
-    case 'REGISTER_WEB_UI':
-      if (message.url) {
-        chrome.storage.local.set({ dynamicWebUiUrl: message.url }, () =>
-          log.info('Extension learned dynamic Web UI URL', message.url)
-        );
-      }
-      break; // fire-and-forget, no sendResponse
 
     // ── Queue / Cache ─────────────────────────────────────────────────────────
     case 'GET_CACHE_INFO':
@@ -457,7 +488,7 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     const userKey = isLocal ? 'user_local' : 'user_cloud';
 
     chrome.storage.local.set({ [userKey]: userData }, () => {
-      log.info(`User authenticated in extension (${userKey})`, userData.email);
+      log.info(`User authenticated in extension (${userKey})`);
       setTimeout(() => chrome.tabs.remove(tabId), 1500);
       syncPendingUploads();
     });

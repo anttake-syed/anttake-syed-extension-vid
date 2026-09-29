@@ -1,11 +1,21 @@
-import { DEV_SERVER_URL, PROD_SERVER_URL, DEV_WEB_UI_URL, PROD_WEB_UI_URL } from './shared/config.js';
+import { DEV_SERVER_URL, PROD_SERVER_URL, DEV_WEB_UI_URL, PROD_WEB_UI_URL, isUnpackedInstall } from './shared/config.js';
 import { Logger } from './shared/logger.js';
 
 const select = document.getElementById('storageModeSelect');
 const status = document.getElementById('status');
 
+const selfHostedAvailable = isUnpackedInstall();
+if (!selfHostedAvailable) {
+  select.querySelector('option[value="localhost"]')?.remove();
+}
+
 chrome.storage.local.get(['storageMode'], (result) => {
-  select.value = result.storageMode || 'computer';
+  let mode = result.storageMode || 'computer';
+  if (mode === 'localhost' && !selfHostedAvailable) {
+    mode = 'computer';
+    chrome.storage.local.set({ storageMode: mode });
+  }
+  select.value = mode;
   updateLabels(select.value);
 });
 

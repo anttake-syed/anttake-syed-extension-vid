@@ -1,10 +1,8 @@
 {
   "name": "anttake-syed-extension-vid",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "AntCapture \u2014 screen recording & screenshot extension with a web dashboard",
   "scripts": {
-    "setup": "node setup.js",
     "dev:server": "cd server && npm run dev",
     "dev:web": "cd web-ui && npm run dev",
     "dev:all": "npx concurrently \"npm run dev:server\" \"npm run dev:web\""
@@ -14,7 +12,7 @@
     "url": "git+https://github.com/anttake-syed/anttake-syed-extension-vid.git"
   },
   "keywords": [],
-  "author": "Syed",
+  "author": "AntTake",
   "license": "AGPL-3.0-only",
   "bugs": {
     "url": "https://github.com/anttake-syed/anttake-syed-extension-vid/issues"

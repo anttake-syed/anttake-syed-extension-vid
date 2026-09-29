@@ -1,10 +1,14 @@
 # Security Policy
 
-## Supported Versions
-We currently provide security updates for the latest major version of AntCapture.
+## Supported versions
 
-## Reporting a Vulnerability
-If you discover a security vulnerability in AntCapture, please DO NOT open a public GitHub issue. 
+Security fixes are applied to the latest version on the `main` branch and the hosted service at antcapture.anttake.com.
 
-Instead, please send an email to **[your-security-email@example.com]**. 
-We treat security reports with the highest priority and will respond within 48 hours to coordinate a fix and safe disclosure.
+## Reporting a vulnerability
+
+Please **do not** open a public issue for security problems.
+
+Report it privately through GitHub instead:
+**[Report a vulnerability](https://github.com/anttake-syed/anttake-syed-extension-vid/security/advisories/new)**
+
+Please include steps to reproduce and the impact you observed. We aim to acknowledge reports within 72 hours and will coordinate a fix and disclosure with you.

@@ -55,8 +55,20 @@ class QuotaService {
       };
     }
 
-    // 5. Enforce cloud storage total limit
-    const currentUsageBytes = user.usage?.cloudBytes || 0n;
+    // 5. Enforce cloud storage total limit. Usage is summed from the user's
+    // ready cloud files (same as statsController), so deletes free up space
+    // and the number can't drift from what is actually stored.
+    const captures = await prisma.capture.findMany({
+      where: { userId, status: 'active' },
+      include: { storageObject: true }
+    });
+    let currentUsageBytes = 0n;
+    for (const c of captures) {
+      const so = c.storageObject;
+      if (so?.status === 'ready' && (so.provider === 'cloud' || so.provider === 'upload_thing')) {
+        currentUsageBytes += BigInt(so.sizeBytes || 0);
+      }
+    }
     const projectedUsage = currentUsageBytes + BigInt(uploadSizeBytes);
 
     if (projectedUsage > plan.cloudStorageBytes) {
@@ -80,7 +92,7 @@ class QuotaService {
       where: { userId },
       update: {
         uploadBytesMonth: { increment: BigInt(sizeBytes) },
-        ...(provider === 'cloud' && {
+        ...((provider === 'cloud' || provider === 'upload_thing') && {
           cloudBytes: { increment: BigInt(sizeBytes) },
           cloudObjectCount: { increment: 1 }
         })
@@ -88,8 +100,8 @@ class QuotaService {
       create: {
         userId,
         uploadBytesMonth: BigInt(sizeBytes),
-        cloudBytes: provider === 'cloud' ? BigInt(sizeBytes) : 0n,
-        cloudObjectCount: provider === 'cloud' ? 1 : 0
+        cloudBytes: (provider === 'cloud' || provider === 'upload_thing') ? BigInt(sizeBytes) : 0n,
+        cloudObjectCount: (provider === 'cloud' || provider === 'upload_thing') ? 1 : 0
       }
     });
   }

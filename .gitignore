@@ -13,3 +13,10 @@ _build-info/
 _manual-tests/
 .vercel
 .env*
+
+# Local runtime data — user captures, uploads and databases, never commit
+uploads/
+server/src/storage/
+*.db
+*.sqlite
+*.log

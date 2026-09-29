@@ -163,7 +163,16 @@ export function useAuth() {
     const params = new URLSearchParams(window.location.search);
     const authData = params.get('auth_data');
     if (authData) {
-      login(authData); // login() resets subscriptionResolved and kicks off fetch
+      // Ignore tokens in links we didn't request (login CSRF: an attacker's
+      // link could otherwise sign the victim into the attacker's account).
+      let loginPending = false;
+      try {
+        loginPending = sessionStorage.getItem('antcapture_login_pending') === '1';
+        sessionStorage.removeItem('antcapture_login_pending');
+      } catch { /* storage blocked */ }
+      if (loginPending) {
+        login(authData); // login() resets subscriptionResolved and kicks off fetch
+      }
       window.history.replaceState({}, document.title,
         window.location.origin + window.location.pathname);
     }

@@ -209,6 +209,14 @@ exports.uploadCapture = async (req, res) => {
     const { title, type, mimeType, hasAudio, provider, driveUrl } = req.body;
     const targetProvider = provider || 'local';
 
+    // Cloud storage is a paid feature — enforce it here, not just in the UI
+    if (targetProvider === 'upload_thing' || targetProvider === 'cloud') {
+      const subscriptionCheck = await EntitlementService.checkSubscription(req.user.id);
+      if (!subscriptionCheck.allowed) {
+        return res.status(403).json({ error: 'subscription_required', detail: 'Cloud uploads require an active AntCapture Cloud plan.' });
+      }
+    }
+
     // Quota check before creating any DB records
     const fileSize = req.file?.buffer?.length || 0;
     const quotaCheck = await EntitlementService.checkQuota(req.user.id, fileSize, targetProvider);

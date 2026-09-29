@@ -22,8 +22,12 @@ function getPlanNameFromVariant(variantId) {
 exports.handleWebhook = async (req, res) => {
   try {
     // ── 1. Verify HMAC signature ─────────────────────────────────────────────
-    const secret = WEBHOOK_SECRET || '';
-    const hmac = crypto.createHmac('sha256', secret);
+    // Without a secret anyone could sign a fake event with an empty key — fail closed.
+    if (!WEBHOOK_SECRET) {
+      logger.error('webhook', 'missing-webhook-secret', { requestId: req.requestId });
+      return res.status(500).send('Webhook not configured');
+    }
+    const hmac = crypto.createHmac('sha256', WEBHOOK_SECRET);
     const digest = Buffer.from(hmac.update(req.body).digest('hex'), 'utf8');
     const signature = Buffer.from(req.get('X-Signature') || '', 'utf8');
 

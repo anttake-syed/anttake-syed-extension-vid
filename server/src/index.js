@@ -23,6 +23,14 @@ const webhookRoutes      = require('./routes/webhook');     // LemonSqueezy — 
 const { uploadRouter }   = require('./routes/uploadthing');
 const { createRouteHandler } = require("uploadthing/express");
 
+// Secrets live only in env vars (never in the repo). Warn loudly at boot so a
+// misconfigured deploy is obvious; the code paths that need them fail closed.
+if (process.env.SERVER_MODE === 'cloud') {
+  const missing = ['JWT_SECRET', 'GOOGLE_CLIENT_SECRET', 'LS_WEBHOOK_SECRET', 'UPLOADTHING_TOKEN']
+    .filter((name) => !process.env[name]);
+  if (missing.length) {logger.error('server', 'missing-env-secrets', { missing });}
+}
+
 const app = express();
 
 // ── IMPORTANT: Webhook route MUST come BEFORE express.json() ─────────────────

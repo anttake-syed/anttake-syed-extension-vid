@@ -46,7 +46,7 @@ const uploadRouter = {
         const token = authHeader.split(' ')[1];
         let decoded;
         try {
-          decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback_secret');
+          decoded = jwt.verify(token, process.env.JWT_SECRET);
         } catch (err) {
           throw new UploadThingError({ code: "UNAUTHORIZED", message: "Invalid token" });
         }

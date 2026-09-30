@@ -593,10 +593,17 @@ Questions about privacy? Reach us through the Feedback page.`}
             content={`Welcome to the AntCapture Documentation.
 
 KEYBOARD SHORTCUTS
-AntCapture is designed for speed. Use these shortcuts to capture instantly:
-• Alt + Shift + S : Capture visible screen (Screenshot)
-• Alt + Shift + C : Start/Stop Camera recording
-• Alt + Shift + V : Start/Stop Screen recording
+Library (press ? to show this list on the page):
+• / or Ctrl/Cmd + K : Search your captures
+• G / L : Grid view / List view
+• V / S / A : Show videos / screenshots / all
+• Esc : Clear the search
+
+Video player:
+• Space or K : Play / Pause
+• ← / → : Skip back / forward 5 seconds
+• M : Mute
+• F : Full screen
 
 FUZZY SEARCH
 Your Library supports advanced fuzzy search. You don't need to type exact filenames — just type fragments, and the dashboard will instantly filter your captures based on title, format, or date.
@@ -635,31 +642,32 @@ Media shown inside a VoidBoard is never duplicated. The actual file (image or vi
         ) : activeNav === 'Security' ? (
           <StaticPage
             title="Security"
-            content={`Last updated: June 2025
+            content={`Last updated: September 2026
 
 AntCapture takes security seriously. Here's how we protect your account and data.
 
 AUTHENTICATION
-- All authentication is handled via Google OAuth 2.0 — we never store your Google password
-- Sessions are secured with signed JWT tokens that expire after 7 days
-- Tokens are stored locally in your browser and never transmitted except to our server
+- Sign-in is handled by Google — we never see or store your Google password
+- Sessions use signed tokens that expire automatically, and you can sign out at any time
+- Your session token is kept in your browser and sent only to the AntCapture service
 
 DATA IN TRANSIT
-- All communication between the extension, web UI, and server uses HTTPS in production
-- API requests require a valid JWT — unauthenticated requests are rejected
+- All traffic between the extension, the dashboard and our servers is encrypted with HTTPS
+- Requests to our API for your account or library require you to be signed in
 
-DATA AT REST
-- Files stored locally in our database are tied to your account email
-- Only you can access your captures — each request is verified against your JWT
-- Google Drive files are stored in your own Drive under your own Google account
+YOUR DATA
+- Your library is tied to your account and is only listed to you when you're signed in
+- Cloud files are served from long, randomly generated links
+- Google Drive files are saved in your own Drive, under your own Google account
+- Payments are handled by our payment provider; we never see your card details
 
-EXTENSION SECURITY
-- The Chrome extension only communicates with our server (localhost in development, your domain in production)
-- No third-party scripts or tracking are included in the extension
-- The extension requests only the permissions it needs — no broad host access
+EXTENSION
+- The extension sends your captures and account data only to AntCapture and our file storage provider
+- It includes no analytics or tracking scripts
+- It uses only the browser permissions its features need, such as capturing tabs and showing the recording toolbar on the page you're recording
 
 REPORTING ISSUES
-If you discover a security vulnerability, please report it responsibly through the Feedback page rather than publicly disclosing it.`}
+Found a security problem? Please report it privately through our GitHub security page (github.com/anttake-syed/anttake-syed-extension-vid/security) rather than disclosing it publicly.`}
           />
 
         ) : activeNav === 'Diagnostics' && isAuthenticated && user?.role === 'admin' ? (

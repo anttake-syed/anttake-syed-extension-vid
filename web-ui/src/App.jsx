@@ -22,6 +22,7 @@ import WhiteboardEditor from './components/WhiteboardEditor.jsx';
 import StaticPage from './components/StaticPage.jsx';
 import ServerHealthBadge from './components/ServerHealthBadge.jsx';
 import AdminDiagnostics from './components/AdminDiagnostics.jsx';
+import SubscriptionWarningBanner from './components/SubscriptionWarningBanner.jsx';
 
 
 const NAV_TO_PATH = {
@@ -253,7 +254,7 @@ function FeedbackPage() {
 
 
 export default function App() {
-  const { user, isAuthenticated, isInitializing, isReady, logout, updateUser, hasCloudAccess, subscription, refreshSubscription } = useAuth();
+  const { user, isAuthenticated, isInitializing, isReady, logout, updateUser, hasCloudAccess, subscription, entitlements, refreshSubscription } = useAuth();
 
   const {
     captures, setCaptures, dbStats,
@@ -604,6 +605,16 @@ export default function App() {
         </div>
 
 
+        {/* ── Subscription Warning Banner — renewal/payment alerts ── */}
+        {isAuthenticated && entitlements?.warningLevel && (
+          <div style={{ padding: '20px 24px 0' }}>
+            <SubscriptionWarningBanner
+              entitlements={entitlements}
+              onManageSubscription={() => setActiveNav('Subscription')}
+            />
+          </div>
+        )}
+
         {/* ── Page Content ── */}
         {activeBoard ? (
           <WhiteboardEditor board={activeBoard} onClose={() => { 
@@ -627,7 +638,7 @@ export default function App() {
             onUpgrade={() => setActiveNav('Pricing')}
           />
         ) : activeNav === 'Pricing' ? (
-          <Pricing user={user} isAuthenticated={isAuthenticated} onSignIn={() => setShowModal(true)} />
+          <Pricing user={user} isAuthenticated={isAuthenticated} onSignIn={() => setShowModal(true)} subscription={subscription} entitlements={entitlements} onManageSubscription={() => setActiveNav('Subscription')} />
         ) : activeNav === 'Feedback' ? (
           <FeedbackPage />
         ) : activeNav === 'Terms' ? (

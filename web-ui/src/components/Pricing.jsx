@@ -46,14 +46,17 @@ const FAQ = [
   },
 ];
 
-export default function Pricing({ user, isAuthenticated, onSignIn, paywalled = false }) {
+export default function Pricing({ user, isAuthenticated, onSignIn, paywalled = false, subscription, entitlements, onManageSubscription }) {
   const [billing, setBilling]             = useState('yearly');
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [openFaq, setOpenFaq]             = useState(null);
   const [showContactForm, setShowContactForm] = useState(false);
   const [contactForm, setContactForm]     = useState({ name: '', email: '', message: '' });
   const [contactSent, setContactSent]     = useState(false);
-  const [checkoutError, setCheckoutError] = useState(null); // { message, adminDetail? }
+  const [checkoutError, setCheckoutError] = useState(null);
+
+  // Is this user already subscribed to cloud?
+  const isSubscribed = entitlements?.cloud === true;
 
   const yearlyPrice  = 10;
   const monthlyPrice = 12;
@@ -192,16 +195,21 @@ export default function Pricing({ user, isAuthenticated, onSignIn, paywalled = f
           boxShadow: '0 24px 60px rgba(99,102,241,0.2)',
           display: 'flex', flexDirection: 'column',
         }}>
-          {/* Best value badge */}
+          {/* Best value / current plan badge */}
           <div style={{
             position: 'absolute', top: '-14px', left: '50%',
             transform: 'translateX(-50%)',
-            background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+            background: isSubscribed
+              ? 'linear-gradient(135deg, #059669, #10b981)'
+              : 'linear-gradient(135deg, #6366f1, #8b5cf6)',
             color: 'white', padding: '5px 20px', borderRadius: '999px',
             fontSize: '11px', fontWeight: 700, letterSpacing: '0.07em',
-            boxShadow: '0 4px 14px rgba(99,102,241,0.4)', whiteSpace: 'nowrap',
+            boxShadow: isSubscribed
+              ? '0 4px 14px rgba(16,185,129,0.4)'
+              : '0 4px 14px rgba(99,102,241,0.4)',
+            whiteSpace: 'nowrap',
           }}>
-            ✦ BEST VALUE — MOST POPULAR
+            {isSubscribed ? '✓ YOUR CURRENT PLAN' : '✦ BEST VALUE — MOST POPULAR'}
           </div>
 
           {/* Header */}
@@ -215,48 +223,87 @@ export default function Pricing({ user, isAuthenticated, onSignIn, paywalled = f
             </p>
           </div>
 
-          {/* Price */}
-          <div style={{ margin: '22px 0 4px' }}>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px' }}>
-              <span style={{ fontSize: '52px', fontWeight: 800, color: 'white', lineHeight: 1 }}>${price}</span>
-              <span style={{ color: '#475569', fontWeight: 500, fontSize: '16px' }}>/mo</span>
+          {/* Price or subscription status */}
+          {isSubscribed ? (
+            <div style={{ margin: '22px 0 4px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                <span className="material-symbols-rounded" style={{ fontSize: '20px', color: '#10b981' }}>check_circle</span>
+                <span style={{ fontSize: '18px', fontWeight: 700, color: '#10b981' }}>Active</span>
+                {entitlements?.cancelAtPeriodEnd && (
+                  <span style={{ fontSize: '11px', background: 'rgba(234,179,8,0.15)', color: '#facc15', border: '1px solid rgba(234,179,8,0.3)', borderRadius: '6px', padding: '2px 8px', fontWeight: 600 }}>Cancels at period end</span>
+                )}
+              </div>
+              {entitlements?.currentPeriodEnd && (
+                <p style={{ fontSize: '13px', color: '#475569', margin: 0 }}>
+                  {entitlements.cancelAtPeriodEnd ? 'Access until' : 'Renews'}{' '}
+                  {new Date(entitlements.currentPeriodEnd).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                </p>
+              )}
             </div>
-            <p style={{ fontSize: '13px', color: '#475569', margin: '6px 0 0', fontWeight: 400 }}>
-              {billing === 'yearly' ? 'Billed annually' : 'Billed monthly'}
-            </p>
-          </div>
+          ) : (
+            <div style={{ margin: '22px 0 4px' }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px' }}>
+                <span style={{ fontSize: '52px', fontWeight: 800, color: 'white', lineHeight: 1 }}>${price}</span>
+                <span style={{ color: '#475569', fontWeight: 500, fontSize: '16px' }}>/mo</span>
+              </div>
+              <p style={{ fontSize: '13px', color: '#475569', margin: '6px 0 0', fontWeight: 400 }}>
+                {billing === 'yearly' ? 'Billed annually' : 'Billed monthly'}
+              </p>
+            </div>
+          )}
 
           {/* CTA */}
-          <button
-            onClick={handleSubscribe}
-            disabled={checkoutLoading}
-            style={{
-              width: '100%', padding: '14px',
-              borderRadius: '12px', border: 'none',
-              background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-              color: 'white', fontSize: '15px', fontWeight: 700,
-              cursor: checkoutLoading ? 'default' : 'pointer',
-              margin: '24px 0 28px',
-              fontFamily: "'Outfit', sans-serif",
-              boxShadow: '0 8px 24px rgba(99,102,241,0.35)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
-              transition: 'all 0.2s',
-            }}
-            onMouseEnter={e => { if (!checkoutLoading) e.currentTarget.style.filter = 'brightness(1.1)'; }}
-            onMouseLeave={e => { e.currentTarget.style.filter = 'none'; }}
-          >
-            {checkoutLoading ? (
-              <>
-                <div style={{ width: '16px', height: '16px', border: '2px solid rgba(255,255,255,0.3)', borderTop: '2px solid white', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />
-                Processing…
-              </>
-            ) : (
-              <>
-                <span className="material-symbols-rounded" style={{ fontSize: '18px' }}>bolt</span>
-                Get Cloud
-              </>
-            )}
-          </button>
+          {isSubscribed ? (
+            <button
+              onClick={onManageSubscription}
+              style={{
+                width: '100%', padding: '14px',
+                borderRadius: '12px', border: '1px solid rgba(16,185,129,0.4)',
+                background: 'rgba(16,185,129,0.1)',
+                color: '#10b981', fontSize: '15px', fontWeight: 700,
+                cursor: 'pointer', margin: '24px 0 28px',
+                fontFamily: "'Outfit', sans-serif",
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                transition: 'all 0.2s',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(16,185,129,0.18)'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'rgba(16,185,129,0.1)'; }}
+            >
+              <span className="material-symbols-rounded" style={{ fontSize: '18px' }}>manage_accounts</span>
+              Manage Subscription
+            </button>
+          ) : (
+            <button
+              onClick={handleSubscribe}
+              disabled={checkoutLoading}
+              style={{
+                width: '100%', padding: '14px',
+                borderRadius: '12px', border: 'none',
+                background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                color: 'white', fontSize: '15px', fontWeight: 700,
+                cursor: checkoutLoading ? 'default' : 'pointer',
+                margin: '24px 0 28px',
+                fontFamily: "'Outfit', sans-serif",
+                boxShadow: '0 8px 24px rgba(99,102,241,0.35)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                transition: 'all 0.2s',
+              }}
+              onMouseEnter={e => { if (!checkoutLoading) e.currentTarget.style.filter = 'brightness(1.1)'; }}
+              onMouseLeave={e => { e.currentTarget.style.filter = 'none'; }}
+            >
+              {checkoutLoading ? (
+                <>
+                  <div style={{ width: '16px', height: '16px', border: '2px solid rgba(255,255,255,0.3)', borderTop: '2px solid white', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />
+                  Processing…
+                </>
+              ) : (
+                <>
+                  <span className="material-symbols-rounded" style={{ fontSize: '18px' }}>bolt</span>
+                  Get Cloud
+                </>
+              )}
+            </button>
+          )}
 
           {checkoutError && (
             <div style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)', borderRadius: '10px', padding: '12px 14px', margin: '-16px 0 20px', fontSize: '13px', color: '#fca5a5' }}>

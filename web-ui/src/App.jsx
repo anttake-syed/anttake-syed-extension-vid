@@ -23,6 +23,7 @@ import StaticPage from './components/StaticPage.jsx';
 import ServerHealthBadge from './components/ServerHealthBadge.jsx';
 import AdminDiagnostics from './components/AdminDiagnostics.jsx';
 import SubscriptionWarningBanner from './components/SubscriptionWarningBanner.jsx';
+import PurchaseSuccessToast from './components/PurchaseSuccessToast.jsx';
 
 
 const NAV_TO_PATH = {
@@ -614,6 +615,9 @@ export default function App() {
             />
           </div>
         )}
+
+        {/* ── Purchase Success Toast — shown once after checkout redirect ── */}
+        <PurchaseSuccessToast entitlements={entitlements} />
 
         {/* ── Page Content ── */}
         {activeBoard ? (

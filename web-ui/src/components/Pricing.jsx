@@ -226,18 +226,29 @@ export default function Pricing({ user, isAuthenticated, onSignIn, paywalled = f
           {/* Price or subscription status */}
           {isSubscribed ? (
             <div style={{ margin: '22px 0 4px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
-                <span className="material-symbols-rounded" style={{ fontSize: '20px', color: '#10b981' }}>check_circle</span>
+              {/* Status badge */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+                <span className="material-symbols-rounded" style={{ fontSize: '20px', color: '#10b981' }}>verified</span>
                 <span style={{ fontSize: '18px', fontWeight: 700, color: '#10b981' }}>Active</span>
                 {entitlements?.cancelAtPeriodEnd && (
-                  <span style={{ fontSize: '11px', background: 'rgba(234,179,8,0.15)', color: '#facc15', border: '1px solid rgba(234,179,8,0.3)', borderRadius: '6px', padding: '2px 8px', fontWeight: 600 }}>Cancels at period end</span>
+                  <span style={{ fontSize: '11px', background: 'rgba(234,179,8,0.12)', color: '#fbbf24', border: '1px solid rgba(234,179,8,0.25)', borderRadius: '6px', padding: '2px 8px', fontWeight: 600 }}>
+                    Cancels at period end
+                  </span>
                 )}
               </div>
+              {/* Renewal / expiry line */}
               {entitlements?.currentPeriodEnd && (
-                <p style={{ fontSize: '13px', color: '#475569', margin: 0 }}>
-                  {entitlements.cancelAtPeriodEnd ? 'Access until' : 'Renews'}{' '}
-                  {new Date(entitlements.currentPeriodEnd).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
-                </p>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span className="material-symbols-rounded" style={{ fontSize: '14px', color: '#475569' }}>
+                    {entitlements.cancelAtPeriodEnd ? 'calendar_today' : 'autorenew'}
+                  </span>
+                  <p style={{ fontSize: '13px', color: '#475569', margin: 0 }}>
+                    {entitlements.cancelAtPeriodEnd ? 'Access until ' : 'Renews '}
+                    <strong style={{ color: '#64748b' }}>
+                      {new Date(entitlements.currentPeriodEnd).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                    </strong>
+                  </p>
+                </div>
               )}
             </div>
           ) : (
@@ -254,24 +265,41 @@ export default function Pricing({ user, isAuthenticated, onSignIn, paywalled = f
 
           {/* CTA */}
           {isSubscribed ? (
-            <button
-              onClick={onManageSubscription}
-              style={{
-                width: '100%', padding: '14px',
-                borderRadius: '12px', border: '1px solid rgba(16,185,129,0.4)',
-                background: 'rgba(16,185,129,0.1)',
-                color: '#10b981', fontSize: '15px', fontWeight: 700,
-                cursor: 'pointer', margin: '24px 0 28px',
-                fontFamily: "'Outfit', sans-serif",
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
-                transition: 'all 0.2s',
-              }}
-              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(16,185,129,0.18)'; }}
-              onMouseLeave={e => { e.currentTarget.style.background = 'rgba(16,185,129,0.1)'; }}
-            >
-              <span className="material-symbols-rounded" style={{ fontSize: '18px' }}>manage_accounts</span>
-              Manage Subscription
-            </button>
+            // Subscribed state: two calm options, no pushy cancel button here
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', margin: '20px 0 28px' }}>
+              <button
+                onClick={onManageSubscription}
+                style={{
+                  width: '100%', padding: '13px',
+                  borderRadius: '10px', border: '1px solid rgba(16,185,129,0.35)',
+                  background: 'rgba(16,185,129,0.08)',
+                  color: '#10b981', fontSize: '14px', fontWeight: 700,
+                  cursor: 'pointer',
+                  fontFamily: "'Outfit', sans-serif",
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                  transition: 'all 0.2s',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(16,185,129,0.15)'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'rgba(16,185,129,0.08)'; }}
+              >
+                <span className="material-symbols-rounded" style={{ fontSize: '17px' }}>manage_accounts</span>
+                Manage subscription
+              </button>
+              {/* Subtle text link for cancel — keeps it professional, not aggressive */}
+              <p style={{ textAlign: 'center', margin: 0, fontSize: '12px', color: '#334155' }}>
+                Need to cancel?{' '}
+                <button
+                  onClick={onManageSubscription}
+                  style={{
+                    background: 'none', border: 'none', padding: 0, cursor: 'pointer',
+                    color: '#475569', fontSize: '12px', textDecoration: 'underline',
+                    fontFamily: "'Outfit', sans-serif",
+                  }}
+                >
+                  Go to subscription settings
+                </button>
+              </p>
+            </div>
           ) : (
             <button
               onClick={handleSubscribe}

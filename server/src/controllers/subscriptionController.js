@@ -6,7 +6,7 @@ const logger = require('../utils/logger');
 // Single source of truth for what a subscription record means for the frontend.
 // The frontend never derives access rules — it just reads this object.
 
-function computeEntitlements(subscription) {
+exports.computeEntitlements = function computeEntitlements(subscription) {
   if (!subscription) {
     return {
       cloud: false,
@@ -70,7 +70,7 @@ exports.getSubscription = async (req, res) => {
 
     res.json({
       subscription:  user.subscription,
-      entitlements:  computeEntitlements(user.subscription),
+      entitlements:  exports.computeEntitlements(user.subscription),
     });
   } catch (err) {
     logger.error('subscription', 'get-subscription-failed', { requestId: req.requestId, userId: req.user.id, error: err });
@@ -141,7 +141,7 @@ exports.syncSubscription = async (req, res) => {
       return res.json({
         synced:       false,
         subscription: userRow.subscription || null,
-        entitlements: computeEntitlements(userRow.subscription || null),
+        entitlements: exports.computeEntitlements(userRow.subscription || null),
       });
     }
 
@@ -190,7 +190,7 @@ exports.syncSubscription = async (req, res) => {
     res.json({
       synced:       true,
       subscription: updatedUser?.subscription || null,
-      entitlements: computeEntitlements(updatedUser?.subscription || null),
+      entitlements: exports.computeEntitlements(updatedUser?.subscription || null),
     });
   } catch (err) {
     logger.error('subscription', 'sync-failed', { requestId: req.requestId, userId, error: err });

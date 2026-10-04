@@ -332,6 +332,10 @@ export default function AdminDiagnostics({ user }) {
   const [recoveryLoading, setRecoveryLoading] = useState(false);
   const [recoveryError, setRecoveryError] = useState('');
 
+  // Billing Lookup state
+  const [billingEmail, setBillingEmail] = useState('');
+  const [billingResult, setBillingResult] = useState(null);
+
   const runRecovery = async () => {
     setRecoveryLoading(true);
     setRecoveryResult(null);
@@ -372,6 +376,19 @@ export default function AdminDiagnostics({ user }) {
       setCaptureError(err.message);
     } finally {
       setCaptureLoading(false);
+    }
+  };
+
+  const handleBillingLookup = async (e) => {
+    e.preventDefault();
+    if (!billingEmail.trim()) return;
+    setBillingResult(null);
+    try {
+      const r = await fetch(`${SERVER_URL}/api/admin/diagnostics/billing/${encodeURIComponent(billingEmail.trim())}`, { headers: authHeader });
+      const data = await r.json();
+      setBillingResult(data);
+    } catch (err) {
+      setBillingResult({ error: err.message });
     }
   };
 
@@ -509,6 +526,7 @@ export default function AdminDiagnostics({ user }) {
           { id: 'errors',   label: `Recent Errors${errors.length ? ` (${errors.length})` : ''}`, icon: 'error' },
           { id: 'info',     label: 'System Info', icon: 'info' },
           { id: 'capture',  label: 'Capture Lookup', icon: 'search' },
+          { id: 'billing',  label: 'Billing Lookup', icon: 'payments' },
           { id: 'recovery', label: 'Recovery Tools', icon: 'build' },
         ].map(t => (
           <button
@@ -810,6 +828,129 @@ export default function AdminDiagnostics({ user }) {
                   </div>
                 ))}
               </div>
+            </div>
+          )}
+        </div>
+      )}
+      {/* ── Billing Lookup Tab ── */}
+      {tab === 'billing' && (
+        <div style={{ background: '#1e293b', borderRadius: '12px', overflow: 'hidden' }}>
+          <div style={{ padding: '24px', borderBottom: '1px solid #334155' }}>
+            <h3 style={{ margin: '0 0 8px 0', fontSize: '18px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span className="material-symbols-rounded">payments</span>
+              Billing Diagnostics
+            </h3>
+            <p style={{ margin: 0, color: '#94a3b8', fontSize: '14px' }}>
+              Search for a user by email to view their complete Lemon Squeezy billing state, subscriptions, and webhooks.
+            </p>
+            <form onSubmit={handleBillingLookup} style={{ display: 'flex', gap: '12px', marginTop: '20px' }}>
+              <input
+                type="text"
+                placeholder="saleh@gmail.com"
+                value={billingEmail}
+                onChange={e => setBillingEmail(e.target.value)}
+                style={{
+                  flex: 1, background: '#0f172a', border: '1px solid #334155', borderRadius: '8px',
+                  padding: '10px 16px', color: 'white', fontSize: '14px', outline: 'none'
+                }}
+              />
+              <button
+                type="submit"
+                disabled={loading || !billingEmail}
+                style={{
+                  background: '#6366f1', color: 'white', border: 'none', borderRadius: '8px',
+                  padding: '0 20px', fontSize: '14px', fontWeight: 600, cursor: (loading || !billingEmail) ? 'not-allowed' : 'pointer',
+                  opacity: (loading || !billingEmail) ? 0.5 : 1
+                }}
+              >
+                Search
+              </button>
+            </form>
+          </div>
+
+          {billingResult && (
+            <div style={{ padding: '24px' }}>
+              {billingResult.error ? (
+                <div style={{ background: 'rgba(239,68,68,0.1)', color: '#ef4444', padding: '16px', borderRadius: '8px' }}>
+                  {billingResult.error}
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                  
+                  {/* Identity */}
+                  <div style={{ background: '#0f172a', borderRadius: '8px', padding: '16px', border: '1px solid #334155' }}>
+                    <h4 style={{ margin: '0 0 16px 0', color: '#e2e8f0', fontSize: '15px' }}>Identity (AntCapture)</h4>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
+                      <div style={{ color: '#94a3b8', fontSize: '12px' }}>User ID<div style={{ color: 'white', fontSize: '14px', marginTop: '4px', fontFamily: 'monospace' }}>{billingResult.identity.userId}</div></div>
+                      <div style={{ color: '#94a3b8', fontSize: '12px' }}>Email<div style={{ color: 'white', fontSize: '14px', marginTop: '4px' }}>{billingResult.identity.email}</div></div>
+                      <div style={{ color: '#94a3b8', fontSize: '12px' }}>Created<div style={{ color: 'white', fontSize: '14px', marginTop: '4px' }}>{new Date(billingResult.identity.createdAt).toLocaleString()}</div></div>
+                    </div>
+                  </div>
+
+                  {/* Customer & Subscription */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
+                    <div style={{ background: '#0f172a', borderRadius: '8px', padding: '16px', border: '1px solid #334155' }}>
+                      <h4 style={{ margin: '0 0 16px 0', color: '#e2e8f0', fontSize: '15px' }}>LemonSqueezy Customer</h4>
+                      {billingResult.customer ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                          <div style={{ color: '#94a3b8', fontSize: '12px' }}>LS Customer ID<div style={{ color: 'white', fontSize: '14px', marginTop: '4px', fontFamily: 'monospace' }}>{billingResult.customer.lsCustomerId}</div></div>
+                          <div style={{ color: '#94a3b8', fontSize: '12px' }}>LS Subscription ID<div style={{ color: 'white', fontSize: '14px', marginTop: '4px', fontFamily: 'monospace' }}>{billingResult.customer.lsSubscriptionId || 'N/A'}</div></div>
+                        </div>
+                      ) : (
+                        <div style={{ color: '#94a3b8', fontSize: '14px' }}>No LemonSqueezy customer record found.</div>
+                      )}
+                    </div>
+                    
+                    <div style={{ background: '#0f172a', borderRadius: '8px', padding: '16px', border: '1px solid #334155' }}>
+                      <h4 style={{ margin: '0 0 16px 0', color: '#e2e8f0', fontSize: '15px' }}>Active Subscription</h4>
+                      {billingResult.subscription ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                          <div style={{ color: '#94a3b8', fontSize: '12px' }}>Plan<div style={{ color: 'white', fontSize: '14px', marginTop: '4px' }}>{billingResult.subscription.planName}</div></div>
+                          <div style={{ color: '#94a3b8', fontSize: '12px' }}>Status<div style={{ color: 'white', fontSize: '14px', marginTop: '4px' }}>{billingResult.subscription.status}</div></div>
+                          <div style={{ color: '#94a3b8', fontSize: '12px' }}>Renews At<div style={{ color: 'white', fontSize: '14px', marginTop: '4px' }}>{billingResult.subscription.currentPeriodEnd ? new Date(billingResult.subscription.currentPeriodEnd).toLocaleString() : 'N/A'}</div></div>
+                        </div>
+                      ) : (
+                        <div style={{ color: '#94a3b8', fontSize: '14px' }}>No subscription found.</div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Entitlements */}
+                  <div style={{ background: '#0f172a', borderRadius: '8px', padding: '16px', border: '1px solid #334155' }}>
+                    <h4 style={{ margin: '0 0 16px 0', color: '#e2e8f0', fontSize: '15px' }}>Computed Entitlements (What they are allowed to use)</h4>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '16px' }}>
+                      <div style={{ color: '#94a3b8', fontSize: '12px' }}>Cloud Features<div style={{ color: billingResult.entitlements.cloud ? '#22c55e' : '#ef4444', fontSize: '14px', marginTop: '4px', fontWeight: 'bold' }}>{billingResult.entitlements.cloud ? 'GRANTED' : 'DENIED'}</div></div>
+                      <div style={{ color: '#94a3b8', fontSize: '12px' }}>Current Plan<div style={{ color: 'white', fontSize: '14px', marginTop: '4px' }}>{billingResult.entitlements.plan}</div></div>
+                      <div style={{ color: '#94a3b8', fontSize: '12px' }}>Warning Level<div style={{ color: 'white', fontSize: '14px', marginTop: '4px' }}>{billingResult.entitlements.warningLevel || 'None'}</div></div>
+                    </div>
+                  </div>
+
+                  {/* Webhooks */}
+                  <div style={{ background: '#0f172a', borderRadius: '8px', padding: '16px', border: '1px solid #334155' }}>
+                    <h4 style={{ margin: '0 0 16px 0', color: '#e2e8f0', fontSize: '15px' }}>Webhook History ({billingResult.webhooks?.length || 0})</h4>
+                    {billingResult.webhooks?.length > 0 ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        {billingResult.webhooks.map(wh => (
+                          <div key={wh.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '12px', background: '#1e293b', borderRadius: '6px', border: '1px solid #334155' }}>
+                            <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+                              <span className="material-symbols-rounded" style={{ fontSize: '18px', color: '#6366f1' }}>webhook</span>
+                              <div>
+                                <div style={{ color: 'white', fontSize: '13px', fontWeight: 600 }}>{wh.eventName}</div>
+                                <div style={{ color: '#94a3b8', fontSize: '11px', fontFamily: 'monospace' }}>{wh.lsEventId}</div>
+                              </div>
+                            </div>
+                            <div style={{ color: '#94a3b8', fontSize: '12px', textAlign: 'right' }}>
+                              {new Date(wh.processedAt).toLocaleString()}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div style={{ color: '#94a3b8', fontSize: '14px' }}>No webhooks recorded.</div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>

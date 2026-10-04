@@ -61,8 +61,20 @@ exports.handleWebhook = async (req, res) => {
     const attributes = obj.attributes;
     const customData = payload.meta.custom_data;
     const userId     = customData?.user_id;
+    const eventId    = payload.meta.event_id || payload.meta.webhook_id;
 
-    logger.info('webhook', 'event-received', { requestId: req.requestId, eventName, userId });
+    logger.info('webhook', 'event-received', { requestId: req.requestId, eventName, userId, eventId });
+
+    // ── 2b. Idempotency Check ────────────────────────────────────────────────
+    if (eventId) {
+      const existing = await prisma.lemonSqueezyEvent.findUnique({
+        where: { lsEventId: eventId.toString() }
+      });
+      if (existing) {
+        logger.info('webhook', 'event-already-processed', { eventId });
+        return res.status(200).send('Already processed');
+      }
+    }
 
     // ── 3. Route events ──────────────────────────────────────────────────────
     switch (eventName) {
@@ -205,18 +217,23 @@ exports.handleWebhook = async (req, res) => {
     }
 
     // ── 4. Log event to DB ───────────────────────────────────────────────────
-    if (userId) {
-      const customer = await prisma.lemonSqueezyCustomer.findUnique({ where: { userId } });
-      if (customer) {
-        await prisma.lemonSqueezyEvent.create({
-          data: {
-            customerId: customer.id,
-            eventName:  eventName,
-            lsEventId:  payload.meta.event_id || `evt_${Date.now()}_${Math.random()}`,
-            payload:    JSON.stringify(payload)
-          }
-        }).catch(() => {}); // ignore duplicate lsEventId (idempotency)
+    if (eventId) {
+      let customerIdStr = null;
+      if (userId) {
+        const customer = await prisma.lemonSqueezyCustomer.findUnique({ where: { userId } });
+        if (customer) customerIdStr = customer.id;
       }
+      
+      await prisma.lemonSqueezyEvent.create({
+        data: {
+          lsEventId:  eventId.toString(),
+          eventName:  eventName,
+          payload:    JSON.stringify(payload),
+          ...(customerIdStr ? { customerId: customerIdStr } : {})
+        }
+      }).catch(err => {
+        logger.error('webhook', 'failed-to-save-event', { eventId, error: err });
+      });
     }
 
     res.status(200).send('OK');

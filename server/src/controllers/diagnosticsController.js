@@ -621,3 +621,55 @@ exports.getCaptureDiagnostics = async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch capture diagnostics' });
   }
 };
+
+// ── Controller: GET /api/admin/diagnostics/billing/:email ──────────────────
+exports.getUserBillingDiagnostics = async (req, res) => {
+  const { email } = req.params;
+  try {
+    const user = await prisma.user.findUnique({
+      where: { email },
+      include: { 
+        subscription: { include: { plan: true } },
+        lemonSqueezyCustomer: { 
+          include: { events: { orderBy: { processedAt: 'desc' } } }
+        }
+      }
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const { computeEntitlements } = require('./subscriptionController');
+    const entitlements = computeEntitlements(user.subscription);
+
+    const payload = {
+      identity: {
+        userId: user.id,
+        email: user.email,
+        createdAt: user.createdAt,
+        role: user.role
+      },
+      customer: user.lemonSqueezyCustomer ? {
+        customerId: user.lemonSqueezyCustomer.id,
+        lsCustomerId: user.lemonSqueezyCustomer.lsCustomerId,
+        lsSubscriptionId: user.lemonSqueezyCustomer.lsSubscriptionId,
+        lsVariantId: user.lemonSqueezyCustomer.lsVariantId,
+      } : null,
+      subscription: user.subscription ? {
+        id: user.subscription.id,
+        planName: user.subscription.plan.name,
+        status: user.subscription.status,
+        currentPeriodEnd: user.subscription.currentPeriodEnd,
+        cancelAtPeriodEnd: user.subscription.cancelAtPeriodEnd,
+      } : null,
+      entitlements,
+      webhooks: user.lemonSqueezyCustomer?.events || []
+    };
+
+    res.json(payload);
+  } catch (err) {
+    logger.error('diagnostics', 'billing-diagnostics-error', { error: err.message });
+    res.status(500).json({ error: 'Failed to fetch billing diagnostics' });
+  }
+};

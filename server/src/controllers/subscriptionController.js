@@ -86,49 +86,100 @@ exports.getSubscription = async (req, res) => {
 exports.syncSubscription = async (req, res) => {
   const userId = req.user.id;
   try {
-    // Find the user's LS subscription ID
-    const lsCustomer = await prisma.lemonSqueezyCustomer.findUnique({
-      where: { userId },
+    const userRow = await prisma.user.findUnique({
+      where: { id: userId },
+      include: { subscription: { include: { plan: true } } },
     });
 
-    if (!lsCustomer?.lsSubscriptionId) {
-      // No record yet — webhook hasn't arrived. Return current state.
-      const user = await prisma.user.findUnique({
-        where: { id: userId },
-        include: { subscription: { include: { plan: true } } },
-      });
+    if (!userRow) return res.status(404).json({ error: 'User not found' });
+
+    let lsCustomer = await prisma.lemonSqueezyCustomer.findUnique({ where: { userId } });
+    let lsData = null;
+
+    if (lsCustomer?.lsSubscriptionId) {
+      // Normal path: Webhook linked the customer already
+      try {
+        lsData = await lemonSqueezyService.fetchSubscription(lsCustomer.lsSubscriptionId);
+      } catch (e) {
+        logger.warn('subscription', 'sync-ls-fetch-failed', { userId, error: e.message });
+      }
+    } else {
+      // Recovery path: Webhook dropped, local dev, or user bought directly without being logged in
+      try {
+        const subs = await lemonSqueezyService.fetchSubscriptionsByEmail(userRow.email);
+        if (subs && subs.length > 0) {
+          // Sort by creation date DESC to get the latest
+          lsData = subs.sort((a, b) => new Date(b.attributes.created_at) - new Date(a.attributes.created_at))[0];
+          
+          if (lsData) {
+            logger.info('subscription', 'recovered-by-email', { userId, email: userRow.email });
+            
+            // Re-create the lost customer mapping
+            lsCustomer = await prisma.lemonSqueezyCustomer.upsert({
+              where: { userId },
+              update: {
+                lsCustomerId: lsData.attributes.customer_id.toString(),
+                lsSubscriptionId: lsData.id,
+                lsVariantId: lsData.attributes.variant_id.toString(),
+              },
+              create: {
+                userId,
+                lsCustomerId: lsData.attributes.customer_id.toString(),
+                lsSubscriptionId: lsData.id,
+                lsVariantId: lsData.attributes.variant_id.toString(),
+              }
+            });
+          }
+        }
+      } catch (e) {
+        logger.warn('subscription', 'sync-email-recovery-failed', { userId, error: e.message });
+      }
+    }
+
+    if (!lsData?.attributes?.status) {
+      // Still no data — just return current state
       return res.json({
         synced:       false,
-        subscription: user?.subscription || null,
-        entitlements: computeEntitlements(user?.subscription || null),
+        subscription: userRow.subscription || null,
+        entitlements: computeEntitlements(userRow.subscription || null),
       });
     }
 
-    // Fetch live from LemonSqueezy
-    let lsData = null;
-    try {
-      lsData = await lemonSqueezyService.fetchSubscription(lsCustomer.lsSubscriptionId);
-    } catch (fetchErr) {
-      logger.warn('subscription', 'sync-ls-fetch-failed', { userId, error: fetchErr.message });
-    }
+    // Apply the fresh data from Lemon Squeezy to our DB
+    const { getPlanNameFromVariant } = require('./lsWebhookController');
+    const variantId = lsData.attributes.variant_id.toString();
+    const planName = getPlanNameFromVariant(variantId);
 
-    if (lsData?.attributes?.status) {
-      const newStatus = lsData.attributes.status;
-      await prisma.subscription.updateMany({
+    const plan = await prisma.plan.findUnique({ where: { name: planName } })
+      || await prisma.plan.findUnique({ where: { name: 'free' } });
+
+    if (plan) {
+      await prisma.subscription.upsert({
         where: { userId },
-        data: {
-          status:            newStatus,
+        update: {
+          planId:            plan.id,
+          status:            lsData.attributes.status,
+          currentPeriodStart: lsData.attributes.created_at ? new Date(lsData.attributes.created_at) : undefined,
           currentPeriodEnd:  lsData.attributes.renews_at  ? new Date(lsData.attributes.renews_at)  : undefined,
           cancelAtPeriodEnd: lsData.attributes.ends_at !== null && lsData.attributes.ends_at !== undefined,
         },
+        create: {
+          userId,
+          planId:            plan.id,
+          status:            lsData.attributes.status,
+          currentPeriodStart: lsData.attributes.created_at ? new Date(lsData.attributes.created_at) : undefined,
+          currentPeriodEnd:  lsData.attributes.renews_at  ? new Date(lsData.attributes.renews_at)  : undefined,
+          cancelAtPeriodEnd: lsData.attributes.ends_at !== null && lsData.attributes.ends_at !== undefined,
+          lsCustomerId:      lsData.attributes.customer_id.toString(),
+        }
       });
-
-      // Invalidate so next check reads fresh from DB
-      const { invalidateSubscriptionCache } = require('../services/subscriptionCache');
-      invalidateSubscriptionCache(userId);
-
-      logger.info('subscription', 'sync-complete', { userId, newStatus });
     }
+
+    // Invalidate so next check reads fresh from DB
+    const { invalidateSubscriptionCache } = require('../services/subscriptionCache');
+    invalidateSubscriptionCache(userId);
+
+    logger.info('subscription', 'sync-complete', { userId, newStatus: lsData.attributes.status });
 
     // Return fresh state
     const updatedUser = await prisma.user.findUnique({
@@ -137,7 +188,7 @@ exports.syncSubscription = async (req, res) => {
     });
 
     res.json({
-      synced:       !!lsData,
+      synced:       true,
       subscription: updatedUser?.subscription || null,
       entitlements: computeEntitlements(updatedUser?.subscription || null),
     });

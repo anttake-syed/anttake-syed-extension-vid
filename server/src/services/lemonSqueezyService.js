@@ -112,6 +112,29 @@ class LemonSqueezyService {
       return null;
     }
   }
+
+  /**
+   * Recovers a missing webhook by searching LemonSqueezy for subscriptions by email.
+   * Useful when users purchase directly, in local dev without ngrok, or when webhooks drop.
+   */
+  async fetchSubscriptionsByEmail(email) {
+    if (!this.apiKey) return null;
+    try {
+      const url = `https://api.lemonsqueezy.com/v1/subscriptions?filter[user_email]=${encodeURIComponent(email)}`;
+      const res = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${this.apiKey}`,
+          'Accept': 'application/vnd.api+json'
+        }
+      });
+      if (!res.ok) throw new Error(`LemonSqueezy API error: ${res.status}`);
+      const payload = await res.json();
+      return payload.data || [];
+    } catch (err) {
+      console.error('Fetch Subscriptions By Email Error:', err);
+      return [];
+    }
+  }
 }
 
 module.exports = new LemonSqueezyService();

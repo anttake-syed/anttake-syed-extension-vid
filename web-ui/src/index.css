@@ -893,6 +893,34 @@ body {
   }
 }
 
+@keyframes bannerEnter {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+    max-height: 0;
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    max-height: 400px;
+  }
+}
+
+@keyframes bannerExit {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+    max-height: 400px;
+    margin-bottom: 28px;
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-10px);
+    max-height: 0;
+    margin-bottom: 0;
+  }
+}
+
 .modal-close {
   position: absolute;
   top: 18px;

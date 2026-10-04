@@ -43,61 +43,214 @@ const NAV_TO_PATH = {
 const PATH_TO_NAV = Object.fromEntries(Object.entries(NAV_TO_PATH).map(([k, v]) => [v, k]));
 
 // ── Feedback Page ──────────────────────────────────────────────────────────────
-// Replace this URL with your actual Google Form embed link.
-// In Google Forms: Send → Embed → copy the src="..." URL from the <iframe> tag.
-const GOOGLE_FORM_EMBED_URL = 'YOUR_GOOGLE_FORM_EMBED_URL_HERE';
+const GITHUB_REPO       = 'anttake-syed/anttake-syed-extension-vid';
+const GOOGLE_FORM_URL   = 'https://docs.google.com/forms/d/e/1FAIpQLSdoXSIVDaVBnik4oA3CsIigkfa6PcJshfH7dRTqrkDnn9Kj7g/viewform';
+
+function buildGitHubIssueUrl() {
+  const title  = encodeURIComponent('[Bug] ');
+  const body   = encodeURIComponent(
+    `## What happened?\n\n\n## Steps to reproduce\n1. \n2. \n3. \n\n## Expected behaviour\n\n\n## Actual behaviour\n\n\n## Environment\n- OS: \n- Browser: \n- Extension version: `
+  );
+  const labels = encodeURIComponent('bug');
+  return `https://github.com/${GITHUB_REPO}/issues/new?title=${title}&body=${body}&labels=${labels}`;
+}
 
 function FeedbackPage() {
+  const wrapStyle = {
+    padding: '32px 40px 48px',
+    maxWidth: '860px',
+  };
+
+  const gridStyle = {
+    display: 'grid',
+    gridTemplateColumns: '1fr 1fr',
+    gap: '20px',
+    marginBottom: '36px',
+  };
+
+  const cardStyle = {
+    background: 'var(--card-bg)',
+    borderRadius: '20px',
+    border: '1px solid var(--border)',
+    padding: '36px 28px 32px',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    textAlign: 'center',
+  };
+
+  const iconWrapStyle = (color) => ({
+    width: '56px',
+    height: '56px',
+    borderRadius: '16px',
+    background: color,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: '20px',
+  });
+
+  const cardTitleStyle = {
+    fontSize: '16px',
+    fontWeight: 500,
+    color: 'var(--text-primary)',
+    letterSpacing: '0.02em',
+    margin: '0 0 10px',
+  };
+
+  const dividerStyle = (color) => ({
+    width: '32px',
+    height: '2.5px',
+    borderRadius: '2px',
+    background: color,
+    margin: '0 auto 14px',
+  });
+
+  const cardDescStyle = {
+    fontSize: '14px',
+    color: 'var(--text-muted)',
+    lineHeight: 1.65,
+    margin: '0 0 20px',
+    flexGrow: 1,
+  };
+
+  const bulletListStyle = {
+    listStyle: 'none',
+    padding: 0,
+    margin: '0 0 28px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '8px',
+    textAlign: 'left',
+    width: '100%',
+  };
+
+  const bulletItemStyle = {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: '8px',
+    fontSize: '13px',
+    color: 'var(--text-muted)',
+    lineHeight: 1.5,
+  };
+
+  const dotStyle = (color) => ({
+    width: '6px',
+    height: '6px',
+    borderRadius: '50%',
+    background: color,
+    marginTop: '6px',
+    flexShrink: 0,
+  });
+
+  const btnStyle = (bg) => ({
+    display: 'block',
+    width: '100%',
+    padding: '12px 0',
+    background: bg,
+    color: '#fff',
+    borderRadius: '12px',
+    fontWeight: 600,
+    fontSize: '14px',
+    textDecoration: 'none',
+    border: 'none',
+    cursor: 'pointer',
+    textAlign: 'center',
+    transition: 'transform 0.15s ease, opacity 0.15s ease',
+    marginTop: 'auto',
+  });
+
+  const infoBarStyle = {
+    background: 'var(--card-bg)',
+    borderRadius: '14px',
+    border: '1px solid var(--border)',
+    padding: '18px 24px',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '14px',
+  };
+
   return (
-    <div style={{ padding: '36px 40px', maxWidth: '800px' }}>
-      <div style={{ marginBottom: '28px' }}>
-        <h1 style={{ fontSize: '26px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '8px' }}>
-          Feedback
-        </h1>
-        <p style={{ color: 'var(--text-muted)', fontSize: '15px' }}>
-          Found a bug, have a feature idea, or just want to say hi? Fill out the form below.
+    <div style={wrapStyle}>
+      {/* Two-column card grid */}
+      <div style={gridStyle}>
+
+        {/* ── Card 1: Report a Bug (GitHub) ── */}
+        <div style={cardStyle}>
+          <div style={iconWrapStyle('rgba(36,41,46,0.10)')}>
+            <span className="material-symbols-outlined" style={{ fontSize: '26px', color: '#24292e' }}>bug_report</span>
+          </div>
+          <h2 style={cardTitleStyle}>Report a Bug</h2>
+          <div style={dividerStyle('#24292e')} />
+          <p style={cardDescStyle}>
+            Found something broken? Open a GitHub issue and we'll track it publicly so the community can follow progress.
+          </p>
+          <ul style={bulletListStyle}>
+            {['Steps to reproduce the issue', 'What you expected vs. what happened', 'Your OS, browser & extension version'].map(t => (
+              <li key={t} style={bulletItemStyle}>
+                <span style={dotStyle('#24292e')} />
+                {t}
+              </li>
+            ))}
+          </ul>
+          <a
+            id="feedback-github-issue-btn"
+            href={buildGitHubIssueUrl()}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={btnStyle('#24292e')}
+            onMouseOver={e => { e.currentTarget.style.opacity = '0.85'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
+            onMouseOut={e => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.transform = 'translateY(0)'; }}
+          >
+            Open a GitHub Issue
+          </a>
+        </div>
+
+        {/* ── Card 2: Send Feedback (Google Form) ── */}
+        <div style={cardStyle}>
+          <div style={iconWrapStyle('rgba(66,133,244,0.12)')}>
+            <span className="material-symbols-outlined" style={{ fontSize: '26px', color: '#4285f4' }}>forum</span>
+          </div>
+          <h2 style={cardTitleStyle}>Send Feedback</h2>
+          <div style={dividerStyle('#4285f4')} />
+          <p style={cardDescStyle}>
+            Have a feature idea, a suggestion, or just want to share your experience? We'd love to hear from you.
+          </p>
+          <ul style={bulletListStyle}>
+            {['Feature requests & ideas', 'General experience & usability', 'Anything else on your mind'].map(t => (
+              <li key={t} style={bulletItemStyle}>
+                <span style={dotStyle('#4285f4')} />
+                {t}
+              </li>
+            ))}
+          </ul>
+          <a
+            id="feedback-form-open-btn"
+            href={GOOGLE_FORM_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={btnStyle('#4285f4')}
+            onMouseOver={e => { e.currentTarget.style.opacity = '0.85'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
+            onMouseOut={e => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.transform = 'translateY(0)'; }}
+          >
+            Open Feedback Form
+          </a>
+        </div>
+
+      </div>
+
+      {/* Bottom info bar */}
+      <div style={infoBarStyle}>
+        <span className="material-symbols-outlined" style={{ fontSize: '20px', color: 'var(--accent)', flexShrink: 0 }}>info</span>
+        <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: 0, lineHeight: 1.6 }}>
+          Bug reports go to our <strong style={{ color: 'var(--text-primary)' }}>public GitHub tracker</strong> where anyone can follow along.
+          General feedback is submitted via a <strong style={{ color: 'var(--text-primary)' }}>private Google Form</strong> — only the team can see your responses. Both channels are monitored regularly.
         </p>
       </div>
-      {GOOGLE_FORM_EMBED_URL === 'YOUR_GOOGLE_FORM_EMBED_URL_HERE' ? (
-        <div style={{
-          padding: '48px 32px',
-          background: 'var(--card-bg)',
-          borderRadius: '16px',
-          border: '1px solid var(--border)',
-          textAlign: 'center',
-          color: 'var(--text-muted)',
-        }}>
-          <span className="material-symbols-outlined" style={{ fontSize: '48px', marginBottom: '16px', display: 'block', color: 'var(--accent)' }}>
-            assignment
-          </span>
-          <p style={{ fontSize: '15px', marginBottom: '8px', color: 'var(--text-primary)', fontWeight: 600 }}>
-            Google Form not configured yet
-          </p>
-          <p style={{ fontSize: '13px' }}>
-            Set <code style={{ background: 'var(--border)', padding: '2px 6px', borderRadius: '4px' }}>GOOGLE_FORM_EMBED_URL</code> in <code style={{ background: 'var(--border)', padding: '2px 6px', borderRadius: '4px' }}>App.jsx</code> to your Google Form embed link.
-          </p>
-        </div>
-      ) : (
-        <iframe
-          src={GOOGLE_FORM_EMBED_URL}
-          width="100%"
-          height="800"
-          frameBorder="0"
-          marginHeight="0"
-          marginWidth="0"
-          title="AntCapture Feedback Form"
-          style={{
-            borderRadius: '16px',
-            border: '1px solid var(--border)',
-            background: 'var(--card-bg)',
-          }}
-        >
-          Loading…
-        </iframe>
-      )}
     </div>
   );
 }
+
 
 export default function App() {
   const { user, isAuthenticated, isInitializing, isReady, logout, updateUser, hasCloudAccess, subscription, refreshSubscription } = useAuth();

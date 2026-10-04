@@ -19,8 +19,23 @@ function getPlanNameFromVariant(variantId) {
     'LS_VARIANT_CLOUD_MONTHLY',
     'LS_VARIANT_CLOUD_YEARLY',
   ].map((name) => process.env[name]).filter(Boolean);
-  return cloudVariants.includes(id) ? 'cloud' : 'free';
+
+  const matched = cloudVariants.includes(id);
+  if (!matched) {
+    // Silent bug: a paid subscription fires but the variant ID doesn't match any
+    // configured env var. Plan gets written as 'free' -> user keeps seeing the
+    // upgrade banner even after purchase. Common cause: LEMONSQUEEZY_MODE=live
+    // but only TEST variant IDs are populated (or vice versa).
+    logger.warn('webhook', 'variant-id-not-mapped-to-cloud', {
+      variantId: id,
+      mode: process.env.LEMONSQUEEZY_MODE || 'test',
+      configuredVariants: cloudVariants,
+      consequence: 'Subscription will be written as free plan — user will keep seeing the upgrade banner',
+    });
+  }
+  return matched ? 'cloud' : 'free';
 }
+
 
 exports.handleWebhook = async (req, res) => {
   try {

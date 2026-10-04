@@ -358,6 +358,68 @@ async function checkLemonSqueezy() {
   };
 }
 
+/** 11. Subscription Health — detect test-mode variant mismatch and ghost free plans */
+async function checkSubscriptionHealth() {
+  const mode = process.env.LEMONSQUEEZY_MODE || 'test';
+
+  // Count users who have an LS customer record (meaning they went through checkout)
+  // but whose subscription plan is still 'free' — the banner-reappearing bug.
+  const lsCustomers = await prisma.lemonSqueezyCustomer.findMany({
+    include: {
+      user: {
+        include: { subscription: { include: { plan: true } } }
+      }
+    }
+  });
+
+  const paidButFree = lsCustomers.filter(c => {
+    const sub = c.user?.subscription;
+    return sub && sub.plan?.name === 'free';
+  });
+
+  const activeCount = lsCustomers.filter(c => {
+    const sub = c.user?.subscription;
+    return sub && sub.status === 'active';
+  }).length;
+
+  // Check which variant env vars are actually populated
+  const variantEnvCheck = {
+    TEST_MONTHLY:  !!process.env.LEMONSQUEEZY_TEST_MONTHLY_VARIANT_ID,
+    TEST_YEARLY:   !!process.env.LEMONSQUEEZY_TEST_YEARLY_VARIANT_ID,
+    LIVE_MONTHLY:  !!process.env.LEMONSQUEEZY_LIVE_MONTHLY_VARIANT_ID,
+    LIVE_YEARLY:   !!process.env.LEMONSQUEEZY_LIVE_YEARLY_VARIANT_ID,
+  };
+
+  // Warn if mode is 'live' but no live variant IDs set, or mode is 'test' but no test IDs
+  const modeUpper = mode.toUpperCase();
+  const modeVariantsSet = modeUpper === 'LIVE'
+    ? (variantEnvCheck.LIVE_MONTHLY || variantEnvCheck.LIVE_YEARLY)
+    : (variantEnvCheck.TEST_MONTHLY  || variantEnvCheck.TEST_YEARLY);
+
+  if (!modeVariantsSet) {
+    throw new Error(
+      `LEMONSQUEEZY_MODE=${mode} but no ${modeUpper} variant IDs are set. ` +
+      `Webhooks will silently write 'free' plan for all purchases — users will see the upgrade banner after checkout.`
+    );
+  }
+
+  if (paidButFree.length > 0) {
+    throw new Error(
+      `${paidButFree.length} user(s) have a LemonSqueezy customer record but their subscription plan is 'free'. ` +
+      `This means webhooks fired but variant IDs were not matched. Check for variant-id-not-mapped-to-cloud in recent errors.`
+    );
+  }
+
+  return {
+    mode,
+    lsCustomerCount:   lsCustomers.length,
+    activeCount,
+    paidButFreeCount:  paidButFree.length,
+    variantEnvCheck,
+    modeVariantsConfigured: modeVariantsSet,
+  };
+}
+
 // ── Recent errors ─────────────────────────────────────────────────────────────
 function getRecentErrors() {
   return errorRingBuffer.get();
@@ -380,16 +442,17 @@ exports.getSystemHealth = async (req, res) => {
   const startAll = Date.now();
 
   // Run all checks (in parallel where safe, sequential for CRUD to keep orderly)
-  const [apiCheck, d1ConnCheck, schemaCheck, readCheck, writeCheck, authCheck, uploadThingCheck, lemonSqueezyCheck] =
+  const [apiCheck, d1ConnCheck, schemaCheck, readCheck, writeCheck, authCheck, uploadThingCheck, lemonSqueezyCheck, subscriptionHealthCheck] =
     await Promise.all([
-      runCheck('API',                   checkApi),
-      runCheck('D1 Connection',         checkD1Connection),
-      runCheck('D1 Schema/Migrations',  checkD1Schema),
-      runCheck('Database Read',         checkDatabaseRead),
-      runCheck('Database Write',        checkDatabaseWrite),
-      runCheck('Authentication (JWT)',  checkAuthentication),
-      runCheck('UploadThing',           checkUploadThing),
-      runCheck('LemonSqueezy Billing',  checkLemonSqueezy),
+      runCheck('API',                      checkApi),
+      runCheck('D1 Connection',            checkD1Connection),
+      runCheck('D1 Schema/Migrations',     checkD1Schema),
+      runCheck('Database Read',            checkDatabaseRead),
+      runCheck('Database Write',           checkDatabaseWrite),
+      runCheck('Authentication (JWT)',     checkAuthentication),
+      runCheck('UploadThing',              checkUploadThing),
+      runCheck('LemonSqueezy Billing',     checkLemonSqueezy),
+      runCheck('Subscription Health',      checkSubscriptionHealth),
     ]);
 
   // CRUD checks depend on a valid userId — run after parallel batch
@@ -399,6 +462,7 @@ exports.getSystemHealth = async (req, res) => {
   const checks = [
     apiCheck, d1ConnCheck, schemaCheck, readCheck, writeCheck,
     boardCheck, captureCheck, authCheck, uploadThingCheck, lemonSqueezyCheck,
+    subscriptionHealthCheck,
   ];
 
   const totalMs  = Date.now() - startAll;

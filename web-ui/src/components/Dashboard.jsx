@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { parseStorageState, parseDriveState } from '../services/storage/StorageService';
 import StorageUsageCard from './storage/StorageUsageCard';
 import StorageUsageBar from './storage/StorageUsageBar';
@@ -268,6 +268,28 @@ function MediaThumb({ item, onOpen }) {
 export default function Dashboard({ isAuthenticated, isLocalMode, hasCloudAccess, subscription, stats, captures, loadingCaptures, dbStats, onSignIn, onOpenMedia, onGoToLibrary, onGoToPricing }) {
   const recentCaptures = captures.slice(0, 6);
 
+  // ── Smooth banner enter/exit animation ──────────────────────────────────────
+  // showBanner drives DOM presence; isExiting triggers the exit animation.
+  const [showBanner, setShowBanner]   = useState(isAuthenticated && !isLocalMode && !hasCloudAccess);
+  const [isExiting, setIsExiting]     = useState(false);
+  const prevCloudAccess               = useRef(hasCloudAccess);
+
+  useEffect(() => {
+    const hadAccess  = prevCloudAccess.current;
+    const nowHasIt   = hasCloudAccess;
+    prevCloudAccess.current = nowHasIt;
+
+    if (!hadAccess && nowHasIt && showBanner) {
+      // Access just granted — play exit animation then remove from DOM
+      setIsExiting(true);
+      const t = setTimeout(() => { setShowBanner(false); setIsExiting(false); }, 420);
+      return () => clearTimeout(t);
+    }
+    if (!nowHasIt && isAuthenticated && !isLocalMode) {
+      setShowBanner(true);
+    }
+  }, [hasCloudAccess, isAuthenticated, isLocalMode]);
+
   const greetingHour = new Date().getHours();
   const greeting = greetingHour < 12 ? 'Good morning' : greetingHour < 17 ? 'Good afternoon' : 'Good evening';
 
@@ -334,13 +356,13 @@ export default function Dashboard({ isAuthenticated, isLocalMode, hasCloudAccess
       </section>
 
       {/* ── Cloud Upsell Banner — only for logged-in users without a subscription ── */}
-      {isAuthenticated && !isLocalMode && !hasCloudAccess && (
+      {showBanner && (
         <div style={{
           background: 'linear-gradient(135deg, rgba(99,102,241,0.1) 0%, rgba(139,92,246,0.1) 100%)',
           border: '1px solid rgba(99,102,241,0.25)',
           borderRadius: '20px',
           padding: '28px 32px',
-          marginBottom: '28px',
+          marginBottom: isExiting ? '0' : '28px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
@@ -348,6 +370,9 @@ export default function Dashboard({ isAuthenticated, isLocalMode, hasCloudAccess
           flexWrap: 'wrap',
           position: 'relative',
           overflow: 'hidden',
+          animation: isExiting
+            ? 'bannerExit 0.4s ease forwards'
+            : 'bannerEnter 0.35s ease forwards',
         }}>
           {/* Decorative glow */}
           <div style={{ position: 'absolute', top: '-40px', right: '-40px', width: '180px', height: '180px', background: 'radial-gradient(circle, rgba(99,102,241,0.15) 0%, transparent 70%)', pointerEvents: 'none' }} />

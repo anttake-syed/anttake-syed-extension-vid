@@ -8,7 +8,7 @@ const WEBHOOK_SECRET = process.env.LS_WEBHOOK_SECRET;
  * Maps a LemonSqueezy variant ID to the internal plan name.
  * We only have one paid plan: 'cloud' (monthly or yearly).
  */
-function getPlanNameFromVariant(variantId) {
+exports.getPlanNameFromVariant = function(variantId) {
   const id = variantId.toString();
   // Same env names the checkout uses (subscriptionController), plus legacy ones
   const cloudVariants = [
@@ -74,7 +74,7 @@ exports.handleWebhook = async (req, res) => {
         if (!userId) throw new Error('No user_id in custom_data');
 
         const variantId = attributes.variant_id.toString();
-        const planName  = getPlanNameFromVariant(variantId);
+        const planName  = exports.getPlanNameFromVariant(variantId);
         // Fall back to the free plan row so a paid subscription is still
         // recorded (and unlocks cloud) if the 'cloud' row hasn't been created.
         const plan      = await prisma.plan.findUnique({ where: { name: planName } })

@@ -1,0 +1,709 @@
+/* ════════════════════════════════════════════════════════════════════════════
+   WHITEBOARDS — board library (Whiteboards.jsx) + canvas editor
+   (WhiteboardEditor.jsx). Mobile-first where it matters; desktop values match
+   the original inline styles so ≥1280px looks unchanged.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+/* ── Board library ───────────────────────────────────────── */
+
+.wb-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
+  gap: 22px;
+}
+
+.wb-search {
+  position: relative;
+  flex: 1 1 200px;
+  max-width: 320px;
+  min-width: 0;
+}
+
+@media (max-width: 639.98px) {
+  .wb-search {
+    flex-basis: 100%;
+    max-width: none;
+  }
+}
+
+.wb-hero-title {
+  font-size: clamp(24px, 3vw + 12px, 32px);
+}
+
+.wb-icon-btn {
+  min-width: 0;
+}
+
+@media (pointer: coarse) {
+  .wb-icon-btn {
+    min-width: var(--tap-target);
+    min-height: var(--tap-target);
+  }
+}
+
+/* List row */
+.wb-row {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 14px 18px;
+  min-width: 0;
+}
+
+.wb-row-thumb {
+  width: 96px;
+  height: 62px;
+}
+
+.wb-row-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.wb-row-actions[data-show='true'],
+.wb-row:focus-within .wb-row-actions {
+  opacity: 1;
+}
+
+/* No hover on touch screens — actions are always visible */
+@media (hover: none) {
+  .wb-row-actions {
+    opacity: 1;
+  }
+}
+
+@media (max-width: 639.98px) {
+  .wb-row {
+    gap: var(--space-3);
+    padding: 10px var(--space-3);
+  }
+
+  .wb-row-thumb {
+    width: 64px;
+    height: 42px;
+  }
+
+  .wb-row-actions {
+    gap: 0;
+  }
+}
+
+/* ── Editor shell ────────────────────────────────────────── */
+
+.wb-topbar {
+  min-height: 56px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--bg-tertiary);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  padding-top: env(safe-area-inset-top);
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.wb-topbar-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  flex: 0 1 auto;
+}
+
+.wb-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  min-width: 0;
+}
+
+.wb-name-input {
+  min-width: min(200px, 100%);
+}
+
+/* Zoom + actions: plain flex items of the top bar on desktop */
+.wb-topbar-tools {
+  display: contents;
+}
+
+.wb-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.wb-back-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px;
+  border-radius: 8px;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.wb-back-btn:hover {
+  background: var(--bg-tertiary);
+}
+
+.wb-zoom-btn,
+.wb-action-btn {
+  background: var(--bg-tertiary);
+  border: 1px solid #334155;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-family: 'Outfit', sans-serif;
+}
+
+.wb-zoom-btn {
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.wb-zoom-label {
+  color: var(--text-muted);
+  font-size: 13px;
+  min-width: 42px;
+  text-align: center;
+}
+
+.wb-zoom-reset {
+  background: none;
+  border: none;
+  color: var(--text-faint);
+  cursor: pointer;
+  font-size: 11px;
+  font-family: 'Outfit', sans-serif;
+}
+
+.wb-action-btn {
+  padding: 6px 10px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-size: 13px;
+}
+
+.wb-save-btn {
+  white-space: nowrap;
+  justify-content: center;
+}
+
+/* Phones: name on row 1, zoom + actions on row 2 (scrolls if it must) */
+@media (max-width: 639.98px) {
+  .wb-topbar {
+    flex-wrap: wrap;
+    padding: max(8px, env(safe-area-inset-top)) 12px 8px;
+    gap: 8px;
+  }
+
+  .wb-topbar-left {
+    flex: 1 1 100%;
+    gap: 8px;
+  }
+
+  .wb-topbar-tools {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    width: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .wb-topbar-tools::-webkit-scrollbar {
+    display: none;
+  }
+
+  .wb-name-input {
+    flex: 1;
+    min-width: 0;
+  }
+}
+
+@media (pointer: coarse) {
+  .wb-back-btn,
+  .wb-action-btn,
+  .wb-save-btn {
+    min-width: var(--tap-target);
+    min-height: 40px;
+  }
+
+  .wb-zoom-btn {
+    min-width: 36px;
+    min-height: 36px;
+  }
+
+  .wb-zoom-reset {
+    min-height: 36px;
+    padding-inline: 8px;
+  }
+}
+
+/* ── Editor body: toolbar + canvas ───────────────────────── */
+
+.wb-body {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+  position: relative;
+  min-height: 0;
+}
+
+.wb-toolbar {
+  width: 64px;
+  background: #080e1c;
+  border-right: 1px solid #1a2236;
+  display: flex;
+  flex-direction: column;
+  padding: 8px 0;
+  flex-shrink: 0;
+  overflow-y: auto;
+}
+
+.wb-tool-group {
+  padding: 4px 8px 8px;
+}
+
+.wb-tool-group--draw {
+  padding: 8px 8px 4px;
+}
+
+.wb-tool-group--media {
+  padding: 4px 8px;
+}
+
+.wb-group-label {
+  font-size: 8px;
+  font-weight: 700;
+  color: #2d3f5a;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  display: block;
+  text-align: center;
+  margin-bottom: 6px;
+}
+
+.wb-tool-btn {
+  width: 100%;
+  background: none;
+  border: 1px solid transparent;
+  color: var(--text-faint);
+  padding: 7px 4px;
+  border-radius: 9px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  transition: all 0.12s;
+  margin-bottom: 2px;
+}
+
+.wb-tool-btn:hover:not([data-active='true']) {
+  background: #111c30;
+  color: var(--text-dim);
+}
+
+.wb-tool-btn[data-active='true'] {
+  background: rgba(99, 102, 241, 0.18);
+  border-color: rgba(99, 102, 241, 0.4);
+  color: var(--primary-soft);
+}
+
+.wb-tool-btn .material-symbols-rounded {
+  font-size: 17px;
+}
+
+.wb-tool-label {
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.wb-divider {
+  height: 1px;
+  background: #1a2236;
+  margin: 4px 10px;
+  flex-shrink: 0;
+}
+
+.wb-divider--tight {
+  margin: 0 10px 4px;
+}
+
+.wb-colors {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+}
+
+.wb-swatch {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.12s;
+  outline-offset: 1px;
+}
+
+.wb-size-btn {
+  width: 100%;
+  height: 22px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 3px;
+}
+
+.wb-canvas-area {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  position: relative;
+}
+
+/* Phones: the tool rail becomes a horizontally scrolling bar under the
+   canvas, so the canvas gets the full screen width. */
+@media (max-width: 639.98px) {
+  .wb-body {
+    flex-direction: column-reverse;
+  }
+
+  .wb-toolbar {
+    width: 100%;
+    flex-direction: row;
+    align-items: center;
+    overflow-x: auto;
+    overflow-y: hidden;
+    border-right: none;
+    border-top: 1px solid #1a2236;
+    padding: 6px 8px;
+    gap: 4px;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .wb-tool-group,
+  .wb-tool-group--draw,
+  .wb-tool-group--media {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 0 4px;
+    flex-shrink: 0;
+  }
+
+  .wb-group-label {
+    display: none;
+  }
+
+  .wb-tool-btn {
+    width: auto;
+    min-width: 48px;
+    margin-bottom: 0;
+    flex-shrink: 0;
+  }
+
+  .wb-divider,
+  .wb-divider--tight {
+    width: 1px;
+    height: 32px;
+    margin: 0 2px;
+  }
+
+  .wb-colors {
+    grid-template-columns: none;
+    grid-template-rows: repeat(2, auto);
+    grid-auto-flow: column;
+  }
+
+  .wb-size-btn {
+    width: 32px;
+    height: 40px;
+    margin-bottom: 0;
+    flex-shrink: 0;
+  }
+}
+
+@media (pointer: coarse) {
+  .wb-tool-btn {
+    min-height: var(--tap-target);
+  }
+
+  .wb-swatch {
+    width: 26px;
+    height: 26px;
+  }
+}
+
+/* ── Status bar ──────────────────────────────────────────── */
+
+.wb-statusbar {
+  min-height: 32px;
+  background: #0a0f1e;
+  border-top: 1px solid var(--bg-tertiary);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 20px;
+  padding-bottom: env(safe-area-inset-bottom);
+  flex-shrink: 0;
+  min-width: 0;
+}
+
+.wb-status-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.wb-status-hint {
+  font-size: 11px;
+  color: var(--text-faint);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+@media (max-width: 639.98px) {
+  .wb-statusbar {
+    padding-inline: 12px;
+  }
+}
+
+/* ── Editor overlays: library picker, dialogs, toast ─────── */
+
+.wb-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(2, 6, 23, 0.85);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  overflow-y: auto;
+}
+
+.wb-library {
+  background: var(--bg-secondary);
+  border: 1px solid #334155;
+  border-radius: 24px;
+  width: 100%;
+  max-width: 1060px;
+  height: 85vh;
+  height: 85dvh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
+  overflow: hidden;
+}
+
+.wb-library-head {
+  padding: 22px 28px 18px;
+  border-bottom: 1px solid var(--bg-tertiary);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: #080e1c;
+  flex-shrink: 0;
+}
+
+.wb-library-title {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+.wb-library-close {
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+}
+
+.wb-library-filters {
+  padding: 14px 28px;
+  border-bottom: 1px solid var(--bg-tertiary);
+  background: #080e1c;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+
+.wb-library-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.wb-library-search {
+  position: relative;
+  flex: 1;
+  min-width: 160px;
+  max-width: 320px;
+  margin-left: auto;
+}
+
+.wb-library-body {
+  padding: 24px 32px;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+  background: var(--bg-primary);
+}
+
+.wb-library-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr));
+  gap: 20px;
+}
+
+@media (max-width: 639.98px) {
+  .wb-overlay {
+    padding: var(--space-3);
+  }
+
+  .wb-library {
+    height: 100%;
+    border-radius: var(--radius-lg);
+  }
+
+  .wb-library-head {
+    padding: var(--space-4);
+  }
+
+  .wb-library-filters {
+    padding: var(--space-3) var(--space-4);
+  }
+
+  .wb-library-search {
+    flex-basis: 100%;
+    max-width: none;
+    margin-left: 0;
+  }
+
+  .wb-library-body {
+    padding: var(--space-4);
+  }
+
+  .wb-library-grid {
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 140px), 1fr));
+    gap: var(--space-3);
+  }
+}
+
+@media (pointer: coarse) {
+  .wb-library-close {
+    width: var(--tap-target);
+    height: var(--tap-target);
+  }
+
+  .wb-library-tabs > button {
+    min-height: 40px;
+  }
+}
+
+/* Small dialogs (unsaved changes, add text) */
+.wb-dialog {
+  background: var(--bg-secondary);
+  border: 1px solid #334155;
+  border-radius: 24px;
+  width: min(100%, 420px);
+  max-height: calc(100dvh - 2 * var(--space-4));
+  overflow-y: auto;
+  padding: 32px;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
+}
+
+.wb-dialog--compact {
+  width: min(100%, 380px);
+  border-radius: 20px;
+  padding: 28px;
+}
+
+@media (max-width: 639.98px) {
+  .wb-dialog,
+  .wb-dialog--compact {
+    padding: var(--space-5);
+  }
+}
+
+/* Media load error toast */
+.wb-toast {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  max-width: 360px;
+  background: #1e1015;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 14px;
+  padding: 14px 18px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+@media (max-width: 639.98px) {
+  .wb-toast {
+    left: var(--space-4);
+    right: var(--space-4);
+    bottom: max(var(--space-4), env(safe-area-inset-bottom));
+    max-width: none;
+  }
+}
+
+.wb-toast-close {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+@media (pointer: coarse) {
+  .wb-toast-close {
+    min-width: var(--tap-target);
+    min-height: var(--tap-target);
+    margin: -10px -12px -10px 0;
+  }
+}
+
+/* Text inputs: 16px on touch so iOS doesn't zoom the page on focus */
+.wb-text-input {
+  font-size: 14px;
+}
+
+@media (pointer: coarse) {
+  .wb-text-input,
+  .wb-name-input {
+    font-size: 16px !important;
+  }
+}

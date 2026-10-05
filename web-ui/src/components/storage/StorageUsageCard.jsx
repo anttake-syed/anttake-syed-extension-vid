@@ -41,7 +41,7 @@ export default function StorageUsageCard({ storageState, isAuthenticated, onSign
 
   return (
     <div className="stat-card" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
         <div className="stat-icon">
           <span className="material-symbols-rounded" style={{ fontSize: '28px', color }}>{icon || 'hard_drive'}</span>
         </div>
@@ -53,7 +53,7 @@ export default function StorageUsageCard({ storageState, isAuthenticated, onSign
       </div>
       
       <div style={{ margin: '4px 0' }}>
-        <div style={{ fontSize: '22px', fontWeight: 700, color: '#f8fafc', display: 'flex', alignItems: 'baseline', gap: '6px' }}>
+        <div style={{ fontSize: '22px', fontWeight: 700, color: '#f8fafc', display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', gap: '0 6px' }}>
           {hasNoLimit ? usedFormatted : `${percentage}%`} 
           <span style={{ fontSize: '13px', color: '#94a3b8', fontWeight: 500 }}>
             {hasNoLimit ? 'stored locally' : 'used'}

@@ -11,7 +11,8 @@
     "build:local": "VITE_APP_MODE=local VITE_API_BASE_URL=http://localhost:3001 vite build",
     "build:cloud": "VITE_APP_MODE=cloud VITE_API_BASE_URL=https://api.antcapture.anttake.com vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "check:ui": "node scripts/check-ui.mjs"
   },
   "dependencies": {
     "react": "^19.2.0",

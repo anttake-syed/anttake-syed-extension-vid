@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { SERVER_URL } from '../config';
+import '../styles/pages/media-modal.css';
 
 export default function LoginModal({ onClose }) {
   const [loading, setLoading] = useState(false);
@@ -21,7 +22,7 @@ export default function LoginModal({ onClose }) {
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-card" onClick={(e) => e.stopPropagation()}>
-        <button className="modal-close" onClick={onClose} aria-label="Close">✕</button>
+        <button className="modal-close modal-close--touch" onClick={onClose} aria-label="Close">✕</button>
         <div className="modal-brand">
           <div className="brand-icon-sm">
             <svg viewBox="0 0 32 32" width="32" height="32" fill="none">

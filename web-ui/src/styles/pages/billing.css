@@ -1,0 +1,166 @@
+/* Billing surfaces: subscription page, renewal banner, purchase toast.
+   Mobile-first. See docs/UI_GUIDELINES.md. */
+
+/* ── Subscription management page ───────────────────────── */
+.page.billing-page {
+  max-width: 560px;
+  padding-block: var(--space-5);
+}
+
+@media (min-width: 768px) {
+  .page.billing-page {
+    padding-block: var(--space-7);
+  }
+}
+
+.page.billing-page--empty {
+  padding-block: var(--space-8);
+  text-align: center;
+}
+
+@media (min-width: 768px) {
+  .page.billing-page--empty {
+    padding-block: 80px;
+  }
+}
+
+.billing-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-size: var(--text-2xl);
+  margin-bottom: var(--space-5);
+  min-width: 0;
+}
+
+.billing-heading {
+  font-size: var(--text-2xl);
+}
+
+.billing-card {
+  padding: 20px;
+  min-width: 0;
+}
+
+@media (min-width: 640px) {
+  .billing-card {
+    padding: var(--space-6);
+  }
+}
+
+.billing-card__head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--space-3);
+  margin-bottom: var(--space-5);
+}
+
+.billing-card__head > :first-child {
+  min-width: 0;
+}
+
+.billing-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-3);
+}
+
+/* Payment / cancel links: stacked on phones, side by side when there is room */
+.billing-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.billing-actions > a {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--tap-target);
+}
+
+@media (min-width: 640px) {
+  .billing-actions {
+    flex-direction: row;
+  }
+
+  .billing-actions > a {
+    flex: 1;
+  }
+}
+
+/* ── Renewal / payment warning banner ───────────────────── */
+.sub-banner {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    "icon text close"
+    ".    cta  cta";
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  padding: var(--space-3) var(--space-1) var(--space-3) var(--space-4);
+  min-width: 0;
+  max-width: 100%;
+}
+
+.sub-banner__icon  { grid-area: icon; }
+.sub-banner__text  { grid-area: text; min-width: 0; overflow-wrap: anywhere; }
+.sub-banner__cta   { grid-area: cta; justify-self: start; min-height: 36px; }
+.sub-banner__close {
+  grid-area: close;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--tap-target);
+  height: var(--tap-target);
+  margin-block: calc(-1 * var(--space-2));
+}
+
+@media (min-width: 640px) {
+  .sub-banner {
+    grid-template-columns: auto minmax(0, 1fr) auto auto;
+    grid-template-areas: "icon text cta close";
+    padding: var(--space-3) var(--space-2) var(--space-3) 18px;
+  }
+
+  .sub-banner__cta {
+    min-height: 0;
+    white-space: nowrap;
+  }
+
+  .sub-banner__close {
+    width: 32px;
+    height: 32px;
+    margin-block: 0;
+  }
+}
+
+/* ── Purchase success toast ─────────────────────────────── */
+/* Phones: centred via .toast. Larger screens: bottom-right as before. */
+.toast.purchase-toast {
+  width: calc(100vw - 2 * var(--space-4));
+  max-width: 380px;
+}
+
+@media (min-width: 640px) {
+  .toast.purchase-toast {
+    left: auto;
+    right: var(--space-6);
+    bottom: var(--space-6);
+    margin-inline: 0;
+    width: calc(100vw - 48px);
+  }
+}
+
+.purchase-toast__close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: var(--tap-target);
+  height: var(--tap-target);
+  margin: -12px -12px 0 0;
+}

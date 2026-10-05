@@ -40,12 +40,12 @@ export default function Sidebar({ activeNav, isAuthenticated, hasCloudAccess = t
           else if (isAuthenticated) {onNavClick(item);}
           else {onSignIn();}
         }}
-        title={isCloudLocked ? 'Requires AntCapture Cloud plan' : undefined}
+        title={isCloudLocked ? `${item} — requires AntCapture Cloud plan` : item}
       >
         <span className="nav-icon material-symbols-rounded" style={{ fontSize: secondary ? '18px' : '20px', fontWeight: '300' }}>
           {NAV_ICONS[item]}
         </span>
-        {item}
+        <span className="nav-label">{item}</span>
         {!isAuthenticated && !PUBLIC_ITEMS.includes(item) && (
           <span className="nav-lock material-symbols-rounded" style={{ fontSize: '14px', marginLeft: 'auto', color: '#475569' }}>lock</span>
         )}
@@ -61,7 +61,7 @@ export default function Sidebar({ activeNav, isAuthenticated, hasCloudAccess = t
   };
 
   return (
-    <aside className={`sidebar ${mobileMenuOpen ? 'open' : ''}`}>
+    <aside className={`sidebar ${mobileMenuOpen ? 'open' : ''}`} aria-label="Main navigation">
       <div className="logo">
         <svg viewBox="0 0 40 40" width="24" height="24" fill="none" style={{ flexShrink: 0 }}>
           <circle cx="20" cy="20" r="20" fill="url(#sidebar-grad)" />
@@ -73,7 +73,7 @@ export default function Sidebar({ activeNav, isAuthenticated, hasCloudAccess = t
             </linearGradient>
           </defs>
         </svg>
-        <span style={{ color: '#f8fafc', fontWeight: '700', letterSpacing: '-0.02em', fontSize: '19px' }}>
+        <span className="logo-text" style={{ color: '#f8fafc', fontWeight: '700', letterSpacing: '-0.02em', fontSize: '19px' }}>
           Ant<span style={{ color: '#94a3b8', fontWeight: '500' }}>Capture</span>
         </span>
       </div>
@@ -85,25 +85,8 @@ export default function Sidebar({ activeNav, isAuthenticated, hasCloudAccess = t
         </ul>
 
         {/* ── Divider ── */}
-        <div style={{
-          margin: '10px 16px 6px',
-          borderTop: '1px solid rgba(255,255,255,0.06)',
-          position: 'relative',
-        }}>
-          <span style={{
-            position: 'absolute',
-            top: '-9px',
-            left: '8px',
-            background: '#0f172a',
-            padding: '0 6px',
-            fontSize: '10px',
-            fontWeight: '600',
-            color: '#334155',
-            textTransform: 'uppercase',
-            letterSpacing: '0.08em',
-          }}>
-            Info
-          </span>
+        <div className="nav-divider">
+          <span className="nav-divider-label">Info</span>
         </div>
 
         {/* ── Secondary navigation ── */}
@@ -114,17 +97,8 @@ export default function Sidebar({ activeNav, isAuthenticated, hasCloudAccess = t
         {/* ── Admin navigation (only shown to admins) ── */}
         {isAuthenticated && isAdmin && (
           <>
-            <div style={{
-              margin: '10px 16px 6px',
-              borderTop: '1px solid rgba(255,255,255,0.06)',
-              position: 'relative',
-            }}>
-              <span style={{
-                position: 'absolute', top: '-9px', left: '8px',
-                background: '#0f172a', padding: '0 6px',
-                fontSize: '10px', fontWeight: '600', color: '#4f46e5',
-                textTransform: 'uppercase', letterSpacing: '0.08em',
-              }}>Admin</span>
+            <div className="nav-divider nav-divider--admin">
+              <span className="nav-divider-label">Admin</span>
             </div>
             <ul className="nav-list" style={{ marginTop: '4px' }}>
               {ADMIN_NAV.map((item) => renderNavItem(item, true))}
@@ -137,6 +111,7 @@ export default function Sidebar({ activeNav, isAuthenticated, hasCloudAccess = t
         {/* ── Cloud upgrade nudge — only for logged-in, unsubscribed users ── */}
         {isAuthenticated && !hasCloudAccess && (
           <div
+            className="sidebar-upgrade"
             onClick={() => onNavClick('Pricing')}
             style={{
               background: 'linear-gradient(135deg, rgba(99,102,241,0.13) 0%, rgba(139,92,246,0.1) 100%)',
@@ -163,12 +138,14 @@ export default function Sidebar({ activeNav, isAuthenticated, hasCloudAccess = t
         )}
 
         {isAuthenticated ? (
-          <button className="btn-logout" onClick={onLogout}>
-            <span className="material-symbols-rounded" style={{ fontSize: '18px' }}>logout</span> Sign Out
+          <button className="btn-logout" onClick={onLogout} title="Sign out">
+            <span className="material-symbols-rounded" style={{ fontSize: '18px' }}>logout</span>
+            <span className="btn-label">Sign Out</span>
           </button>
         ) : (
-          <button className="btn-signin-sidebar" onClick={onSignIn}>
-            Sign in with Google
+          <button className="btn-signin-sidebar" onClick={onSignIn} title="Sign in with Google">
+            <span className="material-symbols-rounded show-rail-only" style={{ fontSize: '18px' }}>login</span>
+            <span className="btn-label">Sign in with Google</span>
           </button>
         )}
       </div>

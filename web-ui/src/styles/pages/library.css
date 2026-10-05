@@ -1,0 +1,261 @@
+/* ════════════════════════════════════════════════════════════════════════════
+   LIBRARY — page-specific layout. Mobile-first; see docs/UI_GUIDELINES.md.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+/* Same vertical rhythm the app shell used to give these sections directly */
+.lib {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+@media (min-width: 768px) {
+  .lib {
+    gap: 28px;
+  }
+
+  .lib-toolbar,
+  .lib-shortcuts {
+    margin-bottom: 20px;
+  }
+
+  .lib-count {
+    margin-bottom: 16px;
+  }
+}
+
+/* ── Toolbar ──────────────────────────────────────────────────
+   Phones: search on its own row, type filter full-width, then sort + view.
+   ≥640px: one wrapping row, as on desktop. */
+.lib-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.lib-search {
+  position: relative;
+  flex: 1 1 200px;
+  min-width: 0;
+}
+
+.lib-search input {
+  width: 100%;
+  min-height: 38px;
+  font-size: 14px;
+}
+
+.lib-seg {
+  display: flex;
+  background: var(--bg-tertiary);
+  border: 1px solid #334155;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.lib-seg > button {
+  padding: 9px 16px;
+  border: none;
+  cursor: pointer;
+}
+
+.lib-seg--icons > button {
+  padding: 9px 12px;
+}
+
+.lib-sort {
+  min-height: 38px;
+}
+
+.lib-icon-btn {
+  padding: 9px 12px;
+}
+
+@media (max-width: 639.98px) {
+  .lib-search {
+    flex-basis: 100%;
+  }
+
+  .lib-search input {
+    min-height: var(--tap-target);
+    font-size: var(--text-md); /* ≥16px stops iOS zooming on focus */
+  }
+
+  .lib-seg--filter {
+    flex: 1 1 100%;
+  }
+
+  .lib-seg--filter > button {
+    flex: 1;
+    padding-inline: var(--space-2);
+  }
+
+  .lib-sort {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
+  .lib-seg > button,
+  .lib-sort {
+    min-height: var(--tap-target);
+  }
+
+  .lib-seg--icons > button {
+    min-width: var(--tap-target);
+  }
+}
+
+/* Keyboard shortcuts panel */
+.lib-shortcuts {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr));
+  gap: 8px 24px;
+}
+
+.lib-count {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.lib-count > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.lib-clear {
+  padding: 0 var(--space-1);
+}
+
+@media (pointer: coarse) {
+  .lib-clear {
+    min-height: var(--tap-target);
+  }
+}
+
+/* Empty / loading / signed-out states */
+.lib-state {
+  text-align: center;
+  padding: 60px var(--space-5);
+}
+
+.lib-signed-out {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 80px var(--space-5);
+  text-align: center;
+}
+
+@media (max-width: 639.98px) {
+  .lib-state {
+    padding: var(--space-7) var(--space-4);
+  }
+
+  .lib-signed-out {
+    padding: var(--space-8) 0;
+  }
+}
+
+/* ── Grid view ────────────────────────────────────────────── */
+.lib-grid {
+  --grid-min: 220px;
+}
+
+.lib-card {
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--bg-tertiary);
+  border: 1px solid #334155;
+  cursor: pointer;
+  min-width: 0;
+  transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s;
+}
+
+@media (hover: hover) {
+  .lib-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
+    border-color: var(--primary);
+  }
+}
+
+/* ── List view ────────────────────────────────────────────── */
+.lib-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.lib-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-width: 0;
+  background: var(--bg-tertiary);
+  border: 1px solid #334155;
+  border-radius: 12px;
+  padding: 12px 16px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+@media (hover: hover) {
+  .lib-row:hover {
+    border-color: var(--primary);
+    background: #1a2744;
+  }
+}
+
+.lib-row__thumb {
+  width: 72px;
+  height: 48px;
+}
+
+.lib-row__info {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.lib-row__size {
+  min-width: 64px;
+  text-align: right;
+}
+
+/* Phones: two-line row. Title/date on top, badges + size underneath,
+   so the fixed-width columns can't push the row past the screen edge. */
+@media (max-width: 639.98px) {
+  .lib-row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto auto auto;
+    grid-template-areas:
+      "thumb info  info store chev"
+      "thumb badge size store chev";
+    column-gap: var(--space-3);
+    row-gap: 6px;
+    padding: var(--space-3);
+  }
+
+  .lib-row__thumb {
+    grid-area: thumb;
+    width: 64px;
+    height: 44px;
+  }
+
+  .lib-row__info  { grid-area: info; }
+  .lib-row__badges { grid-area: badge; min-width: 0; flex-wrap: wrap; }
+  .lib-row__store { grid-area: store; }
+  .lib-row__chev  { grid-area: chev; }
+
+  .lib-row__size {
+    grid-area: size;
+    min-width: 0;
+    align-self: center;
+  }
+}

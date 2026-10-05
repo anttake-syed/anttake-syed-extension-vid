@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { SERVER_URL } from '../config.js';
+import { Page, SectionHead, Grid, TableScroll } from './layout/Page.jsx';
+import '../styles/pages/diagnostics.css';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function statusColor(status) {
@@ -90,26 +92,23 @@ function CopyBtn({ data, id, label = '', size = '16px', style = {} }) {
 // ── Subcomponents ─────────────────────────────────────────────────────────────
 function OverallBadge({ status, pass, fail, durationMs }) {
   return (
-    <div style={{
-      display: 'flex', alignItems: 'center', gap: '16px',
+    <div className="diag-overall" style={{
       background: statusBg(status),
       border: `1px solid ${statusColor(status)}30`,
-      borderRadius: '16px', padding: '20px 28px',
-      marginBottom: '28px',
     }}>
-      <span className="material-symbols-rounded" style={{ fontSize: '40px', color: statusColor(status) }}>
+      <span className="material-symbols-rounded" style={{ fontSize: '40px', color: statusColor(status), flexShrink: 0 }}>
         {statusIcon(status)}
       </span>
-      <div style={{ flex: 1 }}>
+      <div>
         <div style={{ fontSize: '22px', fontWeight: 700, color: statusColor(status), lineHeight: 1.2 }}>
           System {status}
         </div>
-        <div style={{ fontSize: '13px', color: '#94a3b8', marginTop: '4px' }}>
+        <div style={{ fontSize: '13px', color: 'var(--text-dim)', marginTop: '4px' }}>
           {pass} passed · {fail} failed · {fmtDuration(durationMs)} total
         </div>
       </div>
-      <div style={{
-        fontSize: '11px', fontWeight: 600, letterSpacing: '0.08em',
+      <div className="hide-below-sm" style={{
+        fontSize: '11px', fontWeight: 600, letterSpacing: '0.08em', flexShrink: 0,
         color: statusColor(status), textTransform: 'uppercase',
         background: `${statusColor(status)}18`, padding: '4px 10px', borderRadius: '6px',
       }}>
@@ -122,27 +121,24 @@ function OverallBadge({ status, pass, fail, durationMs }) {
 function CheckCard({ check, onClick }) {
   return (
     <div
+      className="diag-check-card"
       onClick={() => onClick(check)}
       style={{
-        background: 'var(--card-bg, #1e293b)',
+        background: 'var(--card-bg)',
         border: `1px solid ${statusColor(check.status)}28`,
-        borderRadius: '12px', padding: '16px 20px',
-        cursor: 'pointer',
-        transition: 'all 0.15s ease',
-        display: 'flex', alignItems: 'center', gap: '14px',
       }}
       onMouseEnter={e => e.currentTarget.style.background = statusBg(check.status)}
-      onMouseLeave={e => e.currentTarget.style.background = 'var(--card-bg, #1e293b)'}
+      onMouseLeave={e => e.currentTarget.style.background = 'var(--card-bg)'}
     >
       <span className="material-symbols-rounded" style={{ fontSize: '22px', color: statusColor(check.status), flexShrink: 0 }}>
         {statusIcon(check.status)}
       </span>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: '13px', fontWeight: 600, color: '#f1f5f9', marginBottom: '2px' }}>
+        <div className="break-anywhere" style={{ fontSize: '13px', fontWeight: 600, color: '#f1f5f9', marginBottom: '2px' }}>
           {check.name}
         </div>
         {check.error && (
-          <div style={{ fontSize: '11px', color: '#ef4444', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          <div className="truncate" style={{ fontSize: '11px', color: 'var(--danger)' }}>
             {check.error}
           </div>
         )}
@@ -153,7 +149,7 @@ function CheckCard({ check, onClick }) {
       }}>
         {check.status}
       </div>
-      <div style={{ fontSize: '11px', color: '#64748b', flexShrink: 0 }}>
+      <div style={{ fontSize: '11px', color: 'var(--text-muted)', flexShrink: 0 }}>
         {fmtDuration(check.durationMs)}
       </div>
     </div>
@@ -163,36 +159,19 @@ function CheckCard({ check, onClick }) {
 function CheckDetailModal({ check, onClose }) {
   if (!check) return null;
   return (
-    <div
-      style={{
-        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        zIndex: 1000, backdropFilter: 'blur(4px)',
-      }}
-      onClick={onClose}
-    >
-      <div
-        style={{
-          background: '#0f172a', border: '1px solid #1e293b',
-          borderRadius: '20px', padding: '32px', width: '520px', maxWidth: '95vw',
-          maxHeight: '80vh', overflowY: 'auto',
-        }}
-        onClick={e => e.stopPropagation()}
-      >
+    <div className="diag-modal-overlay" onClick={onClose}>
+      <div className="diag-modal" onClick={e => e.stopPropagation()}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
-          <span className="material-symbols-rounded" style={{ fontSize: '28px', color: statusColor(check.status) }}>
+          <span className="material-symbols-rounded" style={{ fontSize: '28px', color: statusColor(check.status), flexShrink: 0 }}>
             {statusIcon(check.status)}
           </span>
-          <div>
-            <div style={{ fontSize: '18px', fontWeight: 700, color: '#f1f5f9' }}>{check.name}</div>
-            <div style={{ fontSize: '12px', color: '#64748b' }}>
+          <div className="min-w-0">
+            <div className="break-anywhere" style={{ fontSize: '18px', fontWeight: 700, color: '#f1f5f9' }}>{check.name}</div>
+            <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
               {check.status} · {fmtDuration(check.durationMs)}
             </div>
           </div>
-          <button
-            onClick={onClose}
-            style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', fontSize: '20px' }}
-          >
+          <button onClick={onClose} className="diag-modal-close">
             <span className="material-symbols-rounded">close</span>
           </button>
         </div>
@@ -202,30 +181,30 @@ function CheckDetailModal({ check, onClose }) {
             background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)',
             borderRadius: '10px', padding: '16px', marginBottom: '16px',
           }}>
-            <div style={{ fontSize: '11px', fontWeight: 700, color: '#ef4444', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+            <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--danger)', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
               Error
             </div>
-            <div style={{ fontSize: '13px', color: '#fca5a5', fontFamily: 'monospace', wordBreak: 'break-all' }}>
+            <div style={{ fontSize: '13px', color: 'var(--danger-soft)', fontFamily: 'monospace', wordBreak: 'break-all' }}>
               {check.error}
             </div>
             {check.code && (
-              <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '6px' }}>Code: {check.code}</div>
+              <div className="break-anywhere" style={{ fontSize: '11px', color: 'var(--text-dim)', marginTop: '6px' }}>Code: {check.code}</div>
             )}
           </div>
         )}
 
         {check.detail && (
           <div style={{
-            background: '#1e293b', borderRadius: '10px', padding: '16px',
+            background: 'var(--bg-tertiary)', borderRadius: '10px', padding: '16px',
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
-              <div style={{ fontSize: '11px', fontWeight: 700, color: '#6366f1', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', marginBottom: '10px' }}>
+              <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                 Details
               </div>
               <CopyBtn data={check} id={`check-detail-${check.name}`} label="Copy" size="13px" />
             </div>
             <pre style={{
-              fontSize: '12px', color: '#94a3b8', margin: 0,
+              fontSize: '12px', color: 'var(--text-dim)', margin: 0,
               fontFamily: 'monospace', whiteSpace: 'pre-wrap', wordBreak: 'break-all',
             }}>
               {JSON.stringify(check.detail, null, 2)}
@@ -248,11 +227,11 @@ function ErrorRow({ entry, onExpand, expanded }) {
         onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.02)'}
         onMouseLeave={e => e.currentTarget.style.background = ''}
       >
-        <td style={{ padding: '10px 14px', whiteSpace: 'nowrap' }}>
-          <span style={{ fontSize: '12px', color: '#64748b' }}>{ts}</span>
-          <span style={{ fontSize: '11px', color: '#475569', marginLeft: '6px' }}>({ago})</span>
+        <td style={{ whiteSpace: 'nowrap' }}>
+          <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{ts}</span>
+          <span style={{ fontSize: '11px', color: 'var(--text-faint)', marginLeft: '6px' }}>({ago})</span>
         </td>
-        <td style={{ padding: '10px 14px' }}>
+        <td>
           <span style={{
             fontSize: '10px', fontWeight: 700, letterSpacing: '0.06em',
             color: levelColor(entry.level),
@@ -262,40 +241,39 @@ function ErrorRow({ entry, onExpand, expanded }) {
             {entry.level}
           </span>
         </td>
-        <td style={{ padding: '10px 14px', fontSize: '12px', color: '#6366f1', fontFamily: 'monospace' }}>
+        <td style={{ fontSize: '12px', color: 'var(--primary)', fontFamily: 'monospace' }}>
           {entry.feature}
         </td>
-        <td style={{ padding: '10px 14px', fontSize: '12px', color: '#94a3b8', fontFamily: 'monospace' }}>
+        <td style={{ fontSize: '12px', color: 'var(--text-dim)', fontFamily: 'monospace' }}>
           {entry.operation}
         </td>
-        <td style={{ padding: '10px 14px', maxWidth: '260px' }}>
-          <span style={{
-            fontSize: '12px', color: '#fca5a5',
-            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block',
-          }}>
+        <td style={{ maxWidth: '260px' }}>
+          <span className="truncate" style={{ fontSize: '12px', color: 'var(--danger-soft)', display: 'block' }}>
             {entry.error?.message || entry.meta?.message || '—'}
           </span>
         </td>
-        <td style={{ padding: '10px 14px' }}>
-          <span style={{ fontSize: '10px', color: '#475569', fontFamily: 'monospace' }}>
+        <td style={{ whiteSpace: 'nowrap' }}>
+          <span style={{ fontSize: '10px', color: 'var(--text-faint)', fontFamily: 'monospace' }}>
             {entry.requestId?.slice(0, 12) || '—'}
           </span>
         </td>
-        <td style={{ padding: '10px 14px', display: 'flex', gap: '6px', alignItems: 'center' }}>
-          <CopyBtn data={entry} id={`row-${entry.requestId}-${entry.timestamp}`} size="14px" />
-          <span className="material-symbols-rounded" style={{ fontSize: '16px', color: '#475569' }}>
-            {expanded ? 'expand_less' : 'expand_more'}
-          </span>
+        <td>
+          <div className="diag-row-actions">
+            <CopyBtn data={entry} id={`row-${entry.requestId}-${entry.timestamp}`} size="14px" />
+            <span className="material-symbols-rounded" style={{ fontSize: '16px', color: 'var(--text-faint)' }}>
+              {expanded ? 'expand_less' : 'expand_more'}
+            </span>
+          </div>
         </td>
       </tr>
       {expanded && (
         <tr>
           <td colSpan={7} style={{ padding: '0 14px 12px 14px', background: 'rgba(99,102,241,0.04)' }}>
             <pre style={{
-              fontSize: '11px', color: '#94a3b8', margin: 0,
+              fontSize: '11px', color: 'var(--text-dim)', margin: 0,
               fontFamily: 'monospace', whiteSpace: 'pre-wrap', wordBreak: 'break-all',
               maxHeight: '240px', overflowY: 'auto',
-              background: '#0f172a', borderRadius: '8px', padding: '12px',
+              background: 'var(--bg-secondary)', borderRadius: '8px', padding: '12px',
             }}>
               {JSON.stringify(entry, null, 2)}
             </pre>
@@ -454,72 +432,79 @@ export default function AdminDiagnostics({ user }) {
   // ── Forbidden ──────────────────────────────────────────────────────────────
   if (forbidden) {
     return (
-      <div style={{
-        display: 'flex', flexDirection: 'column', alignItems: 'center',
-        justifyContent: 'center', minHeight: '60vh', gap: '16px', textAlign: 'center',
-      }}>
-        <span className="material-symbols-rounded" style={{ fontSize: '64px', color: '#ef4444' }}>block</span>
-        <div style={{ fontSize: '22px', fontWeight: 700, color: '#f1f5f9' }}>403 Forbidden</div>
-        <div style={{ fontSize: '14px', color: '#94a3b8', maxWidth: '400px' }}>
-          Your account does not have admin access. Contact the server administrator to grant your account the admin role.
+      <Page>
+        <div style={{
+          display: 'flex', flexDirection: 'column', alignItems: 'center',
+          justifyContent: 'center', minHeight: '60vh', gap: '16px', textAlign: 'center',
+        }}>
+          <span className="material-symbols-rounded" style={{ fontSize: '64px', color: 'var(--danger)' }}>block</span>
+          <div style={{ fontSize: '22px', fontWeight: 700, color: '#f1f5f9' }}>403 Forbidden</div>
+          <div style={{ fontSize: '14px', color: 'var(--text-dim)', maxWidth: '400px' }}>
+            Your account does not have admin access. Contact the server administrator to grant your account the admin role.
+          </div>
         </div>
-      </div>
+      </Page>
     );
   }
 
   // ── Loading skeleton ───────────────────────────────────────────────────────
   if (loading && !health) {
     return (
-      <div style={{ padding: '36px 40px', maxWidth: '1000px' }}>
+      <Page>
         <div style={{ marginBottom: '32px' }}>
-          <div className="skeleton-box" style={{ width: '280px', height: '32px', borderRadius: '8px', marginBottom: '8px' }} />
-          <div className="skeleton-box" style={{ width: '200px', height: '16px', borderRadius: '4px' }} />
+          <div className="skeleton-box" style={{ width: 'min(280px, 100%)', height: '32px', borderRadius: '8px', marginBottom: '8px' }} />
+          <div className="skeleton-box" style={{ width: 'min(200px, 100%)', height: '16px', borderRadius: '4px' }} />
         </div>
         <div className="skeleton-box" style={{ height: '80px', borderRadius: '16px', marginBottom: '28px' }} />
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px' }}>
+        <Grid cols={2} gap="12px">
           {[...Array(10)].map((_, i) => (
             <div key={i} className="skeleton-box" style={{ height: '68px', borderRadius: '12px' }} />
           ))}
-        </div>
-      </div>
+        </Grid>
+      </Page>
     );
   }
 
   return (
-    <div style={{ padding: '36px 40px', maxWidth: '1000px' }}>
+    <Page>
       {/* ── Header ── */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '28px' }}>
-        <div>
-          <h1 style={{ fontSize: '26px', fontWeight: 800, color: '#f1f5f9', margin: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <span className="material-symbols-rounded" style={{ fontSize: '28px', color: '#6366f1' }}>monitor_heart</span>
+      <SectionHead
+        className="diag-head"
+        title={
+          <h1 className="diag-title">
+            <span className="material-symbols-rounded" style={{ fontSize: '28px', color: 'var(--primary)' }}>monitor_heart</span>
             System Diagnostics
           </h1>
-          <p style={{ color: '#64748b', fontSize: '13px', margin: '6px 0 0' }}>
+        }
+        subtitle={
+          <p className="diag-subtitle">
             Live health checks · Admin only · {lastRun ? `Last run ${timeAgo(lastRun.toISOString())}` : 'Not yet run'}
           </p>
-        </div>
-        <button
-          onClick={() => { fetchHealth(); fetchErrors(); fetchActivity(); }}
-          disabled={loading}
-          style={{
-            display: 'flex', alignItems: 'center', gap: '8px',
-            padding: '10px 18px', borderRadius: '10px',
-            background: loading ? '#1e293b' : '#6366f1',
-            color: loading ? '#64748b' : 'white',
-            border: 'none', cursor: loading ? 'not-allowed' : 'pointer',
-            fontSize: '13px', fontWeight: 600, transition: 'all 0.15s',
-          }}
-        >
-          <span className="material-symbols-rounded" style={{
-            fontSize: '16px',
-            animation: loading ? 'spin 1s linear infinite' : 'none',
-          }}>refresh</span>
-          {loading ? 'Running…' : 'Run Checks'}
-        </button>
-      </div>
+        }
+        actions={
+          <button
+            onClick={() => { fetchHealth(); fetchErrors(); fetchActivity(); }}
+            disabled={loading}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '8px',
+              padding: '10px 18px', borderRadius: '10px',
+              background: loading ? 'var(--bg-tertiary)' : 'var(--primary)',
+              color: loading ? 'var(--text-muted)' : 'white',
+              border: 'none', cursor: loading ? 'not-allowed' : 'pointer',
+              fontSize: '13px', fontWeight: 600, transition: 'all 0.15s',
+            }}
+          >
+            <span className="material-symbols-rounded" style={{
+              fontSize: '16px',
+              animation: loading ? 'spin 1s linear infinite' : 'none',
+            }}>refresh</span>
+            {loading ? 'Running…' : 'Run Checks'}
+          </button>
+        }
+      />
 
       {/* ── Tab bar ── */}
-      <div style={{ display: 'flex', gap: '4px', marginBottom: '24px', background: '#1e293b', borderRadius: '12px', padding: '4px', width: 'fit-content' }}>
+      <div className="diag-tabs">
         {[
           { id: 'health',   label: 'Health Checks', icon: 'check_circle' },
           { id: 'activity', label: 'Live Activity', icon: 'bolt' },
@@ -532,13 +517,7 @@ export default function AdminDiagnostics({ user }) {
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
-            style={{
-              display: 'flex', alignItems: 'center', gap: '6px',
-              padding: '8px 16px', borderRadius: '8px', border: 'none', cursor: 'pointer',
-              background: tab === t.id ? '#6366f1' : 'transparent',
-              color: tab === t.id ? 'white' : '#64748b',
-              fontSize: '13px', fontWeight: 600, transition: 'all 0.15s',
-            }}
+            className={`diag-tab${tab === t.id ? ' is-active' : ''}`}
           >
             <span className="material-symbols-rounded" style={{ fontSize: '15px' }}>{t.icon}</span>
             {t.label}
@@ -555,11 +534,11 @@ export default function AdminDiagnostics({ user }) {
             fail={health.fail}
             durationMs={health.durationMs}
           />
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px' }}>
+          <Grid cols={2} gap="10px">
             {health.checks?.map(check => (
               <CheckCard key={check.name} check={check} onClick={setSelectedCheck} />
             ))}
-          </div>
+          </Grid>
           <div style={{ marginTop: '14px', textAlign: 'right' }}>
             <CopyBtn
               data={{
@@ -582,45 +561,42 @@ export default function AdminDiagnostics({ user }) {
       {/* ── Activity Tab ── */}
       {tab === 'activity' && (
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-            <div style={{ fontSize: '14px', color: '#64748b' }}>
-              {actLoading ? 'Loading…' : `${activity.length} recent events (in-memory, resets on restart)`}
-            </div>
-            <button
-              onClick={fetchActivity}
-              style={{
-                background: 'none', border: '1px solid #1e293b', borderRadius: '8px',
-                color: '#94a3b8', cursor: 'pointer', padding: '6px 12px',
-                fontSize: '12px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px',
-              }}
-            >
-              <span className="material-symbols-rounded" style={{ fontSize: '14px' }}>refresh</span>
-              Refresh
-            </button>
-          </div>
+          <SectionHead
+            className="diag-toolbar"
+            title={
+              <div className="diag-toolbar-text">
+                {actLoading ? 'Loading…' : `${activity.length} recent events (in-memory, resets on restart)`}
+              </div>
+            }
+            actions={
+              <button onClick={fetchActivity} className="diag-btn-ghost">
+                <span className="material-symbols-rounded" style={{ fontSize: '14px' }}>refresh</span>
+                Refresh
+              </button>
+            }
+          />
 
           {activity.length === 0 ? (
-            <div style={{
+            <div className="diag-empty" style={{
               background: 'rgba(99,102,241,0.06)', border: '1px solid rgba(99,102,241,0.15)',
-              borderRadius: '14px', padding: '40px', textAlign: 'center',
             }}>
-              <span className="material-symbols-rounded" style={{ fontSize: '40px', color: '#6366f1', display: 'block', marginBottom: '12px' }}>
+              <span className="material-symbols-rounded" style={{ fontSize: '40px', color: 'var(--primary)', display: 'block', marginBottom: '12px' }}>
                 history
               </span>
               <div style={{ fontSize: '15px', fontWeight: 600, color: '#f1f5f9', marginBottom: '6px' }}>
                 No activity recorded
               </div>
-              <div style={{ fontSize: '13px', color: '#64748b' }}>
+              <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
                 Server activity will appear here as it happens.
               </div>
             </div>
           ) : (
-            <div style={{ overflow: 'auto', borderRadius: '12px', border: '1px solid #1e293b' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+            <TableScroll className="diag-table-wrap">
+              <table className="diag-table">
                 <thead>
-                  <tr style={{ background: '#1e293b', color: '#64748b', textAlign: 'left' }}>
+                  <tr>
                     {['Time', 'Level', 'Feature', 'Operation', 'Details', 'Request ID', ''].map(h => (
-                      <th key={h} style={{ padding: '10px 14px', fontWeight: 600, fontSize: '11px', letterSpacing: '0.05em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
+                      <th key={h}>
                         {h}
                       </th>
                     ))}
@@ -637,7 +613,7 @@ export default function AdminDiagnostics({ user }) {
                   ))}
                 </tbody>
               </table>
-            </div>
+            </TableScroll>
           )}
         </div>
       )}
@@ -645,41 +621,39 @@ export default function AdminDiagnostics({ user }) {
       {/* ── Errors Tab ── */}
       {tab === 'errors' && (
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-            <div style={{ fontSize: '14px', color: '#64748b' }}>
-              {errLoading ? 'Loading…' : `${errors.length} recent error${errors.length !== 1 ? 's' : ''} (in-memory, resets on restart)`}
-            </div>
-            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-              {errors.length > 0 && (
-                <CopyBtn
-                  data={{
-                    copied_at: new Date().toISOString(),
-                    context: 'AntCapture admin error log',
-                    errors
-                  }}
-                  id="errors-all"
-                  label="Copy All as Prompt"
-                  size="14px"
-                />
-              )}
-              <button
-                onClick={fetchErrors}
-                style={{
-                  background: 'none', border: '1px solid #1e293b', borderRadius: '8px',
-                  color: '#94a3b8', cursor: 'pointer', padding: '6px 12px',
-                  fontSize: '12px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px',
-                }}
-              >
-                <span className="material-symbols-rounded" style={{ fontSize: '14px' }}>refresh</span>
-                Refresh
-              </button>
-            </div>
-          </div>
+          <SectionHead
+            className="diag-toolbar"
+            title={
+              <div className="diag-toolbar-text">
+                {errLoading ? 'Loading…' : `${errors.length} recent error${errors.length !== 1 ? 's' : ''} (in-memory, resets on restart)`}
+              </div>
+            }
+            actions={
+              <>
+                {errors.length > 0 && (
+                  <CopyBtn
+                    data={{
+                      copied_at: new Date().toISOString(),
+                      context: 'AntCapture admin error log',
+                      errors
+                    }}
+                    id="errors-all"
+                    label="Copy All as Prompt"
+                    size="14px"
+                    style={{ minHeight: '32px' }}
+                  />
+                )}
+                <button onClick={fetchErrors} className="diag-btn-ghost">
+                  <span className="material-symbols-rounded" style={{ fontSize: '14px' }}>refresh</span>
+                  Refresh
+                </button>
+              </>
+            }
+          />
 
           {errors.length === 0 ? (
-            <div style={{
+            <div className="diag-empty" style={{
               background: 'rgba(34,197,94,0.06)', border: '1px solid rgba(34,197,94,0.15)',
-              borderRadius: '14px', padding: '40px', textAlign: 'center',
             }}>
               <span className="material-symbols-rounded" style={{ fontSize: '40px', color: '#22c55e', display: 'block', marginBottom: '12px' }}>
                 check_circle
@@ -687,17 +661,17 @@ export default function AdminDiagnostics({ user }) {
               <div style={{ fontSize: '15px', fontWeight: 600, color: '#f1f5f9', marginBottom: '6px' }}>
                 No errors recorded
               </div>
-              <div style={{ fontSize: '13px', color: '#64748b' }}>
+              <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
                 Error events appear here as they occur. Check your cloud logging dashboard for full history.
               </div>
             </div>
           ) : (
-            <div style={{ overflow: 'auto', borderRadius: '12px', border: '1px solid #1e293b' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+            <TableScroll className="diag-table-wrap">
+              <table className="diag-table">
                 <thead>
-                  <tr style={{ background: '#1e293b', color: '#64748b', textAlign: 'left' }}>
+                  <tr>
                     {['Time', 'Level', 'Feature', 'Operation', 'Error', 'Request ID', ''].map(h => (
-                      <th key={h} style={{ padding: '10px 14px', fontWeight: 600, fontSize: '11px', letterSpacing: '0.05em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
+                      <th key={h}>
                         {h}
                       </th>
                     ))}
@@ -714,7 +688,7 @@ export default function AdminDiagnostics({ user }) {
                   ))}
                 </tbody>
               </table>
-            </div>
+            </TableScroll>
           )}
         </div>
       )}
@@ -723,7 +697,7 @@ export default function AdminDiagnostics({ user }) {
       {tab === 'info' && (
         <div>
           {sysInfo ? (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '14px' }}>
+            <Grid cols={2} gap="14px">
               {[
                 { label: 'Mode',        value: sysInfo.mode,        icon: 'cloud' },
                 { label: 'Billing Mode', value: sysInfo.lemonSqueezyMode, icon: 'payments' },
@@ -735,21 +709,17 @@ export default function AdminDiagnostics({ user }) {
                 { label: 'Heap Total',  value: sysInfo.memory?.heapTotal, icon: 'dns' },
                 { label: 'Checked At',  value: new Date(sysInfo.checkedAt).toLocaleTimeString(), icon: 'access_time' },
               ].map(({ label, value, icon }) => (
-                <div key={label} style={{
-                  background: 'var(--card-bg, #1e293b)', borderRadius: '12px',
-                  padding: '18px 20px', border: '1px solid #1e293b22',
-                  display: 'flex', alignItems: 'center', gap: '14px',
-                }}>
-                  <span className="material-symbols-rounded" style={{ fontSize: '20px', color: '#6366f1' }}>{icon}</span>
+                <div key={label} className="diag-stat">
+                  <span className="material-symbols-rounded" style={{ fontSize: '20px', color: 'var(--primary)', flexShrink: 0 }}>{icon}</span>
                   <div>
-                    <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{label}</div>
-                    <div style={{ fontSize: '14px', color: '#f1f5f9', fontWeight: 600, marginTop: '2px', fontFamily: 'monospace' }}>{value}</div>
+                    <div className="diag-stat-label">{label}</div>
+                    <div className="diag-stat-value">{value}</div>
                   </div>
                 </div>
               ))}
-            </div>
+            </Grid>
           ) : (
-            <div style={{ color: '#64748b', fontSize: '14px', padding: '32px', textAlign: 'center' }}>
+            <div style={{ color: 'var(--text-muted)', fontSize: '14px', padding: '32px 0', textAlign: 'center' }}>
               Run health checks first to load system info.
             </div>
           )}
@@ -759,15 +729,15 @@ export default function AdminDiagnostics({ user }) {
       {/* ── Capture Lookup Tab ── */}
       {tab === 'capture' && (
         <div>
-          <form onSubmit={fetchCaptureDiagnostics} style={{ display: 'flex', gap: '12px', marginBottom: '24px' }}>
+          <form onSubmit={fetchCaptureDiagnostics} className="diag-search" style={{ marginBottom: '24px' }}>
             <input
               type="text"
               placeholder="Enter Capture ID..."
               value={captureIdInput}
               onChange={e => setCaptureIdInput(e.target.value)}
               style={{
-                flex: 1, padding: '12px 16px', borderRadius: '10px',
-                background: '#1e293b', border: '1px solid #1e293b22',
+                padding: '12px 16px', borderRadius: '10px',
+                background: 'var(--bg-tertiary)', border: '1px solid #1e293b22',
                 color: 'white', fontSize: '14px'
               }}
             />
@@ -775,7 +745,7 @@ export default function AdminDiagnostics({ user }) {
               type="submit"
               disabled={captureLoading}
               style={{
-                padding: '12px 24px', borderRadius: '10px', background: '#6366f1',
+                padding: '12px 24px', borderRadius: '10px', background: 'var(--primary)',
                 color: 'white', border: 'none', cursor: 'pointer', fontWeight: 600
               }}
             >
@@ -784,14 +754,14 @@ export default function AdminDiagnostics({ user }) {
           </form>
 
           {captureError && (
-            <div style={{ padding: '16px', background: 'rgba(239,68,68,0.1)', color: '#ef4444', borderRadius: '8px' }}>
+            <div className="break-anywhere" style={{ padding: '16px', background: 'rgba(239,68,68,0.1)', color: 'var(--danger)', borderRadius: '8px' }}>
               {captureError}
             </div>
           )}
 
           {captureData && (
             <div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '14px', marginBottom: '24px' }}>
+              <Grid cols={2} gap="14px" style={{ marginBottom: '24px' }}>
                 {[
                   { label: 'Capture ID', value: captureData.captureId, icon: 'tag' },
                   { label: 'User ID', value: captureData.userId, icon: 'person' },
@@ -805,25 +775,21 @@ export default function AdminDiagnostics({ user }) {
                   { label: 'Library Visible', value: captureData.libraryVisible ? 'Yes' : 'No', icon: 'visibility' },
                   { label: 'Storage Usage', value: captureData.storageUsage, icon: 'data_usage' },
                 ].map(({ label, value, icon }) => (
-                  <div key={label} style={{
-                    background: 'var(--card-bg, #1e293b)', borderRadius: '12px',
-                    padding: '18px 20px', border: '1px solid #1e293b22',
-                    display: 'flex', alignItems: 'center', gap: '14px',
-                  }}>
-                    <span className="material-symbols-rounded" style={{ fontSize: '20px', color: '#6366f1' }}>{icon}</span>
+                  <div key={label} className="diag-stat">
+                    <span className="material-symbols-rounded" style={{ fontSize: '20px', color: 'var(--primary)', flexShrink: 0 }}>{icon}</span>
                     <div>
-                      <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{label}</div>
-                      <div style={{ fontSize: '14px', color: '#f1f5f9', fontWeight: 600, marginTop: '2px', fontFamily: 'monospace' }}>{value}</div>
+                      <div className="diag-stat-label">{label}</div>
+                      <div className="diag-stat-value">{value}</div>
                     </div>
                   </div>
                 ))}
-              </div>
+              </Grid>
 
               <h3 style={{ color: '#f1f5f9', fontSize: '16px', marginBottom: '12px' }}>Timestamps</h3>
-              <div style={{ background: '#1e293b', padding: '16px', borderRadius: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <div style={{ background: 'var(--bg-tertiary)', padding: '16px', borderRadius: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 {Object.entries(captureData.timestamps).map(([key, val]) => (
-                  <div key={key} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
-                    <span style={{ color: '#94a3b8' }}>{key}</span>
+                  <div key={key} className="diag-kv-row" style={{ fontSize: '13px' }}>
+                    <span className="break-anywhere" style={{ color: 'var(--text-dim)' }}>{key}</span>
                     <span style={{ color: '#f1f5f9', fontFamily: 'monospace' }}>{val ? new Date(val).toLocaleString() : 'N/A'}</span>
                   </div>
                 ))}
@@ -834,23 +800,23 @@ export default function AdminDiagnostics({ user }) {
       )}
       {/* ── Billing Lookup Tab ── */}
       {tab === 'billing' && (
-        <div style={{ background: '#1e293b', borderRadius: '12px', overflow: 'hidden' }}>
-          <div style={{ padding: '24px', borderBottom: '1px solid #334155' }}>
+        <div style={{ background: 'var(--bg-tertiary)', borderRadius: '12px', overflow: 'hidden' }}>
+          <div className="diag-panel-pad" style={{ borderBottom: '1px solid #334155' }}>
             <h3 style={{ margin: '0 0 8px 0', fontSize: '18px', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <span className="material-symbols-rounded">payments</span>
               Billing Diagnostics
             </h3>
-            <p style={{ margin: 0, color: '#94a3b8', fontSize: '14px' }}>
+            <p style={{ margin: 0, color: 'var(--text-dim)', fontSize: '14px' }}>
               Search for a user by email to view their complete Lemon Squeezy billing state, subscriptions, and webhooks.
             </p>
-            <form onSubmit={handleBillingLookup} style={{ display: 'flex', gap: '12px', marginTop: '20px' }}>
+            <form onSubmit={handleBillingLookup} className="diag-search" style={{ marginTop: '20px' }}>
               <input
                 type="text"
                 placeholder="saleh@gmail.com"
                 value={billingEmail}
                 onChange={e => setBillingEmail(e.target.value)}
                 style={{
-                  flex: 1, background: '#0f172a', border: '1px solid #334155', borderRadius: '8px',
+                  background: 'var(--bg-secondary)', border: '1px solid #334155', borderRadius: '8px',
                   padding: '10px 16px', color: 'white', fontSize: '14px', outline: 'none'
                 }}
               />
@@ -858,7 +824,7 @@ export default function AdminDiagnostics({ user }) {
                 type="submit"
                 disabled={loading || !billingEmail}
                 style={{
-                  background: '#6366f1', color: 'white', border: 'none', borderRadius: '8px',
+                  background: 'var(--primary)', color: 'white', border: 'none', borderRadius: '8px',
                   padding: '0 20px', fontSize: '14px', fontWeight: 600, cursor: (loading || !billingEmail) ? 'not-allowed' : 'pointer',
                   opacity: (loading || !billingEmail) ? 0.5 : 1
                 }}
@@ -869,84 +835,84 @@ export default function AdminDiagnostics({ user }) {
           </div>
 
           {billingResult && (
-            <div style={{ padding: '24px' }}>
+            <div className="diag-panel-pad">
               {billingResult.error ? (
-                <div style={{ background: 'rgba(239,68,68,0.1)', color: '#ef4444', padding: '16px', borderRadius: '8px' }}>
+                <div className="break-anywhere" style={{ background: 'rgba(239,68,68,0.1)', color: 'var(--danger)', padding: '16px', borderRadius: '8px' }}>
                   {billingResult.error}
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-                  
+
                   {/* Identity */}
-                  <div style={{ background: '#0f172a', borderRadius: '8px', padding: '16px', border: '1px solid #334155' }}>
+                  <div style={{ background: 'var(--bg-secondary)', borderRadius: '8px', padding: '16px', border: '1px solid #334155' }}>
                     <h4 style={{ margin: '0 0 16px 0', color: '#e2e8f0', fontSize: '15px' }}>Identity (AntCapture)</h4>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
-                      <div style={{ color: '#94a3b8', fontSize: '12px' }}>User ID<div style={{ color: 'white', fontSize: '14px', marginTop: '4px', fontFamily: 'monospace' }}>{billingResult.identity.userId}</div></div>
-                      <div style={{ color: '#94a3b8', fontSize: '12px' }}>Email<div style={{ color: 'white', fontSize: '14px', marginTop: '4px' }}>{billingResult.identity.email}</div></div>
-                      <div style={{ color: '#94a3b8', fontSize: '12px' }}>Created<div style={{ color: 'white', fontSize: '14px', marginTop: '4px' }}>{new Date(billingResult.identity.createdAt).toLocaleString()}</div></div>
+                    <div className="diag-fields">
+                      <div className="diag-field">User ID<div style={{ fontFamily: 'monospace' }}>{billingResult.identity.userId}</div></div>
+                      <div className="diag-field">Email<div>{billingResult.identity.email}</div></div>
+                      <div className="diag-field">Created<div>{new Date(billingResult.identity.createdAt).toLocaleString()}</div></div>
                     </div>
                   </div>
 
                   {/* Customer & Subscription */}
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
-                    <div style={{ background: '#0f172a', borderRadius: '8px', padding: '16px', border: '1px solid #334155' }}>
+                  <Grid cols={2} gap="24px">
+                    <div style={{ background: 'var(--bg-secondary)', borderRadius: '8px', padding: '16px', border: '1px solid #334155', minWidth: 0 }}>
                       <h4 style={{ margin: '0 0 16px 0', color: '#e2e8f0', fontSize: '15px' }}>LemonSqueezy Customer</h4>
                       {billingResult.customer ? (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                          <div style={{ color: '#94a3b8', fontSize: '12px' }}>LS Customer ID<div style={{ color: 'white', fontSize: '14px', marginTop: '4px', fontFamily: 'monospace' }}>{billingResult.customer.lsCustomerId}</div></div>
-                          <div style={{ color: '#94a3b8', fontSize: '12px' }}>LS Subscription ID<div style={{ color: 'white', fontSize: '14px', marginTop: '4px', fontFamily: 'monospace' }}>{billingResult.customer.lsSubscriptionId || 'N/A'}</div></div>
+                          <div className="diag-field">LS Customer ID<div style={{ fontFamily: 'monospace' }}>{billingResult.customer.lsCustomerId}</div></div>
+                          <div className="diag-field">LS Subscription ID<div style={{ fontFamily: 'monospace' }}>{billingResult.customer.lsSubscriptionId || 'N/A'}</div></div>
                         </div>
                       ) : (
-                        <div style={{ color: '#94a3b8', fontSize: '14px' }}>No LemonSqueezy customer record found.</div>
+                        <div style={{ color: 'var(--text-dim)', fontSize: '14px' }}>No LemonSqueezy customer record found.</div>
                       )}
                     </div>
-                    
-                    <div style={{ background: '#0f172a', borderRadius: '8px', padding: '16px', border: '1px solid #334155' }}>
+
+                    <div style={{ background: 'var(--bg-secondary)', borderRadius: '8px', padding: '16px', border: '1px solid #334155', minWidth: 0 }}>
                       <h4 style={{ margin: '0 0 16px 0', color: '#e2e8f0', fontSize: '15px' }}>Active Subscription</h4>
                       {billingResult.subscription ? (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                          <div style={{ color: '#94a3b8', fontSize: '12px' }}>Plan<div style={{ color: 'white', fontSize: '14px', marginTop: '4px' }}>{billingResult.subscription.planName}</div></div>
-                          <div style={{ color: '#94a3b8', fontSize: '12px' }}>Status<div style={{ color: 'white', fontSize: '14px', marginTop: '4px' }}>{billingResult.subscription.status}</div></div>
-                          <div style={{ color: '#94a3b8', fontSize: '12px' }}>Renews At<div style={{ color: 'white', fontSize: '14px', marginTop: '4px' }}>{billingResult.subscription.currentPeriodEnd ? new Date(billingResult.subscription.currentPeriodEnd).toLocaleString() : 'N/A'}</div></div>
+                          <div className="diag-field">Plan<div>{billingResult.subscription.planName}</div></div>
+                          <div className="diag-field">Status<div>{billingResult.subscription.status}</div></div>
+                          <div className="diag-field">Renews At<div>{billingResult.subscription.currentPeriodEnd ? new Date(billingResult.subscription.currentPeriodEnd).toLocaleString() : 'N/A'}</div></div>
                         </div>
                       ) : (
-                        <div style={{ color: '#94a3b8', fontSize: '14px' }}>No subscription found.</div>
+                        <div style={{ color: 'var(--text-dim)', fontSize: '14px' }}>No subscription found.</div>
                       )}
                     </div>
-                  </div>
+                  </Grid>
 
                   {/* Entitlements */}
-                  <div style={{ background: '#0f172a', borderRadius: '8px', padding: '16px', border: '1px solid #334155' }}>
+                  <div style={{ background: 'var(--bg-secondary)', borderRadius: '8px', padding: '16px', border: '1px solid #334155' }}>
                     <h4 style={{ margin: '0 0 16px 0', color: '#e2e8f0', fontSize: '15px' }}>Computed Entitlements (What they are allowed to use)</h4>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '16px' }}>
-                      <div style={{ color: '#94a3b8', fontSize: '12px' }}>Cloud Features<div style={{ color: billingResult.entitlements.cloud ? '#22c55e' : '#ef4444', fontSize: '14px', marginTop: '4px', fontWeight: 'bold' }}>{billingResult.entitlements.cloud ? 'GRANTED' : 'DENIED'}</div></div>
-                      <div style={{ color: '#94a3b8', fontSize: '12px' }}>Current Plan<div style={{ color: 'white', fontSize: '14px', marginTop: '4px' }}>{billingResult.entitlements.plan}</div></div>
-                      <div style={{ color: '#94a3b8', fontSize: '12px' }}>Warning Level<div style={{ color: 'white', fontSize: '14px', marginTop: '4px' }}>{billingResult.entitlements.warningLevel || 'None'}</div></div>
+                    <div className="diag-fields" style={{ '--diag-min': '150px' }}>
+                      <div className="diag-field">Cloud Features<div style={{ color: billingResult.entitlements.cloud ? '#22c55e' : 'var(--danger)', fontWeight: 'bold' }}>{billingResult.entitlements.cloud ? 'GRANTED' : 'DENIED'}</div></div>
+                      <div className="diag-field">Current Plan<div>{billingResult.entitlements.plan}</div></div>
+                      <div className="diag-field">Warning Level<div>{billingResult.entitlements.warningLevel || 'None'}</div></div>
                     </div>
                   </div>
 
                   {/* Webhooks */}
-                  <div style={{ background: '#0f172a', borderRadius: '8px', padding: '16px', border: '1px solid #334155' }}>
+                  <div style={{ background: 'var(--bg-secondary)', borderRadius: '8px', padding: '16px', border: '1px solid #334155' }}>
                     <h4 style={{ margin: '0 0 16px 0', color: '#e2e8f0', fontSize: '15px' }}>Webhook History ({billingResult.webhooks?.length || 0})</h4>
                     {billingResult.webhooks?.length > 0 ? (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                         {billingResult.webhooks.map(wh => (
-                          <div key={wh.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '12px', background: '#1e293b', borderRadius: '6px', border: '1px solid #334155' }}>
+                          <div key={wh.id} className="diag-list-row" style={{ padding: '12px', background: 'var(--bg-tertiary)', borderRadius: '6px', border: '1px solid #334155' }}>
                             <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
-                              <span className="material-symbols-rounded" style={{ fontSize: '18px', color: '#6366f1' }}>webhook</span>
-                              <div>
-                                <div style={{ color: 'white', fontSize: '13px', fontWeight: 600 }}>{wh.eventName}</div>
-                                <div style={{ color: '#94a3b8', fontSize: '11px', fontFamily: 'monospace' }}>{wh.lsEventId}</div>
+                              <span className="material-symbols-rounded" style={{ fontSize: '18px', color: 'var(--primary)', flexShrink: 0 }}>webhook</span>
+                              <div className="min-w-0">
+                                <div className="break-anywhere" style={{ color: 'white', fontSize: '13px', fontWeight: 600 }}>{wh.eventName}</div>
+                                <div className="break-anywhere" style={{ color: 'var(--text-dim)', fontSize: '11px', fontFamily: 'monospace' }}>{wh.lsEventId}</div>
                               </div>
                             </div>
-                            <div style={{ color: '#94a3b8', fontSize: '12px', textAlign: 'right' }}>
+                            <div style={{ color: 'var(--text-dim)', fontSize: '12px', textAlign: 'right', marginLeft: 'auto' }}>
                               {new Date(wh.processedAt).toLocaleString()}
                             </div>
                           </div>
                         ))}
                       </div>
                     ) : (
-                      <div style={{ color: '#94a3b8', fontSize: '14px' }}>No webhooks recorded.</div>
+                      <div style={{ color: 'var(--text-dim)', fontSize: '14px' }}>No webhooks recorded.</div>
                     )}
                   </div>
                 </div>
@@ -959,13 +925,13 @@ export default function AdminDiagnostics({ user }) {
       {/* ── Recovery Tab ── */}
       {tab === 'recovery' && (
         <div>
-          <div style={{ background: '#1e293b', borderRadius: '12px', padding: '24px', border: '1px solid #1e293b22' }}>
+          <div className="diag-panel-pad" style={{ background: 'var(--bg-tertiary)', borderRadius: '12px', border: '1px solid #1e293b22' }}>
             <h2 style={{ color: '#f1f5f9', fontSize: '18px', marginTop: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span className="material-symbols-rounded" style={{ color: '#ef4444' }}>build</span>
+              <span className="material-symbols-rounded" style={{ color: 'var(--danger)' }}>build</span>
               Stuck Capture Recovery
             </h2>
-            <p style={{ color: '#94a3b8', fontSize: '14px', lineHeight: '1.6' }}>
-              If UploadThing webhook deliveries failed (e.g., due to Vercel timeout), some captures may remain stuck in the <code style={{ color: '#f59e0b' }}>'processing'</code> state even though the file reached the CDN successfully.
+            <p style={{ color: 'var(--text-dim)', fontSize: '14px', lineHeight: '1.6' }}>
+              If UploadThing webhook deliveries failed (e.g., due to Vercel timeout), some captures may remain stuck in the <code style={{ color: 'var(--warning)' }}>'processing'</code> state even though the file reached the CDN successfully.
               <br/><br/>
               This tool fetches all files from the UploadThing CDN and cross-references them with any captures that have been processing for more than 2 minutes. Matching captures will be forcibly activated and added to the database.
             </p>
@@ -973,10 +939,11 @@ export default function AdminDiagnostics({ user }) {
               <button
                 onClick={runRecovery}
                 disabled={recoveryLoading}
+                className="full-below-sm"
                 style={{
-                  background: '#ef4444', color: 'white', padding: '12px 24px', borderRadius: '8px',
+                  background: 'var(--danger)', color: 'white', padding: '12px 24px', borderRadius: '8px',
                   fontWeight: 600, border: 'none', cursor: recoveryLoading ? 'not-allowed' : 'pointer',
-                  display: 'flex', alignItems: 'center', gap: '8px', opacity: recoveryLoading ? 0.7 : 1
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', opacity: recoveryLoading ? 0.7 : 1
                 }}
               >
                 <span className="material-symbols-rounded">{recoveryLoading ? 'hourglass_empty' : 'play_arrow'}</span>
@@ -985,29 +952,29 @@ export default function AdminDiagnostics({ user }) {
             </div>
 
             {recoveryError && (
-              <div style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', padding: '16px', borderRadius: '8px', marginTop: '16px' }}>
+              <div style={{ background: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)', padding: '16px', borderRadius: '8px', marginTop: '16px' }}>
                 <div style={{ fontWeight: 600, marginBottom: '4px' }}>Recovery Failed</div>
-                <div style={{ fontSize: '14px' }}>{recoveryError}</div>
+                <div className="break-anywhere" style={{ fontSize: '14px' }}>{recoveryError}</div>
               </div>
             )}
 
             {recoveryResult && (
               <div style={{ background: 'rgba(34, 197, 94, 0.1)', border: '1px solid rgba(34, 197, 94, 0.2)', padding: '16px', borderRadius: '8px', marginTop: '16px' }}>
-                <div style={{ color: '#22c55e', fontWeight: 600, marginBottom: '8px' }}>
+                <div className="break-anywhere" style={{ color: '#22c55e', fontWeight: 600, marginBottom: '8px' }}>
                   {recoveryResult.message}
                 </div>
-                <div style={{ color: '#94a3b8', fontSize: '14px', marginBottom: '12px' }}>
+                <div style={{ color: 'var(--text-dim)', fontSize: '14px', marginBottom: '12px' }}>
                   Total processing checked: {recoveryResult.total} | Successfully recovered: {recoveryResult.recovered}
                 </div>
                 {recoveryResult.results && recoveryResult.results.length > 0 && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                     {recoveryResult.results.map((r, i) => (
-                      <div key={i} style={{ background: '#0f172a', padding: '12px', borderRadius: '6px', fontSize: '13px', display: 'flex', justifyContent: 'space-between' }}>
-                        <span style={{ color: '#cbd5e1', fontFamily: 'monospace' }}>{r.id}</span>
+                      <div key={i} className="diag-kv-row" style={{ background: 'var(--bg-secondary)', padding: '12px', borderRadius: '6px', fontSize: '13px' }}>
+                        <span className="break-anywhere" style={{ color: '#cbd5e1', fontFamily: 'monospace' }}>{r.id}</span>
                         {r.status === 'recovered' ? (
                           <span style={{ color: '#22c55e', fontWeight: 600 }}>Recovered ({r.fileKey})</span>
                         ) : (
-                          <span style={{ color: '#f59e0b' }}>Skipped: {r.reason}</span>
+                          <span style={{ color: 'var(--warning)' }}>Skipped: {r.reason}</span>
                         )}
                       </div>
                     ))}
@@ -1027,6 +994,6 @@ export default function AdminDiagnostics({ user }) {
       <style>{`
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
       `}</style>
-    </div>
+    </Page>
   );
 }

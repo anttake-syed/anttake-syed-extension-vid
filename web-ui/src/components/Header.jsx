@@ -1,5 +1,6 @@
 import React from 'react';
 import { IS_LOCAL_MODE } from '../config';
+import ServerHealthBadge from './ServerHealthBadge.jsx';
 
 const PAGE_TITLES = {
   Settings: 'Settings',
@@ -31,13 +32,14 @@ export default function Header({ activeNav, isAuthenticated, user, showProfileMe
         <button className="hamburger-btn" onClick={onMenuClick} aria-label="Open menu">
           <span className="material-symbols-rounded">menu</span>
         </button>
-        <div>
+        <div className="title-text">
           <h1>{title}</h1>
-          <p>{subtitle}</p>
+          {subtitle && <p>{subtitle}</p>}
         </div>
       </div>
 
       <div className="header-actions">
+        <ServerHealthBadge />
         {isAuthenticated && user ? (
           <div className="profile-container">
             <div className="user-pill animated fadeIn" onClick={() => setShowProfileMenu(!showProfileMenu)}>
@@ -46,8 +48,8 @@ export default function Header({ activeNav, isAuthenticated, user, showProfileMe
               ) : (
                 <div className="user-avatar profile-circle">{user.name?.charAt(0) || 'U'}</div>
               )}
-              <span className="user-name">{user.name}</span>
-              <span className="chevron">▼</span>
+              <span className="user-name hide-below-md">{user.name}</span>
+              <span className="chevron hide-below-md">▼</span>
             </div>
 
             {showProfileMenu && (
@@ -70,8 +72,11 @@ export default function Header({ activeNav, isAuthenticated, user, showProfileMe
           </div>
         ) : (
           <>
-            <button className="btn-ghost" onClick={onSignIn}>Sign In</button>
-            <button className="btn-primary glow-pulse" onClick={onSignIn}>Get Started Free →</button>
+            <button className="btn-ghost hide-below-sm" onClick={onSignIn}>Sign In</button>
+            <button className="btn-primary glow-pulse" onClick={onSignIn}>
+              <span className="hide-below-sm">Get Started Free →</span>
+              <span className="show-below-sm">Sign In</span>
+            </button>
           </>
         )}
       </div>

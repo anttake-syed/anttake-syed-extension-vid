@@ -24,17 +24,17 @@ export default function StorageUsageBar({ storageState, icon, extraInfo, ctaLabe
   if (isWarning) gradient = 'linear-gradient(90deg,#f87171,#ef4444)';
 
   return (
-    <div style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: '12px', padding: '16px 20px', marginBottom: '28px', display: 'flex', alignItems: 'center', gap: '16px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '32px', height: '32px', background: 'rgba(255,255,255,0.05)', borderRadius: '8px' }}>
+    <div className="storage-bar">
+      <div className="storage-bar__icon">
         {typeof icon === 'string' ? (
           <span className="material-symbols-rounded" style={{ fontSize: '20px', color }}>{icon}</span>
         ) : (
           icon
         )}
       </div>
-      <div style={{ flex: 1 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '8px' }}>
-          <div>
+      <div className="storage-bar__body">
+        <div className="storage-bar__head">
+          <div className="min-w-0">
             <span style={{ color: '#f8fafc', fontWeight: 600, fontSize: '13px', display: 'block' }}>{label}</span>
             {planName && <span style={{ color: '#64748b', fontSize: '11px', fontWeight: 500 }}>{planName} Plan</span>}
           </div>
@@ -59,14 +59,7 @@ export default function StorageUsageBar({ storageState, icon, extraInfo, ctaLabe
           target={ctaHref ? '_blank' : undefined}
           rel={ctaHref ? 'noopener noreferrer' : undefined}
           onClick={onCtaClick}
-          style={{
-            flexShrink: 0, background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.3)',
-            color: '#f87171', borderRadius: '8px', padding: '7px 14px', fontSize: '12px', fontWeight: 700,
-            cursor: 'pointer', textDecoration: 'none', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '6px',
-            transition: 'all 0.15s',
-          }}
-          onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.2)'; }}
-          onMouseLeave={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.12)'; }}
+          className="storage-bar__cta"
         >
           {ctaLabel || 'Upgrade'}
           <span className="material-symbols-rounded" style={{ fontSize: '14px' }}>arrow_forward</span>

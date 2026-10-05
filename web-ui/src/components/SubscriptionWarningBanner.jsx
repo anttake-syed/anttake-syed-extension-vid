@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import '../styles/pages/billing.css';
 
 /**
  * SubscriptionWarningBanner
@@ -40,7 +41,7 @@ export default function SubscriptionWarningBanner({ entitlements, onManageSubscr
       bg:    'rgba(99,102,241,0.12)',
       border:'rgba(99,102,241,0.3)',
       icon:  'info',
-      color: '#818cf8',
+      color: 'var(--primary-soft)',
       text:  `Your Cloud plan expires in ${entitlements.daysUntilExpiry} day${entitlements.daysUntilExpiry !== 1 ? 's' : ''}. Renew to keep access.`,
     },
     warning: {
@@ -70,44 +71,39 @@ export default function SubscriptionWarningBanner({ entitlements, onManageSubscr
   if (!cfg) return null;
 
   return (
-    <div style={{
+    <div className="sub-banner" style={{
       background:   cfg.bg,
       border:       `1px solid ${cfg.border}`,
       borderRadius: '14px',
-      padding:      '12px 18px',
       marginBottom: '20px',
-      display:      'flex',
-      alignItems:   'center',
-      gap:          '12px',
       animation:    exiting
         ? 'bannerExit 0.35s ease forwards'
         : 'bannerEnter 0.3s ease forwards',
       overflow:     'hidden',
     }}>
       <span
-        className="material-symbols-rounded"
-        style={{ fontSize: '20px', color: cfg.color, flexShrink: 0 }}
+        className="material-symbols-rounded sub-banner__icon"
+        style={{ fontSize: '20px', color: cfg.color }}
       >
         {cfg.icon}
       </span>
 
-      <p style={{ margin: 0, fontSize: '13px', color: '#e2e8f0', lineHeight: 1.5, flex: 1 }}>
+      <p className="sub-banner__text" style={{ margin: 0, fontSize: '13px', color: '#e2e8f0', lineHeight: 1.5 }}>
         {cfg.text}
       </p>
 
       <button
         onClick={onManageSubscription}
+        className="sub-banner__cta"
         style={{
-          flexShrink:   0,
           background:   cfg.color,
-          color:        '#0f172a',
+          color:        'var(--bg-secondary)',
           border:       'none',
           borderRadius: '8px',
           padding:      '6px 14px',
           fontSize:     '12px',
           fontWeight:   700,
           cursor:       'pointer',
-          whiteSpace:   'nowrap',
           fontFamily:   "'Outfit', sans-serif",
         }}
       >
@@ -117,15 +113,15 @@ export default function SubscriptionWarningBanner({ entitlements, onManageSubscr
       <button
         onClick={() => setDismissed(true)}
         aria-label="Dismiss"
+        className="sub-banner__close"
         style={{
-          flexShrink:  0,
           background:  'none',
           border:      'none',
           color:       'rgba(255,255,255,0.35)',
           cursor:      'pointer',
           fontSize:    '18px',
           lineHeight:  1,
-          padding:     '0 0 0 4px',
+          padding:     0,
         }}
       >
         ×

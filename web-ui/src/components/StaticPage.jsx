@@ -1,17 +1,15 @@
 import React from 'react';
-
-const S = {
-  section: { background: '#1e293b', border: '1px solid #334155', borderRadius: '16px', padding: '32px', marginBottom: '16px', maxWidth: '800px' },
-};
+import { Page } from './layout/Page.jsx';
+import '../styles/pages/settings.css';
 
 const SectionHeader = ({ icon, title, subtitle }) => (
-  <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '24px', borderBottom: '1px solid #334155', paddingBottom: '20px' }}>
+  <div className="static-card__head">
     <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: 'rgba(99,102,241,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-      <span className="material-symbols-rounded" style={{ fontSize: '24px', color: '#818cf8' }}>{icon}</span>
+      <span className="material-symbols-rounded" style={{ fontSize: '24px', color: 'var(--primary-soft)' }}>{icon}</span>
     </div>
-    <div>
-      <h2 style={{ margin: 0, fontWeight: '700', fontSize: '22px', color: '#f1f5f9' }}>{title}</h2>
-      {subtitle && <div style={{ fontSize: '14px', color: '#64748b', marginTop: '4px' }}>{subtitle}</div>}
+    <div className="min-w-0">
+      <h2 className="static-card__title" style={{ fontWeight: '700', color: '#f1f5f9' }}>{title}</h2>
+      {subtitle && <div style={{ fontSize: '14px', color: 'var(--text-muted)', marginTop: '4px' }}>{subtitle}</div>}
     </div>
   </div>
 );
@@ -33,11 +31,13 @@ export default function StaticPage({ title, content }) {
   };
 
   return (
-    <div style={S.section} className="fadeInScale">
-      <SectionHeader icon={getIcon()} title={title} subtitle={getSubtitle()} />
-      <div style={{ lineHeight: '1.8', color: '#cbd5e1', whiteSpace: 'pre-wrap', fontSize: '15px' }}>
-        {content}
+    <Page width="narrow">
+      <div className="static-card fadeInScale">
+        <SectionHeader icon={getIcon()} title={title} subtitle={getSubtitle()} />
+        <div className="static-card__body" style={{ color: '#cbd5e1' }}>
+          {content}
+        </div>
       </div>
-    </div>
+    </Page>
   );
 }

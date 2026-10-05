@@ -1,0 +1,106 @@
+/* ════════════════════════════════════════════════════════════════════════════
+   DESIGN TOKENS — the only place raw colours, sizes and breakpoints are defined.
+   Components reference these via var(--…). See web-ui/docs/UI_GUIDELINES.md.
+
+   Breakpoints (mobile-first, min-width). CSS custom properties can't be used
+   inside @media, so the values are mirrored in src/styles/breakpoints.js —
+   keep the two in sync:
+     sm  640px   large phones / small tablets
+     md  768px   tablets        → sidebar becomes an icon rail
+     lg 1024px   laptops        → full sidebar
+     xl 1280px   desktops
+   ════════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* ── Colour ─────────────────────────────────────────────── */
+  --bg-primary: #020617;
+  --bg-secondary: #0f172a;
+  --bg-tertiary: #1e293b;
+  --primary: #6366f1;
+  --primary-soft: #818cf8;
+  --primary-subtle: #a5b4fc;
+  --primary-glow: rgba(99, 102, 241, 0.35);
+  --text-main: #f8fafc;
+  --text-dim: #94a3b8;
+  --text-muted: #64748b;
+  --text-faint: #475569;
+  --text-strong: #f1f5f9;      /* headings that sit on cards */
+  --text-soft: #e2e8f0;
+  --text-subtle: #cbd5e1;
+  --border-strong: #334155;
+  --success-strong: #22c55e;
+  --glass: rgba(255, 255, 255, 0.03);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --accent-purple: #a855f7;
+  --accent-blue: #3b82f6;
+  --success: #4ade80;
+  --warning: #f59e0b;
+  --danger: #ef4444;
+  --danger-soft: #fca5a5;
+
+  /* Aliases — older components use these names */
+  --accent: var(--primary-soft);
+  --border: var(--glass-border);
+  --card-bg: var(--glass);
+  --text-primary: var(--text-main);
+
+  /* ── Radius ─────────────────────────────────────────────── */
+  --radius-lg: 20px;
+  --radius-md: 14px;
+  --radius-sm: 10px;
+
+  /* ── Spacing scale (4px base) ───────────────────────────── */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 40px;
+  --space-8: 56px;
+
+  /* Page gutter grows with the viewport: 16px on phones → 40px on desktop */
+  --gutter: clamp(16px, 3.5vw, 40px);
+
+  /* ── Type scale (fluid where it matters) ───────────────── */
+  --text-xs: 12px;
+  --text-sm: 13px;
+  --text-base: 14px;
+  --text-md: 16px;
+  --text-lg: clamp(18px, 1.2vw + 12px, 20px);
+  --text-xl: clamp(20px, 1.5vw + 14px, 24px);
+  --text-2xl: clamp(22px, 2vw + 14px, 28px);
+  --text-3xl: clamp(26px, 3vw + 14px, 40px);
+
+  /* ── Layout ─────────────────────────────────────────────── */
+  --sidebar-w: 260px;
+  --sidebar-rail-w: 72px;
+  --drawer-w: min(300px, 85vw);
+  --topbar-h: 60px;
+  --page-narrow: 768px;
+  --page-default: 1200px;
+  --page-wide: 1600px;
+  --tap-target: 44px;
+
+  /* ── Elevation ──────────────────────────────────────────── */
+  --z-sticky: 100;
+  --z-header: 200;
+  --z-overlay: 999;
+  --z-drawer: 1000;
+  --z-modal: 1100;
+  --z-toast: 9999;
+
+  /* ── Video Player Design Tokens ─────────────────────────── */
+  /* These pull from the existing palette so the player auto-follows theme changes */
+  --video-progress:        var(--primary);                    /* played fill + thumb   */
+  --video-progress-glow:   var(--primary-glow);              /* thumb glow on hover   */
+  --video-progress-track:  rgba(255, 255, 255, 0.12);       /* unplayed track        */
+  --video-buffer:          rgba(255, 255, 255, 0.22);       /* buffered overlay      */
+  --video-control-bg:      rgba(2, 6, 23, 0.88);            /* controls bar bg       */
+  --video-control-hover:   rgba(99, 102, 241, 0.15);        /* button hover bg       */
+  --video-control-color:   var(--text-main);                /* icon color            */
+  --video-control-muted:   var(--text-muted);               /* timestamp color       */
+  --video-thumb-size:      14px;
+  --video-track-height:    4px;
+  --video-track-hover-height: 6px;
+}

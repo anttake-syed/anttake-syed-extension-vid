@@ -714,29 +714,50 @@ For refund requests or billing questions, please use the contact form on our Pri
         ) : activeNav === 'Privacy' ? (
           <StaticPage
             title="Privacy Policy"
-            content={`Last updated: June 2025
+            content={`Last updated: September 29, 2026
 
-AntCapture is built with your privacy as the foundation. Here's exactly what we do and don't do with your data.
+This policy explains what AntCapture (the Chrome extension and the web dashboard at antcapture.anttake.com) collects, why, and what you can do about it.
 
-DATA WE COLLECT
-- Your Google account name, email, and profile picture — used only to identify your account
-- Screenshots and recordings you capture — stored in your chosen location (local database or your personal Google Drive)
-- Storage preferences you set in Settings
+INFORMATION WE COLLECT
+- Google account details: your name, email address and profile picture, used to create and identify your account.
+- Google access tokens: stored on our server so AntCapture can upload to your Google Drive when you choose that option.
+- Your captures: screenshots and recordings you choose to save, plus their metadata (title, size, type, date).
+- Settings and usage: your storage preference, subscription status, and storage used.
+- Technical logs: request details such as IP address and error information, kept for security and debugging.
 
-DATA WE DON'T COLLECT
-- We never sell your data to third parties
-- We never use your captures for advertising or analytics
-- We never access files in your Google Drive beyond what you explicitly upload through AntCapture
-- We don't track your browsing activity
+CAMERA, MICROPHONE AND SCREEN
+The extension uses your screen, camera and microphone only while you are actively recording, after you start a recording and grant permission. Recordings stay on your computer unless you choose to save them to AntCapture Cloud or Google Drive.
 
-WHERE YOUR FILES LIVE
-When you choose "Local" storage, your files are stored in our database and served only to you when you're logged in. When you choose "Google Drive", files go directly to your personal Google Drive — we don't keep a copy.
+WHERE YOUR FILES ARE STORED
+- On your computer: captures are kept in the extension's local browser storage until you save or discard them.
+- AntCapture Cloud (paid plan): files are stored with our storage providers (UploadThing and Cloudflare). Each file is served from a long, random link; anyone who has that link can open the file, so only share it with people you trust.
+- Google Drive: files are uploaded to your own Drive and shared as "anyone with the link can view" so the dashboard can display them. You can change sharing for any file in Google Drive.
 
-GOOGLE OAUTH
-We use Google OAuth 2.0 for authentication. We request only the minimum permissions needed: your profile info and access to files created by AntCapture. We never request access to your existing Drive files.
+SERVICES WE USE
+- Google (sign-in and Drive), Cloudflare (database and storage), UploadThing (file storage), Vercel (hosting) and Lemon Squeezy (payments).
+- Payments are processed by Lemon Squeezy; we never see or store your card details.
 
-DATA DELETION
-You can delete all your captures or your entire account at any time from the Settings page. Deletion is immediate and permanent.
+WHAT WE DON'T DO
+- We don't sell your data or share it for advertising.
+- We don't use your captures for analytics or to train models.
+- We don't track your browsing. The extension only acts on a page when you use it there.
+
+GOOGLE USER DATA
+AntCapture's use and transfer of information received from Google APIs adheres to the Google API Services User Data Policy, including the Limited Use requirements. We request only your basic profile and access to files AntCapture creates in your Drive (drive.file); we cannot see your other Drive files.
+
+COOKIES AND LOCAL STORAGE
+We use your browser's local storage to keep you signed in, and a short-lived cookie during Google sign-in to protect against forged logins. We don't use advertising or tracking cookies.
+
+YOUR CHOICES AND DATA DELETION
+- You can delete individual captures at any time from your Library.
+- To delete your account and all associated data, contact us through the Feedback page. We will delete it within 30 days.
+- You can revoke AntCapture's access to your Google account at myaccount.google.com/permissions.
+
+CHILDREN
+AntCapture is not intended for anyone under 18.
+
+CHANGES
+If we change this policy we will update the date above.
 
 CONTACT
 Questions about privacy? Reach us through the Feedback page.`}

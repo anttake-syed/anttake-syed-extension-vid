@@ -14,7 +14,7 @@ function fakeDb({ plans = ['free', 'cloud'] } = {}) {
       findUnique: async ({ where }) => (plans.includes(where.name) ? { id: `plan_${where.name}`, name: where.name } : null),
     },
     lemonSqueezyCustomer: { upsert: async () => ({}), findUnique: async () => ({ id: 'cust_1' }) },
-    lemonSqueezyEvent: { create: async () => ({}) },
+    lemonSqueezyEvent: { findUnique: async () => null, create: async () => ({}) },
     lemonSqueezyPayment: { create: async () => ({}) },
     subscription: {
       upsert: async (args) => { calls.subscriptionUpserts.push(args); return {}; },

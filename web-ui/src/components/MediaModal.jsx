@@ -3,6 +3,7 @@ import { SERVER_URL, IS_LOCAL_MODE } from '../config';
 import ConfirmDeleteModal from './ConfirmDeleteModal';
 import VideoViewer from './video/VideoViewer.jsx';
 import { DriveLogoSVG, AntCaptureCloudLogoSVG } from './icons/StorageIcons.jsx';
+import '../styles/pages/media-modal.css';
 
 const getFullSrc = (src, jwt) => {
   if (!src) return '';
@@ -31,15 +32,15 @@ class MediaModalErrorBoundary extends React.Component {
         <div className="modal-overlay fadeIn" onClick={this.props.onClose} style={{ zIndex: 1000, background: 'rgba(2, 6, 23, 0.92)', backdropFilter: 'blur(8px)', padding: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div className="modal-card fadeInScale" onClick={e => e.stopPropagation()} style={{ background: '#0f172a', border: '1px solid rgba(239, 68, 68, 0.3)', borderRadius: '16px', padding: '32px', maxWidth: '420px', width: '100%', textAlign: 'center', boxShadow: '0 32px 80px rgba(0,0,0,0.8)' }}>
             <span className="material-symbols-rounded" style={{ fontSize: '48px', color: '#f87171', marginBottom: '16px' }}>error</span>
-            <h2 style={{ fontSize: '20px', fontWeight: 600, color: '#f8fafc', margin: '0 0 12px' }}>Video Player Error</h2>
-            <p style={{ fontSize: '14px', color: '#94a3b8', margin: '0 0 24px', lineHeight: 1.5 }}>
+            <h2 style={{ fontSize: '20px', fontWeight: 600, color: 'var(--text-main)', margin: '0 0 12px' }}>Video Player Error</h2>
+            <p style={{ fontSize: '14px', color: 'var(--text-dim)', margin: '0 0 24px', lineHeight: 1.5 }}>
               The media player encountered an unexpected error and had to close. Please try again.
             </p>
-            <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
-              <button onClick={() => this.setState({ hasError: false, error: null })} style={{ background: 'rgba(99,102,241,0.1)', color: '#818cf8', border: '1px solid rgba(99,102,241,0.3)', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer', fontWeight: 600 }}>Retry</button>
-              <button onClick={this.props.onClose} style={{ background: '#1e293b', color: '#f8fafc', border: '1px solid #334155', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer', fontWeight: 600 }}>Close</button>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', justifyContent: 'center' }}>
+              <button className="mm-tap" onClick={() => this.setState({ hasError: false, error: null })} style={{ background: 'rgba(99,102,241,0.1)', color: '#818cf8', border: '1px solid rgba(99,102,241,0.3)', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer', fontWeight: 600 }}>Retry</button>
+              <button className="mm-tap" onClick={this.props.onClose} style={{ background: 'var(--bg-tertiary)', color: 'var(--text-main)', border: '1px solid #334155', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer', fontWeight: 600 }}>Close</button>
             </div>
-            {this.state.error && <div style={{ marginTop: '24px', padding: '12px', background: 'rgba(0,0,0,0.3)', borderRadius: '6px', fontSize: '11px', color: '#ef4444', textAlign: 'left', overflowX: 'auto', fontFamily: 'monospace' }}>{this.state.error.toString()}</div>}
+            {this.state.error && <div style={{ marginTop: '24px', padding: '12px', background: 'rgba(0,0,0,0.3)', borderRadius: '6px', fontSize: '11px', color: 'var(--danger)', textAlign: 'left', overflowX: 'auto', fontFamily: 'monospace' }}>{this.state.error.toString()}</div>}
           </div>
         </div>
       );
@@ -196,21 +197,20 @@ function MediaModalContent({ item, onClose, user, onSyncSuccess, onDelete, dbSta
       onConfirm={confirmDelete}
       onCancel={() => { if (!deleting) setShowDeleteConfirm(false); }}
     />
-    <div className="modal-overlay fadeIn" onClick={onClose} style={{ zIndex: 1000, background: 'rgba(2, 6, 23, 0.92)', backdropFilter: 'blur(8px)', padding: '20px' }}>
+    <div className="modal-overlay mm-overlay fadeIn" onClick={onClose} style={{ zIndex: 1000, background: 'rgba(2, 6, 23, 0.92)', backdropFilter: 'blur(8px)' }}>
       <div
-        className="modal-card fadeInScale"
+        className="modal-card mm-card fadeInScale"
         onClick={(e) => e.stopPropagation()}
-        style={{ width: '95%', maxWidth: '1300px', maxHeight: '95vh', background: '#0a0f1d', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '16px', padding: 0, overflow: 'hidden', boxShadow: '0 32px 80px rgba(0,0,0,0.8)', display: 'flex', flexDirection: 'column' }}
       >
-        <button className="modal-close" onClick={onClose} aria-label="Close" style={{ zIndex: 10, top: '16px', right: '16px', background: 'rgba(255,255,255,0.1)', border: 'none', width: '32px', height: '32px', borderRadius: '50%', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+        <button className="modal-close mm-close" onClick={onClose} aria-label="Close" style={{ background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '50%', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
           <span className="material-symbols-rounded" style={{ fontSize: '20px' }}>close</span>
         </button>
 
         {/* Header */}
-        <div style={{ padding: '24px', paddingBottom: '20px', borderBottom: '1px solid #1e293b' }}>
+        <div className="mm-header">
           {/* Editable Title */}
           {editingTitle ? (
-            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '12px' }}>
+            <div className="mm-title-edit">
               <input
                 autoFocus
                 value={titleValue}
@@ -225,24 +225,26 @@ function MediaModalContent({ item, onClose, user, onSyncSuccess, onDelete, dbSta
                   }
                 }}
                 style={{
-                  flex: 1, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(99,102,241,0.5)',
-                  borderRadius: '8px', padding: '8px 12px', color: '#f8fafc', fontSize: '18px',
+                  background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(99,102,241,0.5)',
+                  borderRadius: '8px', padding: '8px 12px', color: 'var(--text-main)', fontSize: '18px',
                   fontWeight: '700', outline: 'none', fontFamily: 'inherit'
                 }}
               />
-              <button onClick={saveTitle} disabled={titleSaving} style={{ background: 'rgba(99,102,241,0.2)', border: '1px solid rgba(99,102,241,0.4)', color: '#818cf8', padding: '8px 14px', borderRadius: '7px', cursor: 'pointer', fontSize: '13px', fontWeight: 600 }}>
+              <button className="mm-tap" onClick={saveTitle} disabled={titleSaving} style={{ background: 'rgba(99,102,241,0.2)', border: '1px solid rgba(99,102,241,0.4)', color: 'var(--primary-soft)', padding: '8px 14px', borderRadius: '7px', cursor: 'pointer', fontSize: '13px', fontWeight: 600 }}>
                 {titleSaving ? '...' : 'Save'}
               </button>
-              <button onClick={() => { setEditingTitle(false); setTitleValue(item.title); }} style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: '#94a3b8', padding: '8px 12px', borderRadius: '7px', cursor: 'pointer', fontSize: '13px' }}>Cancel</button>
+              <button className="mm-tap" onClick={() => { setEditingTitle(false); setTitleValue(item.title); }} style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: 'var(--text-dim)', padding: '8px 12px', borderRadius: '7px', cursor: 'pointer', fontSize: '13px' }}>Cancel</button>
             </div>
           ) : (
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
-              <h2 style={{ margin: 0, fontSize: '18px', color: '#f8fafc', fontWeight: '700', flex: 1, lineHeight: 1.3 }}>{titleValue}</h2>
+              <h2 className="mm-title" style={{ margin: 0, fontSize: '18px', color: 'var(--text-main)', fontWeight: '700', flex: 1, lineHeight: 1.3 }}>{titleValue}</h2>
               {user?.jwt && (
                 <button
                   onClick={() => setEditingTitle(true)}
                   title="Rename"
-                  style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', padding: '4px', borderRadius: '6px', display: 'flex', alignItems: 'center', transition: 'color 0.15s' }}
+                  aria-label="Rename"
+                  className="mm-icon-tap"
+                  style={{ background: 'none', border: 'none', color: '#64748b', flexShrink: 0, cursor: 'pointer', padding: '4px', borderRadius: '6px', display: 'flex', alignItems: 'center', transition: 'color 0.15s' }}
                   onMouseEnter={e => e.currentTarget.style.color = '#818cf8'}
                   onMouseLeave={e => e.currentTarget.style.color = '#64748b'}
                 >
@@ -253,7 +255,7 @@ function MediaModalContent({ item, onClose, user, onSyncSuccess, onDelete, dbSta
           )}
           
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '12px', flexWrap: 'wrap' }}>
-            <span style={{ color: '#94a3b8', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <span style={{ color: 'var(--text-dim)', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '4px' }}>
               <span className="material-symbols-rounded" style={{ fontSize: '14px' }}>schedule</span>
               {item.date ? new Date(item.date).toLocaleDateString() : ''} 
               <span style={{ margin: '0 4px' }}>•</span> 
@@ -276,56 +278,56 @@ function MediaModalContent({ item, onClose, user, onSyncSuccess, onDelete, dbSta
             )}
             
             {/* Sync / Remove buttons */}
-            <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+            <div className="mm-actions">
               {loc === 'local' && dbStats?.storageServer !== 'local' && (
-                <button onClick={(e) => { e.stopPropagation(); callApi('sync-to-drive', setSyncingDrive); }} disabled={syncingDrive} style={syncBtnStyle('#60a5fa', 'rgba(59,130,246,0.1)', 'rgba(59,130,246,0.3)')}>
+                <button onClick={(e) => { e.stopPropagation(); callApi('sync-to-drive', setSyncingDrive); }} disabled={syncingDrive} className="mm-tap" style={syncBtnStyle('#60a5fa', 'rgba(59,130,246,0.1)', 'rgba(59,130,246,0.3)')}>
                   {syncingDrive ? <span className="btn-spinner" style={{ width: '12px', height: '12px', borderColor: '#60a5fa', borderTopColor: 'transparent' }} /> : <DriveLogoSVG size={16} />}
                   {syncingDrive ? 'Syncing...' : 'Backup to Drive'}
                 </button>
               )}
               {loc === 'drive' && dbStats?.storageServer !== 'local' && (
-                <button onClick={(e) => { e.stopPropagation(); callApi('sync-to-local', setSyncingLocal); }} disabled={syncingLocal} style={syncBtnStyle('#818cf8', 'rgba(99,102,241,0.1)', 'rgba(99,102,241,0.3)')}>
+                <button onClick={(e) => { e.stopPropagation(); callApi('sync-to-local', setSyncingLocal); }} disabled={syncingLocal} className="mm-tap" style={syncBtnStyle('#818cf8', 'rgba(99,102,241,0.1)', 'rgba(99,102,241,0.3)')}>
                   {syncingLocal ? <span className="btn-spinner" style={{ width: '12px', height: '12px', borderColor: '#818cf8', borderTopColor: 'transparent' }} /> : <span className="material-symbols-rounded" style={{ fontSize: '16px' }}>download</span>}
                   {syncingLocal ? 'Syncing...' : 'Save to Local DB'}
                 </button>
               )}
               {loc === 'both' && dbStats?.storageServer !== 'local' && (
                 <>
-                  <button onClick={(e) => { e.stopPropagation(); callApi('remove-local', setRemovingLocal); }} disabled={removingLocal} style={removeBtnStyle}>
+                  <button onClick={(e) => { e.stopPropagation(); callApi('remove-local', setRemovingLocal); }} disabled={removingLocal} className="mm-tap" style={removeBtnStyle}>
                     {removingLocal ? <span className="btn-spinner" style={{ width: '12px', height: '12px', borderColor: '#f87171', borderTopColor: 'transparent' }} /> : <span className="material-symbols-rounded" style={{ fontSize: '16px' }}>hard_drive</span>}
                     {removingLocal ? 'Removing...' : 'Remove Local'}
                   </button>
-                  <button onClick={(e) => { e.stopPropagation(); callApi('remove-drive', setRemovingDrive); }} disabled={removingDrive} style={removeBtnStyle}>
+                  <button onClick={(e) => { e.stopPropagation(); callApi('remove-drive', setRemovingDrive); }} disabled={removingDrive} className="mm-tap" style={removeBtnStyle}>
                     {removingDrive ? <span className="btn-spinner" style={{ width: '12px', height: '12px', borderColor: '#f87171', borderTopColor: 'transparent' }} /> : <DriveLogoSVG size={16} />}
                     {removingDrive ? 'Removing...' : 'Remove from Drive'}
                   </button>
                 </>
               )}
               {item.src && (
-                <button onClick={handleDownload} style={syncBtnStyle('#f1f5f9', 'rgba(255,255,255,0.1)', 'rgba(255,255,255,0.2)')}>
+                <button onClick={handleDownload} className="mm-tap" style={syncBtnStyle('#f1f5f9', 'rgba(255,255,255,0.1)', 'rgba(255,255,255,0.2)')}>
                   <span className="material-symbols-rounded" style={{ fontSize: '16px' }}>download</span>
                   Save to Computer
                 </button>
               )}
-              <button onClick={(e) => { e.stopPropagation(); handleDelete(); }} disabled={deleting} style={{ ...removeBtnStyle, marginLeft: (loc === 'local' || loc === 'drive' || IS_LOCAL_MODE) ? 0 : '4px' }}>
+              <button onClick={(e) => { e.stopPropagation(); handleDelete(); }} disabled={deleting} className="mm-tap" style={{ ...removeBtnStyle, marginLeft: (loc === 'local' || loc === 'drive' || IS_LOCAL_MODE) ? 0 : '4px' }}>
                 {deleting ? <span className="btn-spinner" style={{ width: '12px', height: '12px', borderColor: '#f87171', borderTopColor: 'transparent' }} /> : <span className="material-symbols-rounded" style={{ fontSize: '16px' }}>delete_forever</span>}
                 {deleting ? 'Deleting...' : 'Delete'}
               </button>
             </div>
           </div>
-          {syncError && <div style={{ color: '#ef4444', fontSize: '12px', marginTop: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}><span className="material-symbols-rounded" style={{ fontSize: '14px' }}>error</span> {syncError}</div>}
+          {syncError && <div className="break-anywhere" style={{ color: 'var(--danger)', fontSize: '12px', marginTop: '12px', display: 'flex', alignItems: 'flex-start', gap: '4px' }}><span className="material-symbols-rounded" style={{ fontSize: '14px' }}>error</span> {syncError}</div>}
         </div>
 
         {/* Media — zero padding so video fills edge-to-edge */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#000', overflow: 'hidden', minHeight: 0 }}>
+        <div className="mm-media">
           {item.storageLocation === 'drive' ? (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px' }}>
+            <div className="mm-drive">
               <DriveLogoSVG size={72} />
               <div style={{ textAlign: 'center' }}>
-                <div style={{ color: '#f8fafc', fontSize: '18px', fontWeight: '600', marginBottom: '8px' }}>
+                <div style={{ color: 'var(--text-main)', fontSize: '18px', fontWeight: '600', marginBottom: '8px' }}>
                   Private {item.type === 'video' ? 'video' : 'image'} on Drive
                 </div>
-                <div style={{ color: '#94a3b8', fontSize: '14px' }}>Google restricts direct preview of private Drive files for your security.</div>
+                <div style={{ color: 'var(--text-dim)', fontSize: '14px' }}>Google restricts direct preview of private Drive files for your security.</div>
               </div>
               <a href={item.driveUrl} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 24px', background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.3)', color: '#60a5fa', borderRadius: '8px', fontWeight: '600', transition: 'all 0.2s' }}
                 onMouseEnter={e => e.currentTarget.style.background = 'rgba(59,130,246,0.15)'}
@@ -334,21 +336,21 @@ function MediaModalContent({ item, onClose, user, onSyncSuccess, onDelete, dbSta
                 <span className="material-symbols-rounded" style={{ fontSize: '20px' }}>open_in_new</span>
                 Open in Google Drive
               </a>
-              <div style={{ color: '#64748b', fontSize: '13px', marginTop: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <span className="material-symbols-rounded" style={{ fontSize: '16px', color: '#6366f1' }}>lightbulb</span>
+              <div style={{ color: 'var(--text-muted)', fontSize: '13px', marginTop: '8px', display: 'flex', alignItems: 'center', gap: '6px', textAlign: 'left' }}>
+                <span className="material-symbols-rounded" style={{ fontSize: '16px', color: 'var(--primary)', flexShrink: 0 }}>lightbulb</span>
                 Tip: Click &quot;Save to Local DB&quot; above to enable native preview inside AntCapture.
               </div>
             </div>
           ) : item.type === 'video' ? (
-            <div style={{ flex: 1, minHeight: '420px', display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#000' }}>
+            <div className="mm-video">
               <VideoViewer
                 src={getFullSrc(item.src, user?.jwt)}
                 onClose={onClose}
               />
             </div>
           ) : (
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', flex: 1, background: '#000', padding: '16px' }}>
-              <img src={getFullSrc(item.src, user?.jwt)} style={{ maxWidth: '100%', maxHeight: '70vh', objectFit: 'contain', borderRadius: '8px', display: 'block' }} alt={item.title} />
+            <div className="mm-image-wrap">
+              <img src={getFullSrc(item.src, user?.jwt)} className="mm-image" alt={item.title} />
             </div>
           )}
         </div>

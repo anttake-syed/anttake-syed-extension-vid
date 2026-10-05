@@ -2,6 +2,8 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { SERVER_URL } from '../config.js';
 import { DriveLogoSVG, AntCaptureCloudLogoSVG } from './icons/StorageIcons.jsx';
 import CloudUpgradeBanner from './CloudUpgradeBanner';
+import { Page, Grid } from './layout/Page.jsx';
+import '../styles/pages/library.css';
 
 const getFullSrc = (src) => {
   if (!src) return '';
@@ -18,16 +20,10 @@ function MediaCard({ item, onOpen, viewMode }) {
     return (
       <div
         onClick={() => onOpen(item)}
-        style={{
-          display: 'flex', alignItems: 'center', gap: '16px',
-          background: '#1e293b', border: '1px solid #334155', borderRadius: '12px',
-          padding: '12px 16px', cursor: 'pointer', transition: 'border-color 0.15s, background 0.15s',
-        }}
-        onMouseEnter={e => { e.currentTarget.style.borderColor = '#6366f1'; e.currentTarget.style.background = '#1a2744'; }}
-        onMouseLeave={e => { e.currentTarget.style.borderColor = '#334155'; e.currentTarget.style.background = '#1e293b'; }}
+        className="lib-row"
       >
         {/* Thumbnail */}
-        <div style={{ width: '72px', height: '48px', borderRadius: '8px', overflow: 'hidden', background: '#0f172a', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div className="lib-row__thumb" style={{ borderRadius: '8px', overflow: 'hidden', background: '#0f172a', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           {item.storageLocation === 'drive' ? <DriveLogoSVG size={20} />
             : item.type === 'image' && item.src ? <img src={getFullSrc(item.src)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
             : item.type === 'video' && item.src ? <video src={`${getFullSrc(item.src)}#t=0.5`} preload="metadata" style={{ width: '100%', height: '100%', objectFit: 'cover' }} muted />
@@ -35,7 +31,7 @@ function MediaCard({ item, onOpen, viewMode }) {
         </div>
 
         {/* Info */}
-        <div style={{ flex: 1, overflow: 'hidden' }}>
+        <div className="lib-row__info">
           <div style={{ fontWeight: 600, fontSize: '14px', color: '#f1f5f9', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {item.title || 'Untitled'}
           </div>
@@ -45,10 +41,10 @@ function MediaCard({ item, onOpen, viewMode }) {
         </div>
 
         {/* Size */}
-        <div style={{ fontSize: '12px', color: '#64748b', flexShrink: 0, minWidth: '64px', textAlign: 'right' }}>{item.size || '—'}</div>
+        <div className="lib-row__size" style={{ fontSize: '12px', color: '#64748b', flexShrink: 0 }}>{item.size || '—'}</div>
 
         {/* Type badge */}
-        <div style={{ flexShrink: 0, display: 'flex', gap: '6px' }}>
+        <div className="lib-row__badges" style={{ flexShrink: 0, display: 'flex', gap: '6px' }}>
           <span style={{ fontSize: '11px', fontWeight: 700, padding: '3px 10px', borderRadius: '999px', background: item.type === 'video' ? 'rgba(99,102,241,0.15)' : 'rgba(52,211,153,0.15)', color: item.type === 'video' ? '#a5b4fc' : '#6ee7b7' }}>
             {item.type === 'video' ? 'Video' : 'Screenshot'}
           </span>
@@ -65,13 +61,13 @@ function MediaCard({ item, onOpen, viewMode }) {
         </div>
 
         {/* Storage badge — V2 providers */}
-        <div style={{ flexShrink: 0 }}>
+        <div className="lib-row__store" style={{ flexShrink: 0, display: 'flex' }}>
           {item.storageLocation === 'google_drive' && <DriveLogoSVG size={16} />}
           {(item.storageLocation === 'local' || item.storageLocation === 'self_hosted') && <span className="material-symbols-rounded" style={{ fontSize: '16px', color: '#6366f1' }}>hard_drive</span>}
           {item.storageLocation === 'cloud' && <AntCaptureCloudLogoSVG size={16} />}
         </div>
 
-        <span className="material-symbols-rounded" style={{ fontSize: '18px', color: '#475569', flexShrink: 0 }}>chevron_right</span>
+        <span className="material-symbols-rounded lib-row__chev" style={{ fontSize: '18px', color: '#475569', flexShrink: 0 }}>chevron_right</span>
       </div>
     );
   }
@@ -80,9 +76,7 @@ function MediaCard({ item, onOpen, viewMode }) {
   return (
     <div
       onClick={() => onOpen(item)}
-      style={{ borderRadius: '12px', overflow: 'hidden', background: '#1e293b', border: '1px solid #334155', cursor: 'pointer', transition: 'transform 0.15s, box-shadow 0.15s, border-color 0.15s' }}
-      onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-3px)'; e.currentTarget.style.boxShadow = '0 12px 32px rgba(0,0,0,0.4)'; e.currentTarget.style.borderColor = '#6366f1'; }}
-      onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'none'; e.currentTarget.style.borderColor = '#334155'; }}
+      className="lib-card"
     >
       {/* Preview */}
       <div style={{ aspectRatio: '16/10', background: '#0f172a', position: 'relative', overflow: 'hidden' }}>
@@ -261,19 +255,19 @@ export default function Library({ captures, loadingCaptures, onOpenMedia, isAuth
 
   if (!isAuthenticated) {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '80px 24px', textAlign: 'center' }}>
+      <Page width="wide" className="lib-signed-out">
         <span className="material-symbols-rounded" style={{ fontSize: '64px', color: '#334155', marginBottom: '20px' }}>photo_library</span>
         <h2 style={{ color: '#f1f5f9', margin: '0 0 12px' }}>Your Media Library</h2>
         <p style={{ color: '#64748b', marginBottom: '24px', maxWidth: '360px', fontSize: '15px' }}>Sign in with Google to access your full capture library — all your recordings and screenshots in one place.</p>
         <button className="btn-primary glow-pulse" onClick={onSignIn} style={{ padding: '12px 28px', fontSize: '15px' }}>
           Sign in with Google
         </button>
-      </div>
+      </Page>
     );
   }
 
   return (
-    <>
+    <Page width="wide" className="lib">
       {!hasCloudAccess && isAuthenticated && (
         <CloudUpgradeBanner
           featureName="Cloud Library"
@@ -283,29 +277,29 @@ export default function Library({ captures, loadingCaptures, onOpenMedia, isAuth
       )}
 
       {/* ── Toolbar ── */}
-      <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap', marginBottom: '20px' }}>
-              {/* Search */}
-        <div style={{ position: 'relative', flex: '1', minWidth: '200px' }}>
+      <div className="lib-toolbar">
+        {/* Search */}
+        <div className="lib-search">
           <span className="material-symbols-rounded" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', fontSize: '18px', color: '#475569', pointerEvents: 'none' }}>search</span>
           <input
             ref={searchRef}
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Fuzzy search captures... (press / to focus)"
-            style={{ width: '100%', background: '#1e293b', border: '1px solid #334155', borderRadius: '10px', color: '#f1f5f9', fontSize: '14px', padding: '9px 36px 9px 38px', outline: 'none', boxSizing: 'border-box' }}
+            style={{ background: 'var(--bg-tertiary)', border: '1px solid #334155', borderRadius: '10px', color: '#f1f5f9', padding: '9px 36px 9px 38px', outline: 'none', boxSizing: 'border-box' }}
             onFocus={e => e.target.style.borderColor = '#6366f1'}
             onBlur={e => e.target.style.borderColor = '#334155'}
           />
           {/* / shortcut hint inside input */}
           {!search && (
-            <kbd style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: '#0f172a', border: '1px solid #334155', borderRadius: '4px', padding: '2px 6px', fontSize: '11px', color: '#475569', pointerEvents: 'none' }}>/</kbd>
+            <kbd className="hide-below-md" style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: '#0f172a', border: '1px solid #334155', borderRadius: '4px', padding: '2px 6px', fontSize: '11px', color: '#475569', pointerEvents: 'none' }}>/</kbd>
           )}
         </div>
 
         {/* Type filter */}
-        <div style={{ display: 'flex', background: '#1e293b', border: '1px solid #334155', borderRadius: '10px', overflow: 'hidden' }}>
+        <div className="lib-seg lib-seg--filter">
           {['All', 'Videos', 'Screenshots'].map(f => (
-            <button key={f} onClick={() => setTypeFilter(f)} style={{ padding: '9px 16px', border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: 600, transition: 'background 0.15s, color 0.15s', background: typeFilter === f ? '#6366f1' : 'transparent', color: typeFilter === f ? 'white' : '#64748b' }}>
+            <button key={f} onClick={() => setTypeFilter(f)} style={{ fontSize: '13px', fontWeight: 600, transition: 'background 0.15s, color 0.15s', background: typeFilter === f ? '#6366f1' : 'transparent', color: typeFilter === f ? 'white' : '#64748b' }}>
               {f}
             </button>
           ))}
@@ -315,16 +309,17 @@ export default function Library({ captures, loadingCaptures, onOpenMedia, isAuth
         <select
           value={sort}
           onChange={e => setSort(e.target.value)}
-          style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: '10px', color: '#94a3b8', fontSize: '13px', padding: '9px 12px', cursor: 'pointer', outline: 'none' }}
+          className="lib-sort"
+          style={{ background: 'var(--bg-tertiary)', border: '1px solid #334155', borderRadius: '10px', color: '#94a3b8', fontSize: '13px', padding: '9px 12px', cursor: 'pointer', outline: 'none' }}
         >
           <option value="newest">Newest first</option>
           <option value="oldest">Oldest first</option>
         </select>
 
-                {/* View toggle */}
-        <div style={{ display: 'flex', background: '#1e293b', border: '1px solid #334155', borderRadius: '10px', overflow: 'hidden' }}>
+        {/* View toggle */}
+        <div className="lib-seg lib-seg--icons">
           {[['grid', 'grid_view'], ['list', 'view_list']].map(([mode, icon]) => (
-            <button key={mode} onClick={() => setViewMode(mode)} title={mode} style={{ padding: '9px 12px', border: 'none', cursor: 'pointer', background: viewMode === mode ? '#334155' : 'transparent', color: viewMode === mode ? '#f1f5f9' : '#64748b', transition: 'background 0.15s' }}>
+            <button key={mode} onClick={() => setViewMode(mode)} title={mode} style={{ background: viewMode === mode ? '#334155' : 'transparent', color: viewMode === mode ? '#f1f5f9' : '#64748b', transition: 'background 0.15s' }}>
               <span className="material-symbols-rounded" style={{ fontSize: '18px', display: 'block' }}>{icon}</span>
             </button>
           ))}
@@ -334,7 +329,8 @@ export default function Library({ captures, loadingCaptures, onOpenMedia, isAuth
         <button
           onClick={() => setShowShortcuts(p => !p)}
           title="Keyboard shortcuts (?)"
-          style={{ padding: '9px 12px', background: showShortcuts ? '#334155' : '#1e293b', border: '1px solid #334155', borderRadius: '10px', color: '#64748b', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '13px', fontWeight: 600, transition: 'background 0.15s' }}
+          className="lib-icon-btn hide-below-md"
+          style={{ background: showShortcuts ? '#334155' : '#1e293b', border: '1px solid #334155', borderRadius: '10px', color: '#64748b', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '13px', fontWeight: 600, transition: 'background 0.15s' }}
         >
           <span className="material-symbols-rounded" style={{ fontSize: '16px' }}>keyboard</span>
         </button>
@@ -342,7 +338,7 @@ export default function Library({ captures, loadingCaptures, onOpenMedia, isAuth
 
       {/* ── Keyboard Shortcuts Panel ── */}
       {showShortcuts && (
-        <div style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: '12px', padding: '16px 20px', marginBottom: '20px', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '8px 24px' }}>
+        <div className="lib-shortcuts" style={{ background: 'var(--bg-tertiary)', border: '1px solid #334155', borderRadius: '12px', padding: '16px 20px' }}>
           {[
             ['/', 'Focus search'],
             ['Esc', 'Clear search'],
@@ -362,13 +358,13 @@ export default function Library({ captures, loadingCaptures, onOpenMedia, isAuth
       )}
 
       {/* ── Count bar ── */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+      <div className="lib-count">
         <span style={{ fontSize: '13px', color: '#64748b' }}>
           {filtered.length} {filtered.length === 1 ? 'item' : 'items'}
           {search && ` for "${search}"`}
         </span>
         {search && (
-          <button onClick={() => setSearch('')} style={{ background: 'none', border: 'none', color: '#6366f1', fontSize: '13px', cursor: 'pointer', fontWeight: 600 }}>
+          <button onClick={() => setSearch('')} className="lib-clear" style={{ background: 'none', border: 'none', color: '#6366f1', fontSize: '13px', cursor: 'pointer', fontWeight: 600 }}>
             Clear
           </button>
         )}
@@ -376,25 +372,25 @@ export default function Library({ captures, loadingCaptures, onOpenMedia, isAuth
 
       {/* ── Grid or List ── */}
       {loadingCaptures ? (
-        <div style={{ textAlign: 'center', padding: '60px', color: '#64748b' }}>
+        <div className="lib-state" style={{ color: '#64748b' }}>
           <div className="btn-spinner" style={{ margin: '0 auto 12px', width: '28px', height: '28px', borderTopColor: '#6366f1', borderRightColor: '#6366f1' }} />
           <p>Loading your library...</p>
         </div>
       ) : filtered.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '60px', color: '#64748b' }}>
+        <div className="lib-state" style={{ color: '#64748b' }}>
           <span className="material-symbols-rounded" style={{ fontSize: '52px', color: '#334155', display: 'block', marginBottom: '16px' }}>folder_open</span>
           <p style={{ margin: 0, fontWeight: 600, color: '#475569' }}>No captures found</p>
           <p style={{ fontSize: '13px', marginTop: '6px' }}>Try adjusting your search or filters.</p>
         </div>
       ) : viewMode === 'grid' ? (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '16px' }}>
+        <Grid className="lib-grid">
           {filtered.map(item => <MediaCard key={item.id} item={item} onOpen={onOpenMedia} viewMode="grid" />)}
-        </div>
+        </Grid>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        <div className="lib-list">
           {filtered.map(item => <MediaCard key={item.id} item={item} onOpen={onOpenMedia} viewMode="list" />)}
         </div>
       )}
-    </>
+    </Page>
   );
 }

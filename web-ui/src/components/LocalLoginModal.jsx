@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { SERVER_URL } from '../config';
+import '../styles/pages/media-modal.css';
 
 export default function LocalLoginModal({ onClose, onLogin }) {
   const [username, setUsername] = useState('admin');
@@ -31,7 +32,7 @@ export default function LocalLoginModal({ onClose, onLogin }) {
   };
 
   const inputStyle = {
-    width: '100%', background: '#0f172a', border: '1px solid #334155',
+    width: '100%', background: 'var(--bg-secondary)', border: '1px solid #334155',
     borderRadius: '10px', padding: '12px 14px', color: '#f1f5f9',
     fontSize: '14px', outline: 'none', boxSizing: 'border-box',
     transition: 'border-color 0.2s',
@@ -44,7 +45,7 @@ export default function LocalLoginModal({ onClose, onLogin }) {
         onClick={(e) => e.stopPropagation()}
         style={{ maxWidth: '400px', padding: '32px' }}
       >
-        <button className="modal-close" onClick={onClose} aria-label="Close">✕</button>
+        <button className="modal-close modal-close--touch" onClick={onClose} aria-label="Close">✕</button>
 
         {/* Brand */}
         <div className="modal-brand" style={{ textAlign: 'center', marginBottom: '28px' }}>
@@ -60,10 +61,10 @@ export default function LocalLoginModal({ onClose, onLogin }) {
               </defs>
             </svg>
           </div>
-          <h2 style={{ margin: '0 0 6px', fontSize: '20px', color: '#f8fafc', fontWeight: 700 }}>
+          <h2 style={{ margin: '0 0 6px', fontSize: '20px', color: 'var(--text-main)', fontWeight: 700 }}>
             Local Admin Login
           </h2>
-          <p style={{ margin: 0, fontSize: '13px', color: '#64748b', lineHeight: 1.5 }}>
+          <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-muted)', lineHeight: 1.5 }}>
             Self-hosted mode — sign in with your local credentials.
           </p>
 
@@ -80,9 +81,9 @@ export default function LocalLoginModal({ onClose, onLogin }) {
         </div>
 
         {/* Form */}
-        <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+        <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '14px', width: '100%' }}>
           <div>
-            <label style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.07em', display: 'block', marginBottom: '6px' }}>
+            <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', display: 'block', marginBottom: '6px' }}>
               Username
             </label>
             <input
@@ -96,7 +97,7 @@ export default function LocalLoginModal({ onClose, onLogin }) {
             />
           </div>
           <div>
-            <label style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.07em', display: 'block', marginBottom: '6px' }}>
+            <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', display: 'block', marginBottom: '6px' }}>
               Password
             </label>
             <input
@@ -144,8 +145,8 @@ export default function LocalLoginModal({ onClose, onLogin }) {
           </button>
         </form>
 
-        <p style={{ margin: '20px 0 0', fontSize: '11px', color: '#475569', textAlign: 'center', lineHeight: 1.6 }}>
-          Default credentials are set in your <code style={{ color: '#818cf8', background: 'rgba(99,102,241,0.1)', padding: '1px 5px', borderRadius: '4px' }}>.env</code> file.
+        <p style={{ margin: '20px 0 0', fontSize: '11px', color: 'var(--text-faint)', textAlign: 'center', lineHeight: 1.6 }}>
+          Default credentials are set in your <code style={{ color: 'var(--primary-soft)', background: 'rgba(99,102,241,0.1)', padding: '1px 5px', borderRadius: '4px' }}>.env</code> file.
           Change them in Settings after login.
         </p>
       </div>

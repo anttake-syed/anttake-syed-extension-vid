@@ -60,6 +60,20 @@ export default function Pricing({ user, isAuthenticated, onSignIn, paywalled = f
   // Is this user already subscribed to cloud?
   const isSubscribed = entitlements?.cloud === true;
 
+  // Human phrase for how much time is left in the current period.
+  // entitlements.daysUntilExpiry is computed server-side (ceil of days remaining).
+  const formatTimeLeft = (days) => {
+    if (days === null || days === undefined) { return null; }
+    if (days <= 0) { return 'today'; }
+    if (days === 1) { return 'tomorrow'; }
+    if (days < 7) { return `in ${days} days`; }
+    if (days < 14) { return 'in 1 week'; }
+    if (days < 31) { return `in ${Math.round(days / 7)} weeks`; }
+    if (days < 45) { return 'in about a month'; }
+    return `in ${Math.round(days / 30)} months`;
+  };
+  const timeLeft = formatTimeLeft(entitlements?.daysUntilExpiry);
+
   const yearlyPrice  = 10;
   const monthlyPrice = 12;
   const price        = billing === 'yearly' ? yearlyPrice : monthlyPrice;
@@ -237,6 +251,11 @@ export default function Pricing({ user, isAuthenticated, onSignIn, paywalled = f
                     <strong style={{ color: 'var(--text-muted)' }}>
                       {new Date(entitlements.currentPeriodEnd).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
                     </strong>
+                    {timeLeft && (
+                      <span style={{ color: entitlements.cancelAtPeriodEnd ? '#fbbf24' : 'var(--text-faint)' }}>
+                        {' · '}{entitlements.cancelAtPeriodEnd ? `expires ${timeLeft}` : `renews ${timeLeft}`}
+                      </span>
+                    )}
                   </p>
                 </div>
               )}

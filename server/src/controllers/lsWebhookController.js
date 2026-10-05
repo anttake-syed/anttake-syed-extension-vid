@@ -61,7 +61,10 @@ exports.handleWebhook = async (req, res) => {
     const attributes = obj.attributes;
     const customData = payload.meta.custom_data;
     const userId     = customData?.user_id;
-    const eventId    = payload.meta.event_id || payload.meta.webhook_id;
+    // LemonSqueezy sends no per-event ID (meta.webhook_id is not unique per
+    // event), so dedupe on a hash of the signed body: a retry/resend of the
+    // same delivery is byte-identical, while every distinct event differs.
+    const eventId    = crypto.createHash('sha256').update(req.body).digest('hex');
 
     logger.info('webhook', 'event-received', { requestId: req.requestId, eventName, userId, eventId });
 
@@ -73,6 +76,24 @@ exports.handleWebhook = async (req, res) => {
       if (existing) {
         logger.info('webhook', 'event-already-processed', { eventId });
         return res.status(200).send('Already processed');
+      }
+    }
+
+    // ── 2c. Ignore events for a superseded subscription ─────────────────────
+    // A user who bought more than once has several LS subscriptions. Only the
+    // one we currently track may change their access — otherwise e.g. the old
+    // subscription expiring would lock out a user whose new one is active.
+    // subscription_created always wins: it is the newest purchase.
+    const eventSubscriptionId = eventName.startsWith('subscription_payment_')
+      ? attributes.subscription_id?.toString()
+      : obj.id?.toString();
+    if (userId && eventSubscriptionId && eventName !== 'subscription_created') {
+      const tracked = await prisma.lemonSqueezyCustomer.findUnique({ where: { userId } });
+      if (tracked?.lsSubscriptionId && tracked.lsSubscriptionId !== eventSubscriptionId) {
+        logger.info('webhook', 'stale-subscription-event-ignored', {
+          eventName, userId, eventSubscriptionId, trackedSubscriptionId: tracked.lsSubscriptionId,
+        });
+        return res.status(200).send('Ignored: superseded subscription');
       }
     }
 
@@ -120,7 +141,7 @@ exports.handleWebhook = async (req, res) => {
             planId:              plan.id,
             status:              attributes.status,
             currentPeriodStart:  attributes.created_at ? new Date(attributes.created_at) : undefined,
-            currentPeriodEnd:    attributes.renews_at  ? new Date(attributes.renews_at)  : undefined,
+            currentPeriodEnd:    (attributes.ends_at || attributes.renews_at) ? new Date(attributes.ends_at || attributes.renews_at) : undefined,
             cancelAtPeriodEnd:   attributes.ends_at !== null && attributes.ends_at !== undefined,
             lsCustomerId:        attributes.customer_id.toString(),
           },
@@ -129,7 +150,7 @@ exports.handleWebhook = async (req, res) => {
             planId:              plan.id,
             status:              attributes.status,
             currentPeriodStart:  attributes.created_at ? new Date(attributes.created_at) : undefined,
-            currentPeriodEnd:    attributes.renews_at  ? new Date(attributes.renews_at)  : undefined,
+            currentPeriodEnd:    (attributes.ends_at || attributes.renews_at) ? new Date(attributes.ends_at || attributes.renews_at) : undefined,
             lsCustomerId:        attributes.customer_id.toString(),
           }
         });

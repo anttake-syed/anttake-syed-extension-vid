@@ -1,4 +1,5 @@
 const prisma = require('../db/index');
+const { hasCloudAccess, subscriptionGrantsAccess } = require('./accessRules');
 
 class QuotaService {
   /**
@@ -38,7 +39,7 @@ class QuotaService {
     // 3. Determine their plan limit (fallback to 'free' plan if no active subscription)
     let plan = user.subscription?.plan;
     
-    if (!plan || user.subscription.status !== 'active') {
+    if (!plan || !subscriptionGrantsAccess(user.subscription)) {
       plan = await prisma.plan.findUnique({ where: { name: 'free' } });
     }
 
@@ -156,13 +157,13 @@ class QuotaService {
 
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      include: { subscription: true },
+      include: { subscription: { include: { plan: true } } },
     });
 
     if (!user) return { allowed: false, reason: 'user_not_found' };
 
     const isAdmin = user.role === 'admin';
-    const hasActiveSub = user.subscription?.status === 'active';
+    const hasActiveSub = hasCloudAccess(user.subscription);
     const allowed = isAdmin || hasActiveSub;
     
     setCachedSubscription(userId, { allowed, isAdmin });

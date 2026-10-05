@@ -43,13 +43,14 @@ export default function ConfirmDeleteModal({
   return (
     /* Backdrop */
     <div
+      className="cdm-overlay"
       onClick={() => !loading && onCancel?.()}
       style={{
         position: 'fixed', inset: 0, zIndex: 9999,
         background: 'rgba(2, 6, 23, 0.85)',
         backdropFilter: 'blur(8px)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        padding: '24px',
+        overflowY: 'auto',
         animation: 'cdmFadeIn 0.18s ease both',
       }}
     >
@@ -72,6 +73,26 @@ export default function ConfirmDeleteModal({
           box-shadow: 0 6px 24px rgba(220,38,38,0.45) !important;
           transform: translateY(-1px);
         }
+        .cdm-overlay { padding: 24px; }
+        .cdm-card {
+          padding: 32px 30px 28px;
+          max-height: calc(100dvh - 48px);
+          overflow-y: auto;
+        }
+        .cdm-actions { gap: 10px; }
+        @media (min-width: 640px) {
+          .cdm-actions > * { flex: 1; }
+        }
+        @media (max-width: 639.98px) {
+          .cdm-overlay { padding: var(--space-4); }
+          .cdm-card {
+            padding: var(--space-6) var(--space-5) var(--space-5);
+            max-height: calc(100dvh - 2 * var(--space-4));
+          }
+        }
+        @media (pointer: coarse) {
+          .cdm-actions > * { min-height: var(--tap-target); }
+        }
       `}</style>
 
       {/* Dialog card */}
@@ -81,11 +102,11 @@ export default function ConfirmDeleteModal({
         aria-modal="true"
         aria-labelledby="cdm-title"
         aria-describedby="cdm-message"
+        className="cdm-card"
         style={{
           background: '#0d1526',
           border: '1px solid rgba(239, 68, 68, 0.25)',
           borderRadius: '18px',
-          padding: '32px 30px 28px',
           width: '100%',
           maxWidth: '420px',
           boxShadow: '0 24px 80px rgba(0,0,0,0.8), 0 0 0 1px rgba(239,68,68,0.08)',
@@ -112,13 +133,15 @@ export default function ConfirmDeleteModal({
           <div>
             <h2
               id="cdm-title"
-              style={{ margin: 0, fontSize: '19px', fontWeight: '700', color: '#f8fafc', lineHeight: 1.3 }}
+              className="break-anywhere"
+              style={{ margin: 0, fontSize: '19px', fontWeight: '700', color: 'var(--text-main)', lineHeight: 1.3 }}
             >
               {title}
             </h2>
             <p
               id="cdm-message"
-              style={{ margin: '8px 0 0', fontSize: '14px', color: '#94a3b8', lineHeight: '1.6' }}
+              className="break-anywhere"
+              style={{ margin: '8px 0 0', fontSize: '14px', color: 'var(--text-dim)', lineHeight: '1.6' }}
             >
               {message}
             </p>
@@ -138,23 +161,23 @@ export default function ConfirmDeleteModal({
           <span className="material-symbols-rounded" style={{ fontSize: '16px', color: '#f87171', flexShrink: 0, marginTop: '1px' }}>
             warning
           </span>
-          <span style={{ fontSize: '13px', color: '#fca5a5', lineHeight: '1.5' }}>
+          <span style={{ fontSize: '13px', color: 'var(--danger-soft)', lineHeight: '1.5' }}>
             This action is <strong>permanent</strong> and cannot be undone. The capture will be removed from all storage locations.
           </span>
         </div>
 
         {/* Action buttons */}
-        <div style={{ display: 'flex', gap: '10px' }}>
+        <div className="dialog-actions cdm-actions">
           <button
             ref={cancelRef}
             className="cdm-cancel-btn"
             onClick={onCancel}
             disabled={loading}
             style={{
-              flex: 1, padding: '12px 16px',
+              padding: '12px 16px',
               background: 'rgba(255,255,255,0.04)',
               border: '1px solid rgba(255,255,255,0.1)',
-              borderRadius: '10px', color: '#94a3b8',
+              borderRadius: '10px', color: 'var(--text-dim)',
               fontSize: '14px', fontWeight: '600', cursor: loading ? 'not-allowed' : 'pointer',
               fontFamily: 'Outfit, sans-serif',
               transition: 'all 0.18s ease',
@@ -169,8 +192,8 @@ export default function ConfirmDeleteModal({
             onClick={onConfirm}
             disabled={loading}
             style={{
-              flex: 1, padding: '12px 16px',
-              background: loading ? 'rgba(239,68,68,0.5)' : '#ef4444',
+              padding: '12px 16px',
+              background: loading ? 'rgba(239,68,68,0.5)' : 'var(--danger)',
               border: 'none',
               borderRadius: '10px', color: 'white',
               fontSize: '14px', fontWeight: '700', cursor: loading ? 'not-allowed' : 'pointer',

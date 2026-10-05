@@ -8,7 +8,7 @@ const WEBHOOK_SECRET = process.env.LS_WEBHOOK_SECRET;
  * Maps a LemonSqueezy variant ID to the internal plan name.
  * We only have one paid plan: 'cloud' (monthly or yearly).
  */
-function getPlanNameFromVariant(variantId) {
+exports.getPlanNameFromVariant = function(variantId) {
   const id = variantId.toString();
   // Same env names the checkout uses (subscriptionController), plus legacy ones
   const cloudVariants = [
@@ -19,8 +19,23 @@ function getPlanNameFromVariant(variantId) {
     'LS_VARIANT_CLOUD_MONTHLY',
     'LS_VARIANT_CLOUD_YEARLY',
   ].map((name) => process.env[name]).filter(Boolean);
-  return cloudVariants.includes(id) ? 'cloud' : 'free';
+
+  const matched = cloudVariants.includes(id);
+  if (!matched) {
+    // Silent bug: a paid subscription fires but the variant ID doesn't match any
+    // configured env var. Plan gets written as 'free' -> user keeps seeing the
+    // upgrade banner even after purchase. Common cause: LEMONSQUEEZY_MODE=live
+    // but only TEST variant IDs are populated (or vice versa).
+    logger.warn('webhook', 'variant-id-not-mapped-to-cloud', {
+      variantId: id,
+      mode: process.env.LEMONSQUEEZY_MODE || 'test',
+      configuredVariants: cloudVariants,
+      consequence: 'Subscription will be written as free plan — user will keep seeing the upgrade banner',
+    });
+  }
+  return matched ? 'cloud' : 'free';
 }
+
 
 exports.handleWebhook = async (req, res) => {
   try {
@@ -46,8 +61,41 @@ exports.handleWebhook = async (req, res) => {
     const attributes = obj.attributes;
     const customData = payload.meta.custom_data;
     const userId     = customData?.user_id;
+    // LemonSqueezy sends no per-event ID (meta.webhook_id is not unique per
+    // event), so dedupe on a hash of the signed body: a retry/resend of the
+    // same delivery is byte-identical, while every distinct event differs.
+    const eventId    = crypto.createHash('sha256').update(req.body).digest('hex');
 
-    logger.info('webhook', 'event-received', { requestId: req.requestId, eventName, userId });
+    logger.info('webhook', 'event-received', { requestId: req.requestId, eventName, userId, eventId });
+
+    // ── 2b. Idempotency Check ────────────────────────────────────────────────
+    if (eventId) {
+      const existing = await prisma.lemonSqueezyEvent.findUnique({
+        where: { lsEventId: eventId.toString() }
+      });
+      if (existing) {
+        logger.info('webhook', 'event-already-processed', { eventId });
+        return res.status(200).send('Already processed');
+      }
+    }
+
+    // ── 2c. Ignore events for a superseded subscription ─────────────────────
+    // A user who bought more than once has several LS subscriptions. Only the
+    // one we currently track may change their access — otherwise e.g. the old
+    // subscription expiring would lock out a user whose new one is active.
+    // subscription_created always wins: it is the newest purchase.
+    const eventSubscriptionId = eventName.startsWith('subscription_payment_')
+      ? attributes.subscription_id?.toString()
+      : obj.id?.toString();
+    if (userId && eventSubscriptionId && eventName !== 'subscription_created') {
+      const tracked = await prisma.lemonSqueezyCustomer.findUnique({ where: { userId } });
+      if (tracked?.lsSubscriptionId && tracked.lsSubscriptionId !== eventSubscriptionId) {
+        logger.info('webhook', 'stale-subscription-event-ignored', {
+          eventName, userId, eventSubscriptionId, trackedSubscriptionId: tracked.lsSubscriptionId,
+        });
+        return res.status(200).send('Ignored: superseded subscription');
+      }
+    }
 
     // ── 3. Route events ──────────────────────────────────────────────────────
     switch (eventName) {
@@ -59,7 +107,7 @@ exports.handleWebhook = async (req, res) => {
         if (!userId) throw new Error('No user_id in custom_data');
 
         const variantId = attributes.variant_id.toString();
-        const planName  = getPlanNameFromVariant(variantId);
+        const planName  = exports.getPlanNameFromVariant(variantId);
         // Fall back to the free plan row so a paid subscription is still
         // recorded (and unlocks cloud) if the 'cloud' row hasn't been created.
         const plan      = await prisma.plan.findUnique({ where: { name: planName } })
@@ -93,7 +141,7 @@ exports.handleWebhook = async (req, res) => {
             planId:              plan.id,
             status:              attributes.status,
             currentPeriodStart:  attributes.created_at ? new Date(attributes.created_at) : undefined,
-            currentPeriodEnd:    attributes.renews_at  ? new Date(attributes.renews_at)  : undefined,
+            currentPeriodEnd:    (attributes.ends_at || attributes.renews_at) ? new Date(attributes.ends_at || attributes.renews_at) : undefined,
             cancelAtPeriodEnd:   attributes.ends_at !== null && attributes.ends_at !== undefined,
             lsCustomerId:        attributes.customer_id.toString(),
           },
@@ -102,7 +150,7 @@ exports.handleWebhook = async (req, res) => {
             planId:              plan.id,
             status:              attributes.status,
             currentPeriodStart:  attributes.created_at ? new Date(attributes.created_at) : undefined,
-            currentPeriodEnd:    attributes.renews_at  ? new Date(attributes.renews_at)  : undefined,
+            currentPeriodEnd:    (attributes.ends_at || attributes.renews_at) ? new Date(attributes.ends_at || attributes.renews_at) : undefined,
             lsCustomerId:        attributes.customer_id.toString(),
           }
         });
@@ -190,18 +238,23 @@ exports.handleWebhook = async (req, res) => {
     }
 
     // ── 4. Log event to DB ───────────────────────────────────────────────────
-    if (userId) {
-      const customer = await prisma.lemonSqueezyCustomer.findUnique({ where: { userId } });
-      if (customer) {
-        await prisma.lemonSqueezyEvent.create({
-          data: {
-            customerId: customer.id,
-            eventName:  eventName,
-            lsEventId:  payload.meta.event_id || `evt_${Date.now()}_${Math.random()}`,
-            payload:    JSON.stringify(payload)
-          }
-        }).catch(() => {}); // ignore duplicate lsEventId (idempotency)
+    if (eventId) {
+      let customerIdStr = null;
+      if (userId) {
+        const customer = await prisma.lemonSqueezyCustomer.findUnique({ where: { userId } });
+        if (customer) customerIdStr = customer.id;
       }
+      
+      await prisma.lemonSqueezyEvent.create({
+        data: {
+          lsEventId:  eventId.toString(),
+          eventName:  eventName,
+          payload:    JSON.stringify(payload),
+          ...(customerIdStr ? { customerId: customerIdStr } : {})
+        }
+      }).catch(err => {
+        logger.error('webhook', 'failed-to-save-event', { eventId, error: err });
+      });
     }
 
     res.status(200).send('OK');

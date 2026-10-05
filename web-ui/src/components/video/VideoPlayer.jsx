@@ -1,5 +1,7 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import VideoControls from './VideoControls.jsx';
+// Touch-size overrides for the player live with the media viewer styles.
+import '../../styles/pages/media-modal.css';
 
 /**
  * VideoPlayer — manages all video playback state.

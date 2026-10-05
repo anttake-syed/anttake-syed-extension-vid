@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { SERVER_URL } from '../config.js';
 import CloudUpgradeBanner from './CloudUpgradeBanner';
+import '../styles/pages/whiteboards.css';
 
 function generateDefaultName() {
   const now = new Date();
@@ -35,13 +36,14 @@ function EmptyPreview() {
   );
 }
 
-function IconBtn({ icon, label, onClick, danger }) {
+function IconBtn({ icon, label, onClick, danger, className }) {
   const [h, setH] = useState(false);
   return (
     <button
       aria-label={label}
       title={label}
       onClick={onClick}
+      className={className ? `wb-icon-btn ${className}` : 'wb-icon-btn'}
       onMouseEnter={() => setH(true)}
       onMouseLeave={() => setH(false)}
       style={{
@@ -120,14 +122,14 @@ function GridCard({ board, onOpen, onRename, onDelete }) {
             style={{ background:'#0a1020', border:'1.5px solid #6366f1', borderRadius:8, color:'#f9fafb',
               padding:'6px 10px', fontSize:14, fontWeight:600, outline:'none', width:'100%', fontFamily:"'Outfit',sans-serif", boxSizing:'border-box' }} />
         ) : (
-          <span title={board.name} style={{ fontSize:15, color:'#f1f5f9', fontWeight:700,
+          <span title={board.name} style={{ fontSize:15, color:'#f1f5f9', fontWeight:700, minWidth:0,
             overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', lineHeight:1.3 }}>
             {board.name}
           </span>
         )}
 
-        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-          <div style={{ display:'flex', flexDirection:'column', gap:2 }}>
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:8 }}>
+          <div style={{ display:'flex', flexDirection:'column', gap:2, minWidth:0 }}>
             <span style={{ fontSize:11, color:'#4b5563', fontWeight:600, textTransform:'uppercase', letterSpacing:'0.07em' }}>Last edited</span>
             <span style={{ fontSize:12, color:'#6b7280' }}>{formatDate(board.updatedAt)}</span>
           </div>
@@ -157,15 +159,15 @@ function ListRow({ board, onOpen, onRename, onDelete }) {
       onMouseLeave={() => setHov(false)}
       onClick={() => !editing && onOpen(board)}
       onKeyDown={e => { if ((e.key === 'Enter' || e.key === ' ') && !editing) { e.preventDefault(); onOpen(board); } }}
+      className="wb-row"
       style={{
-        display:'flex', alignItems:'center', gap:18, padding:'14px 18px',
         borderRadius:14, background: hov ? '#0d1526' : 'transparent',
         cursor:'pointer', transition:'all 0.15s', outline:'none',
         border:`1.5px solid ${hov ? '#1a2540' : 'transparent'}`,
         boxShadow: hov ? '0 4px 20px rgba(0,0,0,0.3)' : 'none',
       }}>
       {/* Thumbnail */}
-      <div style={{ width:96, height:62, borderRadius:10, overflow:'hidden', background:'#070d1a', flexShrink:0, border:'1.5px solid #1a2540' }}>
+      <div className="wb-row-thumb" style={{ borderRadius:10, overflow:'hidden', background:'#070d1a', flexShrink:0, border:'1.5px solid #1a2540' }}>
         {thumb ? <img src={thumb} alt={`Preview of ${board.name}`} style={{ width:'100%', height:'100%', objectFit:'cover' }}/> : <EmptyPreview />}
       </div>
 
@@ -182,7 +184,7 @@ function ListRow({ board, onOpen, onRename, onDelete }) {
         ) : (
           <div title={board.name} style={{ fontSize:15, color:'#f1f5f9', fontWeight:700, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', marginBottom:6 }}>{board.name}</div>
         )}
-        <div style={{ display:'flex', gap:20, flexWrap:'wrap' }}>
+        <div style={{ display:'flex', gap:'4px 20px', flexWrap:'wrap' }}>
           <div>
             <span style={{ fontSize:10, color:'#374151', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.07em', display:'block' }}>Last Edited</span>
             <span style={{ fontSize:12, color:'#6b7280' }}>{formatDate(board.updatedAt)}</span>
@@ -197,10 +199,10 @@ function ListRow({ board, onOpen, onRename, onDelete }) {
       </div>
 
       {/* Actions */}
-      <div style={{ display:'flex', gap:4, opacity: hov ? 1 : 0, transition:'opacity 0.15s' }} onClick={e => e.stopPropagation()}>
+      <div className="wb-row-actions" data-show={hov} onClick={e => e.stopPropagation()}>
         <IconBtn icon="edit" label="Rename board" onClick={e => { e.stopPropagation(); setEditing(true); setDraft(board.name); }} />
         <IconBtn icon="delete" label="Delete board" danger onClick={e => { e.stopPropagation(); onDelete(board.id); }} />
-        <IconBtn icon="arrow_forward" label="Open board" onClick={e => { e.stopPropagation(); onOpen(board); }} />
+        <IconBtn icon="arrow_forward" label="Open board" className="hide-below-sm" onClick={e => { e.stopPropagation(); onOpen(board); }} />
       </div>
     </article>
   );
@@ -294,7 +296,7 @@ export default function Whiteboards({ user, isAuthenticated, onSignIn, onOpenBoa
           display:'flex', alignItems:'center', justifyContent:'center', marginBottom:28, boxShadow:'0 16px 48px rgba(99,102,241,.4)' }}>
           <span aria-hidden="true" className="material-symbols-rounded" style={{ fontSize:42, color:'white' }}>draw</span>
         </div>
-        <h1 style={{ fontSize:32, fontWeight:800, color:'#f9fafb', margin:'0 0 12px', letterSpacing:'-0.5px' }}>AntCapture Whiteboards</h1>
+        <h1 className="wb-hero-title" style={{ fontWeight:800, color:'#f9fafb', margin:'0 0 12px', letterSpacing:'-0.5px' }}>AntCapture Whiteboards</h1>
         <p style={{ color:'#6b7280', fontSize:16, lineHeight:1.75, margin:'0 0 32px', maxWidth:500 }}>
           Draw, diagram and brainstorm — right inside your capture dashboard.
         </p>
@@ -304,7 +306,7 @@ export default function Whiteboards({ user, isAuthenticated, onSignIn, onOpenBoa
               borderRadius:999, padding:'6px 14px', fontSize:13, color:'#9ca3af', fontWeight:500 }}>{l}</span>
           ))}
         </div>
-        <button onClick={onSignIn} style={{ background:'linear-gradient(135deg,#6366f1,#8b5cf6)', color:'white',
+        <button onClick={onSignIn} className="full-below-sm" style={{ background:'linear-gradient(135deg,#6366f1,#8b5cf6)', color:'white',
           border:'none', borderRadius:14, padding:'14px 36px', fontSize:16, fontWeight:700, cursor:'pointer',
           boxShadow:'0 8px 28px rgba(99,102,241,.4)', fontFamily:"'Outfit',sans-serif" }}>
           Sign in to get started
@@ -342,7 +344,7 @@ export default function Whiteboards({ user, isAuthenticated, onSignIn, onOpenBoa
 
       {/* Filters Row */}
       <div role="toolbar" aria-label="Board controls" style={{ display:'flex', alignItems:'center', gap:12, marginBottom:16, flexWrap:'wrap' }}>
-        <div style={{ position:'relative', flex:'1 1 200px', maxWidth:320 }}>
+        <div className="wb-search">
             <label htmlFor="wb-search" style={{ position:'absolute', width:1, height:1, overflow:'hidden', clip:'rect(0,0,0,0)' }}>Search boards</label>
             <span aria-hidden="true" className="material-symbols-rounded" style={{ position:'absolute', left:11, top:'50%', transform:'translateY(-50%)', fontSize:17, color:'#4b5563', pointerEvents:'none' }}>search</span>
             <input
@@ -353,7 +355,7 @@ export default function Whiteboards({ user, isAuthenticated, onSignIn, onOpenBoa
               style={{ width:'100%', background:'#0d1526', border:'1.5px solid #1a2540', borderRadius:11,
                 color:'#e5e7eb', padding:'9px 12px 9px 36px', fontSize:14, outline:'none',
                 fontFamily:"'Outfit',sans-serif", boxSizing:'border-box', transition:'border-color .15s' }}
-              onFocus={e => e.target.style.borderColor='#6366f1'}
+              onFocus={e => e.target.style.borderColor='var(--primary)'}
               onBlur={e => e.target.style.borderColor='#1a2540'} />
           </div>
 
@@ -372,13 +374,13 @@ export default function Whiteboards({ user, isAuthenticated, onSignIn, onOpenBoa
       </div>
 
       {/* Count bar */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-        <span aria-live="polite" style={{ fontSize: '13px', color: '#64748b' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+        <span aria-live="polite" className="break-anywhere" style={{ fontSize: '13px', color: 'var(--text-muted)', minWidth: 0 }}>
           {loading ? 'Loading…' : `${filtered.length} ${filtered.length === 1 ? 'board' : 'boards'}`}
           {search && ` for "${search}"`}
         </span>
         {search && (
-          <button onClick={() => setSearch('')} style={{ background: 'none', border: 'none', color: '#6366f1', fontSize: '13px', cursor: 'pointer', fontWeight: 600 }}>
+          <button onClick={() => setSearch('')} style={{ background: 'none', border: 'none', color: 'var(--primary)', fontSize: '13px', cursor: 'pointer', fontWeight: 600, flexShrink: 0 }}>
             Clear
           </button>
         )}
@@ -394,7 +396,7 @@ export default function Whiteboards({ user, isAuthenticated, onSignIn, onOpenBoa
 
       {/* Content */}
       {loading ? (
-        <div role="status" aria-label="Loading boards" style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(280px,1fr))', gap:22 }}>
+        <div role="status" aria-label="Loading boards" className="wb-grid">
           {[1,2,3,4,5,6].map(i => <SkeletonCard key={i} />)}
         </div>
       ) : boards.length === 0 ? (
@@ -420,7 +422,7 @@ export default function Whiteboards({ user, isAuthenticated, onSignIn, onOpenBoa
              <span aria-hidden="true" className="material-symbols-rounded" style={{ fontSize:32, opacity:.5 }}>search_off</span>
           </div>
           <p style={{ fontSize:16, margin:0, fontWeight: 500, color: '#e2e8f0' }}>No boards found</p>
-          <p style={{ fontSize:14, margin:'4px 0 0', color: '#6b7280' }}>We couldn't find anything matching "<strong style={{ color:'#9ca3af' }}>{search}</strong>"</p>
+          <p className="break-anywhere" style={{ fontSize:14, margin:'4px 0 0', color: '#6b7280' }}>We couldn't find anything matching "<strong style={{ color:'#9ca3af' }}>{search}</strong>"</p>
         </div>
       ) : view === 'list' ? (
         <div role="list" aria-label="Whiteboards" style={{ display:'flex', flexDirection:'column', gap:6,
@@ -428,7 +430,7 @@ export default function Whiteboards({ user, isAuthenticated, onSignIn, onOpenBoa
           {filtered.map(b => <ListRow key={b.id} board={b} onOpen={onOpenBoard} onRename={handleRename} onDelete={handleDelete}/>)}
         </div>
       ) : (
-        <div role="list" aria-label="Whiteboards" style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(280px,1fr))', gap:22 }}>
+        <div role="list" aria-label="Whiteboards" className="wb-grid">
           {filtered.map(b => <GridCard key={b.id} board={b} onOpen={onOpenBoard} onRename={handleRename} onDelete={handleDelete}/>)}
         </div>
       )}
@@ -436,7 +438,7 @@ export default function Whiteboards({ user, isAuthenticated, onSignIn, onOpenBoa
       <style>{`
         @keyframes wb-spin { to { transform:rotate(360deg); } }
         @keyframes wb-pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
-        article[role="button"]:focus-visible { outline: 2px solid #6366f1; outline-offset: 3px; }
+        article[role="button"]:focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; }
         button:focus-visible { outline: 2px solid #6366f1; outline-offset: 2px; }
         input:focus-visible { outline: none; }
       `}</style>

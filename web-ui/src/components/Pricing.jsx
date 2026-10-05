@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { SERVER_URL } from '../config.js';
+import { Page } from './layout/Page.jsx';
+import '../styles/pages/pricing.css';
 
 const GitHubLogoSVG = ({ size = 20, color = '#64748b' }) => (
   <svg viewBox="0 0 16 16" width={size} height={size} fill={color} style={{ flexShrink: 0 }} aria-hidden="true">
@@ -16,7 +18,7 @@ const CLOUD_FEATURES = [
   'Search + fuzzy search',
   'Keyboard shortcuts',
   'Google Drive integration',
-  'Export & sharing'
+  'Download your captures anytime'
 ];
 
 const SELF_HOSTED_FEATURES = [
@@ -34,11 +36,11 @@ const FAQ = [
   },
   {
     q: 'Where is my cloud data stored?',
-    a: 'Cloud plan data is stored securely on our infrastructure via GoBoard Drive. Self-hosted users keep everything on their own servers.',
+    a: 'Cloud plan files are stored with established cloud storage and database providers, served over HTTPS and linked only to your account. Self-hosted users keep everything on their own servers.',
   },
   {
     q: 'What happens if I cancel my Cloud plan?',
-    a: 'You keep access until the end of your billing period. Your data is yours — you can export it at any time.',
+    a: 'You keep access until the end of your billing period. Your data is yours — you can download your captures at any time.',
   },
   {
     q: 'What payment methods are accepted?',
@@ -46,14 +48,17 @@ const FAQ = [
   },
 ];
 
-export default function Pricing({ user, isAuthenticated, onSignIn, paywalled = false }) {
+export default function Pricing({ user, isAuthenticated, onSignIn, paywalled = false, subscription, entitlements, onManageSubscription }) {
   const [billing, setBilling]             = useState('yearly');
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [openFaq, setOpenFaq]             = useState(null);
   const [showContactForm, setShowContactForm] = useState(false);
   const [contactForm, setContactForm]     = useState({ name: '', email: '', message: '' });
   const [contactSent, setContactSent]     = useState(false);
-  const [checkoutError, setCheckoutError] = useState(null); // { message, adminDetail? }
+  const [checkoutError, setCheckoutError] = useState(null);
+
+  // Is this user already subscribed to cloud?
+  const isSubscribed = entitlements?.cloud === true;
 
   const yearlyPrice  = 10;
   const monthlyPrice = 12;
@@ -97,20 +102,14 @@ export default function Pricing({ user, isAuthenticated, onSignIn, paywalled = f
   };
 
   return (
-    <div style={{ maxWidth: '900px', margin: '0 auto', padding: '48px 20px 100px', fontFamily: "'Outfit', sans-serif" }}>
+    <Page className="pricing-page" style={{ fontFamily: "'Outfit', sans-serif" }}>
 
       {/* ── Paywall Notice — only shown when redirected from a locked feature ── */}
       {paywalled && isAuthenticated && (
-        <div style={{
+        <div className="pricing-paywall" style={{
           background: 'linear-gradient(135deg, rgba(99,102,241,0.12), rgba(139,92,246,0.12))',
           border: '1px solid rgba(99,102,241,0.35)',
           borderRadius: '18px',
-          padding: '20px 28px',
-          marginBottom: '36px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '16px',
-          flexWrap: 'wrap',
         }}>
           <div style={{
             width: '44px', height: '44px', borderRadius: '50%', flexShrink: 0,
@@ -118,38 +117,38 @@ export default function Pricing({ user, isAuthenticated, onSignIn, paywalled = f
             border: '1px solid rgba(99,102,241,0.4)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}>
-            <span className="material-symbols-rounded" style={{ fontSize: '22px', color: '#818cf8' }}>lock</span>
+            <span className="material-symbols-rounded" style={{ fontSize: '22px', color: 'var(--primary-soft)' }}>lock</span>
           </div>
-          <div style={{ flex: 1, minWidth: '200px' }}>
+          <div className="pricing-paywall__text">
             <div style={{ fontSize: '15px', fontWeight: 700, color: '#f1f5f9', marginBottom: '3px' }}>
               A subscription is required to use AntCapture Cloud
             </div>
-            <div style={{ fontSize: '13px', color: '#64748b', lineHeight: 1.6 }}>
+            <div style={{ fontSize: '13px', color: 'var(--text-muted)', lineHeight: 1.6 }}>
               Your account is active but you don’t have a plan yet. Choose a plan below to unlock cloud storage, whiteboards, and all premium features.
             </div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.2)', borderRadius: '8px', padding: '6px 14px', flexShrink: 0 }}>
-            <span className="material-symbols-rounded" style={{ fontSize: '14px', color: '#818cf8' }}>account_circle</span>
-            <span style={{ fontSize: '13px', color: '#94a3b8' }}>Signed in as <strong style={{ color: '#c7d2fe' }}>{user?.email}</strong></span>
+          <div className="pricing-paywall__account" style={{ background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.2)', borderRadius: '8px', padding: '6px 14px' }}>
+            <span className="material-symbols-rounded" style={{ fontSize: '14px', color: 'var(--primary-soft)', flexShrink: 0 }}>account_circle</span>
+            <span style={{ fontSize: '13px', color: 'var(--text-dim)', minWidth: 0 }}>Signed in as <strong style={{ color: '#c7d2fe' }}>{user?.email}</strong></span>
           </div>
         </div>
       )}
 
       {/* ── Hero ── */}
-      <div style={{ textAlign: 'center', marginBottom: '44px' }}>
+      <div className="pricing-hero">
         <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: 'rgba(99,102,241,0.12)', border: '1px solid rgba(99,102,241,0.25)', borderRadius: '999px', padding: '5px 16px', marginBottom: '20px' }}>
-          <span className="material-symbols-rounded" style={{ fontSize: '15px', color: '#818cf8' }}>auto_awesome</span>
-          <span style={{ fontSize: '12px', fontWeight: 600, color: '#818cf8', letterSpacing: '0.04em' }}>SIMPLE PRICING</span>
+          <span className="material-symbols-rounded" style={{ fontSize: '15px', color: 'var(--primary-soft)' }}>auto_awesome</span>
+          <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--primary-soft)', letterSpacing: '0.04em' }}>SIMPLE PRICING</span>
         </div>
-        <h1 style={{ fontSize: '40px', fontWeight: 800, color: '#f8fafc', margin: '0 0 14px', lineHeight: 1.15 }}>
+        <h1 className="pricing-hero__title" style={{ fontWeight: 800, color: 'var(--text-main)', margin: '0 0 14px', lineHeight: 1.15 }}>
           One plan. Everything included.
         </h1>
-        <p style={{ fontSize: '16px', color: '#64748b', maxWidth: '420px', margin: '0 auto 36px', lineHeight: 1.7 }}>
+        <p style={{ fontSize: '16px', color: 'var(--text-muted)', maxWidth: '420px', margin: '0 auto 36px', lineHeight: 1.7 }}>
           Get the full AntCapture cloud experience — capture, store, and collaborate from anywhere.
         </p>
 
         {/* Billing toggle — Yearly first */}
-        <div style={{ display: 'inline-flex', background: '#0f172a', padding: '4px', borderRadius: '12px', border: '1px solid #1e293b' }}>
+        <div className="pricing-toggle" style={{ background: 'var(--bg-secondary)', borderRadius: '12px', border: '1px solid #1e293b' }}>
           {[
             { id: 'yearly',  label: 'Yearly',  badge: 'SAVE 17%' },
             { id: 'monthly', label: 'Monthly' },
@@ -157,16 +156,15 @@ export default function Pricing({ user, isAuthenticated, onSignIn, paywalled = f
             <button
               key={id}
               onClick={() => setBilling(id)}
+              className="pricing-toggle__btn"
               style={{
-                padding: '9px 26px',
-                background: billing === id ? '#1e293b' : 'transparent',
-                color: billing === id ? 'white' : '#64748b',
+                background: billing === id ? 'var(--bg-tertiary)' : 'transparent',
+                color: billing === id ? 'white' : 'var(--text-muted)',
                 border: 'none', borderRadius: '8px',
                 fontWeight: 600, cursor: 'pointer',
                 transition: 'all 0.2s',
                 boxShadow: billing === id ? '0 2px 8px rgba(0,0,0,0.35)' : 'none',
                 fontFamily: "'Outfit', sans-serif", fontSize: '14px',
-                display: 'flex', alignItems: 'center', gap: '8px',
               }}
             >
               {label}
@@ -181,85 +179,152 @@ export default function Pricing({ user, isAuthenticated, onSignIn, paywalled = f
       </div>
 
       {/* ── Plan Cards Grid ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '22px', marginBottom: '72px', alignItems: 'start' }}>
+      <div className="pricing-plans">
 
         {/* Cloud Plan */}
-        <div style={{
+        <div className="pricing-card" style={{
           background: 'linear-gradient(160deg, #1a2347 0%, #0f172a 100%)',
           border: '1px solid #6366f1',
-          borderRadius: '22px', padding: '36px',
           position: 'relative',
           boxShadow: '0 24px 60px rgba(99,102,241,0.2)',
-          display: 'flex', flexDirection: 'column',
         }}>
-          {/* Best value badge */}
-          <div style={{
-            position: 'absolute', top: '-14px', left: '50%',
-            transform: 'translateX(-50%)',
-            background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+          {/* Best value / current plan badge */}
+          <div className="pricing-card__badge" style={{
+            background: isSubscribed
+              ? 'linear-gradient(135deg, #059669, #10b981)'
+              : 'linear-gradient(135deg, #6366f1, #8b5cf6)',
             color: 'white', padding: '5px 20px', borderRadius: '999px',
             fontSize: '11px', fontWeight: 700, letterSpacing: '0.07em',
-            boxShadow: '0 4px 14px rgba(99,102,241,0.4)', whiteSpace: 'nowrap',
+            boxShadow: isSubscribed
+              ? '0 4px 14px rgba(16,185,129,0.4)'
+              : '0 4px 14px rgba(99,102,241,0.4)',
           }}>
-            ✦ BEST VALUE — MOST POPULAR
+            {isSubscribed ? '✓ YOUR CURRENT PLAN' : '✦ BEST VALUE — MOST POPULAR'}
           </div>
 
           {/* Header */}
           <div style={{ marginBottom: '6px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
-              <span className="material-symbols-rounded" style={{ fontSize: '22px', color: '#818cf8' }}>cloud</span>
-              <h2 style={{ fontSize: '22px', fontWeight: 700, color: '#818cf8', margin: 0 }}>Cloud</h2>
+              <span className="material-symbols-rounded" style={{ fontSize: '22px', color: 'var(--primary-soft)' }}>cloud</span>
+              <h2 style={{ fontSize: '22px', fontWeight: 700, color: 'var(--primary-soft)', margin: 0 }}>Cloud</h2>
             </div>
-            <p style={{ fontSize: '13px', color: '#64748b', margin: 0, lineHeight: 1.5 }}>
+            <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: 0, lineHeight: 1.5 }}>
               Full-featured cloud storage, capture &amp; collaboration.
             </p>
           </div>
 
-          {/* Price */}
-          <div style={{ margin: '22px 0 4px' }}>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px' }}>
-              <span style={{ fontSize: '52px', fontWeight: 800, color: 'white', lineHeight: 1 }}>${price}</span>
-              <span style={{ color: '#475569', fontWeight: 500, fontSize: '16px' }}>/mo</span>
+          {/* Price or subscription status */}
+          {isSubscribed ? (
+            <div style={{ margin: '22px 0 4px' }}>
+              {/* Status badge */}
+              <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+                <span className="material-symbols-rounded" style={{ fontSize: '20px', color: '#10b981' }}>verified</span>
+                <span style={{ fontSize: '18px', fontWeight: 700, color: '#10b981' }}>Active</span>
+                {entitlements?.cancelAtPeriodEnd && (
+                  <span style={{ fontSize: '11px', background: 'rgba(234,179,8,0.12)', color: '#fbbf24', border: '1px solid rgba(234,179,8,0.25)', borderRadius: '6px', padding: '2px 8px', fontWeight: 600 }}>
+                    Cancels at period end
+                  </span>
+                )}
+              </div>
+              {/* Renewal / expiry line */}
+              {entitlements?.currentPeriodEnd && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span className="material-symbols-rounded" style={{ fontSize: '14px', color: 'var(--text-faint)' }}>
+                    {entitlements.cancelAtPeriodEnd ? 'calendar_today' : 'autorenew'}
+                  </span>
+                  <p style={{ fontSize: '13px', color: 'var(--text-faint)', margin: 0 }}>
+                    {entitlements.cancelAtPeriodEnd ? 'Access until ' : 'Renews '}
+                    <strong style={{ color: 'var(--text-muted)' }}>
+                      {new Date(entitlements.currentPeriodEnd).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                    </strong>
+                  </p>
+                </div>
+              )}
             </div>
-            <p style={{ fontSize: '13px', color: '#475569', margin: '6px 0 0', fontWeight: 400 }}>
-              {billing === 'yearly' ? 'Billed annually' : 'Billed monthly'}
-            </p>
-          </div>
+          ) : (
+            <div style={{ margin: '22px 0 4px' }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px' }}>
+                <span style={{ fontSize: '52px', fontWeight: 800, color: 'white', lineHeight: 1 }}>${price}</span>
+                <span style={{ color: 'var(--text-faint)', fontWeight: 500, fontSize: '16px' }}>/mo</span>
+              </div>
+              <p style={{ fontSize: '13px', color: 'var(--text-faint)', margin: '6px 0 0', fontWeight: 400 }}>
+                {billing === 'yearly' ? 'Billed annually' : 'Billed monthly'}
+              </p>
+            </div>
+          )}
 
           {/* CTA */}
-          <button
-            onClick={handleSubscribe}
-            disabled={checkoutLoading}
-            style={{
-              width: '100%', padding: '14px',
-              borderRadius: '12px', border: 'none',
-              background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-              color: 'white', fontSize: '15px', fontWeight: 700,
-              cursor: checkoutLoading ? 'default' : 'pointer',
-              margin: '24px 0 28px',
-              fontFamily: "'Outfit', sans-serif",
-              boxShadow: '0 8px 24px rgba(99,102,241,0.35)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
-              transition: 'all 0.2s',
-            }}
-            onMouseEnter={e => { if (!checkoutLoading) e.currentTarget.style.filter = 'brightness(1.1)'; }}
-            onMouseLeave={e => { e.currentTarget.style.filter = 'none'; }}
-          >
-            {checkoutLoading ? (
-              <>
-                <div style={{ width: '16px', height: '16px', border: '2px solid rgba(255,255,255,0.3)', borderTop: '2px solid white', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />
-                Processing…
-              </>
-            ) : (
-              <>
-                <span className="material-symbols-rounded" style={{ fontSize: '18px' }}>bolt</span>
-                Get Cloud
-              </>
-            )}
-          </button>
+          {isSubscribed ? (
+            // Subscribed state: two calm options, no pushy cancel button here
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', margin: '20px 0 28px' }}>
+              <button
+                onClick={onManageSubscription}
+                style={{
+                  width: '100%', padding: '13px',
+                  borderRadius: '10px', border: '1px solid rgba(16,185,129,0.35)',
+                  background: 'rgba(16,185,129,0.08)',
+                  color: '#10b981', fontSize: '14px', fontWeight: 700,
+                  cursor: 'pointer',
+                  fontFamily: "'Outfit', sans-serif",
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                  transition: 'all 0.2s',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(16,185,129,0.15)'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'rgba(16,185,129,0.08)'; }}
+              >
+                <span className="material-symbols-rounded" style={{ fontSize: '17px' }}>manage_accounts</span>
+                Manage subscription
+              </button>
+              {/* Subtle text link for cancel — keeps it professional, not aggressive */}
+              <p style={{ textAlign: 'center', margin: 0, fontSize: '12px', color: '#334155' }}>
+                Need to cancel?{' '}
+                <button
+                  onClick={onManageSubscription}
+                  style={{
+                    background: 'none', border: 'none', padding: 0, cursor: 'pointer',
+                    color: 'var(--text-faint)', fontSize: '12px', textDecoration: 'underline',
+                    fontFamily: "'Outfit', sans-serif",
+                  }}
+                >
+                  Go to subscription settings
+                </button>
+              </p>
+            </div>
+          ) : (
+            <button
+              onClick={handleSubscribe}
+              disabled={checkoutLoading}
+              style={{
+                width: '100%', padding: '14px',
+                borderRadius: '12px', border: 'none',
+                background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                color: 'white', fontSize: '15px', fontWeight: 700,
+                cursor: checkoutLoading ? 'default' : 'pointer',
+                margin: '24px 0 28px',
+                fontFamily: "'Outfit', sans-serif",
+                boxShadow: '0 8px 24px rgba(99,102,241,0.35)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                transition: 'all 0.2s',
+              }}
+              onMouseEnter={e => { if (!checkoutLoading) e.currentTarget.style.filter = 'brightness(1.1)'; }}
+              onMouseLeave={e => { e.currentTarget.style.filter = 'none'; }}
+            >
+              {checkoutLoading ? (
+                <>
+                  <div style={{ width: '16px', height: '16px', border: '2px solid rgba(255,255,255,0.3)', borderTop: '2px solid white', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />
+                  Processing…
+                </>
+              ) : (
+                <>
+                  <span className="material-symbols-rounded" style={{ fontSize: '18px' }}>bolt</span>
+                  Get Cloud
+                </>
+              )}
+            </button>
+          )}
 
           {checkoutError && (
-            <div style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)', borderRadius: '10px', padding: '12px 14px', margin: '-16px 0 20px', fontSize: '13px', color: '#fca5a5' }}>
+            <div style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)', borderRadius: '10px', padding: '12px 14px', margin: '-16px 0 20px', fontSize: '13px', color: 'var(--danger-soft)' }}>
               <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
                 <span className="material-symbols-rounded" style={{ fontSize: '16px', marginTop: '1px', flexShrink: 0 }}>error</span>
                 <span>{checkoutError.message}</span>
@@ -287,22 +352,20 @@ export default function Pricing({ user, isAuthenticated, onSignIn, paywalled = f
         </div>
 
         {/* Custom Plan */}
-        <div style={{
+        <div className="pricing-card" style={{
           background: '#131c30',
           border: '1px solid #2d3a50',
-          borderRadius: '22px', padding: '36px',
-          display: 'flex', flexDirection: 'column',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
-            <span className="material-symbols-rounded" style={{ fontSize: '22px', color: '#94a3b8' }}>corporate_fare</span>
-            <h2 style={{ fontSize: '22px', fontWeight: 700, color: '#f8fafc', margin: 0 }}>Custom</h2>
+            <span className="material-symbols-rounded" style={{ fontSize: '22px', color: 'var(--text-dim)' }}>corporate_fare</span>
+            <h2 style={{ fontSize: '22px', fontWeight: 700, color: 'var(--text-main)', margin: 0 }}>Custom</h2>
           </div>
-          <p style={{ fontSize: '13px', color: '#64748b', margin: '0 0 24px', lineHeight: 1.6 }}>
+          <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: '0 0 24px', lineHeight: 1.6 }}>
             For large storage, specialized requirements, future teams, business requirements, etc.
           </p>
 
           <div style={{ margin: '0 0 24px' }}>
-            <span style={{ fontSize: '32px', fontWeight: 800, color: '#94a3b8' }}>Contact us</span>
+            <span style={{ fontSize: '32px', fontWeight: 800, color: 'var(--text-dim)' }}>Contact us</span>
           </div>
 
           <button
@@ -310,15 +373,15 @@ export default function Pricing({ user, isAuthenticated, onSignIn, paywalled = f
             style={{
               width: '100%', padding: '14px',
               borderRadius: '12px', border: '1px solid #2d3a50',
-              background: '#1e293b',
+              background: 'var(--bg-tertiary)',
               color: '#e2e8f0', fontSize: '15px', fontWeight: 700,
               cursor: 'pointer', marginBottom: '28px',
               fontFamily: "'Outfit', sans-serif",
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
               transition: 'all 0.2s',
             }}
-            onMouseEnter={e => { e.currentTarget.style.background = '#273044'; e.currentTarget.style.borderColor = '#475569'; }}
-            onMouseLeave={e => { e.currentTarget.style.background = '#1e293b'; e.currentTarget.style.borderColor = '#2d3a50'; }}
+            onMouseEnter={e => { e.currentTarget.style.background = '#273044'; e.currentTarget.style.borderColor = 'var(--text-faint)'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'var(--bg-tertiary)'; e.currentTarget.style.borderColor = '#2d3a50'; }}
           >
             <span className="material-symbols-rounded" style={{ fontSize: '18px' }}>mail</span>
             Contact Us
@@ -337,8 +400,8 @@ export default function Pricing({ user, isAuthenticated, onSignIn, paywalled = f
               'Everything in Cloud',
             ].map((f, i) => (
               <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <span className="material-symbols-rounded" style={{ fontSize: '17px', color: '#6366f1', flexShrink: 0 }}>check_circle</span>
-                <span style={{ fontSize: '13px', color: '#94a3b8', lineHeight: 1.5 }}>{f}</span>
+                <span className="material-symbols-rounded" style={{ fontSize: '17px', color: 'var(--primary)', flexShrink: 0 }}>check_circle</span>
+                <span style={{ fontSize: '13px', color: 'var(--text-dim)', lineHeight: 1.5 }}>{f}</span>
               </div>
             ))}
           </div>
@@ -346,31 +409,28 @@ export default function Pricing({ user, isAuthenticated, onSignIn, paywalled = f
       </div>
 
       {/* ── Self-Hosted Banner ── */}
-      <div style={{
+      <div className="pricing-selfhost" style={{
         background: '#0d1525',
         border: '1px solid #1e2d45',
-        borderRadius: '18px', padding: '28px 32px',
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        gap: '24px', flexWrap: 'wrap',
-        marginBottom: '72px',
+        borderRadius: '18px',
       }}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px' }}>
+        <div className="pricing-selfhost__body">
           <div style={{ background: 'rgba(51,65,85,0.6)', borderRadius: '12px', padding: '10px', flexShrink: 0 }}>
             <GitHubLogoSVG size={24} color="#64748b" />
           </div>
-          <div>
+          <div className="min-w-0">
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
               <h3 style={{ fontSize: '17px', fontWeight: 700, color: '#e2e8f0', margin: 0 }}>Self-Hosted</h3>
             </div>
-            <p style={{ fontSize: '13px', color: '#475569', margin: '0 0 10px', lineHeight: 1.6, maxWidth: '500px' }}>
+            <p style={{ fontSize: '13px', color: 'var(--text-faint)', margin: '0 0 10px', lineHeight: 1.6, maxWidth: '500px' }}>
               Free open-source version. Run AntCapture on your own infrastructure — your server, your storage, your control. No subscription needed.
             </p>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
               {SELF_HOSTED_FEATURES.map((f, i) => (
                 <span key={i} style={{ 
                   fontSize: '11px', 
-                  color: f.highlight ? '#f8fafc' : '#94a3b8', 
-                  background: f.highlight ? 'rgba(99,102,241,0.15)' : '#1e293b', 
+                  color: f.highlight ? 'var(--text-main)' : 'var(--text-dim)', 
+                  background: f.highlight ? 'rgba(99,102,241,0.15)' : 'var(--bg-tertiary)', 
                   border: f.highlight ? '1px solid rgba(99,102,241,0.3)' : '1px solid #2d3a50', 
                   borderRadius: '6px', 
                   padding: '3px 10px',
@@ -386,16 +446,16 @@ export default function Pricing({ user, isAuthenticated, onSignIn, paywalled = f
           href="https://github.com/anttake-syed/anttake-syed-extension-vid"
           target="_blank"
           rel="noopener noreferrer"
+          className="pricing-selfhost__link"
           style={{
-            display: 'flex', alignItems: 'center', gap: '8px',
             padding: '11px 22px', borderRadius: '10px',
-            border: '1px solid #2d3a50', background: '#1e293b',
-            color: '#94a3b8', textDecoration: 'none',
+            border: '1px solid #2d3a50', background: 'var(--bg-tertiary)',
+            color: 'var(--text-dim)', textDecoration: 'none',
             fontSize: '13px', fontWeight: 600,
-            transition: 'all 0.2s', whiteSpace: 'nowrap', flexShrink: 0,
+            transition: 'all 0.2s',
           }}
-          onMouseEnter={e => { e.currentTarget.style.borderColor = '#475569'; e.currentTarget.style.color = '#e2e8f0'; }}
-          onMouseLeave={e => { e.currentTarget.style.borderColor = '#2d3a50'; e.currentTarget.style.color = '#94a3b8'; }}
+          onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--text-faint)'; e.currentTarget.style.color = '#e2e8f0'; }}
+          onMouseLeave={e => { e.currentTarget.style.borderColor = '#2d3a50'; e.currentTarget.style.color = 'var(--text-dim)'; }}
         >
           <GitHubLogoSVG size={16} color="currentColor" />
           View on GitHub
@@ -404,15 +464,16 @@ export default function Pricing({ user, isAuthenticated, onSignIn, paywalled = f
       </div>
 
       {/* ── FAQ ── */}
-      <div style={{ marginBottom: '72px' }}>
-        <h2 style={{ fontSize: '22px', fontWeight: 700, color: '#f8fafc', textAlign: 'center', marginBottom: '28px' }}>
+      <div className="pricing-faq">
+        <h2 style={{ fontSize: '22px', fontWeight: 700, color: 'var(--text-main)', textAlign: 'center', marginBottom: '28px' }}>
           Questions &amp; Answers
         </h2>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxWidth: '660px', margin: '0 auto' }}>
           {FAQ.map((item, i) => (
-            <div key={i} style={{ background: '#1e293b', border: '1px solid #2d3a50', borderRadius: '14px', overflow: 'hidden' }}>
+            <div key={i} style={{ background: 'var(--bg-tertiary)', border: '1px solid #2d3a50', borderRadius: '14px', overflow: 'hidden' }}>
               <button
                 onClick={() => setOpenFaq(openFaq === i ? null : i)}
+                className="pricing-faq__q"
                 style={{
                   width: '100%', padding: '16px 20px', background: 'none', border: 'none',
                   color: '#e2e8f0', fontSize: '14px', fontWeight: 600, cursor: 'pointer',
@@ -421,13 +482,13 @@ export default function Pricing({ user, isAuthenticated, onSignIn, paywalled = f
                 }}
               >
                 {item.q}
-                <span className="material-symbols-rounded" style={{ fontSize: '20px', color: '#475569', flexShrink: 0, transition: 'transform 0.3s ease', transform: openFaq === i ? 'rotate(180deg)' : 'none' }}>
+                <span className="material-symbols-rounded" style={{ fontSize: '20px', color: 'var(--text-faint)', flexShrink: 0, transition: 'transform 0.3s ease', transform: openFaq === i ? 'rotate(180deg)' : 'none' }}>
                   expand_more
                 </span>
               </button>
               <div style={{ display: 'grid', gridTemplateRows: openFaq === i ? '1fr' : '0fr', transition: 'grid-template-rows 0.3s ease' }}>
                 <div style={{ overflow: 'hidden' }}>
-                  <div style={{ padding: '0 20px 16px', color: '#64748b', fontSize: '14px', lineHeight: 1.7 }}>
+                  <div style={{ padding: '0 20px 16px', color: 'var(--text-muted)', fontSize: '14px', lineHeight: 1.7 }}>
                     {item.a}
                   </div>
                 </div>
@@ -441,38 +502,37 @@ export default function Pricing({ user, isAuthenticated, onSignIn, paywalled = f
       {showContactForm && (
         <div
           onClick={() => { setShowContactForm(false); setContactSent(false); }}
+          className="pricing-modal-overlay"
           style={{
-            position: 'fixed', inset: 0,
             background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(6px)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            zIndex: 9999, padding: '20px',
+            zIndex: 9999,
           }}
         >
           <div
             onClick={e => e.stopPropagation()}
+            className="pricing-modal"
             style={{
               background: '#111827', border: '1px solid #1e293b',
-              borderRadius: '20px', padding: '36px',
-              width: '100%', maxWidth: '480px',
+              borderRadius: '20px',
               boxShadow: '0 32px 64px rgba(0,0,0,0.5)',
             }}
           >
             {contactSent ? (
               <div style={{ textAlign: 'center', padding: '20px 0' }}>
                 <span className="material-symbols-rounded" style={{ fontSize: '48px', color: '#10b981', display: 'block', marginBottom: '16px' }}>check_circle</span>
-                <h3 style={{ color: '#f8fafc', fontWeight: 700, fontSize: '20px', margin: '0 0 8px' }}>Message sent!</h3>
-                <p style={{ color: '#64748b', fontSize: '14px', margin: '0 0 24px' }}>We'll get back to you within 1 business day.</p>
-                <button onClick={() => { setShowContactForm(false); setContactSent(false); }} style={{ padding: '10px 28px', background: '#1e293b', border: '1px solid #2d3a50', borderRadius: '10px', color: '#e2e8f0', cursor: 'pointer', fontFamily: "'Outfit', sans-serif", fontWeight: 600 }}>Close</button>
+                <h3 style={{ color: 'var(--text-main)', fontWeight: 700, fontSize: '20px', margin: '0 0 8px' }}>Message sent!</h3>
+                <p style={{ color: 'var(--text-muted)', fontSize: '14px', margin: '0 0 24px' }}>We'll get back to you within 1 business day.</p>
+                <button onClick={() => { setShowContactForm(false); setContactSent(false); }} style={{ padding: '10px 28px', background: 'var(--bg-tertiary)', border: '1px solid #2d3a50', borderRadius: '10px', color: '#e2e8f0', cursor: 'pointer', fontFamily: "'Outfit', sans-serif", fontWeight: 600 }}>Close</button>
               </div>
             ) : (
               <>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
-                  <h3 style={{ color: '#f8fafc', fontWeight: 700, fontSize: '20px', margin: 0 }}>Contact Us — Custom Plan</h3>
-                  <button onClick={() => setShowContactForm(false)} style={{ background: 'none', border: 'none', color: '#475569', cursor: 'pointer', padding: '4px' }}>
+                <div className="pricing-modal__head">
+                  <h3 style={{ color: 'var(--text-main)', fontWeight: 700, fontSize: '20px', margin: 0 }}>Contact Us — Custom Plan</h3>
+                  <button onClick={() => setShowContactForm(false)} className="pricing-icon-btn" style={{ background: 'none', border: 'none', color: 'var(--text-faint)', cursor: 'pointer' }}>
                     <span className="material-symbols-rounded" style={{ fontSize: '22px' }}>close</span>
                   </button>
                 </div>
-                <p style={{ color: '#64748b', fontSize: '13px', margin: '0 0 24px', lineHeight: 1.6 }}>
+                <p style={{ color: 'var(--text-muted)', fontSize: '13px', margin: '0 0 24px', lineHeight: 1.6 }}>
                   Tell us about your storage, team size, or any custom requirement — we'll build a plan around you.
                 </p>
                 <form onSubmit={handleContactSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
@@ -481,24 +541,26 @@ export default function Pricing({ user, isAuthenticated, onSignIn, paywalled = f
                     { label: 'Email', key: 'email', type: 'email', placeholder: 'you@company.com' },
                   ].map(({ label, key, type, placeholder }) => (
                     <div key={key}>
-                      <label style={{ fontSize: '12px', fontWeight: 600, color: '#64748b', display: 'block', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</label>
+                      <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</label>
                       <input
                         type={type} required
                         placeholder={placeholder}
                         value={contactForm[key]}
                         onChange={e => setContactForm(p => ({ ...p, [key]: e.target.value }))}
-                        style={{ width: '100%', padding: '11px 14px', background: '#1e293b', border: '1px solid #2d3a50', borderRadius: '10px', color: '#f8fafc', fontSize: '14px', fontFamily: "'Outfit', sans-serif", outline: 'none', boxSizing: 'border-box' }}
+                        className="pricing-input"
+                        style={{ width: '100%', padding: '11px 14px', background: 'var(--bg-tertiary)', border: '1px solid #2d3a50', borderRadius: '10px', color: 'var(--text-main)', fontFamily: "'Outfit', sans-serif", outline: 'none', boxSizing: 'border-box' }}
                       />
                     </div>
                   ))}
                   <div>
-                    <label style={{ fontSize: '12px', fontWeight: 600, color: '#64748b', display: 'block', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>What do you need?</label>
+                    <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>What do you need?</label>
                     <textarea
                       required rows={4}
                       placeholder="Describe your storage needs, team size, or any custom requirements…"
                       value={contactForm.message}
                       onChange={e => setContactForm(p => ({ ...p, message: e.target.value }))}
-                      style={{ width: '100%', padding: '11px 14px', background: '#1e293b', border: '1px solid #2d3a50', borderRadius: '10px', color: '#f8fafc', fontSize: '14px', fontFamily: "'Outfit', sans-serif", outline: 'none', resize: 'vertical', boxSizing: 'border-box' }}
+                      className="pricing-input"
+                      style={{ width: '100%', padding: '11px 14px', background: 'var(--bg-tertiary)', border: '1px solid #2d3a50', borderRadius: '10px', color: 'var(--text-main)', fontFamily: "'Outfit', sans-serif", outline: 'none', resize: 'vertical', boxSizing: 'border-box' }}
                     />
                   </div>
                   <button
@@ -515,6 +577,6 @@ export default function Pricing({ user, isAuthenticated, onSignIn, paywalled = f
       )}
 
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-    </div>
+    </Page>
   );
 }

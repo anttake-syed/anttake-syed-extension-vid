@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { parseStorageState, parseDriveState } from '../services/storage/StorageService';
 import StorageUsageCard from './storage/StorageUsageCard';
 import StorageUsageBar from './storage/StorageUsageBar';
 import { DriveLogoSVG, AntCaptureCloudLogoSVG } from './icons/StorageIcons.jsx';
+import { Page, Grid } from './layout/Page.jsx';
+import '../styles/pages/dashboard.css';
 
 // Update this once the extension is approved on the Chrome Web Store
 const CHROME_STORE_URL = '#';
@@ -15,20 +17,10 @@ function GetExtensionBanner() {
   ];
 
   return (
-    <div style={{
-      background: 'linear-gradient(135deg, rgba(99,102,241,0.07) 0%, rgba(168,85,247,0.07) 100%)',
-      border: '1px solid rgba(99,102,241,0.2)',
-      borderRadius: '20px',
-      padding: '32px',
-      marginBottom: '24px',
-      display: 'flex',
-      gap: '32px',
-      alignItems: 'center',
-      flexWrap: 'wrap',
-    }}>
+    <div className="dash-ext">
       {/* Left: icon + text */}
-      <div style={{ flex: 1, minWidth: '260px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '14px' }}>
+      <div className="dash-ext__body">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '14px', minWidth: 0 }}>
           <div style={{ width: '44px', height: '44px', borderRadius: '12px', background: 'rgba(99,102,241,0.15)', border: '1px solid rgba(99,102,241,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
             <span className="material-symbols-rounded" style={{ fontSize: '24px', color: '#818cf8' }}>extension</span>
           </div>
@@ -56,22 +48,12 @@ function GetExtensionBanner() {
       </div>
 
       {/* Right: CTA */}
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
+      <div className="dash-ext__cta">
         <a
           href={CHROME_STORE_URL}
           target="_blank"
           rel="noopener noreferrer"
-          style={{
-            display: 'flex', alignItems: 'center', gap: '10px',
-            background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-            color: 'white', borderRadius: '12px', padding: '14px 24px',
-            fontWeight: 700, fontSize: '15px', textDecoration: 'none',
-            boxShadow: '0 4px 24px rgba(99,102,241,0.35)',
-            transition: 'opacity 0.15s, transform 0.15s',
-            whiteSpace: 'nowrap',
-          }}
-          onMouseEnter={e => { e.currentTarget.style.opacity = '0.9'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
-          onMouseLeave={e => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.transform = 'translateY(0)'; }}
+          className="dash-ext__btn"
         >
           <svg width="20" height="20" viewBox="0 0 48 48" style={{ flexShrink: 0 }}>
             <circle cx="24" cy="24" r="10" fill="white"/>
@@ -185,14 +167,7 @@ function MediaThumb({ item, onOpen }) {
   return (
     <div
       onClick={() => onOpen(item)}
-      style={{
-        borderRadius: '12px', overflow: 'hidden', background: '#1e293b',
-        border: '1px solid #334155', cursor: 'pointer', position: 'relative',
-        transition: 'transform 0.15s, box-shadow 0.15s',
-        aspectRatio: '16/10',
-      }}
-      onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.03)'; e.currentTarget.style.boxShadow = '0 8px 24px rgba(99,102,241,0.2)'; }}
-      onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = 'none'; }}
+      className="dash-thumb"
     >
       {item.storageLocation === 'drive' ? (
         <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
@@ -250,10 +225,7 @@ function MediaThumb({ item, onOpen }) {
       </div>
 
       {/* Hover overlay */}
-      <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0)', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background 0.15s' }}
-        onMouseEnter={e => e.currentTarget.style.background = 'rgba(0,0,0,0.4)'}
-        onMouseLeave={e => e.currentTarget.style.background = 'rgba(0,0,0,0)'}
-      >
+      <div className="dash-thumb__shade">
         <span className="material-symbols-rounded" style={{ fontSize: '32px', color: 'white', opacity: 0 }}>play_circle</span>
       </div>
 
@@ -268,6 +240,28 @@ function MediaThumb({ item, onOpen }) {
 export default function Dashboard({ isAuthenticated, isLocalMode, hasCloudAccess, subscription, stats, captures, loadingCaptures, dbStats, onSignIn, onOpenMedia, onGoToLibrary, onGoToPricing }) {
   const recentCaptures = captures.slice(0, 6);
 
+  // ── Smooth banner enter/exit animation ──────────────────────────────────────
+  // showBanner drives DOM presence; isExiting triggers the exit animation.
+  const [showBanner, setShowBanner]   = useState(isAuthenticated && !isLocalMode && !hasCloudAccess);
+  const [isExiting, setIsExiting]     = useState(false);
+  const prevCloudAccess               = useRef(hasCloudAccess);
+
+  useEffect(() => {
+    const hadAccess  = prevCloudAccess.current;
+    const nowHasIt   = hasCloudAccess;
+    prevCloudAccess.current = nowHasIt;
+
+    if (!hadAccess && nowHasIt && showBanner) {
+      // Access just granted — play exit animation then remove from DOM
+      setIsExiting(true);
+      const t = setTimeout(() => { setShowBanner(false); setIsExiting(false); }, 420);
+      return () => clearTimeout(t);
+    }
+    if (!nowHasIt && isAuthenticated && !isLocalMode) {
+      setShowBanner(true);
+    }
+  }, [hasCloudAccess, isAuthenticated, isLocalMode]);
+
   const greetingHour = new Date().getHours();
   const greeting = greetingHour < 12 ? 'Good morning' : greetingHour < 17 ? 'Good afternoon' : 'Good evening';
 
@@ -276,15 +270,15 @@ export default function Dashboard({ isAuthenticated, isLocalMode, hasCloudAccess
   const driveStorageState = parseDriveState(dbStats);
 
   return (
-    <>
+    <Page className="dash">
       {/* ── Welcome Hero ── */}
       {isAuthenticated ? (
-        <div style={{ background: 'linear-gradient(135deg, rgba(99,102,241,0.08) 0%, rgba(168,85,247,0.08) 100%)', border: '1px solid rgba(99,102,241,0.15)', borderRadius: '16px', padding: '28px 32px', marginBottom: '28px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '24px', flexWrap: 'wrap' }}>
-          <div>
+        <div className="dash-hero dash-spaced">
+          <div className="dash-hero__text">
             <div style={{ fontSize: '13px', color: '#818cf8', fontWeight: 600, letterSpacing: '0.05em', marginBottom: '6px', textTransform: 'uppercase' }}>
               {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
             </div>
-            <h2 style={{ margin: 0, fontSize: '26px', fontWeight: 700, color: '#f8fafc', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <h2 className="dash-hero__title">
               {greeting} <span className="material-symbols-rounded" style={{ fontSize: '28px', color: '#f59e0b' }}>waving_hand</span>
             </h2>
             <p style={{ margin: '6px 0 0', color: '#94a3b8', fontSize: '14px' }}>
@@ -293,8 +287,8 @@ export default function Dashboard({ isAuthenticated, isLocalMode, hasCloudAccess
                 : `You have ${captures.length} capture${captures.length !== 1 ? 's' : ''} in your library.`}
             </p>
           </div>
-          <div style={{ display: 'flex', gap: '12px' }}>
-            <a href="javascript:void(0)" onClick={onGoToLibrary} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(99,102,241,0.15)', border: '1px solid rgba(99,102,241,0.3)', color: '#a5b4fc', borderRadius: '10px', padding: '10px 18px', fontSize: '13px', fontWeight: 600, textDecoration: 'none', cursor: 'pointer' }}>
+          <div className="dash-hero__actions">
+            <a href="javascript:void(0)" onClick={onGoToLibrary} className="dash-hero__link">
               <span className="material-symbols-rounded" style={{ fontSize: '18px' }}>photo_library</span> View Library
             </a>
           </div>
@@ -334,25 +328,19 @@ export default function Dashboard({ isAuthenticated, isLocalMode, hasCloudAccess
       </section>
 
       {/* ── Cloud Upsell Banner — only for logged-in users without a subscription ── */}
-      {isAuthenticated && !isLocalMode && !hasCloudAccess && (
-        <div style={{
-          background: 'linear-gradient(135deg, rgba(99,102,241,0.1) 0%, rgba(139,92,246,0.1) 100%)',
-          border: '1px solid rgba(99,102,241,0.25)',
-          borderRadius: '20px',
-          padding: '28px 32px',
-          marginBottom: '28px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: '24px',
-          flexWrap: 'wrap',
-          position: 'relative',
-          overflow: 'hidden',
+      {showBanner && (
+        <div className="upsell-banner" style={{
+          ...(isExiting && { marginBottom: '0' }),
+          // Enter uses `backwards` fill so the keyframes' max-height cap doesn't
+          // stay applied afterwards and clip the (taller) stacked phone layout.
+          animation: isExiting
+            ? 'bannerExit 0.4s ease forwards'
+            : 'bannerEnter 0.35s ease backwards',
         }}>
           {/* Decorative glow */}
           <div style={{ position: 'absolute', top: '-40px', right: '-40px', width: '180px', height: '180px', background: 'radial-gradient(circle, rgba(99,102,241,0.15) 0%, transparent 70%)', pointerEvents: 'none' }} />
 
-          <div style={{ flex: 1, minWidth: '260px' }}>
+          <div className="upsell-banner__body">
             <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'rgba(99,102,241,0.15)', border: '1px solid rgba(99,102,241,0.3)', borderRadius: '999px', padding: '3px 12px', marginBottom: '12px' }}>
               <span className="material-symbols-rounded" style={{ fontSize: '13px', color: '#818cf8' }}>auto_awesome</span>
               <span style={{ fontSize: '11px', fontWeight: 700, color: '#818cf8', letterSpacing: '0.05em' }}>UNLOCK ANTCAPTURE CLOUD</span>
@@ -372,20 +360,10 @@ export default function Dashboard({ isAuthenticated, isLocalMode, hasCloudAccess
             </div>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', alignItems: 'flex-start', flexShrink: 0 }}>
+          <div className="upsell-banner__cta">
             <button
               onClick={onGoToPricing}
-              style={{
-                display: 'flex', alignItems: 'center', gap: '8px',
-                background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-                color: 'white', borderRadius: '12px', padding: '13px 24px',
-                fontWeight: 700, fontSize: '15px', border: 'none', cursor: 'pointer',
-                boxShadow: '0 4px 24px rgba(99,102,241,0.35)',
-                fontFamily: "'Outfit', sans-serif",
-                transition: 'all 0.2s', whiteSpace: 'nowrap',
-              }}
-              onMouseEnter={e => { e.currentTarget.style.filter = 'brightness(1.1)'; }}
-              onMouseLeave={e => { e.currentTarget.style.filter = 'none'; }}
+              className="upsell-banner__btn"
             >
               <span className="material-symbols-rounded" style={{ fontSize: '18px' }}>bolt</span>
               Upgrade to Cloud
@@ -418,48 +396,48 @@ export default function Dashboard({ isAuthenticated, isLocalMode, hasCloudAccess
       )}
 
       {/* ── Recent Activity ── */}
-      <div className="section-header" style={{ marginBottom: '16px' }}>
+      <div className="section-header dash-section-head">
         <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
           <span className="material-symbols-rounded" style={{ fontSize: '20px', color: '#818cf8' }}>history</span>
           Recent Activity
           <span className="count-badge">{isAuthenticated ? recentCaptures.length : 0}</span>
         </h3>
         {isAuthenticated && captures.length > 6 && (
-          <button onClick={onGoToLibrary} style={{ background: 'none', border: 'none', color: '#818cf8', fontSize: '13px', cursor: 'pointer', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
+          <button onClick={onGoToLibrary} className="dash-view-all">
             View all {captures.length} <span className="material-symbols-rounded" style={{ fontSize: '16px' }}>arrow_forward</span>
           </button>
         )}
       </div>
 
       {!isAuthenticated ? (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '16px', marginBottom: '28px' }}>
+        <Grid className="dash-thumbs dash-spaced">
           {Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} onClick={onSignIn} style={{ aspectRatio: '16/10', background: '#1e293b', borderRadius: '12px', border: '1px solid #334155', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', filter: 'blur(2px)' }}>
+            <div key={i} onClick={onSignIn} style={{ aspectRatio: '16/10', background: 'var(--bg-tertiary)', borderRadius: '12px', border: '1px solid #334155', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', filter: 'blur(2px)' }}>
               <span className="material-symbols-rounded" style={{ fontSize: '36px', color: '#334155' }}>image</span>
             </div>
           ))}
-        </div>
+        </Grid>
       ) : loadingCaptures ? (
         <div style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>
           <div className="btn-spinner" style={{ margin: '0 auto 12px', width: '28px', height: '28px', borderTopColor: '#6366f1', borderRightColor: '#6366f1' }} />
           <p>Loading recent captures...</p>
         </div>
       ) : recentCaptures.length === 0 ? (
-        <div style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: '16px', padding: '48px 24px', textAlign: 'center', marginBottom: '28px' }}>
+        <div className="dash-spaced" style={{ background: 'var(--bg-tertiary)', border: '1px solid #334155', borderRadius: '16px', padding: '48px 24px', textAlign: 'center' }}>
           <span className="material-symbols-rounded" style={{ fontSize: '52px', color: '#334155', display: 'block', marginBottom: '16px' }}>screenshot_monitor</span>
           <h3 style={{ color: '#64748b', margin: '0 0 8px', fontWeight: 600 }}>No captures yet</h3>
           <p style={{ color: '#475569', fontSize: '14px', margin: 0 }}>Open the AntCapture extension and click &quot;Record Screen&quot; or &quot;Screenshot&quot; to get started.</p>
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '16px', marginBottom: '28px' }}>
+        <Grid className="dash-thumbs dash-spaced">
           {recentCaptures.map(item => <MediaThumb key={item.id} item={item} onOpen={onOpenMedia} />)}
-        </div>
+        </Grid>
       )}
 
       {/* ── Security Guidance (logged out) ── */}
       {!isAuthenticated && (
         <div className="cta-banner" style={{ background: 'rgba(16, 185, 129, 0.05)', border: '1px solid rgba(16, 185, 129, 0.2)', alignItems: 'flex-start' }}>
-          <div style={{ display: 'flex', gap: '16px' }}>
+          <div className="dash-secure">
             <div style={{ fontSize: '24px', padding: '10px', background: 'rgba(16, 185, 129, 0.1)', borderRadius: '12px', height: 'fit-content' }}>🛡️</div>
             <div>
               <strong style={{ color: '#34d399', fontSize: '15px', display: 'block', marginBottom: '4px' }}>Secure Account Architecture</strong>
@@ -468,11 +446,11 @@ export default function Dashboard({ isAuthenticated, isLocalMode, hasCloudAccess
               </span>
             </div>
           </div>
-          <button className="btn-primary" onClick={onSignIn} style={{ whiteSpace: 'nowrap', marginTop: '10px' }}>
+          <button className="btn-primary dash-secure__btn" onClick={onSignIn}>
             Connect Web Dashboard
           </button>
         </div>
       )}
-    </>
+    </Page>
   );
 }

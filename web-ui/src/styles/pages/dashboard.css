@@ -1,0 +1,246 @@
+/* ════════════════════════════════════════════════════════════════════════════
+   DASHBOARD — page-specific layout. Mobile-first; see docs/UI_GUIDELINES.md.
+   Shared banners (.hero-banner, .stats-row, .upsell-banner, .storage-bar,
+   .cta-banner) live in index.css.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+/* Same vertical rhythm the app shell used to give these sections directly */
+.dash {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+@media (min-width: 768px) {
+  .dash {
+    gap: 28px;
+  }
+}
+
+/* Extra bottom spacing on desktop only — on phones the page gap is enough */
+@media (min-width: 768px) {
+  .dash-spaced {
+    margin-bottom: 28px;
+  }
+
+  .dash-section-head {
+    margin-bottom: 16px;
+  }
+
+  .dash-ext {
+    margin-bottom: 24px;
+  }
+}
+
+/* ── Card shell shared by the welcome hero and the "get extension" banner ── */
+.dash-hero,
+.dash-hero__actions {
+  display: flex;
+  gap: var(--space-3);
+}
+
+.dash-ext {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.08) 0%, rgba(168, 85, 247, 0.08) 100%);
+  border: 1px solid rgba(99, 102, 241, 0.15);
+  border-radius: 16px;
+  padding: 28px 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-5);
+}
+
+.dash-hero__text {
+  flex: 1 1 280px;
+  min-width: 0;
+}
+
+.dash-hero__title {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--text-main);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.dash-hero__link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: 40px;
+  background: rgba(99, 102, 241, 0.15);
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  color: #a5b4fc;
+  border-radius: var(--radius-sm);
+  padding: 10px 18px;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.dash-hero__actions {
+  display: flex;
+  gap: var(--space-3);
+}
+
+.dash-ext {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.07) 0%, rgba(168, 85, 247, 0.07) 100%);
+  border-color: rgba(99, 102, 241, 0.2);
+  border-radius: var(--radius-lg);
+  padding: 32px;
+  gap: 32px;
+}
+
+.dash-ext__body {
+  flex: 1 1 260px;
+  min-width: 0;
+}
+
+.dash-ext__cta {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  flex-shrink: 0;
+}
+
+.dash-ext__btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: var(--tap-target);
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  color: white;
+  border-radius: 12px;
+  padding: 14px 24px;
+  font-weight: 700;
+  font-size: 15px;
+  text-decoration: none;
+  box-shadow: 0 4px 24px rgba(99, 102, 241, 0.35);
+  transition: opacity 0.15s, transform 0.15s;
+  white-space: nowrap;
+}
+
+@media (hover: hover) {
+  .dash-ext__btn:hover {
+    opacity: 0.9;
+    transform: translateY(-1px);
+  }
+}
+
+@media (max-width: 639.98px) {
+  .dash-hero,
+  .dash-ext {
+    padding: var(--space-5);
+    gap: var(--space-5);
+  }
+
+  .dash-hero__title {
+    font-size: var(--text-xl);
+  }
+
+  .dash-hero__actions,
+  .dash-ext__cta {
+    flex: 1 1 100%;
+  }
+
+  .dash-ext__cta {
+    align-items: stretch;
+  }
+
+  .dash-hero__link {
+    flex: 1;
+    min-height: var(--tap-target);
+  }
+}
+
+/* ── Recent activity ──────────────────────────────────────── */
+.dash-view-all {
+  background: none;
+  border: none;
+  color: var(--primary-soft);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 0 var(--space-1);
+}
+
+@media (pointer: coarse) {
+  .dash-view-all {
+    min-height: var(--tap-target);
+  }
+}
+
+.dash-thumbs {
+  --grid-min: 220px;
+}
+
+.dash-thumb {
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--bg-tertiary);
+  border: 1px solid #334155;
+  cursor: pointer;
+  position: relative;
+  transition: transform 0.15s, box-shadow 0.15s;
+  aspect-ratio: 16 / 10;
+}
+
+.dash-thumb__shade {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0);
+  transition: background 0.15s;
+}
+
+/* Hover lift only where there is a real pointer; on touch it would stick */
+@media (hover: hover) {
+  .dash-thumb:hover {
+    transform: scale(1.03);
+    box-shadow: 0 8px 24px rgba(99, 102, 241, 0.2);
+  }
+
+  .dash-thumb__shade:hover {
+    background: rgba(0, 0, 0, 0.4);
+  }
+}
+
+/* Logged-out security card: icon + copy */
+.dash-secure {
+  display: flex;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.dash-secure > div:last-child {
+  min-width: 0;
+}
+
+.dash-secure__btn {
+  white-space: nowrap;
+  margin-top: 10px;
+}
+
+@media (max-width: 639.98px) {
+  .dash-secure {
+    gap: var(--space-3);
+  }
+
+  .dash-secure__btn {
+    white-space: normal;
+    margin-top: 0;
+  }
+}

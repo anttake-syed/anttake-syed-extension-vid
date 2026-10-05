@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { SERVER_URL } from '../config.js';
+import '../styles/pages/whiteboards.css';
 
 // ── Helpers ─────────────────────────────────────────────────
 function generateDefaultName() {
@@ -68,20 +69,20 @@ function LibraryPicker({ user, onSelect, onClose, initialTab }) {
   });
 
   return (
-    <div style={{ position:'fixed', inset:0, zIndex:2000, background:'rgba(2,6,23,0.85)', backdropFilter:'blur(8px)', display:'flex', alignItems:'center', justifyContent:'center', padding:'24px' }} onClick={onClose}>
-      <div style={{ background:'#0f172a', border:'1px solid #334155', borderRadius:'24px', width:'1060px', maxWidth:'100%', height:'85vh', display:'flex', flexDirection:'column', boxShadow:'0 24px 64px rgba(0,0,0,0.6)', overflow:'hidden' }} onClick={e => e.stopPropagation()}>
+    <div className="wb-overlay" style={{ zIndex:2000 }} onClick={onClose}>
+      <div className="wb-library" onClick={e => e.stopPropagation()}>
         {/* Header */}
-        <div style={{ padding:'22px 28px 18px', borderBottom:'1px solid #1e293b', display:'flex', alignItems:'center', justifyContent:'space-between', background:'#080e1c', flexShrink:0 }}>
-          <div style={{ display:'flex', alignItems:'center', gap:'14px' }}>
-            <div style={{ width:'44px', height:'44px', borderRadius:'12px', background:'linear-gradient(135deg,rgba(99,102,241,0.2),rgba(168,85,247,0.2))', border:'1px solid rgba(99,102,241,0.3)', display:'flex', alignItems:'center', justifyContent:'center' }}>
+        <div className="wb-library-head">
+          <div className="wb-library-title">
+            <div style={{ width:'44px', height:'44px', flexShrink:0, borderRadius:'12px', background:'linear-gradient(135deg,rgba(99,102,241,0.2),rgba(168,85,247,0.2))', border:'1px solid rgba(99,102,241,0.3)', display:'flex', alignItems:'center', justifyContent:'center' }}>
               <span className="material-symbols-rounded" style={{ fontSize:'22px', color:'#a5b4fc' }}>photo_library</span>
             </div>
-            <div>
-              <h3 style={{ color:'#f8fafc', fontSize:'18px', fontWeight:700, margin:0, letterSpacing:'-0.02em' }}>Import from Library</h3>
-              <p style={{ color:'#94a3b8', fontSize:'13px', margin:'3px 0 0' }}>Click any capture to add it to your board</p>
+            <div className="min-w-0">
+              <h3 style={{ color:'var(--text-main)', fontSize:'18px', fontWeight:700, margin:0, letterSpacing:'-0.02em' }}>Import from Library</h3>
+              <p style={{ color:'var(--text-dim)', fontSize:'13px', margin:'3px 0 0' }}>Click any capture to add it to your board</p>
             </div>
           </div>
-          <button onClick={onClose} style={{ background:'rgba(255,255,255,0.05)', border:'none', color:'#94a3b8', cursor:'pointer', width:'36px', height:'36px', borderRadius:'10px', display:'flex', alignItems:'center', justifyContent:'center' }}
+          <button onClick={onClose} className="wb-library-close" aria-label="Close" style={{ background:'rgba(255,255,255,0.05)', border:'none', color:'#94a3b8', cursor:'pointer', borderRadius:'10px', display:'flex', alignItems:'center', justifyContent:'center' }}
             onMouseEnter={e => { e.currentTarget.style.background='rgba(239,68,68,0.15)'; e.currentTarget.style.color='#f87171'; }}
             onMouseLeave={e => { e.currentTarget.style.background='rgba(255,255,255,0.05)'; e.currentTarget.style.color='#94a3b8'; }}>
             <span className="material-symbols-rounded" style={{ fontSize:'20px' }}>close</span>
@@ -89,9 +90,9 @@ function LibraryPicker({ user, onSelect, onClose, initialTab }) {
         </div>
 
         {/* Filter + Search bar */}
-        <div style={{ padding:'14px 28px', borderBottom:'1px solid #1e293b', background:'#080e1c', display:'flex', alignItems:'center', gap:'12px', flexWrap:'wrap', flexShrink:0 }}>
+        <div className="wb-library-filters">
           {/* Tabs */}
-          <div style={{ display:'flex', gap:'6px' }}>
+          <div className="wb-library-tabs">
             <button style={TAB_STYLE(tab === 'all')} onClick={() => setTab('all')}>All ({captures.length})</button>
             <button style={TAB_STYLE(tab === 'images')} onClick={() => setTab('images')}>
               <span className="material-symbols-rounded" style={{ fontSize:'15px', verticalAlign:'middle', marginRight:'6px' }}>image</span>Images ({imgCount})
@@ -101,7 +102,7 @@ function LibraryPicker({ user, onSelect, onClose, initialTab }) {
             </button>
           </div>
           {/* Search */}
-          <div style={{ position:'relative', flex:'1', minWidth:'160px', maxWidth:'320px', marginLeft:'auto' }}>
+          <div className="wb-library-search">
             <span className="material-symbols-rounded" style={{ position:'absolute', left:'12px', top:'50%', transform:'translateY(-50%)', fontSize:'17px', color:'#64748b' }}>search</span>
             <input
               value={search} onChange={e => setSearch(e.target.value)} placeholder="Search..."
@@ -114,7 +115,7 @@ function LibraryPicker({ user, onSelect, onClose, initialTab }) {
         </div>
 
         {/* Grid */}
-        <div style={{ padding:'24px 32px', overflowY:'auto', flex:1, background:'#020617' }}>
+        <div className="wb-library-body">
           {loading ? (
             <div style={{ textAlign:'center', padding:'80px 0', color:'#64748b' }}>
               <div className="btn-spinner" style={{ margin:'0 auto 16px', width:'32px', height:'32px', borderTopColor:'#6366f1', borderRightColor:'#6366f1' }} />
@@ -129,7 +130,7 @@ function LibraryPicker({ user, onSelect, onClose, initialTab }) {
               <p style={{ margin:0, fontSize:'14px' }}>Try adjusting your search terms.</p>
             </div>
           ) : (
-            <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(220px, 1fr))', gap:'20px' }}>
+            <div className="wb-library-grid">
               {filtered.map(cap => {
                 const src = getFullSrc(cap.src, user?.jwt);
                 const isVideo = cap.type === 'video';
@@ -167,10 +168,10 @@ function LibraryPicker({ user, onSelect, onClose, initialTab }) {
                     </div>
                     
                     <div style={{ padding:'12px 14px', borderTop:'1px solid #1e293b' }}>
-                      <div style={{ fontSize:'14px', color:'#f8fafc', fontWeight:600, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', marginBottom:'4px' }}>
+                      <div style={{ fontSize:'14px', color:'var(--text-main)', fontWeight:600, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', marginBottom:'4px' }}>
                         {cap.title || 'Untitled'}
                       </div>
-                      <div style={{ fontSize:'12px', color:'#64748b', display:'flex', justifyContent:'space-between' }}>
+                      <div style={{ fontSize:'12px', color:'var(--text-muted)', display:'flex', justifyContent:'space-between', gap:'8px' }}>
                         <span>{new Date(cap.date).toLocaleDateString()}</span>
                         <span>{cap.size || ''}</span>
                       </div>
@@ -896,15 +897,13 @@ export default function WhiteboardEditor({ board, onClose, user }) {
   };
 
   return (
-    <div style={{ position:'fixed', inset:0, zIndex:1000, background:'#020617', display:'flex', flexDirection:'column', fontFamily:"'Outfit', sans-serif" }}>
+    <div style={{ position:'fixed', inset:0, zIndex:1000, background:'var(--bg-primary)', display:'flex', flexDirection:'column', fontFamily:"'Outfit', sans-serif" }}>
 
       {/* ── Top Bar ── */}
-      <div style={{ height:'56px', background:'#0f172a', borderBottom:'1px solid #1e293b', display:'flex', alignItems:'center', justifyContent:'space-between', padding:'0 16px', gap:'12px', flexShrink:0 }}>
+      <div className="wb-topbar">
         {/* Left */}
-        <div style={{ display:'flex', alignItems:'center', gap:'12px' }}>
-          <button onClick={handleClose} style={{ background:'none', border:'none', color:'#64748b', cursor:'pointer', display:'flex', alignItems:'center', padding:'6px', borderRadius:'8px', transition:'all 0.2s' }}
-            onMouseEnter={e => e.currentTarget.style.background='#1e293b'}
-            onMouseLeave={e => e.currentTarget.style.background='none'}>
+        <div className="wb-topbar-left">
+          <button onClick={handleClose} className="wb-back-btn" aria-label="Back">
             <span className="material-symbols-rounded" style={{ fontSize:'20px' }}>arrow_back</span>
           </button>
 
@@ -922,121 +921,123 @@ export default function WhiteboardEditor({ board, onClose, user }) {
                 if (e.key === 'Escape') { nameCommittedRef.current = true; setEditingName(false); }
               }}
               autoFocus
-              style={{ background:'#1e293b', border:'1px solid #6366f1', borderRadius:'8px', color:'#f8fafc', padding:'5px 10px', fontSize:'14px', fontWeight:600, fontFamily:"'Outfit', sans-serif", outline:'none', minWidth:'200px' }}
+              className="wb-name-input"
+              style={{ background:'var(--bg-tertiary)', border:'1px solid var(--primary)', borderRadius:'8px', color:'var(--text-main)', padding:'5px 10px', fontSize:'14px', fontWeight:600, fontFamily:"'Outfit', sans-serif", outline:'none' }}
             />
           ) : (
-            <div style={{ display:'flex', alignItems:'center', gap:'6px', cursor:'pointer', group:true }}
+            <div className="wb-name"
               onClick={() => { nameCommittedRef.current = false; setNameDraft(boardName); setEditingName(true); }}>
-              <span style={{ fontSize:'14px', fontWeight:700, color:'#f8fafc' }}>{boardName}</span>
-              <span className="material-symbols-rounded" style={{ fontSize:'14px', color:'#475569' }}>edit</span>
+              <span className="truncate" title={boardName} style={{ fontSize:'14px', fontWeight:700, color:'var(--text-main)' }}>{boardName}</span>
+              <span className="material-symbols-rounded" style={{ fontSize:'14px', color:'var(--text-faint)', flexShrink:0 }}>edit</span>
             </div>
           )}
         </div>
 
+        {/* Zoom + actions — one wrapping row on phones, plain top-bar items above */}
+        <div className="wb-topbar-tools">
         {/* Center — zoom */}
-        <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
-          <button onClick={() => setZoom(z => Math.max(0.25, z - 0.25))} style={{ background:'#1e293b', border:'1px solid #334155', color:'#94a3b8', padding:'4px 8px', borderRadius:'6px', cursor:'pointer', fontSize:'12px', fontFamily:"'Outfit', sans-serif" }}>-</button>
-          <span style={{ color:'#64748b', fontSize:'13px', minWidth:'42px', textAlign:'center' }}>{Math.round(zoom * 100)}%</span>
-          <button onClick={() => setZoom(z => Math.min(3, z + 0.25))} style={{ background:'#1e293b', border:'1px solid #334155', color:'#94a3b8', padding:'4px 8px', borderRadius:'6px', cursor:'pointer', fontSize:'12px', fontFamily:"'Outfit', sans-serif" }}>+</button>
-          <button onClick={() => setZoom(1)} style={{ background:'none', border:'none', color:'#475569', cursor:'pointer', fontSize:'11px', fontFamily:"'Outfit', sans-serif" }}>Reset</button>
+        <div className="wb-group">
+          <button onClick={() => setZoom(z => Math.max(0.25, z - 0.25))} className="wb-zoom-btn" aria-label="Zoom out">-</button>
+          <span className="wb-zoom-label">{Math.round(zoom * 100)}%</span>
+          <button onClick={() => setZoom(z => Math.min(3, z + 0.25))} className="wb-zoom-btn" aria-label="Zoom in">+</button>
+          <button onClick={() => setZoom(1)} className="wb-zoom-reset">Reset</button>
         </div>
 
         {/* Right */}
-        <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
-          <button onClick={handleUndo} title="Undo" style={{ background:'#1e293b', border:'1px solid #334155', color:'#94a3b8', padding:'6px 10px', borderRadius:'8px', cursor:'pointer', display:'flex', alignItems:'center', gap:'4px', fontSize:'13px', fontFamily:"'Outfit', sans-serif" }}>
+        <div className="wb-group">
+          <button onClick={handleUndo} title="Undo" aria-label="Undo" className="wb-action-btn">
             <span className="material-symbols-rounded" style={{ fontSize:'16px' }}>undo</span>
           </button>
-          <button onClick={handleRedo} title="Redo" style={{ background:'#1e293b', border:'1px solid #334155', color:'#94a3b8', padding:'6px 10px', borderRadius:'8px', cursor:'pointer', display:'flex', alignItems:'center', gap:'4px', fontSize:'13px', fontFamily:"'Outfit', sans-serif" }}>
+          <button onClick={handleRedo} title="Redo" aria-label="Redo" className="wb-action-btn">
             <span className="material-symbols-rounded" style={{ fontSize:'16px' }}>redo</span>
           </button>
-          <button onClick={handleClear} title="Clear all" style={{ background:'#1e293b', border:'1px solid #334155', color:'#94a3b8', padding:'6px 10px', borderRadius:'8px', cursor:'pointer', display:'flex', alignItems:'center', gap:'4px', fontSize:'13px', fontFamily:"'Outfit', sans-serif" }}>
+          <button onClick={handleClear} title="Clear all" aria-label="Clear all" className="wb-action-btn">
             <span className="material-symbols-rounded" style={{ fontSize:'16px' }}>delete_sweep</span>
           </button>
-          <button onClick={handleSave} disabled={isSaving} style={{ background: saveError ? 'rgba(239,68,68,0.15)' : isSaved ? 'rgba(52,211,153,0.15)' : 'linear-gradient(135deg,#6366f1,#8b5cf6)', border:'none', color: saveError ? '#f87171' : isSaved ? '#34d399' : 'white', padding:'6px 16px', borderRadius:'8px', cursor: isSaving ? 'default' : 'pointer', opacity: isSaving ? 0.7 : 1, display:'flex', alignItems:'center', gap:'6px', fontSize:'13px', fontWeight:600, fontFamily:"'Outfit', sans-serif", transition:'all 0.2s' }}>
+          <button onClick={handleSave} disabled={isSaving} className="wb-save-btn" style={{ background: saveError ? 'rgba(239,68,68,0.15)' : isSaved ? 'rgba(52,211,153,0.15)' : 'linear-gradient(135deg,#6366f1,#8b5cf6)', border:'none', color: saveError ? '#f87171' : isSaved ? '#34d399' : 'white', padding:'6px 16px', borderRadius:'8px', cursor: isSaving ? 'default' : 'pointer', opacity: isSaving ? 0.7 : 1, display:'flex', alignItems:'center', gap:'6px', fontSize:'13px', fontWeight:600, fontFamily:"'Outfit', sans-serif", transition:'all 0.2s' }}>
             <span className="material-symbols-rounded" style={{ fontSize:'16px' }}>{isSaving ? 'progress_activity' : saveError ? 'error' : isSaved ? 'check_circle' : 'save'}</span>
             {isSaving ? 'Saving…' : saveError ? 'Save failed' : isSaved ? 'Saved!' : 'Save'}
           </button>
+        </div>
         </div>
       </div>
 
       {(loadError || saveError) && (
         <div style={{ background:'rgba(239,68,68,0.1)', borderBottom:'1px solid rgba(239,68,68,0.3)', color:'#f87171', fontSize:'12px', padding:'8px 20px', display:'flex', alignItems:'center', gap:'8px' }}>
-          <span className="material-symbols-rounded" style={{ fontSize:'16px' }}>warning</span>
+          <span className="material-symbols-rounded" style={{ fontSize:'16px', flexShrink:0 }}>warning</span>
           {loadError || saveError}
         </div>
       )}
 
       {/* ── Content Row ── */}
-      <div style={{ flex:1, display:'flex', overflow:'hidden', position:'relative' }}>
+      <div className="wb-body">
 
         {/* Left Toolbar — modern lean sidebar */}
-        <div style={{ width:'64px', background:'#080e1c', borderRight:'1px solid #1a2236', display:'flex', flexDirection:'column', padding:'8px 0', gap:0, flexShrink:0, overflowY:'auto' }}>
+        <div className="wb-toolbar" role="toolbar" aria-label="Whiteboard tools">
           {/* Draw tools group */}
-          <div style={{ padding:'8px 8px 4px' }}>
-            <span style={{ fontSize:'8px', fontWeight:700, color:'#2d3f5a', textTransform:'uppercase', letterSpacing:'0.1em', display:'block', textAlign:'center', marginBottom:'6px' }}>Draw</span>
+          <div className="wb-tool-group wb-tool-group--draw">
+            <span className="wb-group-label">Draw</span>
             {TOOLS.filter(t => !['select','image', 'video'].includes(t.id)).map(t => {
               const active = tool === t.id;
               return (
                 <button key={t.id} title={t.label} onClick={() => handleToolClick(t.id)}
-                  style={{ width:'100%', background: active ? 'rgba(99,102,241,0.18)' : 'none', border: active ? '1px solid rgba(99,102,241,0.4)' : '1px solid transparent', color: active ? '#818cf8' : '#475569', padding:'7px 4px', borderRadius:'9px', cursor:'pointer', display:'flex', flexDirection:'column', alignItems:'center', gap:'3px', transition:'all 0.12s', marginBottom:'2px' }}
-                  onMouseEnter={e => { if (!active) { e.currentTarget.style.background='#111c30'; e.currentTarget.style.color='#94a3b8'; }}}
-                  onMouseLeave={e => { if (!active) { e.currentTarget.style.background='none'; e.currentTarget.style.color='#475569'; }}}>
-                  <span className="material-symbols-rounded" style={{ fontSize:'17px' }}>{t.icon}</span>
-                  <span style={{ fontSize:'8px', fontWeight:700, letterSpacing:'0.04em', textTransform:'uppercase' }}>{t.label}</span>
+                  className="wb-tool-btn" data-active={active} aria-pressed={active}>
+                  <span className="material-symbols-rounded">{t.icon}</span>
+                  <span className="wb-tool-label">{t.label}</span>
                 </button>
               );
             })}
           </div>
 
-          <div style={{ height:'1px', background:'#1a2236', margin:'4px 10px' }} />
+          <div className="wb-divider" aria-hidden="true" />
 
           {/* Select + Media group */}
-          <div style={{ padding:'4px 8px' }}>
-            <span style={{ fontSize:'8px', fontWeight:700, color:'#2d3f5a', textTransform:'uppercase', letterSpacing:'0.1em', display:'block', textAlign:'center', marginBottom:'6px' }}>Media</span>
+          <div className="wb-tool-group wb-tool-group--media">
+            <span className="wb-group-label">Media</span>
             {TOOLS.filter(t => ['select','image', 'video'].includes(t.id)).map(t => {
               const active = tool === t.id;
               return (
                 <button key={t.id} title={t.label} onClick={() => handleToolClick(t.id)}
-                  style={{ width:'100%', background: active ? 'rgba(99,102,241,0.18)' : 'none', border: active ? '1px solid rgba(99,102,241,0.4)' : '1px solid transparent', color: active ? '#818cf8' : '#475569', padding:'7px 4px', borderRadius:'9px', cursor:'pointer', display:'flex', flexDirection:'column', alignItems:'center', gap:'3px', transition:'all 0.12s', marginBottom:'2px' }}
-                  onMouseEnter={e => { if (!active) { e.currentTarget.style.background='#111c30'; e.currentTarget.style.color='#94a3b8'; }}}
-                  onMouseLeave={e => { if (!active) { e.currentTarget.style.background='none'; e.currentTarget.style.color='#475569'; }}}>
-                  <span className="material-symbols-rounded" style={{ fontSize:'17px' }}>{t.icon}</span>
-                  <span style={{ fontSize:'8px', fontWeight:700, letterSpacing:'0.04em', textTransform:'uppercase' }}>{t.label}</span>
+                  className="wb-tool-btn" data-active={active} aria-pressed={active}>
+                  <span className="material-symbols-rounded">{t.icon}</span>
+                  <span className="wb-tool-label">{t.label}</span>
                 </button>
               );
             })}
           </div>
 
-          <div style={{ height:'1px', background:'#1a2236', margin:'4px 10px' }} />
+          <div className="wb-divider" aria-hidden="true" />
 
           {/* Colors */}
-          <div style={{ padding:'4px 8px 8px' }}>
-            <span style={{ fontSize:'8px', fontWeight:700, color:'#2d3f5a', textTransform:'uppercase', letterSpacing:'0.1em', display:'block', textAlign:'center', marginBottom:'6px' }}>Color</span>
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'4px' }}>
+          <div className="wb-tool-group">
+            <span className="wb-group-label">Color</span>
+            <div className="wb-colors">
               {COLORS.map(c => (
-                <button key={c} onClick={() => setColor(c)} title={c}
-                  style={{ width:'22px', height:'22px', borderRadius:'6px', background:c, border: color === c ? '2px solid #6366f1' : '2px solid transparent', cursor:'pointer', transition:'all 0.12s', outline: color === c ? '2px solid rgba(99,102,241,0.3)' : 'none', outlineOffset:'1px' }}
+                <button key={c} onClick={() => setColor(c)} title={c} aria-label={`Colour ${c}`} aria-pressed={color === c}
+                  className="wb-swatch"
+                  style={{ background:c, border: color === c ? '2px solid var(--primary)' : '2px solid transparent', outline: color === c ? '2px solid rgba(99,102,241,0.3)' : 'none' }}
                 />
               ))}
             </div>
           </div>
 
-          <div style={{ height:'1px', background:'#1a2236', margin:'0 10px 4px' }} />
+          <div className="wb-divider wb-divider--tight" aria-hidden="true" />
 
           {/* Stroke sizes */}
-          <div style={{ padding:'4px 8px 8px' }}>
-            <span style={{ fontSize:'8px', fontWeight:700, color:'#2d3f5a', textTransform:'uppercase', letterSpacing:'0.1em', display:'block', textAlign:'center', marginBottom:'6px' }}>Size</span>
+          <div className="wb-tool-group">
+            <span className="wb-group-label">Size</span>
             {SIZES.map(s => (
-              <button key={s} onClick={() => setStrokeSize(s)} title={`Size ${s}`}
-                style={{ width:'100%', height:'22px', background: strokeSize === s ? 'rgba(99,102,241,0.15)' : 'none', border: strokeSize === s ? '1px solid rgba(99,102,241,0.4)' : '1px solid transparent', borderRadius:'6px', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', marginBottom:'3px' }}>
-                <div style={{ width: Math.min(32, s * 2.5 + 6), height: Math.min(s, 8), background: strokeSize === s ? '#818cf8' : '#475569', borderRadius:'999px' }} />
+              <button key={s} onClick={() => setStrokeSize(s)} title={`Size ${s}`} aria-label={`Size ${s}`} aria-pressed={strokeSize === s}
+                className="wb-size-btn"
+                style={{ background: strokeSize === s ? 'rgba(99,102,241,0.15)' : 'none', border: strokeSize === s ? '1px solid rgba(99,102,241,0.4)' : '1px solid transparent' }}>
+                <div style={{ width: Math.min(32, s * 2.5 + 6), height: Math.min(s, 8), maxWidth:'100%', background: strokeSize === s ? 'var(--primary-soft)' : 'var(--text-faint)', borderRadius:'999px' }} />
               </button>
             ))}
           </div>
         </div>
 
         {/* Canvas Area */}
-        <div style={{ flex:1, overflow:'hidden', position:'relative', background:'radial-gradient(circle, #1e293b 1px, transparent 1px)', backgroundSize:'24px 24px', backgroundColor:'#020617' }}>
+        <div className="wb-canvas-area" style={{ background:'radial-gradient(circle, #1e293b 1px, transparent 1px)', backgroundSize:'24px 24px', backgroundColor:'var(--bg-primary)' }}>
           <div style={{ transform:`scale(${zoom})`, transformOrigin:'top left', width: `${100/zoom}%`, height: `${100/zoom}%` }}>
             <canvas
               ref={canvasRef}
@@ -1052,14 +1053,14 @@ export default function WhiteboardEditor({ board, onClose, user }) {
       </div>
 
       {/* ── Status / Tip Bar ── */}
-      <div style={{ height:'32px', background:'#0a0f1e', borderTop:'1px solid #1e293b', display:'flex', alignItems:'center', justifyContent:'space-between', padding:'0 20px', flexShrink:0 }}>
-        <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
-          <span style={{ fontSize:'11px', color:'#334155', fontWeight:600, textTransform:'uppercase', letterSpacing:'0.05em' }}>AntCapture Whiteboard</span>
-          <span style={{ fontSize:'11px', color:'#334155' }}>·</span>
-          <span className="material-symbols-rounded" style={{ fontSize:'13px', color:'#475569' }}>
+      <div className="wb-statusbar">
+        <div className="wb-status-left">
+          <span className="hide-below-sm" style={{ fontSize:'11px', color:'#334155', fontWeight:600, textTransform:'uppercase', letterSpacing:'0.05em', whiteSpace:'nowrap' }}>AntCapture Whiteboard</span>
+          <span className="hide-below-sm" style={{ fontSize:'11px', color:'#334155' }}>·</span>
+          <span className="material-symbols-rounded" style={{ fontSize:'13px', color:'var(--text-faint)', flexShrink:0 }}>
             {TOOLS.find(t => t.id === tool)?.icon || 'near_me'}
           </span>
-          <span style={{ fontSize:'11px', color:'#475569' }}>
+          <span className="truncate" style={{ fontSize:'11px', color:'var(--text-faint)' }}>
             {tool === 'pen'    && 'Click and drag to draw freely'}
             {tool === 'eraser' && 'Drag over strokes to erase'}
             {tool === 'text'   && 'Click anywhere to add text'}
@@ -1071,9 +1072,10 @@ export default function WhiteboardEditor({ board, onClose, user }) {
             {tool === 'video'  && 'Pick a video from your library'}
           </span>
         </div>
-        <div style={{ display:'flex', alignItems:'center', gap:'16px' }}>
+        <div className="hide-below-md" style={{ display:'flex', alignItems:'center', gap:'16px', flexShrink:0 }}>
           <span style={{ fontSize:'11px', color:'#334155' }}>No infinite canvas — focused &amp; distraction-free</span>
         </div>
+        <span className="wb-status-hint show-below-sm">Best on a larger screen</span>
       </div>
 
       {/* Library Picker */}
@@ -1084,7 +1086,7 @@ export default function WhiteboardEditor({ board, onClose, user }) {
       {/* Right-click context menu */}
       {contextMenu && (
         <div
-          style={{ position:'fixed', top: contextMenu.y, left: contextMenu.x, zIndex:3000, background:'#0f172a', border:'1px solid #334155', borderRadius:'12px', padding:'6px', boxShadow:'0 12px 40px rgba(0,0,0,0.5)', minWidth:'180px', fontFamily:"'Outfit',sans-serif" }}
+          style={{ position:'fixed', top: `min(${contextMenu.y}px, calc(100dvh - 150px))`, left: `min(${contextMenu.x}px, calc(100vw - 196px))`, zIndex:3000, background:'var(--bg-secondary)', border:'1px solid #334155', borderRadius:'12px', padding:'6px', boxShadow:'0 12px 40px rgba(0,0,0,0.5)', minWidth:'180px', fontFamily:"'Outfit',sans-serif" }}
           onMouseLeave={() => setContextMenu(null)}
         >
           {[
@@ -1112,16 +1114,16 @@ export default function WhiteboardEditor({ board, onClose, user }) {
 
       {/* Exit Warning Modal */}
       {showExitModal && (
-        <div style={{ position:'fixed', inset:0, zIndex:4000, background:'rgba(2,6,23,0.85)', backdropFilter:'blur(8px)', display:'flex', alignItems:'center', justifyContent:'center', padding:'24px' }}>
-          <div style={{ background:'#0f172a', border:'1px solid #334155', borderRadius:'24px', width:'420px', maxWidth:'100%', padding:'32px', boxShadow:'0 24px 64px rgba(0,0,0,0.6)' }}>
+        <div className="wb-overlay" style={{ zIndex:4000 }}>
+          <div className="wb-dialog" role="dialog" aria-modal="true">
             <div style={{ width:'56px', height:'56px', borderRadius:'16px', background:'rgba(245,158,11,0.15)', border:'1px solid rgba(245,158,11,0.3)', display:'flex', alignItems:'center', justifyContent:'center', marginBottom:'20px' }}>
               <span className="material-symbols-rounded" style={{ fontSize:'28px', color:'#fbbf24' }}>warning</span>
             </div>
-            <h3 style={{ margin:'0 0 12px', fontSize:'20px', fontWeight:700, color:'#f8fafc' }}>Unsaved Changes</h3>
-            <p style={{ margin:'0 0 28px', fontSize:'15px', color:'#94a3b8', lineHeight:'1.5' }}>
+            <h3 style={{ margin:'0 0 12px', fontSize:'20px', fontWeight:700, color:'var(--text-main)' }}>Unsaved Changes</h3>
+            <p style={{ margin:'0 0 28px', fontSize:'15px', color:'var(--text-dim)', lineHeight:'1.5' }}>
               You have unsaved changes on your whiteboard. Do you want to save them before leaving?
             </p>
-            <div style={{ display:'flex', gap:'12px', justifyContent:'flex-end' }}>
+            <div className="dialog-actions" style={{ gap:'12px' }}>
               <button onClick={() => setShowExitModal(false)} style={{ background:'transparent', border:'none', color:'#94a3b8', padding:'10px 16px', borderRadius:'10px', fontSize:'14px', fontWeight:600, cursor:'pointer' }}>
                 Cancel
               </button>
@@ -1138,11 +1140,11 @@ export default function WhiteboardEditor({ board, onClose, user }) {
 
       {/* Add Text — replaces native prompt() */}
       {textPrompt && (
-        <div style={{ position:'fixed', inset:0, zIndex:4000, background:'rgba(2,6,23,0.85)', backdropFilter:'blur(8px)', display:'flex', alignItems:'center', justifyContent:'center', padding:'24px' }}
+        <div className="wb-overlay" style={{ zIndex:4000 }}
           onClick={() => setTextPrompt(null)}>
-          <div style={{ background:'#0f172a', border:'1px solid #334155', borderRadius:'20px', width:'380px', maxWidth:'100%', padding:'28px', boxShadow:'0 24px 64px rgba(0,0,0,0.6)' }}
+          <div className="wb-dialog wb-dialog--compact" role="dialog" aria-modal="true"
             onClick={e => e.stopPropagation()}>
-            <h3 style={{ margin:'0 0 16px', fontSize:'16px', fontWeight:700, color:'#f8fafc' }}>Add Text</h3>
+            <h3 style={{ margin:'0 0 16px', fontSize:'16px', fontWeight:700, color:'var(--text-main)' }}>Add Text</h3>
             <input
               autoFocus
               value={textPromptValue}
@@ -1152,9 +1154,10 @@ export default function WhiteboardEditor({ board, onClose, user }) {
                 if (e.key === 'Escape') setTextPrompt(null);
               }}
               placeholder="Type something…"
-              style={{ width:'100%', background:'#1e293b', border:'1px solid #6366f1', borderRadius:'10px', color:'#f8fafc', fontSize:'14px', padding:'10px 14px', outline:'none', fontFamily:"'Outfit', sans-serif", boxSizing:'border-box', marginBottom:'20px' }}
+              className="wb-text-input"
+              style={{ width:'100%', background:'var(--bg-tertiary)', border:'1px solid var(--primary)', borderRadius:'10px', color:'var(--text-main)', padding:'10px 14px', outline:'none', fontFamily:"'Outfit', sans-serif", boxSizing:'border-box', marginBottom:'20px' }}
             />
-            <div style={{ display:'flex', gap:'10px', justifyContent:'flex-end' }}>
+            <div className="dialog-actions" style={{ gap:'10px' }}>
               <button onClick={() => setTextPrompt(null)} style={{ background:'transparent', border:'none', color:'#94a3b8', padding:'9px 14px', borderRadius:'10px', fontSize:'13px', fontWeight:600, cursor:'pointer' }}>
                 Cancel
               </button>
@@ -1168,10 +1171,10 @@ export default function WhiteboardEditor({ board, onClose, user }) {
 
       {/* Media load failure — replaces native alert() */}
       {mediaLoadError && (
-        <div style={{ position:'fixed', bottom:'24px', right:'24px', zIndex:4500, background:'#1e1015', border:'1px solid rgba(239,68,68,0.3)', borderRadius:'14px', padding:'14px 18px', boxShadow:'0 16px 40px rgba(0,0,0,0.5)', display:'flex', alignItems:'center', gap:'12px', maxWidth:'360px' }}>
+        <div className="wb-toast" role="alert" style={{ zIndex:4500 }}>
           <span className="material-symbols-rounded" style={{ fontSize:'20px', color:'#f87171', flexShrink:0 }}>error</span>
-          <span style={{ fontSize:'13px', color:'#fca5a5', flex:1 }}>{mediaLoadError}</span>
-          <button onClick={() => setMediaLoadError(null)} style={{ background:'none', border:'none', color:'#94a3b8', cursor:'pointer', display:'flex', flexShrink:0 }}>
+          <span style={{ fontSize:'13px', color:'var(--danger-soft)', flex:1, minWidth:0 }}>{mediaLoadError}</span>
+          <button onClick={() => setMediaLoadError(null)} className="wb-toast-close" aria-label="Dismiss">
             <span className="material-symbols-rounded" style={{ fontSize:'18px' }}>close</span>
           </button>
         </div>

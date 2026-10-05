@@ -12,7 +12,6 @@ function parseAndValidateJwt(token) {
       ).join('')
     );
     const data = JSON.parse(jsonPayload);
-    // Check expiry — exp is in seconds, Date.now() is in ms
     if (data.exp && Date.now() >= data.exp * 1000) {
       return null; // Token is expired
     }
@@ -22,6 +21,27 @@ function parseAndValidateJwt(token) {
   }
 }
 
+// Default entitlements for unauthenticated / unresolved state
+const FREE_ENTITLEMENTS = {
+  cloud:            false,
+  plan:             'free',
+  status:           null,
+  cancelAtPeriodEnd: false,
+  currentPeriodEnd: null,
+  daysUntilExpiry:  null,
+  warningLevel:     null,
+};
+
+const LOCAL_ENTITLEMENTS = {
+  cloud:            true,
+  plan:             'local',
+  status:           'active',
+  cancelAtPeriodEnd: false,
+  currentPeriodEnd: null,
+  daysUntilExpiry:  null,
+  warningLevel:     null,
+};
+
 export function useAuth() {
   const [user, setUser] = useState(null);
   const userRef = useRef(null);
@@ -29,9 +49,8 @@ export function useAuth() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isInitializing, setIsInitializing] = useState(true);
   const [subscription, setSubscription] = useState(null);
+  const [entitlements, setEntitlements] = useState(FREE_ENTITLEMENTS);
   // True once we have received a definitive answer from the /subscription endpoint.
-  // The paywall gate MUST wait for this before activating — otherwise it fires
-  // before the fetch completes and briefly shows the paywall to admins / subscribers.
   const [subscriptionResolved, setSubscriptionResolved] = useState(false);
 
   // The JWT is client-controlled and never carries a trustworthy role, so the
@@ -41,10 +60,10 @@ export function useAuth() {
       const res = await fetch(`${SERVER_URL}/auth/me`, {
         headers: { Authorization: `Bearer ${jwt}` },
       });
-      if (!res.ok) {return;}
+      if (!res.ok) { return; }
       const { user: fresh } = await res.json();
       setUser((prev) => {
-        if (!prev) {return prev;}
+        if (!prev) { return prev; }
         const updated = { ...prev, role: fresh.role };
         localStorage.setItem('antcapture_user', JSON.stringify(updated));
         return updated;
@@ -55,10 +74,11 @@ export function useAuth() {
   };
 
   // Fetch the user's subscription status from the server.
-  // This is the source of truth for feature gating — never trust the JWT for this.
+  // The server computes entitlements — we just store what it tells us.
   const refreshSubscription = useCallback(async (jwt) => {
     if (!jwt || jwt === 'local-mode') {
       setSubscription({ status: 'active' });
+      setEntitlements(LOCAL_ENTITLEMENTS);
       setSubscriptionResolved(true);
       return;
     }
@@ -66,14 +86,41 @@ export function useAuth() {
       const res = await fetch(`${SERVER_URL}/subscription`, {
         headers: { Authorization: `Bearer ${jwt}` },
       });
-      if (!res.ok) { setSubscription(null); setSubscriptionResolved(true); return; }
+      if (!res.ok) {
+        setSubscription(null);
+        setEntitlements(FREE_ENTITLEMENTS);
+        setSubscriptionResolved(true);
+        return;
+      }
       const data = await res.json();
       setSubscription(data.subscription || null);
+      setEntitlements(data.entitlements  || FREE_ENTITLEMENTS);
     } catch (_err) {
       setSubscription(null);
+      setEntitlements(FREE_ENTITLEMENTS);
     } finally {
       setSubscriptionResolved(true);
     }
+  }, []);
+
+  // Call /subscription/sync (server fetches live from LemonSqueezy), then apply result.
+  // Used after ?billing=success — recovers from webhook delivery delays.
+  const syncSubscription = useCallback(async (jwt) => {
+    if (!jwt || jwt === 'local-mode') return;
+    try {
+      const res = await fetch(`${SERVER_URL}/subscription/sync`, {
+        method:  'POST',
+        headers: { Authorization: `Bearer ${jwt}` },
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      setSubscription(data.subscription || null);
+      setEntitlements(data.entitlements  || FREE_ENTITLEMENTS);
+      setSubscriptionResolved(true);
+      if (data.entitlements?.cloud) {
+        window.dispatchEvent(new CustomEvent('antcapture:billing-success'));
+      }
+    } catch (_err) { /* ignore — caller will fall back to polling */ }
   }, []);
 
   const login = (authData) => {
@@ -93,7 +140,7 @@ export function useAuth() {
       refreshSubscription(authData);
 
       if (EXTENSION_ID && typeof chrome !== 'undefined' && chrome.runtime?.sendMessage) {
-        chrome.runtime.sendMessage(EXTENSION_ID, { action: 'SYNC_USER', user: userData }).catch(()=>{});
+        chrome.runtime.sendMessage(EXTENSION_ID, { action: 'SYNC_USER', user: userData }).catch(() => {});
       }
 
       return userData;
@@ -108,10 +155,11 @@ export function useAuth() {
     setUser(null);
     setIsAuthenticated(false);
     setSubscription(null);
+    setEntitlements(FREE_ENTITLEMENTS);
     setSubscriptionResolved(false);
 
     if (EXTENSION_ID && typeof chrome !== 'undefined' && chrome.runtime?.sendMessage) {
-      chrome.runtime.sendMessage(EXTENSION_ID, { action: 'SYNC_USER', user: null }).catch(()=>{});
+      chrome.runtime.sendMessage(EXTENSION_ID, { action: 'SYNC_USER', user: null }).catch(() => {});
     }
   };
 
@@ -128,6 +176,7 @@ export function useAuth() {
       setUser({ name: 'Local Admin', email: 'admin@localhost', jwt: 'local-mode', picture: '', role: 'admin' });
       setIsAuthenticated(true);
       setSubscription({ status: 'active' });
+      setEntitlements(LOCAL_ENTITLEMENTS);
       setSubscriptionResolved(true);
       setIsInitializing(false);
       return;
@@ -145,19 +194,17 @@ export function useAuth() {
           setIsAuthenticated(true);
           jwt = userData.jwt;
           refreshRole(jwt);
-          // subscriptionResolved will be set to true inside refreshSubscription
           refreshSubscription(jwt);
         } else {
           localStorage.removeItem('antcapture_user');
           console.info('Session expired. Please sign in again.');
-          setSubscriptionResolved(true); // No user — nothing to fetch
+          setSubscriptionResolved(true);
         }
       } catch (_err) {
         localStorage.removeItem('antcapture_user');
         setSubscriptionResolved(true);
       }
     } else {
-      // No stored session — nothing to fetch
       setSubscriptionResolved(true);
     }
 
@@ -165,15 +212,13 @@ export function useAuth() {
     const params = new URLSearchParams(window.location.search);
     const authData = params.get('auth_data');
     if (authData) {
-      // Ignore tokens in links we didn't request (login CSRF: an attacker's
-      // link could otherwise sign the victim into the attacker's account).
       let loginPending = false;
       try {
         loginPending = sessionStorage.getItem('antcapture_login_pending') === '1';
         sessionStorage.removeItem('antcapture_login_pending');
       } catch { /* storage blocked */ }
       if (loginPending) {
-        login(authData); // login() resets subscriptionResolved and kicks off fetch
+        login(authData);
       }
       window.history.replaceState({}, document.title,
         window.location.origin + window.location.pathname);
@@ -181,7 +226,7 @@ export function useAuth() {
 
     // Handle popup postMessage (web UI login)
     const handleMessage = (event) => {
-      if (event.origin !== SERVER_URL) {return;}
+      if (event.origin !== SERVER_URL) { return; }
       if (event.data?.type === 'AUTH_SUCCESS' && event.data.auth_data) {
         login(event.data.auth_data);
       }
@@ -201,36 +246,42 @@ export function useAuth() {
       setTimeout(() => setIsInitializing(false), 300);
     }
 
-    // Handle ?billing=success — user just returned from LemonSqueezy checkout.
-    // The webhook may take a few seconds to reach the server, so we poll until
-    // we see an active subscription (up to 30 seconds), then stop.
+    // Handle ?billing=success — user returned from LemonSqueezy checkout.
+    // 1. First do a server-side sync (fetches live from LS API, updates DB).
+    // 2. If still not active after sync, poll /subscription for up to 30s
+    //    (webhook may still be in-flight).
     const billingStatus = params.get('billing');
     if (billingStatus === 'success' && stored) {
       window.history.replaceState({}, document.title,
         window.location.origin + window.location.pathname);
-      let attempts = 0;
-      const maxAttempts = 12; // 12 × 2.5s = 30 seconds
+
       const pollJwt = (() => { try { return JSON.parse(stored)?.jwt; } catch { return null; } })();
       if (pollJwt) {
-        const poll = setInterval(async () => {
-          attempts++;
-          try {
-            const res = await fetch(`${SERVER_URL}/subscription`, {
-              headers: { Authorization: `Bearer ${pollJwt}` },
-            });
-            if (res.ok) {
-              const data = await res.json();
-              if (data.subscription?.status === 'active') {
-                setSubscription(data.subscription);
-                setSubscriptionResolved(true);
-                clearInterval(poll);
-                // Dispatch a custom event so App.jsx can show a success toast
-                window.dispatchEvent(new CustomEvent('antcapture:billing-success'));
+        // Step 1: server-side sync
+        syncSubscription(pollJwt).then(() => {
+          // Step 2: if cloud not active yet, poll /subscription for up to 30s
+          let attempts = 0;
+          const maxAttempts = 12; // 12 × 2.5s = 30 seconds
+          const poll = setInterval(async () => {
+            attempts++;
+            try {
+              const res = await fetch(`${SERVER_URL}/subscription`, {
+                headers: { Authorization: `Bearer ${pollJwt}` },
+              });
+              if (res.ok) {
+                const data = await res.json();
+                if (data.entitlements?.cloud) {
+                  setSubscription(data.subscription);
+                  setEntitlements(data.entitlements);
+                  setSubscriptionResolved(true);
+                  clearInterval(poll);
+                  window.dispatchEvent(new CustomEvent('antcapture:billing-success'));
+                }
               }
-            }
-          } catch (_err) { /* ignore, retry */ }
-          if (attempts >= maxAttempts) clearInterval(poll);
-        }, 2500);
+            } catch (_err) { /* ignore, retry */ }
+            if (attempts >= maxAttempts) clearInterval(poll);
+          }, 2500);
+        });
       }
     }
 
@@ -257,15 +308,19 @@ export function useAuth() {
     };
   }, []);
 
-  // hasCloudAccess: admin OR active subscription.
-  // Admin role comes from refreshRole (server-side) — never trust JWT for this.
+  // hasCloudAccess: server is the authority — read from entitlements object.
+  // Admin override stays: admin role always has access.
   const hasCloudAccess = IS_LOCAL_MODE
     || user?.role === 'admin'
-    || subscription?.status === 'active';
+    || entitlements.cloud === true;
 
   // isReady: app has finished both auth init AND subscription fetch.
-  // The paywall gate uses this so it never activates prematurely.
   const isReady = !isInitializing && subscriptionResolved;
 
-  return { user, isAuthenticated, isInitializing, isReady, login, logout, updateUser, subscription, hasCloudAccess, refreshSubscription };
+  return {
+    user, isAuthenticated, isInitializing, isReady,
+    login, logout, updateUser,
+    subscription, entitlements, hasCloudAccess,
+    refreshSubscription, syncSubscription,
+  };
 }

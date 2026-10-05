@@ -1,0 +1,184 @@
+/* Settings page — mobile-first. See docs/UI_GUIDELINES.md. */
+
+/* Keeps the original 620px, left-aligned column on desktop */
+.page.settings-page {
+  max-width: 620px;
+  margin-inline: 0;
+}
+
+.settings-card {
+  background: var(--bg-tertiary);
+  border: 1px solid #334155;
+  border-radius: 16px;
+  padding: var(--space-4);
+  margin-bottom: var(--space-4);
+  min-width: 0;
+}
+
+@media (min-width: 640px) {
+  .settings-card {
+    padding: var(--space-5);
+  }
+}
+
+.settings-card--danger {
+  background: rgba(239, 68, 68, 0.03);
+  border-color: rgba(239, 68, 68, 0.2);
+}
+
+/* Profile summary: avatar + name/email */
+.settings-profile {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
+  padding: var(--space-4);
+  min-width: 0;
+}
+
+.settings-profile__name {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px var(--space-2);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.settings-profile__email {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* Display-name input + Save */
+.settings-name-row {
+  display: flex;
+  gap: 10px;
+  margin-bottom: var(--space-4);
+}
+
+.settings-name-row > input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* 16px inputs on phones stop iOS from zooming on focus */
+.settings-input {
+  font-size: var(--text-md);
+}
+
+@media (min-width: 640px) {
+  .settings-input {
+    font-size: var(--text-base);
+  }
+}
+
+/* Usage stats: three compact tiles; one column only on very small containers */
+.settings-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+
+.settings-stat {
+  padding: var(--space-3) 6px;
+  min-width: 0;
+}
+
+@media (min-width: 640px) {
+  .settings-stats {
+    gap: var(--space-3);
+  }
+
+  .settings-stat {
+    padding: var(--space-4);
+  }
+}
+
+@container page (max-width: 300px) {
+  .settings-stats {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Storage destination option */
+.settings-option {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px;
+  min-width: 0;
+}
+
+@media (min-width: 640px) {
+  .settings-option {
+    padding: 16px 18px;
+  }
+}
+
+/* Danger-zone rows: description wraps, buttons drop below on narrow screens */
+.settings-danger-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  margin-bottom: 10px;
+}
+
+.settings-danger-row__text {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+
+.settings-danger-row__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+/* ── Static / legal pages (StaticPage.jsx) ──────────────── */
+.static-card {
+  background: var(--bg-tertiary);
+  border: 1px solid #334155;
+  border-radius: 16px;
+  padding: 20px;
+  margin-bottom: var(--space-4);
+  min-width: 0;
+}
+
+@media (min-width: 640px) {
+  .static-card {
+    padding: var(--space-6);
+  }
+}
+
+.static-card__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
+  padding-bottom: 20px;
+  border-bottom: 1px solid #334155;
+  min-width: 0;
+}
+
+.static-card__title {
+  margin: 0;
+  font-size: var(--text-xl);
+  overflow-wrap: break-word;
+}
+
+/* Long legal text: comfortable measure, URLs/long words wrap */
+.static-card__body {
+  max-width: 75ch;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.8;
+  font-size: 15px;
+}

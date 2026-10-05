@@ -31,6 +31,7 @@ router.get('/diagnostics/errors', diag.getRecentErrors);
 router.get('/diagnostics/activity', diag.getRecentActivity);
 router.get('/diagnostics/info',   diag.getSystemInfo);
 router.get('/diagnostics/capture/:id', diag.getCaptureDiagnostics);
+router.get('/diagnostics/billing/:email', diag.getUserBillingDiagnostics);
 
 // ── One-shot recovery: Sync all UploadThing files to D1 ───────────────────────
 // Use this to fix orphaned captures where UploadThing received the file but the

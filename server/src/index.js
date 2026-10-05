@@ -33,6 +33,18 @@ if (process.env.SERVER_MODE === 'cloud') {
 
 const app = express();
 
+// ── Security headers ──────────────────────────────────────────────────────────
+// Don't advertise the framework, don't let browsers guess content types, don't
+// allow the API's HTML pages (OAuth popup) to be framed, and keep full URLs
+// (which may carry tokens) out of cross-site Referer headers.
+app.disable('x-powered-by');
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  next();
+});
+
 // ── IMPORTANT: Webhook route MUST come BEFORE express.json() ─────────────────
 // LemonSqueezy HMAC verification requires the raw request body.
 // The webhook route itself applies express.raw() internally.
@@ -144,6 +156,9 @@ if (!sanitizedUtToken) {
 // Logs them via the structured logger before sending a generic 500.
 // eslint-disable-next-line no-unused-vars
 app.use((err, req, res, next) => {
+  if (err.code === 'LIMIT_FILE_SIZE') {
+    return res.status(413).json({ error: 'file_too_large', detail: 'File is larger than this server accepts.' });
+  }
   logger.error('server', 'unhandled-error', {
     requestId: req.requestId,
     userId:    req.user?.id,

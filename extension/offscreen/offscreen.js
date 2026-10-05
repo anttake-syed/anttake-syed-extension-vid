@@ -483,8 +483,11 @@ class RecordingManager {
 // ─────────────────────────────────────────────────────────────────────────────
 // Message Listener (UI bindings)
 // ─────────────────────────────────────────────────────────────────────────────
-chrome.runtime.onMessage.addListener((message) => {
+chrome.runtime.onMessage.addListener((message, sender) => {
   if (message.target !== 'offscreen') return;
+  // Only the extension's own background/pages may drive the recorder — never
+  // a content script running on a web page (those senders have a tab).
+  if (sender.id !== chrome.runtime.id || sender.tab) return;
 
   switch (message.type) {
     case 'start-recording':

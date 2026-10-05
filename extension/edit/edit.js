@@ -43,35 +43,36 @@ chrome.storage.onChanged.addListener((changes, area) => {
  * @param {string} [hintText] – optional message to show when signed out
  */
 function updateAuthPanel(user, hintText) {
-  const panel          = document.getElementById('authPanel');
-  const signInSection  = document.getElementById('authSignInSection');
-  const signedInSection= document.getElementById('authSignedInSection');
-  const emailText      = document.getElementById('userEmailText');
-  const profilePic     = document.getElementById('userProfilePic');
-  const hintEl         = document.getElementById('authSignInHintText');
-
-  if (!panel) return;
+  const el        = document.getElementById('connStatus');
+  if (!el) return;
+  const emailText = document.getElementById('connEmail');
+  const avatar    = document.getElementById('connAvatar');
+  const hintEl    = document.getElementById('connHint');
+  const stateText = document.getElementById('connStateText');
 
   const isRealUser = user && user.jwt && user.email && !user.email.includes('localhost');
 
   if (isRealUser) {
-    // ── Signed-in state ────────────────────────────────────────────
-    panel.classList.add('visible');
-    signInSection.style.display  = 'none';
-    signedInSection.style.display = 'flex';
-    emailText.textContent  = user.email;
-    profilePic.src         = user.picture || '';
-  } else if (hintText) {
-    // ── Needs sign-in (triggered by a save attempt) ────────────────
-    panel.classList.add('visible');
-    signInSection.style.display   = 'flex';
-    signedInSection.style.display = 'none';
-    if (hintEl) hintEl.textContent = hintText;
+    // ── Signed-in: show who's connected + a sign-out button ────────
+    el.dataset.state = 'in';
+    el.classList.remove('conn-status--alert');
+    if (emailText) emailText.textContent = user.email;
+    if (avatar) {
+      if (user.picture) { avatar.src = user.picture; }
+      else { avatar.removeAttribute('src'); }
+    }
   } else {
-    // ── No session & no prompt needed — keep panel hidden ──────────
-    panel.classList.remove('visible');
-    signInSection.style.display   = 'none';
-    signedInSection.style.display = 'none';
+    // ── Signed-out. A hintText means a save needs Google — flag it. ─
+    el.dataset.state = 'out';
+    if (hintText) {
+      if (hintEl)    hintEl.textContent = hintText;
+      if (stateText) stateText.textContent = 'Action needed';
+      el.classList.add('conn-status--alert');
+    } else {
+      if (hintEl)    hintEl.textContent = 'Sign in to save to Cloud or Drive';
+      if (stateText) stateText.textContent = 'Not connected';
+      el.classList.remove('conn-status--alert');
+    }
   }
 }
 
@@ -773,6 +774,22 @@ async function processSave(mode) {
     }
     document.body.style.pointerEvents = 'auto'; // Fallback just in case
 
+    // Google Drive connection expired/revoked — guide the user to reconnect,
+    // and queue the save to retry automatically once they're back in.
+    if (err.code === 'DRIVE_REAUTH') {
+      pendingSaveMode = 'drive-only';
+      updateAuthPanel(null, 'Google Drive disconnected — reconnect to save.');
+      document.getElementById('connStatus')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      showToast(err.message || 'Reconnect Google Drive and try again.', 'error', 7000);
+      return;
+    }
+
+    // Google Drive is full — tell the user plainly how to proceed.
+    if (err.code === 'DRIVE_FULL_FALLBACK') {
+      showToast(err.message || 'Your Google Drive is full. Free up space or save to Cloud instead.', 'error', 8000);
+      return;
+    }
+
     if (err.message && err.message.includes('AntCapture Cloud plan')) {
       const serverBase = getServerUrl('cloud').replace('/api', '');
       const pricingUrl = `${serverBase}/pricing`;
@@ -819,15 +836,15 @@ document.getElementById('discardConfirmBtn')?.addEventListener('click', async ()
   window.close();
 });
 
-// ── Inline auth panel button handlers ─────────────────────────────────────
-document.getElementById('btnGoogleSignIn')?.addEventListener('click', async () => {
+// ── Connection-bar button handlers ────────────────────────────────────────
+document.getElementById('connSignIn')?.addEventListener('click', async () => {
   const targetMode = pendingSaveMode || 'cloud';
   const serverUrl = getServerUrl(targetMode);
   const authUrl = `${serverUrl}/auth/google?source=extension`;
   chrome.tabs.create({ url: authUrl });
 });
 
-document.getElementById('btnLogout')?.addEventListener('click', () => {
+document.getElementById('connSignOut')?.addEventListener('click', () => {
   const targetMode = pendingSaveMode || 'cloud';
   const origin = targetMode === 'localhost' ? 'http://localhost:3001' : 'https://api.antcapture.anttake.com';
   

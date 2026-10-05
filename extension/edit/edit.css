@@ -72,9 +72,135 @@ body {
   font-weight: 500;
 }
 
-.main-content { 
-  flex: 1; 
-  padding: 32px; 
+/* ── Connection status bar (always visible, top of sidebar) ───────────────── */
+.conn-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  flex-shrink: 0;
+}
+
+/* Toggle the two states via data-state; loading shows neither */
+.conn-status[data-state="loading"] { visibility: hidden; }
+.conn-status[data-state="in"]  .conn-signedout { display: none; }
+.conn-status[data-state="out"] .conn-signedin  { display: none; }
+
+/* Alert styling when the Google connection dropped and a save needs it */
+.conn-status.conn-status--alert {
+  background: rgba(234, 179, 8, 0.1);
+  border-color: rgba(234, 179, 8, 0.35);
+  animation: popIn 0.2s ease-out;
+}
+
+.conn-signedin,
+.conn-signedout {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
+}
+
+.conn-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #334155;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  flex-shrink: 0;
+  object-fit: cover;
+}
+
+.conn-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+  gap: 1px;
+}
+
+.conn-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  font-weight: 700;
+}
+
+.conn-label--on  { color: #10b981; }
+.conn-label--off { color: #94a3b8; }
+
+.conn-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.conn-dot--on  { background: #10b981; box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.18); }
+.conn-dot--off { background: #64748b; }
+
+.conn-status--alert .conn-dot--off { background: #facc15; }
+.conn-status--alert .conn-label--off { color: #facc15; }
+
+.conn-email,
+.conn-sub {
+  font-size: 12px;
+  color: #e2e8f0;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.conn-sub { color: #94a3b8; font-weight: 400; }
+
+.conn-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  flex-shrink: 0;
+  font-family: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.conn-btn--in {
+  padding: 8px 14px;
+  font-size: 12px;
+  background: #ffffff;
+  color: #1f2937;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.conn-btn--in:hover { filter: brightness(0.94); transform: translateY(-1px); }
+
+.conn-btn--out {
+  width: 34px;
+  height: 34px;
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.22);
+  color: #f87171;
+}
+
+.conn-btn--out:hover {
+  background: rgba(239, 68, 68, 0.16);
+  border-color: rgba(239, 68, 68, 0.4);
+  color: #fca5a5;
+}
+
+.main-content {
+  flex: 1;
+  padding: 32px;
   background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%); 
   position: relative; 
   height: 100vh;

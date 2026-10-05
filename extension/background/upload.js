@@ -120,6 +120,14 @@ export async function uploadToServer(blob, type, destination, jwt, resolution = 
       throw fallbackErr;
     }
 
+    // Google Drive authorization expired/revoked — relay so edit.js can prompt
+    // the user to reconnect Google rather than showing a cryptic provider error.
+    if (data.reauth || data.error === 'drive_auth_required') {
+      const reauthErr = new Error(data.message || 'Your Google Drive connection has expired. Reconnect Google and try again.');
+      reauthErr.code = 'DRIVE_REAUTH';
+      throw reauthErr;
+    }
+
     if (data.error === 'quota_exceeded') {
       throw new Error('Your cloud storage is full. Please upgrade your plan.');
     }

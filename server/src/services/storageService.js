@@ -7,6 +7,25 @@ const EntitlementService = require('./entitlementService');
 const prisma = require('../db/index');
 const logger = require('../utils/logger');
 
+// Does this error mean the user's Google authorization is missing/expired/revoked
+// (i.e. they need to reconnect Google), as opposed to a transient network error?
+function isDriveAuthError(err) {
+  const status = err?.code || err?.response?.status;
+  if (status === 401 || status === 403) { return true; }
+  const msg = (err?.message || '').toLowerCase();
+  return [
+    'no google account',
+    'session expired',
+    'invalid_grant',
+    'invalid credentials',
+    'login required',
+    'no refresh token',
+    'no access',
+    'insufficient',
+    'unauthorized',
+  ].some((needle) => msg.includes(needle));
+}
+
 class StorageService {
   _getProviderInstance(providerName) {
     switch (providerName) {
@@ -104,6 +123,31 @@ class StorageService {
       // an admin checking there for exactly this class of failure would
       // have seen nothing. logger.error feeds both stdout and that buffer.
       logger.error('storage', 'route-upload-failed', { provider: targetProvider, captureId, error: err });
+
+      // Google Drive full → caller can offer to fall back to cloud storage.
+      if (targetProvider === 'google_drive' && err.code === 'QUOTA_EXCEEDED') {
+        return {
+          success: false,
+          error: 'drive_full',
+          fallbackRequired: true,
+          reason: 'drive_full',
+          message: 'Your Google Drive is full. Free up space, or save to AntCapture Cloud instead.',
+        };
+      }
+
+      // Google Drive auth/connection failures can't be fixed server-side — the
+      // user's Google access was never granted, expired, or was revoked. Return
+      // a structured, actionable error so the extension can prompt a reconnect
+      // instead of showing a cryptic provider string like "invalid_grant".
+      if (targetProvider === 'google_drive' && isDriveAuthError(err)) {
+        return {
+          success: false,
+          error: 'drive_auth_required',
+          reauth: true,
+          message: 'Your Google Drive connection has expired. Reconnect your Google account and try saving again.',
+        };
+      }
+
       return { success: false, error: 'upload_failed', message: err.message };
     }
   }

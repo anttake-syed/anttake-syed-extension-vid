@@ -3,6 +3,7 @@
 const prisma  = require('../db/index');
 const logger  = require('../utils/logger');
 const { getCachedSubscription, setCachedSubscription } = require('../services/subscriptionCache');
+const { hasCloudAccess } = require('../services/accessRules');
 
 /**
  * requireSubscription — Authorization middleware (runs AFTER requireAuth).
@@ -59,7 +60,7 @@ async function requireSubscription(req, res, next) {
     }
 
     const isAdmin = dbUser.role === 'admin';
-    const hasActiveSub = dbUser.subscription && dbUser.subscription.status === 'active';
+    const hasActiveSub = hasCloudAccess(dbUser.subscription);
     const allowed = isAdmin || hasActiveSub;
 
     // 3. Store in cache

@@ -18,7 +18,7 @@ const CLOUD_FEATURES = [
   'Search + fuzzy search',
   'Keyboard shortcuts',
   'Google Drive integration',
-  'Export & sharing'
+  'Download your captures anytime'
 ];
 
 const SELF_HOSTED_FEATURES = [
@@ -36,11 +36,11 @@ const FAQ = [
   },
   {
     q: 'Where is my cloud data stored?',
-    a: 'Cloud plan data is stored securely on our infrastructure via GoBoard Drive. Self-hosted users keep everything on their own servers.',
+    a: 'Cloud plan files are stored with established cloud storage and database providers, served over HTTPS and linked only to your account. Self-hosted users keep everything on their own servers.',
   },
   {
     q: 'What happens if I cancel my Cloud plan?',
-    a: 'You keep access until the end of your billing period. Your data is yours — you can export it at any time.',
+    a: 'You keep access until the end of your billing period. Your data is yours — you can download your captures at any time.',
   },
   {
     q: 'What payment methods are accepted?',

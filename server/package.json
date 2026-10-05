@@ -22,7 +22,7 @@
     "@aws-sdk/client-s3": "^3.1116.0",
     "@aws-sdk/s3-request-presigner": "^3.1116.0",
     "@lemonsqueezy/lemonsqueezy.js": "^4.0.0",
-    "@prisma/client": "^5.22.0",
+    "@prisma/client": "^7.10.0",
     "@uploadthing/shared": "^7.1.10",
     "bcrypt": "^6.0.0",
     "body-parser": "^2.2.2",

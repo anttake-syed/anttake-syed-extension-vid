@@ -2,7 +2,15 @@ const crypto = require('crypto');
 const prisma = require('../db/index');
 const logger = require('../utils/logger');
 
-const WEBHOOK_SECRET = process.env.LS_WEBHOOK_SECRET;
+// LemonSqueezy test-mode and live-mode webhooks are separate, each with its own
+// signing secret. We accept either, so test and live purchases both validate
+// without swapping env vars when you flip modes:
+//   LS_WEBHOOK_SECRET       — your live (or primary) webhook's signing secret
+//   LS_WEBHOOK_SECRET_TEST  — your test-mode webhook's signing secret (optional)
+// (If you prefer, give both webhooks the same secret and only set the first.)
+function getWebhookSecrets() {
+  return [process.env.LS_WEBHOOK_SECRET, process.env.LS_WEBHOOK_SECRET_TEST].filter(Boolean);
+}
 
 /**
  * Maps a LemonSqueezy variant ID to the internal plan name.
@@ -45,15 +53,19 @@ exports.handleWebhook = async (req, res) => {
   try {
     // ── 1. Verify HMAC signature ─────────────────────────────────────────────
     // Without a secret anyone could sign a fake event with an empty key — fail closed.
-    if (!WEBHOOK_SECRET) {
+    const secrets = getWebhookSecrets();
+    if (secrets.length === 0) {
       logger.error('webhook', 'missing-webhook-secret', { requestId: req.requestId });
       return res.status(500).send('Webhook not configured');
     }
-    const hmac = crypto.createHmac('sha256', WEBHOOK_SECRET);
-    const digest = Buffer.from(hmac.update(req.body).digest('hex'), 'utf8');
     const signature = Buffer.from(req.get('X-Signature') || '', 'utf8');
+    // Accept the signature if it matches ANY configured secret (test or live).
+    const signatureValid = secrets.some((secret) => {
+      const digest = Buffer.from(crypto.createHmac('sha256', secret).update(req.body).digest('hex'), 'utf8');
+      return digest.length === signature.length && crypto.timingSafeEqual(digest, signature);
+    });
 
-    if (digest.length !== signature.length || !crypto.timingSafeEqual(digest, signature)) {
+    if (!signatureValid) {
       logger.warn('webhook', 'invalid-signature', { requestId: req.requestId, ip: req.ip });
       return res.status(403).send('Invalid signature');
     }

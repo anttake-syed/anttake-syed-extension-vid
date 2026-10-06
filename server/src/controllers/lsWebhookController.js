@@ -20,20 +20,24 @@ exports.getPlanNameFromVariant = function(variantId) {
     'LS_VARIANT_CLOUD_YEARLY',
   ].map((name) => process.env[name]).filter(Boolean);
 
-  const matched = cloudVariants.includes(id);
-  if (!matched) {
-    // Silent bug: a paid subscription fires but the variant ID doesn't match any
-    // configured env var. Plan gets written as 'free' -> user keeps seeing the
-    // upgrade banner even after purchase. Common cause: LEMONSQUEEZY_MODE=live
-    // but only TEST variant IDs are populated (or vice versa).
-    logger.warn('webhook', 'variant-id-not-mapped-to-cloud', {
-      variantId: id,
-      mode: process.env.LEMONSQUEEZY_MODE || 'test',
-      configuredVariants: cloudVariants,
-      consequence: 'Subscription will be written as free plan — user will keep seeing the upgrade banner',
-    });
-  }
-  return matched ? 'cloud' : 'free';
+  if (cloudVariants.includes(id)) { return 'cloud'; }
+
+  // No configured variant matched. This store has a single paid plan ('cloud'),
+  // and only paid subscriptions ever produce subscription_* webhooks — so the
+  // purchase IS Cloud. Defaulting to 'free' here (the old behaviour) silently
+  // left paying customers locked out whenever the variant-id/mode env vars were
+  // slightly off, which is the #1 cause of "I paid but nothing unlocked".
+  // Resolve to 'cloud' and warn loudly instead. Set LEMONSQUEEZY_STRICT_VARIANTS
+  // =true to require an exact match (e.g. once you sell more than one plan).
+  const strict = String(process.env.LEMONSQUEEZY_STRICT_VARIANTS || '').toLowerCase() === 'true';
+  logger.warn('webhook', 'variant-id-not-mapped-to-cloud', {
+    variantId: id,
+    mode: process.env.LEMONSQUEEZY_MODE || 'test',
+    configuredVariants: cloudVariants,
+    resolvedPlan: strict ? 'free' : 'cloud',
+    hint: 'Add this id to LEMONSQUEEZY_TEST_/LIVE_*_VARIANT_ID to silence this warning.',
+  });
+  return strict ? 'free' : 'cloud';
 }
 
 

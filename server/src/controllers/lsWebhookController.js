@@ -124,10 +124,10 @@ exports.handleWebhook = async (req, res) => {
 
         const variantId = attributes.variant_id.toString();
         const planName  = exports.getPlanNameFromVariant(variantId);
-        // Fall back to the free plan row so a paid subscription is still
-        // recorded (and unlocks cloud) if the 'cloud' row hasn't been created.
-        const plan      = await prisma.plan.findUnique({ where: { name: planName } })
-          || await prisma.plan.findUnique({ where: { name: 'free' } });
+        // ensurePlan CREATES the 'cloud' plan if the DB lacks it — otherwise a
+        // paid purchase was silently recorded as 'free' and never unlocked.
+        const { ensurePlan } = require('../services/planService');
+        const plan      = await ensurePlan(planName);
 
         if (!plan) {
           logger.warn('webhook', 'plan-not-found', { planName, variantId });

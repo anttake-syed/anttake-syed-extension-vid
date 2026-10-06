@@ -2,7 +2,15 @@ const crypto = require('crypto');
 const prisma = require('../db/index');
 const logger = require('../utils/logger');
 
-const WEBHOOK_SECRET = process.env.LS_WEBHOOK_SECRET;
+// LemonSqueezy test-mode and live-mode webhooks are separate, each with its own
+// signing secret. We accept either, so test and live purchases both validate
+// without swapping env vars when you flip modes:
+//   LS_WEBHOOK_SECRET       — your live (or primary) webhook's signing secret
+//   LS_WEBHOOK_SECRET_TEST  — your test-mode webhook's signing secret (optional)
+// (If you prefer, give both webhooks the same secret and only set the first.)
+function getWebhookSecrets() {
+  return [process.env.LS_WEBHOOK_SECRET, process.env.LS_WEBHOOK_SECRET_TEST].filter(Boolean);
+}
 
 /**
  * Maps a LemonSqueezy variant ID to the internal plan name.
@@ -20,20 +28,24 @@ exports.getPlanNameFromVariant = function(variantId) {
     'LS_VARIANT_CLOUD_YEARLY',
   ].map((name) => process.env[name]).filter(Boolean);
 
-  const matched = cloudVariants.includes(id);
-  if (!matched) {
-    // Silent bug: a paid subscription fires but the variant ID doesn't match any
-    // configured env var. Plan gets written as 'free' -> user keeps seeing the
-    // upgrade banner even after purchase. Common cause: LEMONSQUEEZY_MODE=live
-    // but only TEST variant IDs are populated (or vice versa).
-    logger.warn('webhook', 'variant-id-not-mapped-to-cloud', {
-      variantId: id,
-      mode: process.env.LEMONSQUEEZY_MODE || 'test',
-      configuredVariants: cloudVariants,
-      consequence: 'Subscription will be written as free plan — user will keep seeing the upgrade banner',
-    });
-  }
-  return matched ? 'cloud' : 'free';
+  if (cloudVariants.includes(id)) { return 'cloud'; }
+
+  // No configured variant matched. This store has a single paid plan ('cloud'),
+  // and only paid subscriptions ever produce subscription_* webhooks — so the
+  // purchase IS Cloud. Defaulting to 'free' here (the old behaviour) silently
+  // left paying customers locked out whenever the variant-id/mode env vars were
+  // slightly off, which is the #1 cause of "I paid but nothing unlocked".
+  // Resolve to 'cloud' and warn loudly instead. Set LEMONSQUEEZY_STRICT_VARIANTS
+  // =true to require an exact match (e.g. once you sell more than one plan).
+  const strict = String(process.env.LEMONSQUEEZY_STRICT_VARIANTS || '').toLowerCase() === 'true';
+  logger.warn('webhook', 'variant-id-not-mapped-to-cloud', {
+    variantId: id,
+    mode: process.env.LEMONSQUEEZY_MODE || 'test',
+    configuredVariants: cloudVariants,
+    resolvedPlan: strict ? 'free' : 'cloud',
+    hint: 'Add this id to LEMONSQUEEZY_TEST_/LIVE_*_VARIANT_ID to silence this warning.',
+  });
+  return strict ? 'free' : 'cloud';
 }
 
 
@@ -41,15 +53,19 @@ exports.handleWebhook = async (req, res) => {
   try {
     // ── 1. Verify HMAC signature ─────────────────────────────────────────────
     // Without a secret anyone could sign a fake event with an empty key — fail closed.
-    if (!WEBHOOK_SECRET) {
+    const secrets = getWebhookSecrets();
+    if (secrets.length === 0) {
       logger.error('webhook', 'missing-webhook-secret', { requestId: req.requestId });
       return res.status(500).send('Webhook not configured');
     }
-    const hmac = crypto.createHmac('sha256', WEBHOOK_SECRET);
-    const digest = Buffer.from(hmac.update(req.body).digest('hex'), 'utf8');
     const signature = Buffer.from(req.get('X-Signature') || '', 'utf8');
+    // Accept the signature if it matches ANY configured secret (test or live).
+    const signatureValid = secrets.some((secret) => {
+      const digest = Buffer.from(crypto.createHmac('sha256', secret).update(req.body).digest('hex'), 'utf8');
+      return digest.length === signature.length && crypto.timingSafeEqual(digest, signature);
+    });
 
-    if (digest.length !== signature.length || !crypto.timingSafeEqual(digest, signature)) {
+    if (!signatureValid) {
       logger.warn('webhook', 'invalid-signature', { requestId: req.requestId, ip: req.ip });
       return res.status(403).send('Invalid signature');
     }

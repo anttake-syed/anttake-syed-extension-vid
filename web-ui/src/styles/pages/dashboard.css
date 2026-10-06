@@ -32,8 +32,19 @@
   }
 }
 
-/* ── Card shell shared by the welcome hero and the "get extension" banner ── */
-.dash-hero,
+/* ── Welcome hero — blue/indigo gradient card (matches the extension banner) ── */
+.dash-hero {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.08) 0%, rgba(168, 85, 247, 0.08) 100%);
+  border: 1px solid rgba(99, 102, 241, 0.15);
+  border-radius: var(--radius-lg);
+  padding: 28px 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-5);
+}
+
 .dash-hero__actions {
   display: flex;
   gap: var(--space-3);

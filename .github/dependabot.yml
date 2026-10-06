@@ -1,5 +1,13 @@
 # Weekly dependency update PRs. Minor/patch updates are grouped into one PR per
 # folder so it stays low-noise; security fixes are opened as soon as they exist.
+#
+# Major-version bumps are ignored for a few packages whose ecosystem can't take
+# the new major yet, because merging them breaks the build:
+#   - vite 8 / @vitejs/plugin-react: plugin-react peer-requires vite <=7
+#   - eslint 10 / @eslint/js: the eslint-plugin-* set peer-requires eslint <=9
+#   - prisma 7 / @prisma/client: v7 drops `url` in the datasource and needs a
+#     prisma.config.ts migration (tracked separately)
+# Revisit and remove each ignore once the blocker is resolved.
 version: 2
 updates:
   - package-ecosystem: npm
@@ -9,6 +17,11 @@ updates:
     groups:
       minor-and-patch:
         update-types: [minor, patch]
+    ignore:
+      - dependency-name: "prisma"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@prisma/client"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: npm
     directory: /web-ui
     schedule:
@@ -16,6 +29,15 @@ updates:
     groups:
       minor-and-patch:
         update-types: [minor, patch]
+    ignore:
+      - dependency-name: "vite"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@vitejs/plugin-react"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "eslint"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@eslint/js"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: npm
     directory: /extension
     schedule:

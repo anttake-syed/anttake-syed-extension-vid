@@ -42,6 +42,12 @@ const LOCAL_ENTITLEMENTS = {
   warningLevel:     null,
 };
 
+// Set when the user explicitly signs out. While present, we never auto-adopt a
+// session (from the extension, another tab, or a restored localStorage value),
+// so an explicit sign-out can't be instantly undone by the auth-sync bridge.
+// Cleared on an explicit sign-in.
+const SIGNED_OUT_KEY = 'antcapture_signed_out';
+
 export function useAuth() {
   const [user, setUser] = useState(null);
   const userRef = useRef(null);
@@ -131,6 +137,7 @@ export function useAuth() {
         return null;
       }
       userData.jwt = authData;
+      localStorage.removeItem(SIGNED_OUT_KEY); // explicit sign-in clears the sign-out guard
       localStorage.setItem('antcapture_user', JSON.stringify(userData));
       setUser(userData);
       setIsAuthenticated(true);
@@ -151,13 +158,20 @@ export function useAuth() {
   };
 
   const logout = () => {
+    // Set the guard BEFORE clearing the user so any sync/storage event that
+    // races this (e.g. the extension's authSync re-pulling the session) sees it
+    // and declines to restore — which is what caused the instant re-login.
+    try { localStorage.setItem(SIGNED_OUT_KEY, '1'); } catch { /* storage blocked */ }
     localStorage.removeItem('antcapture_user');
     setUser(null);
     setIsAuthenticated(false);
     setSubscription(null);
     setEntitlements(FREE_ENTITLEMENTS);
-    setSubscriptionResolved(false);
+    setSubscriptionResolved(true);
 
+    // Tell the extension's content script to clear its stored copy too, so this
+    // is a single sign-out (web + extension) and nothing restores the session.
+    try { window.dispatchEvent(new CustomEvent('antcapture:logout')); } catch { /* no-op */ }
     if (EXTENSION_ID && typeof chrome !== 'undefined' && chrome.runtime?.sendMessage) {
       chrome.runtime.sendMessage(EXTENSION_ID, { action: 'SYNC_USER', user: null }).catch(() => {});
     }
@@ -233,8 +247,10 @@ export function useAuth() {
     };
     window.addEventListener('message', handleMessage);
 
-    // Auto-login from extension if not already authenticated
-    if (!stored && !authData && EXTENSION_ID && typeof chrome !== 'undefined' && chrome.runtime?.sendMessage) {
+    // Auto-login from extension if not already authenticated — but not after an
+    // explicit sign-out (otherwise the extension's session logs you back in).
+    const signedOut = localStorage.getItem(SIGNED_OUT_KEY) === '1';
+    if (!stored && !authData && !signedOut && EXTENSION_ID && typeof chrome !== 'undefined' && chrome.runtime?.sendMessage) {
       chrome.runtime.sendMessage(EXTENSION_ID, { action: 'GET_USER' }, (response) => {
         void chrome.runtime.lastError;
         if (response?.user?.jwt) {
@@ -288,6 +304,8 @@ export function useAuth() {
     // The extension's content script (authSync.js) copies the signed-in user
     // into localStorage and fires a 'storage' event — adopt it without a reload.
     const handleStorage = (event) => {
+      // Honour an explicit sign-out — never re-adopt a session while it stands.
+      if (localStorage.getItem(SIGNED_OUT_KEY) === '1') {return;}
       if (event.key && event.key !== 'antcapture_user') {return;}
       const raw = localStorage.getItem('antcapture_user');
       if (!raw) {return;}

@@ -161,11 +161,13 @@ exports.syncSubscription = async (req, res) => {
 
     // Apply the fresh data from Lemon Squeezy to our DB
     const { getPlanNameFromVariant } = require('./lsWebhookController');
+    const { ensurePlan } = require('../services/planService');
     const variantId = lsData.attributes.variant_id.toString();
     const planName = getPlanNameFromVariant(variantId);
 
-    const plan = await prisma.plan.findUnique({ where: { name: planName } })
-      || await prisma.plan.findUnique({ where: { name: 'free' } });
+    // Self-heals the 'cloud' plan if the DB lacks it, so email recovery records
+    // the subscription as cloud (and unlocks) instead of falling back to free.
+    const plan = await ensurePlan(planName);
 
     if (plan) {
       await prisma.subscription.upsert({

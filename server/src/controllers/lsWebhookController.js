@@ -26,14 +26,15 @@ exports.getPlanNameFromVariant = function(variantId) {
     // configured env var. Plan gets written as 'free' -> user keeps seeing the
     // upgrade banner even after purchase. Common cause: LEMONSQUEEZY_MODE=live
     // but only TEST variant IDs are populated (or vice versa).
-    logger.warn('webhook', 'variant-id-not-mapped-to-cloud', {
+    logger.error('webhook', 'variant-id-not-mapped-to-cloud', {
       variantId: id,
       mode: process.env.LEMONSQUEEZY_MODE || 'test',
       configuredVariants: cloudVariants,
-      consequence: 'Subscription will be written as free plan — user will keep seeing the upgrade banner',
+      consequence: 'Subscription update rejected to avoid overwriting with a free plan. Fix variant IDs in environment variables.',
     });
+    return 'unknown';
   }
-  return matched ? 'cloud' : 'free';
+  return 'cloud';
 }
 
 
@@ -87,13 +88,16 @@ exports.handleWebhook = async (req, res) => {
 
         const variantId = attributes.variant_id.toString();
         const planName  = exports.getPlanNameFromVariant(variantId);
-        // Fall back to the free plan row so a paid subscription is still
-        // recorded (and unlocks cloud) if the 'cloud' row hasn't been created.
-        const plan      = await prisma.plan.findUnique({ where: { name: planName } })
-          || await prisma.plan.findUnique({ where: { name: 'free' } });
+        
+        if (planName === 'unknown') {
+          logger.error('webhook', 'unknown-variant-id', { variantId, userId });
+          return res.status(400).send('Unknown variant ID');
+        }
+
+        const plan = await prisma.plan.findUnique({ where: { name: planName } });
 
         if (!plan) {
-          logger.warn('webhook', 'plan-not-found', { planName, variantId });
+          logger.error('webhook', 'plan-not-found', { planName, variantId });
           break;
         }
 

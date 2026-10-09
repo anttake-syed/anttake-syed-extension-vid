@@ -291,10 +291,8 @@ export function useAuth() {
   }, []);
 
   // hasCloudAccess: server is the authority — read from entitlements object.
-  // Admin override stays: admin role always has access.
-  const hasCloudAccess = IS_LOCAL_MODE
-    || user?.role === 'admin'
-    || entitlements.cloud === true;
+  // The server handles admin bypass configuration automatically.
+  const hasCloudAccess = IS_LOCAL_MODE || entitlements.cloud === true;
 
   // isReady: app has finished both auth init AND subscription fetch.
   const isReady = !isInitializing && subscriptionResolved;

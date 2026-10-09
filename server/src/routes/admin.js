@@ -134,5 +134,47 @@ router.post('/recover-processing', async (req, res) => {
   }
 });
 
-module.exports = router;
+// ── Application Settings ──────────────────────────────────────────────────────
+router.get('/settings', async (req, res) => {
+  const prisma = require('../db/index');
+  try {
+    const settings = await prisma.appSettings.findUnique({ where: { id: 'global' } });
+    res.json(settings || {
+      id: 'global',
+      adminBypassEnabled: true,
+      adminDiagnosticsEnabled: true,
+      cloudSubscriptionRequired: true,
+      selfHostedBillingRequired: false,
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch settings' });
+  }
+});
 
+router.put('/settings', async (req, res) => {
+  const prisma = require('../db/index');
+  try {
+    const data = req.body;
+    const settings = await prisma.appSettings.upsert({
+      where: { id: 'global' },
+      update: {
+        adminBypassEnabled: data.adminBypassEnabled,
+        adminDiagnosticsEnabled: data.adminDiagnosticsEnabled,
+        cloudSubscriptionRequired: data.cloudSubscriptionRequired,
+        selfHostedBillingRequired: data.selfHostedBillingRequired,
+      },
+      create: {
+        id: 'global',
+        adminBypassEnabled: data.adminBypassEnabled ?? true,
+        adminDiagnosticsEnabled: data.adminDiagnosticsEnabled ?? true,
+        cloudSubscriptionRequired: data.cloudSubscriptionRequired ?? true,
+        selfHostedBillingRequired: data.selfHostedBillingRequired ?? false,
+      },
+    });
+    res.json(settings);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to update settings' });
+  }
+});
+
+module.exports = router;

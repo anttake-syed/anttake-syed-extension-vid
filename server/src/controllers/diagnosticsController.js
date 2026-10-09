@@ -641,7 +641,8 @@ exports.getUserBillingDiagnostics = async (req, res) => {
     }
 
     const { computeEntitlements } = require('./subscriptionController');
-    const entitlements = computeEntitlements(user.subscription);
+    const appSettings = await prisma.appSettings.findUnique({ where: { id: 'global' } }) || {};
+    const entitlements = computeEntitlements(user.subscription, user, appSettings);
 
     const payload = {
       identity: {

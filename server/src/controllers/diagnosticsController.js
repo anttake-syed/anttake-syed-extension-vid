@@ -372,6 +372,9 @@ async function checkSubscriptionHealth() {
     }
   });
 
+  const appSettings = await prisma.appSettings.findUnique({ where: { id: 'global' } });
+  const { computeEntitlements } = require('./subscriptionController');
+
   const paidButFree = lsCustomers.filter(c => {
     const sub = c.user?.subscription;
     return sub && sub.plan?.name === 'free';
@@ -381,6 +384,15 @@ async function checkSubscriptionHealth() {
     const sub = c.user?.subscription;
     return sub && sub.status === 'active';
   }).length;
+
+  const activeButLocked = lsCustomers.filter(c => {
+    const sub = c.user?.subscription;
+    if (sub && sub.status === 'active') {
+      const entitlements = computeEntitlements(sub, c.user, appSettings);
+      return entitlements.cloud === false;
+    }
+    return false;
+  });
 
   // Check which variant env vars are actually populated
   const variantEnvCheck = {
@@ -410,11 +422,19 @@ async function checkSubscriptionHealth() {
     );
   }
 
+  if (activeButLocked.length > 0) {
+    throw new Error(
+      `${activeButLocked.length} user(s) have an 'active' subscription but computeEntitlements evaluates to cloud=false. ` +
+      `This indicates a breakdown in access rules logic or plan configurations.`
+    );
+  }
+
   return {
     mode,
     lsCustomerCount:   lsCustomers.length,
     activeCount,
     paidButFreeCount:  paidButFree.length,
+    activeButLockedCount: activeButLocked.length,
     variantEnvCheck,
     modeVariantsConfigured: modeVariantsSet,
   };

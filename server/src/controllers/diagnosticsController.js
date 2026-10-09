@@ -52,6 +52,7 @@ async function runCheck(name, fn) {
       durationMs: Date.now() - start,
       error:   err.message,
       code:    err.code,
+      ...(err.detail ? { detail: err.detail } : {}),
     };
   }
 }
@@ -409,24 +410,36 @@ async function checkSubscriptionHealth() {
     : (variantEnvCheck.TEST_MONTHLY  || variantEnvCheck.TEST_YEARLY);
 
   if (!modeVariantsSet) {
-    throw new Error(
+    const err = new Error(
       `LEMONSQUEEZY_MODE=${mode} but no ${modeUpper} variant IDs are set. ` +
       `Webhooks will silently write 'free' plan for all purchases — users will see the upgrade banner after checkout.`
     );
+    err.detail = { variantEnvCheck, mode };
+    throw err;
   }
 
-  if (paidButFree.length > 0) {
-    throw new Error(
-      `${paidButFree.length} user(s) have a LemonSqueezy customer record but their subscription plan is 'free'. ` +
-      `This means webhooks fired but variant IDs were not matched. Check for variant-id-not-mapped-to-cloud in recent errors.`
+  if (paidButFree.length > 0 || activeButLocked.length > 0) {
+    const err = new Error(
+      `Subscription disconnect detected: ${paidButFree.length} user(s) paid but have 'free' plan, ` +
+      `and ${activeButLocked.length} user(s) have an active subscription but computeEntitlements evaluates to cloud=false.`
     );
-  }
-
-  if (activeButLocked.length > 0) {
-    throw new Error(
-      `${activeButLocked.length} user(s) have an 'active' subscription but computeEntitlements evaluates to cloud=false. ` +
-      `This indicates a breakdown in access rules logic or plan configurations.`
-    );
+    err.detail = {
+      paidButFree: paidButFree.map(c => ({
+        email: c.user?.email,
+        userId: c.user?.id,
+        lsVariantId: c.lsVariantId,
+        lsSubscriptionId: c.lsSubscriptionId
+      })),
+      activeButLocked: activeButLocked.map(c => ({
+        email: c.user?.email,
+        userId: c.user?.id,
+        lsVariantId: c.lsVariantId,
+        subscriptionStatus: c.user?.subscription?.status,
+        planId: c.user?.subscription?.planId,
+        computedEntitlements: computeEntitlements(c.user?.subscription, c.user, appSettings)
+      }))
+    };
+    throw err;
   }
 
   return {

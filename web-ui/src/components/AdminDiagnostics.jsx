@@ -482,24 +482,40 @@ export default function AdminDiagnostics({ user }) {
           </p>
         }
         actions={
-          <button
-            onClick={() => { fetchHealth(); fetchErrors(); fetchActivity(); }}
-            disabled={loading}
-            style={{
-              display: 'flex', alignItems: 'center', gap: '8px',
-              padding: '10px 18px', borderRadius: '10px',
-              background: loading ? 'var(--bg-tertiary)' : 'var(--primary)',
-              color: loading ? 'var(--text-muted)' : 'white',
-              border: 'none', cursor: loading ? 'not-allowed' : 'pointer',
-              fontSize: '13px', fontWeight: 600, transition: 'all 0.15s',
-            }}
-          >
-            <span className="material-symbols-rounded" style={{
-              fontSize: '16px',
-              animation: loading ? 'spin 1s linear infinite' : 'none',
-            }}>refresh</span>
-            {loading ? 'Running…' : 'Run Checks'}
-          </button>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button
+              onClick={() => window.dispatchEvent(new Event('trigger-onboarding'))}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '8px',
+                padding: '10px 18px', borderRadius: '10px',
+                background: 'var(--bg-tertiary)',
+                color: 'var(--text-primary)',
+                border: '1px solid var(--border)', cursor: 'pointer',
+                fontSize: '13px', fontWeight: 600, transition: 'all 0.15s',
+              }}
+            >
+              <span className="material-symbols-rounded" style={{ fontSize: '16px' }}>slideshow</span>
+              Trigger Onboarding UI
+            </button>
+            <button
+              onClick={() => { fetchHealth(); fetchErrors(); fetchActivity(); }}
+              disabled={loading}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '8px',
+                padding: '10px 18px', borderRadius: '10px',
+                background: loading ? 'var(--bg-tertiary)' : 'var(--primary)',
+                color: loading ? 'var(--text-muted)' : 'white',
+                border: 'none', cursor: loading ? 'not-allowed' : 'pointer',
+                fontSize: '13px', fontWeight: 600, transition: 'all 0.15s',
+              }}
+            >
+              <span className="material-symbols-rounded" style={{
+                fontSize: '16px',
+                animation: loading ? 'spin 1s linear infinite' : 'none',
+              }}>refresh</span>
+              {loading ? 'Running…' : 'Run Checks'}
+            </button>
+          </div>
         }
       />
 

@@ -366,5 +366,12 @@
   </div>
 
   <script type="module" src="edit.js"></script>
+  <!-- ── Demo Tour Overlay (modular, zero-cost, swap variant in demoVariants.js) ── -->
+  <script type="module">
+    import { initDemoTour } from './demoTour.js';
+    // Runs only for free/non-cloud users, once per variant.
+    // To disable: comment out this line. To switch variant: edit demoVariants.js.
+    initDemoTour();
+  </script>
 </body>
 </html>

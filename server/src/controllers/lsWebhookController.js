@@ -235,11 +235,20 @@ exports.handleWebhook = async (req, res) => {
         break;
       }
 
-      // --- Payment refunded ---
-      case 'subscription_payment_refunded': {
+      // --- Payment / Order Refunded ---
+      // A refund (whether subscription or order) should instantly revoke access, bypassing any remaining period.
+      case 'subscription_payment_refunded':
+      case 'order_refunded': {
         if (!userId) break;
-        // Log the refund — no automatic status change, admin handles case-by-case
-        logger.info('webhook', 'payment-refunded', { userId, amount: attributes.total });
+        
+        await prisma.subscription.updateMany({
+          where: { userId },
+          // Using 'refunded' status (custom to us) ensures accessRules immediately evaluates to false, 
+          // revoking access without waiting for period end.
+          data:  { status: 'refunded', cancelAtPeriodEnd: true, currentPeriodEnd: new Date() }
+        });
+        
+        logger.info('webhook', 'payment-refunded', { userId, eventName, amount: attributes.total });
         break;
       }
 

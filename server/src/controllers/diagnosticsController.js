@@ -411,7 +411,28 @@ async function checkSubscriptionHealth() {
     const sub = c.user?.subscription;
     if (sub && sub.status === 'active') {
       const entitlements = computeEntitlements(sub, c.user, appSettings);
-      return entitlements.cloud === false;
+      return entitlements.cloud === false && !entitlements.isAdminBypass;
+    }
+    return false;
+  });
+
+  const cancelledButLocked = lsCustomers.filter(c => {
+    const sub = c.user?.subscription;
+    if (sub && sub.status === 'cancelled' && sub.currentPeriodEnd) {
+      const periodEnd = new Date(sub.currentPeriodEnd).getTime();
+      if (periodEnd > Date.now()) {
+        const entitlements = computeEntitlements(sub, c.user, appSettings);
+        return entitlements.cloud === false && !entitlements.isAdminBypass;
+      }
+    }
+    return false;
+  });
+
+  const refundedButUnlocked = lsCustomers.filter(c => {
+    const sub = c.user?.subscription;
+    if (sub && (sub.status === 'refunded' || sub.status === 'expired' || sub.status === 'unpaid')) {
+      const entitlements = computeEntitlements(sub, c.user, appSettings);
+      return entitlements.cloud === true && !entitlements.isAdminBypass;
     }
     return false;
   });
@@ -439,26 +460,30 @@ async function checkSubscriptionHealth() {
     throw err;
   }
 
-  if (paidButFree.length > 0 || activeButLocked.length > 0) {
+  if (paidButFree.length > 0 || activeButLocked.length > 0 || cancelledButLocked.length > 0 || refundedButUnlocked.length > 0) {
     const err = new Error(
-      `Subscription disconnect detected: ${paidButFree.length} user(s) paid but have 'free' plan, ` +
-      `and ${activeButLocked.length} user(s) have an active subscription but computeEntitlements evaluates to cloud=false.`
+      `Subscription disconnect detected:\n` +
+      `- ${paidButFree.length} user(s) paid but have 'free' plan\n` +
+      `- ${activeButLocked.length} user(s) have 'active' status but are locked out of cloud\n` +
+      `- ${cancelledButLocked.length} user(s) are cancelled (in grace period) but locked out early\n` +
+      `- ${refundedButUnlocked.length} user(s) are refunded/expired but still have cloud access`
     );
+    
+    const mapUser = c => ({
+      email: c.user?.email,
+      userId: c.user?.id,
+      lsVariantId: c.lsVariantId,
+      subscriptionStatus: c.user?.subscription?.status,
+      currentPeriodEnd: c.user?.subscription?.currentPeriodEnd,
+      planId: c.user?.subscription?.planId,
+      computedEntitlements: computeEntitlements(c.user?.subscription, c.user, appSettings)
+    });
+
     err.detail = {
-      paidButFree: paidButFree.map(c => ({
-        email: c.user?.email,
-        userId: c.user?.id,
-        lsVariantId: c.lsVariantId,
-        lsSubscriptionId: c.lsSubscriptionId
-      })),
-      activeButLocked: activeButLocked.map(c => ({
-        email: c.user?.email,
-        userId: c.user?.id,
-        lsVariantId: c.lsVariantId,
-        subscriptionStatus: c.user?.subscription?.status,
-        planId: c.user?.subscription?.planId,
-        computedEntitlements: computeEntitlements(c.user?.subscription, c.user, appSettings)
-      }))
+      paidButFree: paidButFree.map(mapUser),
+      activeButLocked: activeButLocked.map(mapUser),
+      cancelledButLocked: cancelledButLocked.map(mapUser),
+      refundedButUnlocked: refundedButUnlocked.map(mapUser)
     };
     throw err;
   }

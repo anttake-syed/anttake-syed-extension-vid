@@ -373,7 +373,28 @@ async function checkSubscriptionHealth() {
     }
   });
 
-  const appSettings = await prisma.appSettings.findUnique({ where: { id: 'global' } });
+  let appSettings = null;
+  try {
+    appSettings = await prisma.appSettings.findUnique({ where: { id: 'global' } });
+  } catch (e) {
+    // AppSettings table may not exist yet in D1 — needs migration
+    const err = new Error(
+      'AppSettings table is missing from the database. ' +
+      'Run the SQL migration to create it: ' +
+      'CREATE TABLE IF NOT EXISTS "AppSettings" ("id" TEXT PRIMARY KEY DEFAULT \'global\', ' +
+      '"adminBypassEnabled" BOOLEAN NOT NULL DEFAULT 1, ' +
+      '"adminDiagnosticsEnabled" BOOLEAN NOT NULL DEFAULT 1, ' +
+      '"cloudSubscriptionRequired" BOOLEAN NOT NULL DEFAULT 1, ' +
+      '"selfHostedBillingRequired" BOOLEAN NOT NULL DEFAULT 0, ' +
+      '"updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP);'
+    );
+    err.detail = {
+      fixRequired: 'Run the SQL migration via Cloudflare D1 dashboard or Wrangler CLI',
+      sql: 'CREATE TABLE IF NOT EXISTS "AppSettings" ("id" TEXT PRIMARY KEY DEFAULT \'global\', "adminBypassEnabled" BOOLEAN NOT NULL DEFAULT 1, "adminDiagnosticsEnabled" BOOLEAN NOT NULL DEFAULT 1, "cloudSubscriptionRequired" BOOLEAN NOT NULL DEFAULT 1, "selfHostedBillingRequired" BOOLEAN NOT NULL DEFAULT 0, "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP);',
+      wranglerCmd: 'echo "CREATE TABLE IF NOT EXISTS ..." | npx wrangler d1 execute <DB_NAME> --remote --command "..."',
+    };
+    throw err;
+  }
   const { computeEntitlements } = require('./subscriptionController');
 
   const paidButFree = lsCustomers.filter(c => {

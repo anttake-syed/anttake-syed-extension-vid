@@ -5,6 +5,7 @@ import '../styles/pages/billing.css';
 
 export default function SubscriptionManage({ user }) {
   const [sub, setSub] = useState(null);
+  const [entitlements, setEntitlements] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   
@@ -17,6 +18,7 @@ export default function SubscriptionManage({ user }) {
         if (!res.ok) throw new Error('Failed to fetch subscription');
         const data = await res.json();
         setSub(data.subscription);
+        setEntitlements(data.entitlements);
       } catch (err) {
         setError(err.message);
       } finally {
@@ -45,9 +47,8 @@ export default function SubscriptionManage({ user }) {
     );
   }
 
-  // Active sub
-  if (sub && sub.status === 'active') {
-    const isCancelAtPeriodEnd = sub.cancelAtPeriodEnd;
+  if (entitlements && entitlements.cloud) {
+    const isCancelAtPeriodEnd = entitlements.cancelAtPeriodEnd;
     
     return (
       <Page width="narrow" className="billing-page">
@@ -62,7 +63,7 @@ export default function SubscriptionManage({ user }) {
           <div className="billing-card__head">
             <div>
               <div style={{ fontSize: '13px', color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 700, marginBottom: '4px' }}>Current Plan</div>
-              <div className="break-anywhere" style={{ fontSize: '24px', color: 'white', fontWeight: 800 }}>{sub.planName.charAt(0).toUpperCase() + sub.planName.slice(1)} Plan</div>
+              <div className="break-anywhere" style={{ fontSize: '24px', color: 'white', fontWeight: 800 }}>{entitlements.plan.charAt(0).toUpperCase() + entitlements.plan.slice(1)} Plan</div>
             </div>
             <div style={{ background: isCancelAtPeriodEnd ? 'rgba(245,158,11,0.15)' : 'rgba(16,185,129,0.15)', color: isCancelAtPeriodEnd ? 'var(--warning)' : '#34d399', padding: '6px 14px', borderRadius: '999px', fontSize: '12px', fontWeight: 700 }}>
               {isCancelAtPeriodEnd ? 'Cancels at period end' : 'Active'}
@@ -71,9 +72,9 @@ export default function SubscriptionManage({ user }) {
           
           <div style={{ background: 'var(--bg-secondary)', borderRadius: '12px', padding: '20px', marginBottom: '24px' }}>
             <div className="billing-row" style={{ paddingBottom: '12px', borderBottom: '1px solid #1e293b', marginBottom: '12px' }}>
-              <span style={{ color: 'var(--text-dim)', fontSize: '14px' }}>Renews on</span>
+              <span style={{ color: 'var(--text-dim)', fontSize: '14px' }}>{isCancelAtPeriodEnd ? 'Expires on' : 'Renews on'}</span>
               <span style={{ color: 'white', fontWeight: 600, fontSize: '14px' }}>
-                {sub.renewsAt ? new Date(sub.renewsAt).toLocaleDateString() : '—'}
+                {entitlements.currentPeriodEnd ? new Date(entitlements.currentPeriodEnd).toLocaleDateString() : '—'}
               </span>
             </div>
             <div className="billing-row">
@@ -85,7 +86,7 @@ export default function SubscriptionManage({ user }) {
           </div>
           
           <div className="billing-actions">
-            {sub.updateUrl && (
+            {sub && sub.updateUrl && (
               <a
                 href={sub.updateUrl}
                 target="_blank"
@@ -97,7 +98,7 @@ export default function SubscriptionManage({ user }) {
                 Update Payment Method
               </a>
             )}
-            {sub.cancelUrl && !isCancelAtPeriodEnd && (
+            {sub && sub.cancelUrl && !isCancelAtPeriodEnd && (
               <a
                 href={sub.cancelUrl}
                 target="_blank"

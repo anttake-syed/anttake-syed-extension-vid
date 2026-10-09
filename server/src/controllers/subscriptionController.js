@@ -7,7 +7,21 @@ const { hasCloudAccess, subscriptionGrantsAccess } = require('../services/access
 // Single source of truth for what a subscription record means for the frontend.
 // The frontend never derives access rules — it just reads this object.
 
-exports.computeEntitlements = function computeEntitlements(subscription) {
+exports.computeEntitlements = function computeEntitlements(subscription, user = null, appSettings = null) {
+  // Check Admin Bypass first
+  if (user?.role === 'admin' && appSettings?.adminBypassEnabled) {
+     return {
+       cloud: true,
+       plan: 'cloud', // or equivalent paid plan name
+       status: 'active',
+       cancelAtPeriodEnd: false,
+       currentPeriodEnd: null,
+       daysUntilExpiry: null,
+       warningLevel: null,
+       isAdminBypass: true
+     };
+  }
+
   if (!subscription) {
     return {
       cloud: false,
@@ -88,9 +102,11 @@ exports.getSubscription = async (req, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
+    const appSettings = await prisma.appSettings.findUnique({ where: { id: 'global' } }) || {};
+
     res.json({
       subscription:  user.subscription,
-      entitlements:  exports.computeEntitlements(user.subscription),
+      entitlements:  exports.computeEntitlements(user.subscription, user, appSettings),
     });
   } catch (err) {
     logger.error('subscription', 'get-subscription-failed', { requestId: req.requestId, userId: req.user.id, error: err });
@@ -150,12 +166,14 @@ exports.syncSubscription = async (req, res) => {
       }
     }
 
+    const appSettings = await prisma.appSettings.findUnique({ where: { id: 'global' } }) || {};
+
     if (!lsData?.attributes?.status) {
       // Still no data — just return current state
       return res.json({
         synced:       false,
         subscription: userRow.subscription || null,
-        entitlements: exports.computeEntitlements(userRow.subscription || null),
+        entitlements: exports.computeEntitlements(userRow.subscription || null, userRow, appSettings),
       });
     }
 
@@ -206,7 +224,7 @@ exports.syncSubscription = async (req, res) => {
     res.json({
       synced:       true,
       subscription: updatedUser?.subscription || null,
-      entitlements: exports.computeEntitlements(updatedUser?.subscription || null),
+      entitlements: exports.computeEntitlements(updatedUser?.subscription || null, updatedUser, appSettings),
     });
   } catch (err) {
     logger.error('subscription', 'sync-failed', { requestId: req.requestId, userId, error: err });

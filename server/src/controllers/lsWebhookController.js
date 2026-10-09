@@ -130,7 +130,7 @@ exports.handleWebhook = async (req, res) => {
         const plan      = await ensurePlan(planName);
 
         if (!plan) {
-          logger.warn('webhook', 'plan-not-found', { planName, variantId });
+          logger.error('webhook', 'plan-not-found', { planName, variantId });
           break;
         }
 

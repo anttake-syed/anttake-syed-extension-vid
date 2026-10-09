@@ -239,3 +239,13 @@ model LemonSqueezyEvent {
   processedAt     DateTime @default(now())
 }
 
+// ── Application Settings ───────────────────────────────────────────────────────
+model AppSettings {
+  id                        String   @id @default("global")
+  adminBypassEnabled        Boolean  @default(true)
+  adminDiagnosticsEnabled   Boolean  @default(true)
+  cloudSubscriptionRequired Boolean  @default(true)
+  selfHostedBillingRequired Boolean  @default(false)
+  updatedAt                 DateTime @updatedAt
+}
+

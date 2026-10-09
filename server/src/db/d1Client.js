@@ -285,6 +285,7 @@ const d1 = {
   lemonSqueezyCustomer:  makeModel('LemonSqueezyCustomer'),
   lemonSqueezyPayment:   makeModel('LemonSqueezyPayment'),
   lemonSqueezyEvent:     makeModel('LemonSqueezyEvent'),
+  appSettings:           makeModel('AppSettings'),
 };
 
 module.exports = d1;

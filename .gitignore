@@ -20,3 +20,4 @@ server/src/storage/
 *.db
 *.sqlite
 *.log
+.agents/

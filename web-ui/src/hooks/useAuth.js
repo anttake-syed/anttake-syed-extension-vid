@@ -48,6 +48,31 @@ const LOCAL_ENTITLEMENTS = {
 // Cleared on an explicit sign-in.
 const SIGNED_OUT_KEY = 'antcapture_signed_out';
 
+// Cached entitlements key — persisted across reloads so the paywall never
+// flashes for users who have already purchased and their server call is still
+// in-flight. The cache is keyed per-user so switching accounts is clean.
+const ENTITLEMENTS_CACHE_KEY = 'antcapture_ents';
+
+function readCachedEntitlements(userId) {
+  try {
+    const raw = localStorage.getItem(ENTITLEMENTS_CACHE_KEY);
+    if (!raw) return null;
+    const { uid, data } = JSON.parse(raw);
+    if (uid !== userId) return null;
+    return data;
+  } catch { return null; }
+}
+
+function writeCachedEntitlements(userId, data) {
+  try {
+    localStorage.setItem(ENTITLEMENTS_CACHE_KEY, JSON.stringify({ uid: userId, data }));
+  } catch { /* storage quota */ }
+}
+
+function clearCachedEntitlements() {
+  try { localStorage.removeItem(ENTITLEMENTS_CACHE_KEY); } catch { /* no-op */ }
+}
+
 export function useAuth() {
   const [user, setUser] = useState(null);
   const userRef = useRef(null);
@@ -81,7 +106,7 @@ export function useAuth() {
 
   // Fetch the user's subscription status from the server.
   // The server computes entitlements — we just store what it tells us.
-  const refreshSubscription = useCallback(async (jwt) => {
+  const refreshSubscription = useCallback(async (jwt, userId) => {
     if (!jwt || jwt === 'local-mode') {
       setSubscription({ status: 'active' });
       setEntitlements(LOCAL_ENTITLEMENTS);
@@ -99,8 +124,11 @@ export function useAuth() {
         return;
       }
       const data = await res.json();
+      const ents = data.entitlements || FREE_ENTITLEMENTS;
       setSubscription(data.subscription || null);
-      setEntitlements(data.entitlements  || FREE_ENTITLEMENTS);
+      setEntitlements(ents);
+      // Cache the resolved entitlements so the next page load won't flash.
+      if (userId) writeCachedEntitlements(userId, ents);
     } catch (_err) {
       setSubscription(null);
       setEntitlements(FREE_ENTITLEMENTS);
@@ -111,7 +139,7 @@ export function useAuth() {
 
   // Call /subscription/sync (server fetches live from LemonSqueezy), then apply result.
   // Used after ?billing=success — recovers from webhook delivery delays.
-  const syncSubscription = useCallback(async (jwt) => {
+  const syncSubscription = useCallback(async (jwt, userId) => {
     if (!jwt || jwt === 'local-mode') return;
     try {
       const res = await fetch(`${SERVER_URL}/subscription/sync`, {
@@ -120,10 +148,12 @@ export function useAuth() {
       });
       if (!res.ok) return;
       const data = await res.json();
+      const ents = data.entitlements || FREE_ENTITLEMENTS;
       setSubscription(data.subscription || null);
-      setEntitlements(data.entitlements  || FREE_ENTITLEMENTS);
+      setEntitlements(ents);
       setSubscriptionResolved(true);
-      if (data.entitlements?.cloud) {
+      if (ents.cloud) {
+        if (userId) writeCachedEntitlements(userId, ents);
         window.dispatchEvent(new CustomEvent('antcapture:billing-success'));
       }
     } catch (_err) { /* ignore — caller will fall back to polling */ }
@@ -143,8 +173,14 @@ export function useAuth() {
       setIsAuthenticated(true);
       // Reset so paywall gate waits for the new subscription fetch
       setSubscriptionResolved(false);
+      // Hydrate from cache first so the gate doesn't flash while the fetch is in-flight
+      const cached = readCachedEntitlements(userData.sub || userData.email);
+      if (cached) {
+        setEntitlements(cached);
+        setSubscriptionResolved(true);
+      }
       refreshRole(authData);
-      refreshSubscription(authData);
+      refreshSubscription(authData, userData.sub || userData.email);
 
       if (EXTENSION_ID && typeof chrome !== 'undefined' && chrome.runtime?.sendMessage) {
         chrome.runtime.sendMessage(EXTENSION_ID, { action: 'SYNC_USER', user: userData }).catch(() => {});
@@ -163,6 +199,7 @@ export function useAuth() {
     // and declines to restore — which is what caused the instant re-login.
     try { localStorage.setItem(SIGNED_OUT_KEY, '1'); } catch { /* storage blocked */ }
     localStorage.removeItem('antcapture_user');
+    clearCachedEntitlements();
     setUser(null);
     setIsAuthenticated(false);
     setSubscription(null);
@@ -204,11 +241,19 @@ export function useAuth() {
         const userData = JSON.parse(stored);
         const validated = parseAndValidateJwt(userData.jwt);
         if (validated) {
+          const userId = validated.sub || userData.email;
           setUser(userData);
           setIsAuthenticated(true);
           jwt = userData.jwt;
+          // Immediately hydrate entitlements from cache — this eliminates the
+          // "flash of paywall" that happens while the /subscription fetch is in-flight.
+          const cached = readCachedEntitlements(userId);
+          if (cached) {
+            setEntitlements(cached);
+            setSubscriptionResolved(true);
+          }
           refreshRole(jwt);
-          refreshSubscription(jwt);
+          refreshSubscription(jwt, userId);
         } else {
           localStorage.removeItem('antcapture_user');
           console.info('Session expired. Please sign in again.');
@@ -272,9 +317,10 @@ export function useAuth() {
         window.location.origin + window.location.pathname);
 
       const pollJwt = (() => { try { return JSON.parse(stored)?.jwt; } catch { return null; } })();
+      const pollUserId = (() => { try { const d = parseAndValidateJwt(JSON.parse(stored)?.jwt); return d?.sub || JSON.parse(stored)?.email; } catch { return null; } })();
       if (pollJwt) {
         // Step 1: server-side sync
-        syncSubscription(pollJwt).then(() => {
+        syncSubscription(pollJwt, pollUserId).then(() => {
           // Step 2: if cloud not active yet, poll /subscription for up to 30s
           let attempts = 0;
           const maxAttempts = 12; // 12 × 2.5s = 30 seconds
@@ -287,9 +333,11 @@ export function useAuth() {
               if (res.ok) {
                 const data = await res.json();
                 if (data.entitlements?.cloud) {
+                  const ents = data.entitlements;
                   setSubscription(data.subscription);
-                  setEntitlements(data.entitlements);
+                  setEntitlements(ents);
                   setSubscriptionResolved(true);
+                  if (pollUserId) writeCachedEntitlements(pollUserId, ents);
                   clearInterval(poll);
                   window.dispatchEvent(new CustomEvent('antcapture:billing-success'));
                 }
@@ -311,11 +359,16 @@ export function useAuth() {
       if (!raw) {return;}
       try {
         const userData = JSON.parse(raw);
-        if (!parseAndValidateJwt(userData.jwt) || userRef.current?.jwt === userData.jwt) {return;}
+        const validated = parseAndValidateJwt(userData.jwt);
+        if (!validated || userRef.current?.jwt === userData.jwt) {return;}
+        const userId = validated.sub || userData.email;
         setUser(userData);
         setIsAuthenticated(true);
+        // Hydrate from cache before the fetch starts
+        const cached = readCachedEntitlements(userId);
+        if (cached) { setEntitlements(cached); setSubscriptionResolved(true); }
         refreshRole(userData.jwt);
-        refreshSubscription(userData.jwt);
+        refreshSubscription(userData.jwt, userId);
       } catch { /* ignore malformed data */ }
     };
     window.addEventListener('storage', handleStorage);

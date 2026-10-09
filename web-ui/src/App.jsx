@@ -23,6 +23,8 @@ import { Page, Grid } from './components/layout/Page.jsx';
 import AdminDiagnostics from './components/AdminDiagnostics.jsx';
 import SubscriptionWarningBanner from './components/SubscriptionWarningBanner.jsx';
 import PurchaseSuccessToast from './components/PurchaseSuccessToast.jsx';
+import OnboardingModal from './components/OnboardingModal.jsx';
+import PaywallGate from './components/PaywallGate.jsx';
 
 
 const NAV_TO_PATH = {
@@ -277,6 +279,23 @@ export default function App() {
     return match ? match[1] : null;
   });
 
+  const [showOnboarding, setShowOnboarding] = useState(false);
+
+  useEffect(() => {
+    if (isReady && isAuthenticated) {
+      if (!localStorage.getItem('hasSeenOnboarding')) {
+        setShowOnboarding(true);
+        localStorage.setItem('hasSeenOnboarding', 'true');
+      }
+    }
+  }, [isReady, isAuthenticated]);
+
+  useEffect(() => {
+    const handleTriggerOnboarding = () => setShowOnboarding(true);
+    window.addEventListener('trigger-onboarding', handleTriggerOnboarding);
+    return () => window.removeEventListener('trigger-onboarding', handleTriggerOnboarding);
+  }, []);
+
   useEffect(() => {
     if (pendingCaptureId && captures.length > 0 && !activeMedia) {
       const found = captures.find(c => c.id === pendingCaptureId);
@@ -526,6 +545,19 @@ export default function App() {
   return (
     <div className={`layout ${isAuthenticated ? 'isAuthenticated' : ''}`}>
       {showModal && !IS_LOCAL_MODE && <LoginModal onClose={() => setShowModal(false)} />}
+
+      {/* ── Paywall Gate — shown to authenticated users with no active Cloud plan ── */}
+      {!IS_LOCAL_MODE && (
+        <PaywallGate
+          isReady={isReady}
+          isAuthenticated={isAuthenticated}
+          hasCloudAccess={hasCloudAccess}
+          entitlements={entitlements}
+          isLocalMode={IS_LOCAL_MODE}
+          onGoToPricing={() => setActiveNav('Pricing')}
+          onSignIn={() => setShowModal(true)}
+        />
+      )}
 
       {/* ── Billing Success Toast ── */}
       {showBillingToast && (
@@ -812,7 +844,29 @@ HOW WHITEBOARD MEDIA STORAGE WORKS
 Media shown inside a VoidBoard is never duplicated. The actual file (image or video) lives in your cloud library or Google Drive. The whiteboard stores only the reference to that media — its position on the canvas, size, layer order, and any other layout data. This means:
 • Your storage is not used twice for the same file.
 • Moving or resizing media on the canvas does not affect the original file.
-• Deleting a capture from your library will remove it from any board it was placed in.`}
+• Deleting a capture from your library will remove it from any board it was placed in.
+
+SUBSCRIPTION ACCESS & DATA RETENTION
+Cloud features (library, VoidBoards, sharing links) require an active AntCapture Cloud plan.
+
+New users:
+• Cloud features are locked until you subscribe to a Cloud plan.
+• Your account is created the moment you sign in — nothing is lost if you decide to subscribe later.
+
+Active subscribers:
+• Full access to all Cloud features with no interruption.
+• Subscription status is verified silently in the background — there is no visible lock screen for active users.
+
+When a plan expires:
+• Cloud features are immediately restricted.
+• Your data (captures, VoidBoards, settings) is held securely for 30 days after expiry.
+• Renew at any time during those 30 days to restore full access instantly with no data loss.
+• After 30 days without renewal, captures stored on AntCapture Cloud may be permanently deleted. Google Drive captures are unaffected and remain in your Drive.
+
+If your payment fails:
+• A banner notifies you in the dashboard. Your subscription enters a short grace period.
+• Update your payment method via the Subscription page to avoid interruption.
+• If payment cannot be collected within the grace period, the plan is cancelled and the 30-day data-hold window begins.`}
           />
         ) : activeNav === 'Security' ? (
           <StaticPage
@@ -874,6 +928,8 @@ Found a security problem? Please report it privately through our GitHub security
           />
         )}
       </main>
+      
+      <OnboardingModal isOpen={showOnboarding} onClose={() => setShowOnboarding(false)} />
     </div>
   );
 }

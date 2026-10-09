@@ -52,6 +52,7 @@ async function runCheck(name, fn) {
       durationMs: Date.now() - start,
       error:   err.message,
       code:    err.code,
+      ...(err.detail ? { detail: err.detail } : {}),
     };
   }
 }
@@ -372,7 +373,28 @@ async function checkSubscriptionHealth() {
     }
   });
 
-  const appSettings = await prisma.appSettings.findUnique({ where: { id: 'global' } });
+  let appSettings = null;
+  try {
+    appSettings = await prisma.appSettings.findUnique({ where: { id: 'global' } });
+  } catch (e) {
+    // AppSettings table may not exist yet in D1 — needs migration
+    const err = new Error(
+      'AppSettings table is missing from the database. ' +
+      'Run the SQL migration to create it: ' +
+      'CREATE TABLE IF NOT EXISTS "AppSettings" ("id" TEXT PRIMARY KEY DEFAULT \'global\', ' +
+      '"adminBypassEnabled" BOOLEAN NOT NULL DEFAULT 1, ' +
+      '"adminDiagnosticsEnabled" BOOLEAN NOT NULL DEFAULT 1, ' +
+      '"cloudSubscriptionRequired" BOOLEAN NOT NULL DEFAULT 1, ' +
+      '"selfHostedBillingRequired" BOOLEAN NOT NULL DEFAULT 0, ' +
+      '"updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP);'
+    );
+    err.detail = {
+      fixRequired: 'Run the SQL migration via Cloudflare D1 dashboard or Wrangler CLI',
+      sql: 'CREATE TABLE IF NOT EXISTS "AppSettings" ("id" TEXT PRIMARY KEY DEFAULT \'global\', "adminBypassEnabled" BOOLEAN NOT NULL DEFAULT 1, "adminDiagnosticsEnabled" BOOLEAN NOT NULL DEFAULT 1, "cloudSubscriptionRequired" BOOLEAN NOT NULL DEFAULT 1, "selfHostedBillingRequired" BOOLEAN NOT NULL DEFAULT 0, "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP);',
+      wranglerCmd: 'echo "CREATE TABLE IF NOT EXISTS ..." | npx wrangler d1 execute <DB_NAME> --remote --command "..."',
+    };
+    throw err;
+  }
   const { computeEntitlements } = require('./subscriptionController');
 
   const paidButFree = lsCustomers.filter(c => {
@@ -409,24 +431,36 @@ async function checkSubscriptionHealth() {
     : (variantEnvCheck.TEST_MONTHLY  || variantEnvCheck.TEST_YEARLY);
 
   if (!modeVariantsSet) {
-    throw new Error(
+    const err = new Error(
       `LEMONSQUEEZY_MODE=${mode} but no ${modeUpper} variant IDs are set. ` +
       `Webhooks will silently write 'free' plan for all purchases — users will see the upgrade banner after checkout.`
     );
+    err.detail = { variantEnvCheck, mode };
+    throw err;
   }
 
-  if (paidButFree.length > 0) {
-    throw new Error(
-      `${paidButFree.length} user(s) have a LemonSqueezy customer record but their subscription plan is 'free'. ` +
-      `This means webhooks fired but variant IDs were not matched. Check for variant-id-not-mapped-to-cloud in recent errors.`
+  if (paidButFree.length > 0 || activeButLocked.length > 0) {
+    const err = new Error(
+      `Subscription disconnect detected: ${paidButFree.length} user(s) paid but have 'free' plan, ` +
+      `and ${activeButLocked.length} user(s) have an active subscription but computeEntitlements evaluates to cloud=false.`
     );
-  }
-
-  if (activeButLocked.length > 0) {
-    throw new Error(
-      `${activeButLocked.length} user(s) have an 'active' subscription but computeEntitlements evaluates to cloud=false. ` +
-      `This indicates a breakdown in access rules logic or plan configurations.`
-    );
+    err.detail = {
+      paidButFree: paidButFree.map(c => ({
+        email: c.user?.email,
+        userId: c.user?.id,
+        lsVariantId: c.lsVariantId,
+        lsSubscriptionId: c.lsSubscriptionId
+      })),
+      activeButLocked: activeButLocked.map(c => ({
+        email: c.user?.email,
+        userId: c.user?.id,
+        lsVariantId: c.lsVariantId,
+        subscriptionStatus: c.user?.subscription?.status,
+        planId: c.user?.subscription?.planId,
+        computedEntitlements: computeEntitlements(c.user?.subscription, c.user, appSettings)
+      }))
+    };
+    throw err;
   }
 
   return {

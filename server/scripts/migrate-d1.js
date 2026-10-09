@@ -62,6 +62,17 @@ const MIGRATIONS = [
     name: 'update_free_plan_storage',
     sql: `UPDATE "Plan" SET "cloudStorageBytes" = 26843545600 WHERE "name" = 'free'`,
   },
+  {
+    name: 'add_app_settings_table',
+    sql: `CREATE TABLE IF NOT EXISTS "AppSettings" (
+      "id"                        TEXT     NOT NULL PRIMARY KEY DEFAULT 'global',
+      "adminBypassEnabled"        BOOLEAN  NOT NULL DEFAULT 1,
+      "adminDiagnosticsEnabled"   BOOLEAN  NOT NULL DEFAULT 1,
+      "cloudSubscriptionRequired" BOOLEAN  NOT NULL DEFAULT 1,
+      "selfHostedBillingRequired" BOOLEAN  NOT NULL DEFAULT 0,
+      "updatedAt"                 DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+  },
 ];
 
 // Errors that are safe to skip (migration already applied)

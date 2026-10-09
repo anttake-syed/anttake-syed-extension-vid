@@ -13,15 +13,12 @@ document.addEventListener('DOMContentLoaded', () => {
   if (settingsBtn) {
     settingsBtn.addEventListener('click', async () => {
       const { webUiUrl } = await getConfig();
-      chrome.storage.local.get(['user_cloud', 'user_local', 'storageMode', 'dynamicWebUiUrl'], (result) => {
+      chrome.storage.local.get(['storageMode'], (result) => {
         const mode = result.storageMode || 'computer';
-        const userKey = mode === 'localhost' ? 'user_local' : 'user_cloud';
-        const user = result[userKey];
-
-        const actualWebUiUrl = result.dynamicWebUiUrl || webUiUrl;
-        const settingsUrl = user?.jwt
-          ? `${actualWebUiUrl}?nav=Settings&auth_data=${user.jwt}`
-          : `${actualWebUiUrl}?nav=Settings`;
+        // No token in the URL: the dashboard picks up the signed-in user from
+        // the extension via content/authSync.js.
+        const actualWebUiUrl = webUiUrl;
+        const settingsUrl = `${actualWebUiUrl}?nav=Settings`;
 
         const queryUrl = mode === 'localhost' ? 'http://localhost:517*/*' : `${actualWebUiUrl}/*`;
 

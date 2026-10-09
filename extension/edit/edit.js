@@ -3,6 +3,7 @@ import { uploadToServer, uploadWithProgress, getServerUrl } from '../background/
 import { notify } from '../background/notify.js';
 import { readOPFSFile, deleteOPFSFile } from '../storage/opfsStorage.js';
 import { AntCapturePlayer } from '../shared/player/AntCapturePlayer.js';
+import { isUnpackedInstall } from '../shared/config.js';
 
 const urlParams = new URLSearchParams(window.location.search);
 const rawId  = urlParams.get('id');
@@ -77,6 +78,13 @@ function updateAuthPanel(user, hintText) {
 
 // ── Custom Toast for Edit Page (won't break flex layout) ───────────────────
 let editToastTimer = null;
+// Server/error text is untrusted — escape it before it goes into innerHTML.
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, (c) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  }[c]));
+}
+
 function showToast(msg, type = 'success', durationMs = 2500) {
   const container = document.getElementById('toastContainer');
   if (!container) return;
@@ -349,7 +357,7 @@ async function init() {
       <div style="font-weight:700; font-size:17px;">Storage Error</div>
       <div style="color:#cbd5e1; text-align:center; line-height:1.6;">We encountered an issue while trying to load your recording from local storage.</div>
       <div style="background:rgba(99,102,241,0.12); border:1px solid rgba(99,102,241,0.3); border-radius:8px; padding:12px 16px; color:#a5b4fc; font-size:13px; text-align:center; line-height:1.5;">
-        <span class="material-symbols-rounded" style="font-size:15px; vertical-align:middle; margin-right:4px;">lightbulb</span>Tip: ${err.message || 'Try reloading the page or restarting the browser.'}
+        <span class="material-symbols-rounded" style="font-size:15px; vertical-align:middle; margin-right:4px;">lightbulb</span>Tip: ${escapeHtml(err.message || 'Try reloading the page or restarting the browser.')}
       </div>
       <button id="dbErrorCloseBtn" style="margin-top:8px; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15); color:#e2e8f0; padding:10px 24px; border-radius:8px; font-size:14px; font-weight:600; cursor:pointer;">Close Window</button>
     </div>`;
@@ -779,7 +787,7 @@ async function processSave(mode) {
       const htmlMessage = `
         <div style="display:flex;flex-direction:column;gap:6px;padding:4px 0;">
           <span style="font-weight:600;font-size:14px;">☁️ Cloud plan required</span>
-          <span style="font-size:13px;opacity:0.9;line-height:1.4;">${err.message}</span>
+          <span style="font-size:13px;opacity:0.9;line-height:1.4;">${escapeHtml(err.message)}</span>
           <a href="${pricingUrl}" target="_blank" style="margin-top:4px;display:inline-flex;align-items:center;gap:4px;background:white;color:#4f46e5;padding:6px 12px;border-radius:6px;font-weight:700;text-decoration:none;font-size:13px;width:fit-content;box-shadow:0 2px 5px rgba(0,0,0,0.2);">
             Upgrade to Cloud
           </a>
@@ -787,7 +795,7 @@ async function processSave(mode) {
       `;
       showToast(htmlMessage, 'error', 12000);
     } else {
-      showToast(err.message, 'error', 6000);
+      showToast(escapeHtml(err.message), 'error', 6000);
     }
   }
 }
@@ -796,6 +804,10 @@ document.getElementById('btnComputer')?.addEventListener('click', () => processS
 document.getElementById('btnCloud')?.addEventListener('click', () => processSave('cloud'));
 document.getElementById('btnDrive')?.addEventListener('click', () => processSave('drive-only'));
 document.getElementById('btnLocal')?.addEventListener('click', () => processSave('localhost'));
+// Self-hosted saving needs localhost host access, which store installs don't have.
+if (!isUnpackedInstall()) {
+  document.getElementById('btnLocal')?.parentElement?.remove();
+}
 
 // ── Discard Modal (custom UI instead of window.confirm) ────────────────────
 function showDiscardModal() {

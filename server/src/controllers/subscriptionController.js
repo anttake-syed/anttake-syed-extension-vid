@@ -1,6 +1,7 @@
 const prisma = require('../db/index');
 const lemonSqueezyService = require('../services/lemonSqueezyService');
 const logger = require('../utils/logger');
+const { hasCloudAccess, subscriptionGrantsAccess } = require('../services/accessRules');
 
 // ── Entitlement computation ───────────────────────────────────────────────────
 // Single source of truth for what a subscription record means for the frontend.
@@ -38,9 +39,8 @@ exports.computeEntitlements = function computeEntitlements(subscription, user = 
   const currentPeriodEnd  = subscription.currentPeriodEnd  || null;
   const planName          = subscription.plan?.name        || 'free';
 
-  // Active = paid and not expired. Cancelled-but-in-period still grants access.
-  const isActive = status === 'active';
-  const cloud    = isActive && planName !== 'free';
+  // Active, on trial, or cancelled-but-still-in-period all grant access.
+  const cloud    = hasCloudAccess(subscription);
 
   // Days until period end (for cancellation/expiry warnings)
   let daysUntilExpiry = null;
@@ -68,6 +68,26 @@ exports.computeEntitlements = function computeEntitlements(subscription, user = 
     daysUntilExpiry,
     warningLevel,
   };
+}
+
+// LS subscription resource → the fields accessRules reads.
+function periodEnd(attributes) {
+  const end = attributes.ends_at || attributes.renews_at;
+  return end ? new Date(end) : undefined;
+}
+
+function toSubscriptionShape(lsSub) {
+  return { status: lsSub.attributes.status, currentPeriodEnd: periodEnd(lsSub.attributes) };
+}
+
+// Prefer a subscription that grants access; among equals, the newest.
+function pickBestSubscription(subs) {
+  if (!subs?.length) { return null; }
+  return [...subs].sort((a, b) => {
+    const accessDiff = subscriptionGrantsAccess(toSubscriptionShape(b)) - subscriptionGrantsAccess(toSubscriptionShape(a));
+    if (accessDiff) { return accessDiff; }
+    return new Date(b.attributes.created_at) - new Date(a.attributes.created_at);
+  })[0];
 }
 
 // ── GET /subscription ─────────────────────────────────────────────────────────
@@ -109,43 +129,37 @@ exports.syncSubscription = async (req, res) => {
 
     if (!userRow) return res.status(404).json({ error: 'User not found' });
 
-    let lsCustomer = await prisma.lemonSqueezyCustomer.findUnique({ where: { userId } });
+    const lsCustomer = await prisma.lemonSqueezyCustomer.findUnique({ where: { userId } });
     let lsData = null;
 
+    // Normal path: the webhook already linked a subscription to this user.
     if (lsCustomer?.lsSubscriptionId) {
-      // Normal path: Webhook linked the customer already
       try {
         lsData = await lemonSqueezyService.fetchSubscription(lsCustomer.lsSubscriptionId);
       } catch (e) {
         logger.warn('subscription', 'sync-ls-fetch-failed', { userId, error: e.message });
       }
-    } else {
-      // Recovery path: Webhook dropped, local dev, or user bought directly without being logged in
+    }
+
+    // Recovery path: nothing linked (webhook dropped / local dev), or the linked
+    // subscription no longer grants access but the user bought a newer one.
+    if (!lsData || !subscriptionGrantsAccess(toSubscriptionShape(lsData))) {
       try {
         const subs = await lemonSqueezyService.fetchSubscriptionsByEmail(userRow.email);
-        if (subs && subs.length > 0) {
-          // Sort by creation date DESC to get the latest
-          lsData = subs.sort((a, b) => new Date(b.attributes.created_at) - new Date(a.attributes.created_at))[0];
-          
-          if (lsData) {
-            logger.info('subscription', 'recovered-by-email', { userId, email: userRow.email });
-            
-            // Re-create the lost customer mapping
-            lsCustomer = await prisma.lemonSqueezyCustomer.upsert({
-              where: { userId },
-              update: {
-                lsCustomerId: lsData.attributes.customer_id.toString(),
-                lsSubscriptionId: lsData.id,
-                lsVariantId: lsData.attributes.variant_id.toString(),
-              },
-              create: {
-                userId,
-                lsCustomerId: lsData.attributes.customer_id.toString(),
-                lsSubscriptionId: lsData.id,
-                lsVariantId: lsData.attributes.variant_id.toString(),
-              }
-            });
-          }
+        const best = pickBestSubscription(subs);
+        if (best && best.id !== lsData?.id) {
+          lsData = best;
+          logger.info('subscription', 'recovered-by-email', { userId, lsSubscriptionId: best.id });
+          const mapping = {
+            lsCustomerId:     lsData.attributes.customer_id.toString(),
+            lsSubscriptionId: lsData.id.toString(),
+            lsVariantId:      lsData.attributes.variant_id.toString(),
+          };
+          await prisma.lemonSqueezyCustomer.upsert({
+            where:  { userId },
+            update: mapping,
+            create: { userId, ...mapping },
+          });
         }
       } catch (e) {
         logger.warn('subscription', 'sync-email-recovery-failed', { userId, error: e.message });
@@ -165,11 +179,13 @@ exports.syncSubscription = async (req, res) => {
 
     // Apply the fresh data from Lemon Squeezy to our DB
     const { getPlanNameFromVariant } = require('./lsWebhookController');
+    const { ensurePlan } = require('../services/planService');
     const variantId = lsData.attributes.variant_id.toString();
     const planName = getPlanNameFromVariant(variantId);
 
-    const plan = await prisma.plan.findUnique({ where: { name: planName } })
-      || await prisma.plan.findUnique({ where: { name: 'free' } });
+    // Self-heals the 'cloud' plan if the DB lacks it, so email recovery records
+    // the subscription as cloud (and unlocks) instead of falling back to free.
+    const plan = await ensurePlan(planName);
 
     if (plan) {
       await prisma.subscription.upsert({
@@ -178,7 +194,7 @@ exports.syncSubscription = async (req, res) => {
           planId:            plan.id,
           status:            lsData.attributes.status,
           currentPeriodStart: lsData.attributes.created_at ? new Date(lsData.attributes.created_at) : undefined,
-          currentPeriodEnd:  lsData.attributes.renews_at  ? new Date(lsData.attributes.renews_at)  : undefined,
+          currentPeriodEnd:  periodEnd(lsData.attributes),
           cancelAtPeriodEnd: lsData.attributes.ends_at !== null && lsData.attributes.ends_at !== undefined,
         },
         create: {
@@ -186,7 +202,7 @@ exports.syncSubscription = async (req, res) => {
           planId:            plan.id,
           status:            lsData.attributes.status,
           currentPeriodStart: lsData.attributes.created_at ? new Date(lsData.attributes.created_at) : undefined,
-          currentPeriodEnd:  lsData.attributes.renews_at  ? new Date(lsData.attributes.renews_at)  : undefined,
+          currentPeriodEnd:  periodEnd(lsData.attributes),
           cancelAtPeriodEnd: lsData.attributes.ends_at !== null && lsData.attributes.ends_at !== undefined,
           lsCustomerId:      lsData.attributes.customer_id.toString(),
         }
@@ -223,6 +239,19 @@ exports.createCheckout = async (req, res) => {
 
     if (!planName || !interval) {
       return res.status(400).json({ error: 'planName and interval are required' });
+    }
+
+    // Block a second purchase: LemonSqueezy happily creates another subscription
+    // (and charges again) for a customer who already has one.
+    const existing = await prisma.subscription.findUnique({
+      where: { userId: req.user.id },
+      include: { plan: true },
+    });
+    if (hasCloudAccess(existing)) {
+      return res.status(409).json({
+        error: 'You already have an active AntCapture Cloud subscription. Manage it from your subscription settings.',
+        code:  'already_subscribed',
+      });
     }
 
     const mode = (process.env.LEMONSQUEEZY_MODE || 'test').toUpperCase();

@@ -106,7 +106,8 @@ class LemonSqueezyService {
     try {
       const { data, error } = await getSubscription(lsSubscriptionId);
       if (error) throw new Error(error.message);
-      return data;
+      // The SDK returns the JSON:API document; callers want the resource.
+      return data?.data ?? null;
     } catch (err) {
       console.error('Fetch Subscription Error:', err);
       return null;

@@ -100,7 +100,9 @@ async function requestPermissions() {
     } else if (err.name === 'NotFoundError') {
       $('errorText').innerHTML = '<strong>Device Not Found.</strong><br>Could not find a camera or microphone attached to this computer.';
     } else {
-      $('errorText').innerHTML = `<strong>Error:</strong> ${err.message}`;
+      const label = document.createElement('strong');
+      label.textContent = 'Error:';
+      $('errorText').replaceChildren(label, ` ${err.message}`);
     }
   }
 }

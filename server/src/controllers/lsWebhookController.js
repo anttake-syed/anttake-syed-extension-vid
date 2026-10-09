@@ -2,7 +2,15 @@ const crypto = require('crypto');
 const prisma = require('../db/index');
 const logger = require('../utils/logger');
 
-const WEBHOOK_SECRET = process.env.LS_WEBHOOK_SECRET;
+// LemonSqueezy test-mode and live-mode webhooks are separate, each with its own
+// signing secret. We accept either, so test and live purchases both validate
+// without swapping env vars when you flip modes:
+//   LS_WEBHOOK_SECRET       — your live (or primary) webhook's signing secret
+//   LS_WEBHOOK_SECRET_TEST  — your test-mode webhook's signing secret (optional)
+// (If you prefer, give both webhooks the same secret and only set the first.)
+function getWebhookSecrets() {
+  return [process.env.LS_WEBHOOK_SECRET, process.env.LS_WEBHOOK_SECRET_TEST].filter(Boolean);
+}
 
 /**
  * Maps a LemonSqueezy variant ID to the internal plan name.
@@ -20,21 +28,24 @@ exports.getPlanNameFromVariant = function(variantId) {
     'LS_VARIANT_CLOUD_YEARLY',
   ].map((name) => process.env[name]).filter(Boolean);
 
-  const matched = cloudVariants.includes(id);
-  if (!matched) {
-    // Silent bug: a paid subscription fires but the variant ID doesn't match any
-    // configured env var. Plan gets written as 'free' -> user keeps seeing the
-    // upgrade banner even after purchase. Common cause: LEMONSQUEEZY_MODE=live
-    // but only TEST variant IDs are populated (or vice versa).
-    logger.error('webhook', 'variant-id-not-mapped-to-cloud', {
-      variantId: id,
-      mode: process.env.LEMONSQUEEZY_MODE || 'test',
-      configuredVariants: cloudVariants,
-      consequence: 'Subscription update rejected to avoid overwriting with a free plan. Fix variant IDs in environment variables.',
-    });
-    return 'unknown';
-  }
-  return 'cloud';
+  if (cloudVariants.includes(id)) { return 'cloud'; }
+
+  // No configured variant matched. This store has a single paid plan ('cloud'),
+  // and only paid subscriptions ever produce subscription_* webhooks — so the
+  // purchase IS Cloud. Defaulting to 'free' here (the old behaviour) silently
+  // left paying customers locked out whenever the variant-id/mode env vars were
+  // slightly off, which is the #1 cause of "I paid but nothing unlocked".
+  // Resolve to 'cloud' and warn loudly instead. Set LEMONSQUEEZY_STRICT_VARIANTS
+  // =true to require an exact match (e.g. once you sell more than one plan).
+  const strict = String(process.env.LEMONSQUEEZY_STRICT_VARIANTS || '').toLowerCase() === 'true';
+  logger.warn('webhook', 'variant-id-not-mapped-to-cloud', {
+    variantId: id,
+    mode: process.env.LEMONSQUEEZY_MODE || 'test',
+    configuredVariants: cloudVariants,
+    resolvedPlan: strict ? 'free' : 'cloud',
+    hint: 'Add this id to LEMONSQUEEZY_TEST_/LIVE_*_VARIANT_ID to silence this warning.',
+  });
+  return strict ? 'free' : 'cloud';
 }
 
 
@@ -42,15 +53,19 @@ exports.handleWebhook = async (req, res) => {
   try {
     // ── 1. Verify HMAC signature ─────────────────────────────────────────────
     // Without a secret anyone could sign a fake event with an empty key — fail closed.
-    if (!WEBHOOK_SECRET) {
+    const secrets = getWebhookSecrets();
+    if (secrets.length === 0) {
       logger.error('webhook', 'missing-webhook-secret', { requestId: req.requestId });
       return res.status(500).send('Webhook not configured');
     }
-    const hmac = crypto.createHmac('sha256', WEBHOOK_SECRET);
-    const digest = Buffer.from(hmac.update(req.body).digest('hex'), 'utf8');
     const signature = Buffer.from(req.get('X-Signature') || '', 'utf8');
+    // Accept the signature if it matches ANY configured secret (test or live).
+    const signatureValid = secrets.some((secret) => {
+      const digest = Buffer.from(crypto.createHmac('sha256', secret).update(req.body).digest('hex'), 'utf8');
+      return digest.length === signature.length && crypto.timingSafeEqual(digest, signature);
+    });
 
-    if (digest.length !== signature.length || !crypto.timingSafeEqual(digest, signature)) {
+    if (!signatureValid) {
       logger.warn('webhook', 'invalid-signature', { requestId: req.requestId, ip: req.ip });
       return res.status(403).send('Invalid signature');
     }
@@ -62,7 +77,10 @@ exports.handleWebhook = async (req, res) => {
     const attributes = obj.attributes;
     const customData = payload.meta.custom_data;
     const userId     = customData?.user_id;
-    const eventId    = payload.meta.event_id || payload.meta.webhook_id;
+    // LemonSqueezy sends no per-event ID (meta.webhook_id is not unique per
+    // event), so dedupe on a hash of the signed body: a retry/resend of the
+    // same delivery is byte-identical, while every distinct event differs.
+    const eventId    = crypto.createHash('sha256').update(req.body).digest('hex');
 
     logger.info('webhook', 'event-received', { requestId: req.requestId, eventName, userId, eventId });
 
@@ -77,6 +95,24 @@ exports.handleWebhook = async (req, res) => {
       }
     }
 
+    // ── 2c. Ignore events for a superseded subscription ─────────────────────
+    // A user who bought more than once has several LS subscriptions. Only the
+    // one we currently track may change their access — otherwise e.g. the old
+    // subscription expiring would lock out a user whose new one is active.
+    // subscription_created always wins: it is the newest purchase.
+    const eventSubscriptionId = eventName.startsWith('subscription_payment_')
+      ? attributes.subscription_id?.toString()
+      : obj.id?.toString();
+    if (userId && eventSubscriptionId && eventName !== 'subscription_created') {
+      const tracked = await prisma.lemonSqueezyCustomer.findUnique({ where: { userId } });
+      if (tracked?.lsSubscriptionId && tracked.lsSubscriptionId !== eventSubscriptionId) {
+        logger.info('webhook', 'stale-subscription-event-ignored', {
+          eventName, userId, eventSubscriptionId, trackedSubscriptionId: tracked.lsSubscriptionId,
+        });
+        return res.status(200).send('Ignored: superseded subscription');
+      }
+    }
+
     // ── 3. Route events ──────────────────────────────────────────────────────
     switch (eventName) {
 
@@ -88,13 +124,10 @@ exports.handleWebhook = async (req, res) => {
 
         const variantId = attributes.variant_id.toString();
         const planName  = exports.getPlanNameFromVariant(variantId);
-        
-        if (planName === 'unknown') {
-          logger.error('webhook', 'unknown-variant-id', { variantId, userId });
-          return res.status(400).send('Unknown variant ID');
-        }
-
-        const plan = await prisma.plan.findUnique({ where: { name: planName } });
+        // ensurePlan CREATES the 'cloud' plan if the DB lacks it — otherwise a
+        // paid purchase was silently recorded as 'free' and never unlocked.
+        const { ensurePlan } = require('../services/planService');
+        const plan      = await ensurePlan(planName);
 
         if (!plan) {
           logger.error('webhook', 'plan-not-found', { planName, variantId });
@@ -124,7 +157,7 @@ exports.handleWebhook = async (req, res) => {
             planId:              plan.id,
             status:              attributes.status,
             currentPeriodStart:  attributes.created_at ? new Date(attributes.created_at) : undefined,
-            currentPeriodEnd:    attributes.renews_at  ? new Date(attributes.renews_at)  : undefined,
+            currentPeriodEnd:    (attributes.ends_at || attributes.renews_at) ? new Date(attributes.ends_at || attributes.renews_at) : undefined,
             cancelAtPeriodEnd:   attributes.ends_at !== null && attributes.ends_at !== undefined,
             lsCustomerId:        attributes.customer_id.toString(),
           },
@@ -133,7 +166,7 @@ exports.handleWebhook = async (req, res) => {
             planId:              plan.id,
             status:              attributes.status,
             currentPeriodStart:  attributes.created_at ? new Date(attributes.created_at) : undefined,
-            currentPeriodEnd:    attributes.renews_at  ? new Date(attributes.renews_at)  : undefined,
+            currentPeriodEnd:    (attributes.ends_at || attributes.renews_at) ? new Date(attributes.ends_at || attributes.renews_at) : undefined,
             lsCustomerId:        attributes.customer_id.toString(),
           }
         });

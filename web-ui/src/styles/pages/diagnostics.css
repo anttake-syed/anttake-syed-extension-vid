@@ -1,0 +1,370 @@
+/* ════════════════════════════════════════════════════════════════════════════
+   ADMIN DIAGNOSTICS — page-specific layout (components/AdminDiagnostics.jsx).
+   Mobile-first. Generic layout comes from styles/layout.css (Page, grid-2,
+   cluster, table-scroll, break-anywhere…); only diagnostics-specific pieces
+   live here. Raw hex values below have no exact token yet (see report).
+   ════════════════════════════════════════════════════════════════════════════ */
+
+/* ── Page header ─────────────────────────────────────────── */
+.diag-head {
+  margin-bottom: 28px;
+}
+
+.diag-title {
+  font-size: clamp(20px, 2vw + 12px, 26px);
+  font-weight: 800;
+  color: #f1f5f9;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  line-height: 1.2;
+}
+
+.diag-subtitle {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  margin: 6px 0 0;
+}
+
+/* ── Tab bar: one row that scrolls sideways on narrow screens ── */
+.diag-tabs {
+  display: flex;
+  gap: var(--space-1);
+  margin-bottom: var(--space-5);
+  background: var(--bg-tertiary);
+  border-radius: 12px;
+  padding: var(--space-1);
+  width: fit-content;
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+}
+
+.diag-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.diag-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  white-space: nowrap;
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--space-2);
+  border: none;
+  cursor: pointer;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  transition: all 0.15s;
+}
+
+.diag-tab.is-active {
+  background: var(--primary);
+  color: white;
+}
+
+@media (max-width: 639.98px) {
+  .diag-tab {
+    min-height: 40px;
+    padding: var(--space-2) var(--space-3);
+  }
+}
+
+/* ── Buttons ─────────────────────────────────────────────── */
+.diag-btn-ghost {
+  background: none;
+  border: 1px solid var(--bg-tertiary);
+  border-radius: var(--space-2);
+  color: var(--text-dim);
+  cursor: pointer;
+  padding: 6px var(--space-3);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+}
+
+/* ── Toolbar above lists (count + actions) ───────────────── */
+.diag-toolbar {
+  margin-bottom: var(--space-4);
+}
+
+.diag-toolbar-text {
+  font-size: var(--text-base);
+  color: var(--text-muted);
+}
+
+/* ── Overall health badge ────────────────────────────────── */
+.diag-overall {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  border-radius: 16px;
+  padding: var(--space-4);
+  margin-bottom: 28px;
+}
+
+.diag-overall > div:first-of-type {
+  flex: 1;
+  min-width: 0;
+}
+
+@media (min-width: 640px) {
+  .diag-overall {
+    padding: 20px 28px;
+  }
+}
+
+/* ── Health check cards ──────────────────────────────────── */
+.diag-check-card {
+  border-radius: 12px;
+  padding: var(--space-4) 20px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+@media (max-width: 639.98px) {
+  .diag-check-card {
+    padding: 14px var(--space-4);
+    gap: var(--space-3);
+  }
+}
+
+/* ── Key/value stat cards (System Info, Capture Lookup) ──── */
+.diag-stat {
+  background: var(--card-bg);
+  border-radius: 12px;
+  padding: 18px 20px;
+  border: 1px solid #1e293b22;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+.diag-stat > div {
+  min-width: 0;
+}
+
+.diag-stat-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.diag-stat-value {
+  font-size: var(--text-base);
+  color: #f1f5f9;
+  font-weight: 600;
+  margin-top: 2px;
+  font-family: monospace;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 639.98px) {
+  .diag-stat {
+    padding: 14px var(--space-4);
+  }
+}
+
+/* ── Empty states ────────────────────────────────────────── */
+.diag-empty {
+  border-radius: 14px;
+  padding: var(--space-7);
+  text-align: center;
+}
+
+@media (max-width: 639.98px) {
+  .diag-empty {
+    padding: var(--space-6) var(--space-4);
+  }
+}
+
+/* ── Tables (Activity, Errors) ───────────────────────────── */
+.diag-table-wrap {
+  border-radius: 12px;
+  border: 1px solid var(--bg-tertiary);
+}
+
+.diag-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-xs);
+}
+
+.diag-table thead tr {
+  background: var(--bg-tertiary);
+  color: var(--text-muted);
+  text-align: left;
+}
+
+.diag-table th {
+  padding: 10px 14px;
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.diag-table td {
+  padding: 10px 14px;
+}
+
+.diag-row-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+/* ── Search forms (Capture, Billing) ─────────────────────── */
+.diag-search {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.diag-search > input {
+  flex: 1 1 200px;
+  min-width: 0;
+}
+
+.diag-search > button {
+  min-height: 42px;
+}
+
+/* iOS zooms into inputs under 16px on focus */
+@media (max-width: 639.98px) {
+  .diag-search > input {
+    font-size: var(--text-md) !important;
+  }
+
+  .diag-search > button {
+    flex: 1 1 100%;
+  }
+}
+
+/* ── Key/value rows that stack when there's no room ──────── */
+.diag-kv-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 2px var(--space-3);
+  min-width: 0;
+}
+
+.diag-kv-row > :last-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* ── Billing panel ───────────────────────────────────────── */
+.diag-panel-pad {
+  padding: var(--space-5);
+}
+
+@media (max-width: 639.98px) {
+  .diag-panel-pad {
+    padding: var(--space-4);
+  }
+}
+
+.diag-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--diag-min, 200px)), 1fr));
+  gap: var(--space-4);
+}
+
+.diag-field {
+  color: var(--text-dim);
+  font-size: var(--text-xs);
+  min-width: 0;
+}
+
+.diag-field > div {
+  color: white;
+  font-size: var(--text-base);
+  margin-top: var(--space-1);
+  overflow-wrap: anywhere;
+}
+
+.diag-list-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+  min-width: 0;
+}
+
+.diag-list-row > :first-child {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+
+/* ── Check detail modal ──────────────────────────────────── */
+.diag-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+  z-index: var(--z-modal);
+  backdrop-filter: blur(4px);
+}
+
+.diag-modal {
+  background: var(--bg-secondary);
+  border: 1px solid var(--bg-tertiary);
+  border-radius: var(--radius-lg);
+  padding: var(--space-6);
+  width: min(520px, 100%);
+  max-height: 80vh;
+  max-height: min(80dvh, calc(100dvh - 2 * var(--space-4)));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+@media (max-width: 639.98px) {
+  .diag-modal {
+    padding: var(--space-5) var(--space-4);
+    max-height: calc(100dvh - 2 * var(--space-4));
+  }
+}
+
+.diag-modal-close {
+  margin-left: auto;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--tap-target);
+  height: var(--tap-target);
+  margin-right: calc(-1 * var(--space-2));
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 20px;
+}
+
+.diag-modal-close:hover {
+  background: var(--glass);
+}

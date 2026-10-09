@@ -1,0 +1,535 @@
+/* ════════════════════════════════════════════════════════════════════════════
+   LAYOUT SYSTEM — app shell + layout primitives.
+   Mobile-first: base rules are for phones, min-width queries add space.
+   Pages compose these classes (or the wrappers in components/layout/) instead
+   of hand-writing grid/flex/width values inline. See docs/UI_GUIDELINES.md.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+/* ── Global overflow hygiene ─────────────────────────────── */
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+img,
+video,
+svg,
+canvas {
+  max-width: 100%;
+}
+
+/* ════════════════════════════════════════════════════════════
+   APP SHELL — three states, built once
+     < 768px     top bar + slide-in drawer
+     768–1023px  icon rail (labels hidden, tooltips via title)
+     ≥ 1024px    full sidebar
+   ════════════════════════════════════════════════════════════ */
+
+.layout {
+  display: block;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+/* Sidebar: drawer by default (phones) */
+.sidebar {
+  background: var(--bg-secondary);
+  border-right: 1px solid var(--glass-border);
+  padding: var(--space-5) 18px;
+  padding-bottom: max(var(--space-5), env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  position: fixed;
+  inset: 0 auto 0 0;
+  width: var(--drawer-w);
+  height: 100vh;
+  height: 100dvh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  z-index: var(--z-drawer);
+  transform: translateX(-100%);
+  visibility: hidden;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), visibility 0.3s;
+  box-shadow: 4px 0 24px rgba(0, 0, 0, 0.5);
+}
+
+.sidebar.open {
+  transform: translateX(0);
+  visibility: visible;
+}
+
+.sidebar-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(2px);
+  z-index: var(--z-overlay);
+}
+
+.sidebar-overlay.open {
+  display: block;
+}
+
+.main-content {
+  min-width: 0;
+  padding: var(--space-4) var(--gutter) var(--space-7);
+  background: radial-gradient(circle at 80% 0%, rgba(99, 102, 241, 0.06), transparent 45%);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+/* Tablet: icon rail */
+@media (min-width: 768px) {
+  .layout {
+    display: grid;
+    grid-template-columns: var(--sidebar-rail-w) minmax(0, 1fr);
+  }
+
+  .sidebar,
+  .sidebar.open {
+    position: sticky;
+    top: 0;
+    width: auto;
+    transform: none;
+    visibility: visible;
+    box-shadow: none;
+    z-index: auto;
+    padding: var(--space-5) var(--space-3);
+  }
+
+  .sidebar-overlay,
+  .sidebar-overlay.open {
+    display: none;
+  }
+
+  .main-content {
+    padding: var(--space-6) var(--gutter) var(--space-7);
+    gap: 28px;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1023.98px) {
+  .sidebar .logo {
+    justify-content: center;
+    padding-inline: 0;
+  }
+
+  .sidebar .nav-item {
+    justify-content: center;
+    padding: var(--space-3) 0;
+    min-height: var(--tap-target);
+  }
+
+  .sidebar .logo-text,
+  .sidebar .nav-label,
+  .sidebar .nav-lock,
+  .sidebar .nav-divider-label,
+  .sidebar .sidebar-upgrade,
+  .sidebar .btn-label {
+    display: none;
+  }
+
+  .sidebar .nav-divider {
+    margin-inline: var(--space-2);
+  }
+
+  .sidebar .btn-logout,
+  .sidebar .btn-signin-sidebar {
+    padding: var(--space-3) 0;
+  }
+}
+
+/* Laptop+: full sidebar */
+@media (min-width: 1024px) {
+  .layout {
+    grid-template-columns: var(--sidebar-w) minmax(0, 1fr);
+  }
+
+  .sidebar,
+  .sidebar.open {
+    padding: var(--space-5) 18px;
+  }
+
+  .main-content {
+    padding: 36px var(--gutter) var(--space-8);
+  }
+}
+
+/* Sidebar dividers ("Info", "Admin") */
+.nav-divider {
+  margin: 10px 16px 6px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  position: relative;
+}
+
+.nav-divider-label {
+  position: absolute;
+  top: -9px;
+  left: 8px;
+  background: var(--bg-secondary);
+  padding: 0 6px;
+  font-size: 10px;
+  font-weight: 600;
+  color: #334155;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.nav-divider--admin .nav-divider-label {
+  color: #4f46e5;
+}
+
+.nav-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Header / mobile top bar ─────────────────────────────── */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+/* Phones: header becomes a sticky top bar */
+@media (max-width: 767.98px) {
+  .header {
+    position: sticky;
+    top: 0;
+    z-index: var(--z-header);
+    min-height: var(--topbar-h);
+    margin: calc(-1 * var(--space-4)) calc(-1 * var(--gutter)) 0;
+    padding: max(var(--space-2), env(safe-area-inset-top)) var(--gutter) var(--space-2);
+    background: rgba(2, 6, 23, 0.85);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--glass-border);
+  }
+}
+
+.title-section {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+  flex: 1;
+}
+
+.title-text {
+  min-width: 0;
+}
+
+.title-section h1 {
+  font-size: var(--text-2xl);
+  font-weight: 700;
+  line-height: 1.2;
+  margin-bottom: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.title-section p {
+  color: var(--text-dim);
+  font-size: var(--text-base);
+}
+
+@media (max-width: 767.98px) {
+  .title-section h1 {
+    font-size: var(--text-lg);
+    margin: 0;
+  }
+
+  .title-section p {
+    display: none;
+  }
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-shrink: 0;
+}
+
+.hamburger-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--tap-target);
+  height: var(--tap-target);
+  margin-left: calc(-1 * var(--space-2));
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text-main);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.hamburger-btn:hover {
+  background: var(--glass);
+}
+
+@media (min-width: 768px) {
+  .hamburger-btn {
+    display: none;
+  }
+}
+
+/* Header controls that only make sense with room to spare */
+@media (max-width: 639.98px) {
+  .hide-below-sm {
+    display: none !important;
+  }
+}
+
+@media (max-width: 767.98px) {
+  .hide-below-md {
+    display: none !important;
+  }
+}
+
+@media (min-width: 768px) {
+  .show-below-md {
+    display: none !important;
+  }
+}
+
+/* ════════════════════════════════════════════════════════════
+   PAGE PRIMITIVES
+   ════════════════════════════════════════════════════════════ */
+
+/* Page container — width is chosen by content type, never hand-set */
+.page {
+  width: 100%;
+  max-width: var(--page-default);
+  margin-inline: auto;
+  min-width: 0;
+  container-type: inline-size;
+  container-name: page;
+}
+
+.page--narrow { max-width: var(--page-narrow); }
+.page--wide   { max-width: var(--page-wide); }
+.page--full   { max-width: none; }
+
+/* Section header: title block + actions; wraps instead of overflowing */
+.section-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3) var(--space-4);
+}
+
+.section-head > :first-child {
+  flex: 1 1 240px;
+  min-width: 0;
+}
+
+.section-head > :last-child:not(:first-child) {
+  flex-shrink: 0;
+}
+
+/* Vertical rhythm */
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--stack-gap, var(--space-4));
+  min-width: 0;
+}
+
+/* Horizontal group that wraps (buttons, pills, filters) */
+.cluster {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--cluster-gap, var(--space-2));
+  min-width: 0;
+}
+
+/* Card grid with no breakpoints: as many columns as fit */
+.grid-auto {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--grid-min, 280px)), 1fr));
+  gap: var(--grid-gap, var(--space-4));
+}
+
+/* Fixed-count grids that collapse on narrow containers.
+   They respond to their container (the .page), not the viewport. */
+.grid-2,
+.grid-3,
+.grid-4 {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--grid-gap, var(--space-4));
+}
+
+@container (min-width: 560px) {
+  .grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .grid-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .grid-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@container (min-width: 860px) {
+  .grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .grid-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+
+/* Fallback for grids used outside a .page container */
+@supports not (container-type: inline-size) {
+  @media (min-width: 640px) {
+    .grid-2, .grid-3, .grid-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+}
+
+/* Any table goes in here — tables scroll, the page never does */
+.table-scroll {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+}
+
+.table-scroll > table {
+  min-width: 100%;
+}
+
+/* Text helpers */
+.truncate {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.break-anywhere {
+  overflow-wrap: anywhere;
+}
+
+.min-w-0 {
+  min-width: 0;
+}
+
+/* Full-width on phones, natural width above */
+@media (max-width: 639.98px) {
+  .full-below-sm {
+    width: 100%;
+  }
+}
+
+/* ════════════════════════════════════════════════════════════
+   MODALS — fit any viewport, body scrolls, never the page
+   ════════════════════════════════════════════════════════════ */
+
+.modal-overlay {
+  padding: var(--space-4);
+  overflow-y: auto;
+}
+
+.modal-card {
+  max-height: calc(100dvh - 2 * var(--space-4));
+  overflow-y: auto;
+}
+
+@media (max-width: 639.98px) {
+  .modal-card {
+    padding: var(--space-6) var(--space-5);
+    border-radius: var(--radius-lg);
+  }
+}
+
+/* Modal/dialog footers: stacked full-width buttons on phones */
+.dialog-actions {
+  display: flex;
+  flex-direction: column-reverse;
+  gap: var(--space-2);
+}
+
+.dialog-actions > * {
+  width: 100%;
+}
+
+@media (min-width: 640px) {
+  .dialog-actions {
+    flex-direction: row;
+    justify-content: flex-end;
+  }
+
+  .dialog-actions > * {
+    width: auto;
+  }
+}
+
+/* Toasts: centred, never wider than the screen. Centred with margins, not
+   transform, so entry animations that animate transform don't shift them. */
+.toast {
+  position: fixed;
+  left: 0;
+  right: 0;
+  margin-inline: auto;
+  bottom: max(var(--space-5), env(safe-area-inset-bottom));
+  z-index: var(--z-toast);
+  width: fit-content;
+  max-width: calc(100vw - 2 * var(--space-4));
+}
+
+/* Elements shown only in the tablet icon rail */
+.show-rail-only {
+  display: none;
+}
+
+@media (min-width: 768px) and (max-width: 1023.98px) {
+  .sidebar .show-rail-only {
+    display: inline;
+  }
+}
+
+.btn-signin-sidebar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+}
+
+@media (min-width: 640px) {
+  .show-below-sm {
+    display: none !important;
+  }
+}
+
+/* Icon-only button with a touch-sized hit area */
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--tap-target);
+  height: var(--tap-target);
+  flex-shrink: 0;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: inherit;
+  cursor: pointer;
+}
+
+.icon-btn:hover {
+  background: var(--glass);
+}
+
+/* Modal close buttons get a full touch target on touch screens */
+@media (pointer: coarse) {
+  .modal-close {
+    width: var(--tap-target);
+    height: var(--tap-target);
+  }
+}

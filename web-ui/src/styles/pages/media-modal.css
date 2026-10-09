@@ -1,0 +1,275 @@
+/* ════════════════════════════════════════════════════════════════════════════
+   MEDIA MODAL (MediaModal.jsx) + touch tweaks for the video player
+   (components/video/*) + small shared modal helpers used by the login /
+   confirm dialogs. Desktop values match the original inline styles.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+/* ── Media viewer ────────────────────────────────────────── */
+
+.modal-overlay.mm-overlay {
+  padding: 20px;
+}
+
+.modal-card.mm-card {
+  width: 95%;
+  max-width: 1300px;
+  max-height: 95vh;
+  max-height: min(95dvh, calc(100dvh - 40px));
+  background: #0a0f1d;
+  border: 1px solid var(--glass-border);
+  border-radius: 16px;
+  padding: 0;
+  align-items: stretch;
+  overflow: hidden;
+  box-shadow: 0 32px 80px rgba(0, 0, 0, 0.8);
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-card.mm-card > .mm-close {
+  top: 16px;
+  right: 16px;
+  width: 32px;
+  height: 32px;
+  z-index: 10;
+}
+
+.mm-header {
+  padding: 24px 64px 20px 24px;
+  border-bottom: 1px solid var(--bg-tertiary);
+  flex-shrink: 0;
+  min-width: 0;
+}
+
+.mm-title {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.mm-title-edit {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.mm-title-edit > input {
+  flex: 1 1 200px;
+  min-width: 0;
+}
+
+.mm-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.mm-media {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: #000;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.mm-video {
+  flex: 1;
+  min-height: 420px;
+  min-height: min(420px, 60dvh);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: #000;
+}
+
+.mm-image-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+  background: #000;
+  padding: 16px;
+}
+
+.mm-image {
+  max-width: 100%;
+  max-height: 70vh;
+  max-height: 70dvh;
+  object-fit: contain;
+  border-radius: 8px;
+  display: block;
+}
+
+.mm-drive {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  padding: var(--space-6) var(--space-4);
+  text-align: center;
+}
+
+/* Phones and short landscape screens: the whole card scrolls (instead of
+   squeezing the media to nothing) and the close button stays pinned. */
+@media (max-width: 639.98px), (max-height: 560px) {
+  .modal-overlay.mm-overlay {
+    padding: var(--space-2);
+  }
+
+  .modal-card.mm-card {
+    width: 100%;
+    max-height: calc(100dvh - 2 * var(--space-2));
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .modal-card.mm-card > .mm-close {
+    position: sticky;
+    top: var(--space-2);
+    right: auto;
+    align-self: flex-end;
+    flex-shrink: 0;
+    width: var(--tap-target);
+    height: var(--tap-target);
+    margin: var(--space-2) var(--space-2) calc(-1 * (var(--tap-target) + var(--space-2))) 0;
+    background: rgba(2, 6, 23, 0.7) !important;
+    backdrop-filter: blur(6px);
+  }
+
+  .mm-header {
+    padding: var(--space-4) 60px var(--space-4) var(--space-4);
+  }
+
+  .mm-actions {
+    margin-left: 0;
+    width: 100%;
+  }
+
+  .mm-media {
+    flex: 0 0 auto;
+    overflow: visible;
+  }
+
+  .mm-video {
+    flex: 0 0 auto;
+    min-height: 0;
+    height: min(60dvh, 56vw + 80px);
+  }
+
+  .mm-image-wrap {
+    padding: var(--space-2);
+  }
+
+  .mm-image {
+    max-height: 75dvh;
+  }
+}
+
+@media (pointer: coarse) {
+  .modal-card.mm-card > .mm-close {
+    width: var(--tap-target);
+    height: var(--tap-target);
+  }
+
+  .mm-tap {
+    min-height: 40px;
+  }
+
+  .mm-icon-tap {
+    min-width: var(--tap-target);
+    min-height: var(--tap-target);
+    justify-content: center;
+  }
+}
+
+/* ── Shared modal helpers (login / confirm dialogs) ──────── */
+
+@media (pointer: coarse) {
+  .modal-close.modal-close--touch {
+    width: var(--tap-target);
+    height: var(--tap-target);
+    top: var(--space-2);
+    right: var(--space-2);
+  }
+}
+
+/* ── Video player: touch ─────────────────────────────────── */
+
+.vp-controls-left {
+  min-width: 0;
+}
+
+@media (pointer: coarse) {
+  .vp-btn {
+    min-width: var(--tap-target);
+    min-height: var(--tap-target);
+  }
+
+  .vp-btn .material-symbols-rounded {
+    font-size: 26px;
+  }
+
+  /* Taller seek hit area, always-visible thumb */
+  .vp-track {
+    height: 32px;
+  }
+
+  .vp-thumb {
+    transform: scale(1.15);
+  }
+
+  .vp-volume {
+    height: 6px;
+  }
+
+  .vp-volume::-webkit-slider-thumb {
+    width: 20px;
+    height: 20px;
+  }
+
+  .vp-volume::-moz-range-thumb {
+    width: 20px;
+    height: 20px;
+  }
+
+  .vp-retry-btn {
+    min-height: var(--tap-target);
+  }
+}
+
+/* Touch screens have no mouse-move to bring auto-hidden controls back, so
+   keep them on screen. */
+@media (hover: none) {
+  .vp-controls-hidden {
+    opacity: 1;
+    transform: none;
+    pointer-events: all;
+  }
+}
+
+/* Narrow touch screens: the mute button is enough (phones ignore the
+   volume slider anyway), which frees room for the timestamp. */
+@media (hover: none) and (max-width: 479.98px) {
+  .vp-volume {
+    display: none;
+  }
+}
+
+/* VideoViewer error card */
+.vv-eb-actions {
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+@media (max-width: 639.98px) {
+  .vv-error-boundary {
+    min-height: 260px;
+    padding: var(--space-5) var(--space-4);
+  }
+}

@@ -9,6 +9,11 @@ export function initAuthSync() {
 
   // Push the locally-stored user to the extension, or pull from it if missing
   function syncAuthToExtension() {
+    // If the user explicitly signed out of the web app, do NOT restore a session
+    // from the extension — that auto-restore was logging people straight back in.
+    if (localStorage.getItem('antcapture_signed_out') === '1') {
+      return;
+    }
     const userDataStr = localStorage.getItem('antcapture_user');
     if (userDataStr) {
       try {
@@ -32,7 +37,15 @@ export function initAuthSync() {
   syncAuthToExtension();
 
   window.addEventListener('storage', (event) => {
-    if (event.key === 'antcapture_user' || !event.key) syncAuthToExtension();
+    if (event.key === 'antcapture_user' || event.key === 'antcapture_signed_out' || !event.key) syncAuthToExtension();
+  });
+
+  // The web app fires this on an explicit sign-out. Clear the extension's stored
+  // user too, so sign-out is a single, final action (web + extension together).
+  window.addEventListener('antcapture:logout', () => {
+    try {
+      chrome.runtime.sendMessage({ action: 'SYNC_USER', user: null, origin: window.location.origin });
+    } catch (_e) { /* extension context gone — nothing to clear */ }
   });
 
   // Listen for logout broadcast from background.js

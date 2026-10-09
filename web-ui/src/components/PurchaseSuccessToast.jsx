@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import '../styles/pages/billing.css';
 
 /**
  * PurchaseSuccessToast
@@ -52,14 +53,8 @@ export default function PurchaseSuccessToast({ entitlements }) {
 
   return (
     <div
+      className="toast purchase-toast"
       style={{
-        position: 'fixed',
-        bottom: '32px',
-        right: '32px',
-        zIndex: 9999,
-        maxWidth: '380px',
-        width: 'calc(100vw - 48px)',
-
         // Animate in/out
         opacity: leaving ? 0 : 1,
         transform: leaving ? 'translateY(16px)' : 'translateY(0)',
@@ -108,7 +103,7 @@ export default function PurchaseSuccessToast({ entitlements }) {
           </div>
 
           {/* Text */}
-          <div style={{ flex: 1 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: '15px', fontWeight: 700, color: '#ecfdf5', marginBottom: '3px', fontFamily: "'Outfit', sans-serif" }}>
               AntCapture Cloud is active
             </div>
@@ -123,10 +118,10 @@ export default function PurchaseSuccessToast({ entitlements }) {
           <button
             onClick={dismiss}
             aria-label="Dismiss"
+            className="purchase-toast__close"
             style={{
               background: 'none', border: 'none', cursor: 'pointer',
-              padding: '2px', color: '#4ade80', flexShrink: 0,
-              display: 'flex', alignItems: 'center', opacity: 0.6,
+              padding: 0, color: 'var(--success)', opacity: 0.6,
               transition: 'opacity 0.15s',
             }}
             onMouseEnter={e => e.currentTarget.style.opacity = '1'}

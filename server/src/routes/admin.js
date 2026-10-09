@@ -134,6 +134,81 @@ router.post('/recover-processing', async (req, res) => {
   }
 });
 
+// ── Ensure the free + cloud plan rows exist (self-heal an unseeded DB) ────────
+// POST /api/admin/ensure-plans
+router.post('/ensure-plans', async (req, res) => {
+  try {
+    const { ensureCorePlans } = require('../services/planService');
+    const { free, cloud } = await ensureCorePlans();
+    res.json({ ok: true, free: { id: free?.id, active: free?.isActive }, cloud: { id: cloud?.id, active: cloud?.isActive } });
+  } catch (err) {
+    require('../utils/logger').error('admin', 'ensure-plans-failed', { error: err.message });
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Recover a user's subscription from LemonSqueezy by email ──────────────────
+// POST /api/admin/recover-subscription/:email
+// For a buyer whose purchase never recorded (misconfigured webhook, dropped
+// event, etc.): ensure the plans exist, look their subscription up in
+// LemonSqueezy by email, and record it — unlocking them without a new purchase.
+router.post('/recover-subscription/:email', async (req, res) => {
+  const prisma = require('../db/index');
+  const logger = require('../utils/logger');
+  const lemonSqueezyService = require('../services/lemonSqueezyService');
+  const { ensureCorePlans, ensurePlan } = require('../services/planService');
+  const { getPlanNameFromVariant } = require('../controllers/lsWebhookController');
+  const { computeEntitlements } = require('../controllers/subscriptionController');
+  const { invalidateSubscriptionCache } = require('../services/subscriptionCache');
+  try {
+    const email = req.params.email;
+    await ensureCorePlans();
+
+    const user = await prisma.user.findUnique({
+      where: { email },
+      include: { subscription: { include: { plan: true } } },
+    });
+    if (!user) { return res.status(404).json({ error: 'No user with that email' }); }
+
+    const subs = await lemonSqueezyService.fetchSubscriptionsByEmail(email);
+    if (!subs || subs.length === 0) {
+      return res.json({
+        ok: false,
+        reason: 'no_subscription_found_in_lemonsqueezy',
+        email,
+        mode: process.env.LEMONSQUEEZY_MODE || 'test',
+        hint: 'No subscription for this email in the current LEMONSQUEEZY_MODE. Confirm the mode and API key match where the purchase was made.',
+      });
+    }
+
+    const lsData = [...subs].sort((a, b) => new Date(b.attributes.created_at) - new Date(a.attributes.created_at))[0];
+    const variantId = lsData.attributes.variant_id.toString();
+    const planName = getPlanNameFromVariant(variantId);
+    const plan = await ensurePlan(planName);
+    const periodEnd = lsData.attributes.ends_at || lsData.attributes.renews_at;
+    const cancelAtPeriodEnd = lsData.attributes.ends_at !== null && lsData.attributes.ends_at !== undefined;
+
+    await prisma.lemonSqueezyCustomer.upsert({
+      where:  { userId: user.id },
+      update: { lsCustomerId: lsData.attributes.customer_id.toString(), lsSubscriptionId: lsData.id.toString(), lsVariantId: variantId },
+      create: { userId: user.id, lsCustomerId: lsData.attributes.customer_id.toString(), lsSubscriptionId: lsData.id.toString(), lsVariantId: variantId },
+    });
+    await prisma.subscription.upsert({
+      where:  { userId: user.id },
+      update: { planId: plan.id, status: lsData.attributes.status, currentPeriodStart: lsData.attributes.created_at ? new Date(lsData.attributes.created_at) : undefined, currentPeriodEnd: periodEnd ? new Date(periodEnd) : undefined, cancelAtPeriodEnd },
+      create: { userId: user.id, planId: plan.id, status: lsData.attributes.status, currentPeriodStart: lsData.attributes.created_at ? new Date(lsData.attributes.created_at) : undefined, currentPeriodEnd: periodEnd ? new Date(periodEnd) : undefined, lsCustomerId: lsData.attributes.customer_id.toString() },
+    });
+    invalidateSubscriptionCache(user.id);
+
+    const updated = await prisma.user.findUnique({ where: { id: user.id }, include: { subscription: { include: { plan: true } } } });
+    logger.info('admin', 'recover-subscription', { email, status: lsData.attributes.status, plan: plan.name });
+    res.json({ ok: true, email, recorded: { plan: plan.name, status: lsData.attributes.status }, entitlements: computeEntitlements(updated.subscription) });
+  } catch (err) {
+    logger.error('admin', 'recover-subscription-failed', { error: err.message });
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── Application Settings ──────────────────────────────────────────────────────
 router.get('/settings', async (req, res) => {
   const prisma = require('../db/index');

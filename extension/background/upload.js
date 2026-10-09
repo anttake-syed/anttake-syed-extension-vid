@@ -134,7 +134,7 @@ export async function uploadToServer(blob, type, destination, jwt, resolution = 
   }
 
   const result = await res.json();
-  log.info(`✅ Upload complete. Provider: ${provider} | File: ${filename}`);
+  log.info(`Upload complete. Provider: ${provider} | File: ${filename}`);
   return result;
 }
 
@@ -190,7 +190,7 @@ export async function uploadWithProgress(blob, type, jwt, opts = {}, onProgress 
       }
     });
 
-    log.info(`✅ UploadThing Direct Complete:`, response);
+    log.info(`UploadThing direct upload complete (${response?.length ?? 0} file)`);
 
     // ── Client-side confirmation (guaranteed fallback) ────────────────────────
     // The UploadThing webhook (onUploadComplete) marks the capture active, but
@@ -233,23 +233,23 @@ export async function uploadWithProgress(blob, type, jwt, opts = {}, onProgress 
             });
             if (confirmRes.ok) {
               const confirmData = await confirmRes.json().catch(() => ({}));
-              log.info(`✅ Confirmed upload in DB:`, confirmData);
+              log.info('Confirmed upload in DB');
               confirmed = true;
             } else {
-              log.warn(`⚠️ confirm-upload attempt ${attempt} failed: HTTP ${confirmRes.status}`);
+              log.warn(`confirm-upload attempt ${attempt} failed: HTTP ${confirmRes.status}`);
             }
           } catch (confirmErr) {
-            log.warn(`⚠️ confirm-upload attempt ${attempt} threw:`, confirmErr.message);
+            log.warn(`confirm-upload attempt ${attempt} threw:`, confirmErr.message);
           }
           if (!confirmed && attempt < ATTEMPTS) {
             await new Promise((r) => setTimeout(r, attempt * 1000));
           }
         }
         if (!confirmed) {
-          log.error(`❌ Could not confirm upload after ${ATTEMPTS} attempts — webhook may still activate it, but the capture might not show up yet.`);
+          log.error(`Could not confirm upload after ${ATTEMPTS} attempts — webhook may still activate it, but the capture might not show up yet.`);
         }
       } else {
-        log.error(`❌ No captureId returned for uploaded file — cannot confirm activation.`);
+        log.error(`No captureId returned for uploaded file — cannot confirm activation.`);
       }
     }
 

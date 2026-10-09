@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import './index.css';
 import { SERVER_URL, IS_LOCAL_MODE } from './config.js';
 
 // Hooks
@@ -20,7 +19,7 @@ import Whiteboards from './components/Whiteboards.jsx';
 import WhiteboardEditor from './components/WhiteboardEditor.jsx';
 
 import StaticPage from './components/StaticPage.jsx';
-import ServerHealthBadge from './components/ServerHealthBadge.jsx';
+import { Page, Grid } from './components/layout/Page.jsx';
 import AdminDiagnostics from './components/AdminDiagnostics.jsx';
 import SubscriptionWarningBanner from './components/SubscriptionWarningBanner.jsx';
 import PurchaseSuccessToast from './components/PurchaseSuccessToast.jsx';
@@ -58,15 +57,8 @@ function buildGitHubIssueUrl() {
 }
 
 function FeedbackPage() {
-  const wrapStyle = {
-    padding: '32px 40px 48px',
-    maxWidth: '860px',
-  };
-
   const gridStyle = {
-    display: 'grid',
-    gridTemplateColumns: '1fr 1fr',
-    gap: '20px',
+    '--grid-gap': '20px',
     marginBottom: '36px',
   };
 
@@ -74,7 +66,7 @@ function FeedbackPage() {
     background: 'var(--card-bg)',
     borderRadius: '20px',
     border: '1px solid var(--border)',
-    padding: '36px 28px 32px',
+    padding: 'clamp(24px, 4vw, 36px) clamp(18px, 3vw, 28px) clamp(22px, 3.5vw, 32px)',
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
@@ -173,24 +165,24 @@ function FeedbackPage() {
   };
 
   return (
-    <div style={wrapStyle}>
-      {/* Two-column card grid */}
-      <div style={gridStyle}>
+    <Page width="narrow">
+      {/* Two-column card grid — stacks on narrow screens */}
+      <Grid cols={2} style={gridStyle}>
 
         {/* ── Card 1: Report a Bug (GitHub) ── */}
         <div style={cardStyle}>
           <div style={iconWrapStyle('rgba(36,41,46,0.10)')}>
-            <span className="material-symbols-outlined" style={{ fontSize: '26px', color: '#24292e' }}>bug_report</span>
+            <span className="material-symbols-rounded" style={{ fontSize: '26px', color: '#6e7781' }}>bug_report</span>
           </div>
           <h2 style={cardTitleStyle}>Report a Bug</h2>
-          <div style={dividerStyle('#24292e')} />
+          <div style={dividerStyle('#6e7781')} />
           <p style={cardDescStyle}>
             Found something broken? Open a GitHub issue and we'll track it publicly so the community can follow progress.
           </p>
           <ul style={bulletListStyle}>
             {['Steps to reproduce the issue', 'What you expected vs. what happened', 'Your OS, browser & extension version'].map(t => (
               <li key={t} style={bulletItemStyle}>
-                <span style={dotStyle('#24292e')} />
+                <span style={dotStyle('#6e7781')} />
                 {t}
               </li>
             ))}
@@ -200,7 +192,7 @@ function FeedbackPage() {
             href={buildGitHubIssueUrl()}
             target="_blank"
             rel="noopener noreferrer"
-            style={btnStyle('#24292e')}
+            style={btnStyle('#6e7781')}
             onMouseOver={e => { e.currentTarget.style.opacity = '0.85'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
             onMouseOut={e => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.transform = 'translateY(0)'; }}
           >
@@ -211,7 +203,7 @@ function FeedbackPage() {
         {/* ── Card 2: Send Feedback (Google Form) ── */}
         <div style={cardStyle}>
           <div style={iconWrapStyle('rgba(66,133,244,0.12)')}>
-            <span className="material-symbols-outlined" style={{ fontSize: '26px', color: '#4285f4' }}>forum</span>
+            <span className="material-symbols-rounded" style={{ fontSize: '26px', color: '#4285f4' }}>forum</span>
           </div>
           <h2 style={cardTitleStyle}>Send Feedback</h2>
           <div style={dividerStyle('#4285f4')} />
@@ -239,17 +231,17 @@ function FeedbackPage() {
           </a>
         </div>
 
-      </div>
+      </Grid>
 
       {/* Bottom info bar */}
       <div style={infoBarStyle}>
-        <span className="material-symbols-outlined" style={{ fontSize: '20px', color: 'var(--accent)', flexShrink: 0 }}>info</span>
+        <span className="material-symbols-rounded" style={{ fontSize: '20px', color: 'var(--accent)', flexShrink: 0 }}>info</span>
         <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: 0, lineHeight: 1.6 }}>
           Bug reports go to our <strong style={{ color: 'var(--text-primary)' }}>public GitHub tracker</strong> where anyone can follow along.
           General feedback is submitted via a <strong style={{ color: 'var(--text-primary)' }}>private Google Form</strong> — only the team can see your responses. Both channels are monitored regularly.
         </p>
       </div>
-    </div>
+    </Page>
   );
 }
 
@@ -445,13 +437,13 @@ export default function App() {
     let pageSkeleton;
     if (activeNav === 'Pricing') {
       pageSkeleton = (
-        <div style={{ maxWidth: '860px', margin: '0 auto', width: '100%' }}>
+        <div className="page page--narrow">
           <div style={{ textAlign: 'center', marginBottom: '48px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-            <div className="skeleton-box" style={{ width: '340px', height: '42px', borderRadius: '8px', marginBottom: '16px' }}></div>
-            <div className="skeleton-box" style={{ width: '440px', height: '24px', borderRadius: '6px', marginBottom: '32px' }}></div>
+            <div className="skeleton-box" style={{ width: 'min(100%, 340px)', height: '42px', borderRadius: '8px', marginBottom: '16px' }}></div>
+            <div className="skeleton-box" style={{ width: 'min(100%, 440px)', height: '24px', borderRadius: '6px', marginBottom: '32px' }}></div>
             <div className="skeleton-box" style={{ width: '180px', height: '36px', borderRadius: '12px' }}></div>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', marginBottom: '64px' }}>
+          <div className="grid-2" style={{ '--grid-gap': '24px', marginBottom: '64px' }}>
             <div className="skeleton-box" style={{ height: '380px', borderRadius: '22px' }}></div>
             <div className="skeleton-box" style={{ height: '380px', borderRadius: '22px' }}></div>
           </div>
@@ -464,7 +456,7 @@ export default function App() {
       );
     } else if (activeNav === 'Whiteboards') {
       pageSkeleton = (
-        <div style={{ maxWidth: 1280, margin: '0 auto', width: '100%' }}>
+        <div className="page">
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 24, alignItems: 'center' }}>
             <div>
               <div className="skeleton-box" style={{ width: '200px', height: '32px', borderRadius: '6px', marginBottom: '8px' }}></div>
@@ -472,12 +464,12 @@ export default function App() {
             </div>
             <div className="skeleton-box" style={{ width: '140px', height: '40px', borderRadius: '10px' }}></div>
           </div>
-          <div style={{ display: 'flex', gap: '10px', marginBottom: 22 }}>
-            <div className="skeleton-box" style={{ width: '260px', height: '36px', borderRadius: '9px' }}></div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginBottom: 22 }}>
+            <div className="skeleton-box" style={{ width: '260px', maxWidth: '50%', height: '36px', borderRadius: '9px' }}></div>
             <div className="skeleton-box" style={{ width: '120px', height: '36px', borderRadius: '9px' }}></div>
             <div className="skeleton-box" style={{ width: '120px', height: '36px', borderRadius: '9px' }}></div>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '18px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 220px), 1fr))', gap: '18px' }}>
             {[1, 2, 3, 4, 5, 6].map(i => (
               <div key={i} className="skeleton-box" style={{ height: '220px', borderRadius: '14px' }}></div>
             ))}
@@ -486,12 +478,12 @@ export default function App() {
       );
     } else if (activeNav === 'My Library') {
       pageSkeleton = (
-        <div style={{ maxWidth: 1280, margin: '0 auto', width: '100%' }}>
+        <div className="page">
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 24, alignItems: 'center' }}>
             <div className="skeleton-box" style={{ width: '180px', height: '32px', borderRadius: '6px' }}></div>
-            <div className="skeleton-box" style={{ width: '240px', height: '38px', borderRadius: '10px' }}></div>
+            <div className="skeleton-box" style={{ width: '240px', maxWidth: '50%', height: '38px', borderRadius: '10px' }}></div>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '20px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 280px), 1fr))', gap: '20px' }}>
             {[1, 2, 3, 4, 5, 6, 7, 8].map(i => (
               <div key={i} className="skeleton-box" style={{ height: '240px', borderRadius: '14px' }}></div>
             ))}
@@ -502,7 +494,7 @@ export default function App() {
       pageSkeleton = (
         <>
           <div className="skeleton-box" style={{ width: '100%', height: '140px', borderRadius: '16px', marginBottom: '28px' }}></div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
+          <div className="grid-auto" style={{ '--grid-min': '200px' }}>
             {[1, 2, 3].map(i => <div key={i} className="skeleton-box" style={{ width: '100%', height: '140px', borderRadius: '16px' }}></div>)}
           </div>
         </>
@@ -520,10 +512,10 @@ export default function App() {
             {[1, 2, 3, 4].map(i => <div key={i} className="skeleton-box" style={{ width: '100%', height: '40px', borderRadius: '10px' }}></div>)}
           </nav>
         </aside>
-        <main className="main-content" style={{ padding: '36px 40px' }}>
+        <main className="main-content">
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '40px', alignItems: 'center' }}>
-            <div className="skeleton-box" style={{ width: '240px', height: '36px', borderRadius: '8px' }}></div>
-            <div className="skeleton-box" style={{ width: '160px', height: '42px', borderRadius: '21px' }}></div>
+            <div className="skeleton-box" style={{ width: '240px', maxWidth: '55%', height: '36px', borderRadius: '8px' }}></div>
+            <div className="skeleton-box" style={{ width: '160px', maxWidth: '35%', height: '42px', borderRadius: '21px' }}></div>
           </div>
           {pageSkeleton}
         </main>
@@ -537,16 +529,14 @@ export default function App() {
 
       {/* ── Billing Success Toast ── */}
       {showBillingToast && (
-        <div style={{
-          position: 'fixed', bottom: '28px', left: '50%', transform: 'translateX(-50%)',
-          zIndex: 9999, display: 'flex', alignItems: 'center', gap: '12px',
+        <div className="toast" style={{
+          display: 'flex', alignItems: 'center', gap: '12px',
           background: 'linear-gradient(135deg, #166534, #15803d)',
           border: '1px solid rgba(74,222,128,0.4)',
           borderRadius: '16px', padding: '16px 24px',
           boxShadow: '0 8px 32px rgba(0,0,0,0.4), 0 0 0 1px rgba(74,222,128,0.15)',
           color: 'white', fontFamily: "'Outfit', sans-serif", fontWeight: 600,
           fontSize: '15px', animation: 'slideUp 0.3s ease',
-          whiteSpace: 'nowrap',
         }}>
           <span className="material-symbols-rounded" style={{ fontSize: '22px', color: '#4ade80' }}>check_circle</span>
           🎉 Welcome to AntCapture Cloud! Your plan is now active.
@@ -600,15 +590,11 @@ export default function App() {
           onNavClick={(nav) => { setActiveNav(nav); setActiveBoard(null); setActiveMedia(null); }}
           onMenuClick={() => setMobileMenuOpen(true)}
         />
-        {/* Server health pill — only visible in local/self-hosted mode */}
-        <div style={{ position: 'fixed', top: '14px', right: '20px', zIndex: 200 }}>
-          <ServerHealthBadge />
-        </div>
 
 
         {/* ── Subscription Warning Banner — renewal/payment alerts ── */}
         {isAuthenticated && entitlements?.warningLevel && (
-          <div style={{ padding: '20px 24px 0' }}>
+          <div>
             <SubscriptionWarningBanner
               entitlements={entitlements}
               onManageSubscription={() => setActiveNav('Subscription')}
@@ -728,29 +714,50 @@ For refund requests or billing questions, please use the contact form on our Pri
         ) : activeNav === 'Privacy' ? (
           <StaticPage
             title="Privacy Policy"
-            content={`Last updated: June 2025
+            content={`Last updated: September 29, 2026
 
-AntCapture is built with your privacy as the foundation. Here's exactly what we do and don't do with your data.
+This policy explains what AntCapture (the Chrome extension and the web dashboard at antcapture.anttake.com) collects, why, and what you can do about it.
 
-DATA WE COLLECT
-- Your Google account name, email, and profile picture — used only to identify your account
-- Screenshots and recordings you capture — stored in your chosen location (local database or your personal Google Drive)
-- Storage preferences you set in Settings
+INFORMATION WE COLLECT
+- Google account details: your name, email address and profile picture, used to create and identify your account.
+- Google access tokens: stored on our server so AntCapture can upload to your Google Drive when you choose that option.
+- Your captures: screenshots and recordings you choose to save, plus their metadata (title, size, type, date).
+- Settings and usage: your storage preference, subscription status, and storage used.
+- Technical logs: request details such as IP address and error information, kept for security and debugging.
 
-DATA WE DON'T COLLECT
-- We never sell your data to third parties
-- We never use your captures for advertising or analytics
-- We never access files in your Google Drive beyond what you explicitly upload through AntCapture
-- We don't track your browsing activity
+CAMERA, MICROPHONE AND SCREEN
+The extension uses your screen, camera and microphone only while you are actively recording, after you start a recording and grant permission. Recordings stay on your computer unless you choose to save them to AntCapture Cloud or Google Drive.
 
-WHERE YOUR FILES LIVE
-When you choose "Local" storage, your files are stored in our database and served only to you when you're logged in. When you choose "Google Drive", files go directly to your personal Google Drive — we don't keep a copy.
+WHERE YOUR FILES ARE STORED
+- On your computer: captures are kept in the extension's local browser storage until you save or discard them.
+- AntCapture Cloud (paid plan): files are stored with our storage providers (UploadThing and Cloudflare). Each file is served from a long, random link; anyone who has that link can open the file, so only share it with people you trust.
+- Google Drive: files are uploaded to your own Drive and shared as "anyone with the link can view" so the dashboard can display them. You can change sharing for any file in Google Drive.
 
-GOOGLE OAUTH
-We use Google OAuth 2.0 for authentication. We request only the minimum permissions needed: your profile info and access to files created by AntCapture. We never request access to your existing Drive files.
+SERVICES WE USE
+- Google (sign-in and Drive), Cloudflare (database and storage), UploadThing (file storage), Vercel (hosting) and Lemon Squeezy (payments).
+- Payments are processed by Lemon Squeezy; we never see or store your card details.
 
-DATA DELETION
-You can delete all your captures or your entire account at any time from the Settings page. Deletion is immediate and permanent.
+WHAT WE DON'T DO
+- We don't sell your data or share it for advertising.
+- We don't use your captures for analytics or to train models.
+- We don't track your browsing. The extension only acts on a page when you use it there.
+
+GOOGLE USER DATA
+AntCapture's use and transfer of information received from Google APIs adheres to the Google API Services User Data Policy, including the Limited Use requirements. We request only your basic profile and access to files AntCapture creates in your Drive (drive.file); we cannot see your other Drive files.
+
+COOKIES AND LOCAL STORAGE
+We use your browser's local storage to keep you signed in, and a short-lived cookie during Google sign-in to protect against forged logins. We don't use advertising or tracking cookies.
+
+YOUR CHOICES AND DATA DELETION
+- You can delete individual captures at any time from your Library.
+- To delete your account and all associated data, contact us through the Feedback page. We will delete it within 30 days.
+- You can revoke AntCapture's access to your Google account at myaccount.google.com/permissions.
+
+CHILDREN
+AntCapture is not intended for anyone under 18.
+
+CHANGES
+If we change this policy we will update the date above.
 
 CONTACT
 Questions about privacy? Reach us through the Feedback page.`}
@@ -761,10 +768,17 @@ Questions about privacy? Reach us through the Feedback page.`}
             content={`Welcome to the AntCapture Documentation.
 
 KEYBOARD SHORTCUTS
-AntCapture is designed for speed. Use these shortcuts to capture instantly:
-• Alt + Shift + S : Capture visible screen (Screenshot)
-• Alt + Shift + C : Start/Stop Camera recording
-• Alt + Shift + V : Start/Stop Screen recording
+Library (press ? to show this list on the page):
+• / or Ctrl/Cmd + K : Search your captures
+• G / L : Grid view / List view
+• V / S / A : Show videos / screenshots / all
+• Esc : Clear the search
+
+Video player:
+• Space or K : Play / Pause
+• ← / → : Skip back / forward 5 seconds
+• M : Mute
+• F : Full screen
 
 FUZZY SEARCH
 Your Library supports advanced fuzzy search. You don't need to type exact filenames — just type fragments, and the dashboard will instantly filter your captures based on title, format, or date.
@@ -803,31 +817,32 @@ Media shown inside a VoidBoard is never duplicated. The actual file (image or vi
         ) : activeNav === 'Security' ? (
           <StaticPage
             title="Security"
-            content={`Last updated: June 2025
+            content={`Last updated: September 2026
 
 AntCapture takes security seriously. Here's how we protect your account and data.
 
 AUTHENTICATION
-- All authentication is handled via Google OAuth 2.0 — we never store your Google password
-- Sessions are secured with signed JWT tokens that expire after 7 days
-- Tokens are stored locally in your browser and never transmitted except to our server
+- Sign-in is handled by Google — we never see or store your Google password
+- Sessions use signed tokens that expire automatically, and you can sign out at any time
+- Your session token is kept in your browser and sent only to the AntCapture service
 
 DATA IN TRANSIT
-- All communication between the extension, web UI, and server uses HTTPS in production
-- API requests require a valid JWT — unauthenticated requests are rejected
+- All traffic between the extension, the dashboard and our servers is encrypted with HTTPS
+- Requests to our API for your account or library require you to be signed in
 
-DATA AT REST
-- Files stored locally in our database are tied to your account email
-- Only you can access your captures — each request is verified against your JWT
-- Google Drive files are stored in your own Drive under your own Google account
+YOUR DATA
+- Your library is tied to your account and is only listed to you when you're signed in
+- Cloud files are served from long, randomly generated links
+- Google Drive files are saved in your own Drive, under your own Google account
+- Payments are handled by our payment provider; we never see your card details
 
-EXTENSION SECURITY
-- The Chrome extension only communicates with our server (localhost in development, your domain in production)
-- No third-party scripts or tracking are included in the extension
-- The extension requests only the permissions it needs — no broad host access
+EXTENSION
+- The extension sends your captures and account data only to AntCapture and our file storage provider
+- It includes no analytics or tracking scripts
+- It uses only the browser permissions its features need, such as capturing tabs and showing the recording toolbar on the page you're recording
 
 REPORTING ISSUES
-If you discover a security vulnerability, please report it responsibly through the Feedback page rather than publicly disclosing it.`}
+Found a security problem? Please report it privately through our GitHub security page (github.com/anttake-syed/anttake-syed-extension-vid/security) rather than disclosing it publicly.`}
           />
 
         ) : activeNav === 'Diagnostics' && isAuthenticated && user?.role === 'admin' ? (

@@ -6,8 +6,8 @@ import { DriveLogoSVG, AntCaptureCloudLogoSVG } from './icons/StorageIcons.jsx';
 import { Page, Grid } from './layout/Page.jsx';
 import '../styles/pages/dashboard.css';
 
-// Update this once the extension is approved on the Chrome Web Store
-const CHROME_STORE_URL = '#';
+// The actual Chrome Web Store URL for AntCapture
+const CHROME_STORE_URL = 'https://chromewebstore.google.com/detail/antcapture-record-sync-to/banjoihieniknhabacbbjnmlmlmcphcg';
 
 function GetExtensionBanner() {
   const steps = [

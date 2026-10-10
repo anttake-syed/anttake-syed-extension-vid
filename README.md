@@ -4,6 +4,7 @@ Screen recording and screenshot capture for Chrome, with a web dashboard for you
 
 **Website:** [antcapture.anttake.com](https://antcapture.anttake.com)
 
+**Extension:** [Download from Chrome Web Store](https://chromewebstore.google.com/detail/antcapture-record-sync-to/banjoihieniknhabacbbjnmlmlmcphcg)
 ## Features
 
 - **Capture** — full-page, region and screen screenshots; screen and camera recording with audio

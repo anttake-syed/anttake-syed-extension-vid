@@ -262,6 +262,11 @@ export default function Dashboard({ isAuthenticated, isLocalMode, hasCloudAccess
     }
   }, [hasCloudAccess, isAuthenticated, isLocalMode]);
 
+  const dismissBanner = () => {
+    setIsExiting(true);
+    setTimeout(() => { setShowBanner(false); setIsExiting(false); }, 420);
+  };
+
   const greetingHour = new Date().getHours();
   const greeting = greetingHour < 12 ? 'Good morning' : greetingHour < 17 ? 'Good afternoon' : 'Good evening';
 
@@ -339,6 +344,15 @@ export default function Dashboard({ isAuthenticated, isLocalMode, hasCloudAccess
         }}>
           {/* Decorative glow */}
           <div style={{ position: 'absolute', top: '-40px', right: '-40px', width: '180px', height: '180px', background: 'radial-gradient(circle, rgba(99,102,241,0.15) 0%, transparent 70%)', pointerEvents: 'none' }} />
+
+          <button
+            type="button"
+            onClick={dismissBanner}
+            className="upsell-banner__close"
+            aria-label="Dismiss"
+          >
+            <span className="material-symbols-rounded" style={{ fontSize: '18px' }}>close</span>
+          </button>
 
           <div className="upsell-banner__body">
             <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'rgba(99,102,241,0.15)', border: '1px solid rgba(99,102,241,0.3)', borderRadius: '999px', padding: '3px 12px', marginBottom: '12px' }}>

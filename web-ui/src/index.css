@@ -876,6 +876,28 @@ body {
   filter: brightness(1.1);
 }
 
+.upsell-banner__close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(148, 163, 184, 0.12);
+  color: #94a3b8;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+
+.upsell-banner__close:hover {
+  background: rgba(148, 163, 184, 0.22);
+  color: #e2e8f0;
+}
+
 @media (max-width: 767.98px) {
   .upsell-banner {
     margin-bottom: 0; /* the page's flex gap already spaces it */

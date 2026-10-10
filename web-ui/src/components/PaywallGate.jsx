@@ -27,6 +27,7 @@ export default function PaywallGate({
   hasCloudAccess,
   entitlements,
   isLocalMode,
+  isGatedPage,
   onGoToPricing,
   onSignIn,
 }) {
@@ -55,7 +56,11 @@ export default function PaywallGate({
     hasRenderedRef.current = true;
   }, [isReady, isAuthenticated, hasCloudAccess, entitlements, isLocalMode]);
 
-  if (!visible) return null;
+  // Only renders on the cloud-gated pages (Whiteboards / My Library) — every
+  // other page stays freely usable. The component itself stays mounted across
+  // navigation so `visible` doesn't reset and the pop-in animation doesn't
+  // replay every time the active page changes.
+  if (!visible || !isGatedPage) return null;
 
   const overlayStyle = {
     position: 'fixed',

@@ -546,8 +546,10 @@ export default function App() {
     <div className={`layout ${isAuthenticated ? 'isAuthenticated' : ''}`}>
       {showModal && !IS_LOCAL_MODE && <LoginModal onClose={() => setShowModal(false)} />}
 
-      {/* ── Paywall Gate — shown to authenticated users with no active Cloud plan ── */}
-      {!IS_LOCAL_MODE && (
+      {/* ── Paywall Gate — shown to authenticated users with no active Cloud plan ──
+           Suppressed on the Pricing page itself, otherwise it covers the checkout
+           buttons and the user can never actually complete a purchase. */}
+      {!IS_LOCAL_MODE && activeNav !== 'Pricing' && (
         <PaywallGate
           isReady={isReady}
           isAuthenticated={isAuthenticated}

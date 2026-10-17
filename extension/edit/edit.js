@@ -26,14 +26,31 @@ chrome.storage.onChanged.addListener((changes, area) => {
     if (relevantChange) {
       const newUser = relevantChange.newValue;
       updateAuthPanel(newUser);
-      // If sign-in just completed and we have a pending save — execute it now
+
       if (newUser && newUser.jwt) {
+        console.info('[AntCapture Auth] Successfully authenticated user in extension:', newUser.email || newUser.id);
+        showToast(`Signed in as ${newUser.email || 'Google User'}!`, 'success');
+
+        const isAdmin = newUser.role === 'admin';
+        window.__antCloud = true;
+        window.__antAdmin = isAdmin;
+
+        window.dispatchEvent(new CustomEvent('antcapture:user-ready', {
+          detail: {
+            userId: newUser.id || newUser.email || null,
+            isAdmin: isAdmin,
+            isCloud: true
+          }
+        }));
+
+        // If sign-in just completed and we have a pending save — execute it now
         if (pendingSaveMode) {
           processSave(pendingSaveMode);
           pendingSaveMode = null;
         }
+
         // Admin: auto-replay the door-preview tour on each new sign-in
-        if (newUser.role === 'admin') {
+        if (isAdmin) {
           setTimeout(() => {
             if (typeof window.__replayExtensionDemo === 'function') {
               window.__replayExtensionDemo();
@@ -42,6 +59,10 @@ chrome.storage.onChanged.addListener((changes, area) => {
             }
           }, 600);
         }
+      } else {
+        console.info('[AntCapture Auth] User session cleared / signed out.');
+        window.__antCloud = false;
+        window.__antAdmin = false;
       }
     }
   }
@@ -543,7 +564,22 @@ async function init() {
 
   // Check initial connection status & render auth panel accordingly
   chrome.storage.local.get(['user_cloud', 'user_local', 'user', 'autoSavePref'], (res) => {
-    updateAuthPanel(res.user_cloud || res.user);
+    const activeUser = res.user_cloud || res.user || (pendingSaveMode === 'localhost' ? res.user_local : null);
+    updateAuthPanel(activeUser);
+
+    // Provide user context to local tour engine & UI without requiring external web app navigation
+    const isAdmin = activeUser?.role === 'admin';
+    const isCloudUser = Boolean(activeUser && activeUser.jwt);
+    window.__antCloud = isCloudUser;
+    window.__antAdmin = isAdmin;
+
+    window.dispatchEvent(new CustomEvent('antcapture:user-ready', {
+      detail: {
+        userId: activeUser?.id || activeUser?.email || null,
+        isAdmin: isAdmin,
+        isCloud: isCloudUser
+      }
+    }));
 
     const storageBadge = document.getElementById('storageBadge');
     const storageBadgeLabel = document.getElementById('storageBadgeLabel');
@@ -942,12 +978,15 @@ document.getElementById('btnGoogleSignIn')?.addEventListener('click', async () =
   const targetMode = pendingSaveMode || 'cloud';
   const serverUrl = getServerUrl(targetMode);
   const authUrl = `${serverUrl}/auth/google?source=extension`;
+  console.info('[AntCapture Auth] Initiating Google sign-in redirect:', authUrl);
+  showToast('Opening Google sign-in tab…', 'info', 3000);
   chrome.tabs.create({ url: authUrl });
 });
 
 document.getElementById('btnLogout')?.addEventListener('click', () => {
   const targetMode = pendingSaveMode || 'cloud';
   const origin = targetMode === 'localhost' ? 'http://localhost:3001' : 'https://api.antcapture.anttake.com';
+  console.info('[AntCapture Auth] Logging out user from origin:', origin);
   
   chrome.runtime.sendMessage({ action: 'LOGOUT', origin }, () => {
     pendingSaveMode = null;

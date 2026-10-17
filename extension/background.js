@@ -471,9 +471,15 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     const url = new URL(currentUrl);
     // Only trust tokens handed out by our own server — otherwise any page could
     // plant an attacker's JWT and capture the user's uploads.
-    if (url.pathname !== '/auth/success' || ![DEV_SERVER_URL, PROD_SERVER_URL].includes(url.origin)) return;
+    if (url.pathname !== '/auth/success' || ![DEV_SERVER_URL, PROD_SERVER_URL].includes(url.origin)) {
+      log.warn(`Ignored auth/success from untrusted origin: ${url.origin}`);
+      return;
+    }
     const authData = url.searchParams.get('auth_data');
-    if (!authData) return;
+    if (!authData) {
+      log.warn('auth/success redirected without auth_data parameter');
+      return;
+    }
 
     const base64Url = authData.split('.')[1];
     const base64    = base64Url.replace(/-/g, '+').replace(/_/g, '/');
@@ -487,13 +493,16 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     const isLocal = url.hostname === 'localhost' || url.hostname === '127.0.0.1';
     const userKey = isLocal ? 'user_local' : 'user_cloud';
 
-    chrome.storage.local.set({ [userKey]: userData }, () => {
-      log.info(`User authenticated in extension (${userKey})`);
+    // Store under both the specific key and generic 'user' for universal extension compatibility
+    chrome.storage.local.set({ [userKey]: userData, user: userData }, () => {
+      log.info(`[Auth Success] User authenticated successfully in extension: ${userData.email || userData.name || userData.id} (${userKey})`);
+      console.log(`%c[AntCapture Auth] Logged in successfully: ${userData.email} (${userKey})`, 'color: #4ade80; font-weight: bold;');
       setTimeout(() => chrome.tabs.remove(tabId), 1500);
       syncPendingUploads();
     });
   } catch (e) {
     log.error('Failed to parse extension auth data', e);
+    console.error('[AntCapture Auth] Error parsing auth data:', e);
   }
 });
 

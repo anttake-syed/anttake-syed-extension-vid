@@ -322,6 +322,7 @@ class DemoTour {
 
 // ── Entry Point ────────────────────────────────────────────────────────────────
 export function replayDemoTour(variant = ACTIVE_VARIANT, userId = null) {
+  console.info('[AntCapture Tour] Launching tour replay locally in extension');
   const modal = document.getElementById('__demo-upgrade-modal');
   if (modal) modal.style.display = 'none';
   new DemoTour(variant, userId).start();
@@ -330,11 +331,13 @@ export function replayDemoTour(variant = ACTIVE_VARIANT, userId = null) {
 /**
  * initDemoTour()
  *
- * Tour visibility rules:
- *   Admin user   → NEVER auto-shown; admin has the Tour button to replay.
- *   New user     → Shown once per Google account ID (localStorage key).
- *   Returning    → Skipped — localStorage key already set for their userId.
- *   Cloud sub    → Skipped — window.__antCloud === true.
+ * Fully local extension tour engine.
+ * Does NOT require opening or visiting the web dashboard.
+ *
+ * Rules:
+ *   - Admin: Has "Tour" buttons in the sidebar to replay anytime on demand.
+ *   - New user: Shown once per Google user ID.
+ *   - Local-only: All UI, SVG spotlights, and actions execute directly in edit.html.
  */
 export function initDemoTour() {
   window.__replayExtensionDemo = () => replayDemoTour(ACTIVE_VARIANT);
@@ -345,16 +348,28 @@ export function initDemoTour() {
   function decide(userId, isAdmin) {
     if (decided) return;
     decided = true;
-    if (!shouldShowDemo(userId, isAdmin)) return;
+    console.info(`[AntCapture Tour] Deciding tour visibility: userId=${userId || 'anonymous'}, isAdmin=${isAdmin}`);
+    if (!shouldShowDemo(userId, isAdmin)) {
+      console.info('[AntCapture Tour] Tour auto-launch skipped per criteria (already seen, cloud user, or admin).');
+      return;
+    }
+    console.info('[AntCapture Tour] Auto-launching tour for first-time user.');
     requestAnimationFrame(() => {
       setTimeout(() => new DemoTour(ACTIVE_VARIANT, userId).start(), 300);
     });
   }
 
+  // Primary trigger: dispatched locally by edit.js as soon as storage loads
   window.addEventListener('antcapture:user-ready', (e) => {
     const { userId, isAdmin } = e.detail || {};
     decide(userId || null, isAdmin || false);
   }, { once: true });
 
-  setTimeout(() => decide(null, false), 3000);
+  // Fallback: if user-ready event hasn't fired in 1.5s (e.g. storage delayed), decide locally
+  setTimeout(() => {
+    if (!decided) {
+      console.info('[AntCapture Tour] Fallback timer triggered local tour decision.');
+      decide(null, false);
+    }
+  }, 1500);
 }

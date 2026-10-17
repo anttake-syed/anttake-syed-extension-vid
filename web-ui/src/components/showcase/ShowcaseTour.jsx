@@ -27,8 +27,8 @@ export default function ShowcaseTour({
   const popoverPositionStyle = useMemo(() => {
     if (!isOpen) return {};
 
-    const popoverWidth = 360;
-    const popoverHeight = 320;
+    const popoverWidth = 420;
+    const popoverHeight = 340;
     const vw = typeof window !== 'undefined' ? window.innerWidth : 1200;
     const vh = typeof window !== 'undefined' ? window.innerHeight : 800;
 

@@ -84,34 +84,39 @@ export default function ShowcasePopover({
               style={{
                 textDecoration: 'none',
                 background: 'rgba(255, 255, 255, 0.08)',
-                color: '#e2e8f0',
-                border: '1px solid rgba(255, 255, 255, 0.15)',
-                padding: '7px 12px',
-                borderRadius: '9px',
+                color: '#f1f5f9',
+                border: '1px solid rgba(255, 255, 255, 0.18)',
+                padding: '9px 15px',
+                borderRadius: '10px',
                 fontSize: '12px',
                 fontWeight: 600,
                 display: 'inline-flex',
                 alignItems: 'center',
-                gap: '5px',
+                gap: '6px',
+                whiteSpace: 'nowrap',
                 transition: 'all 0.15s ease'
               }}
               onClick={() => onActionClick && onActionClick(step)}
             >
               <span>{step.primaryActionText || 'Install'}</span>
-              <span className="material-symbols-rounded" style={{ fontSize: '13px' }}>open_in_new</span>
+              <span className="material-symbols-rounded" style={{ fontSize: '15px' }}>open_in_new</span>
             </a>
           )}
 
           <button
             className="showcase-btn-primary"
             style={{
-              background: `linear-gradient(135deg, ${step.accentColor} 0%, #4338ca 100%)`
+              background: `linear-gradient(135deg, ${step.accentColor} 0%, #4338ca 100%)`,
+              padding: '9px 18px',
+              fontSize: '13px',
+              fontWeight: 700,
+              whiteSpace: 'nowrap'
             }}
             onClick={onNext}
           >
             <span>{isLast ? 'Done ✦' : 'Next'}</span>
             {!isLast && (
-              <span className="material-symbols-rounded" style={{ fontSize: '14px' }}>arrow_forward</span>
+              <span className="material-symbols-rounded" style={{ fontSize: '15px' }}>arrow_forward</span>
             )}
           </button>
         </div>

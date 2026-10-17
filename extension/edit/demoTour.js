@@ -43,7 +43,10 @@ function injectStyles() {
     #__demo-backdrop {
       position: fixed;
       inset: 0;
-      z-index: 9000;
+      /* Must be above sidebar (z-index:10) and all page modals (z-index:300).   */
+      /* Tour elements must live in the root stacking context (position:fixed)    */
+      /* so they can never be clipped by sidebar's overflow-y:auto context.       */
+      z-index: 10000;
       pointer-events: none;
       transition: opacity 0.35s ease;
     }
@@ -58,15 +61,19 @@ function injectStyles() {
     }
 
     /* ── Step tooltip bubble ──────────────────────────────────── */
+    /* CRITICAL: must be position:fixed — position:absolute would be trapped     */
+    /* inside body { overflow:hidden } and could not escape the sidebar's        */
+    /* stacking context (z-index:10 with position:relative creates a new SC).    */
     #__demo-tooltip {
-      position: absolute;
-      max-width: 280px;
+      position: fixed;
+      max-width: 300px;
+      min-width: 260px;
       background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
       border: 1px solid rgba(99,102,241,0.4);
       border-radius: 14px;
       padding: 18px 20px;
       box-shadow: 0 24px 48px rgba(0,0,0,0.7), 0 0 0 1px rgba(99,102,241,0.15), inset 0 1px 0 rgba(255,255,255,0.06);
-      z-index: 9100;
+      z-index: 10100;
       pointer-events: auto;
       animation: __demoFadeUp 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
     }
@@ -154,14 +161,15 @@ function injectStyles() {
     }
 
     /* ── Pulsing ring on target ───────────────────────────────── */
+    /* position:fixed so it escapes sidebar's overflow:auto clipping context    */
     #__demo-pulse-ring {
-      position: absolute;
+      position: fixed;
       border-radius: 10px;
       border: 2px solid rgba(99,102,241,0.8);
       box-shadow: 0 0 0 0 rgba(99,102,241,0.5);
       animation: __demoPulse 1.8s ease-out infinite;
       pointer-events: none;
-      z-index: 9050;
+      z-index: 10050;
     }
     @keyframes __demoPulse {
       0%   { box-shadow: 0 0 0 0   rgba(99,102,241,0.6); }
@@ -175,7 +183,7 @@ function injectStyles() {
       inset: 0;
       background: rgba(2,6,23,0.85);
       backdrop-filter: blur(10px);
-      z-index: 9500;
+      z-index: 10500;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -255,15 +263,22 @@ function injectStyles() {
     #__demo-upgrade-skip:hover { color: #64748b; }
 
     /* ── Simulated fake upload progress (for demo step) ─────── */
+    /* position:fixed so it renders above the page, positioned via JS           */
     #__demo-fake-progress {
       display: none;
+      position: fixed;
+      z-index: 10090;
       flex-direction: column;
       gap: 6px;
-      margin-top: 4px;
       padding: 10px 14px;
       background: rgba(99,102,241,0.06);
       border: 1px solid rgba(99,102,241,0.15);
       border-radius: 8px;
+      /* Anchored below the tooltip — JS will update if needed */
+      bottom: 80px;
+      left: 50%;
+      transform: translateX(-50%);
+      min-width: 220px;
     }
     #__demo-fake-progress.visible { display: flex; }
     #__demo-fake-bar-track {
@@ -315,38 +330,51 @@ function buildSpotlightSvg(rect, padding) {
 }
 
 // ── Position tooltip near target ──────────────────────────────────────────────
+// NOTE: tooltip is position:fixed — all coordinates are viewport-relative,
+// which is exactly what getBoundingClientRect() returns. No offset needed.
 function positionTooltip(tooltip, rect, padding) {
+  tooltip.style.transform = '';
+
   if (!rect) {
-    // Center it
-    tooltip.style.top = '50%';
-    tooltip.style.left = '50%';
+    // No target — center the tooltip in the viewport
+    tooltip.style.top    = '50%';
+    tooltip.style.left   = '50%';
     tooltip.style.transform = 'translate(-50%, -50%)';
     return;
   }
-  tooltip.style.transform = '';
-  const TH = tooltip.offsetHeight || 190;
-  const TW = tooltip.offsetWidth  || 300;
 
-  // The sidebar is located on the right edge of the screen.
-  // Prefer placing the tooltip to the LEFT of the target in the main view area.
-  let left = rect.left - TW - 20;
+  const TH = tooltip.offsetHeight || 200;
+  const TW = tooltip.offsetWidth  || 300;
+  const VW = window.innerWidth;
+  const VH = window.innerHeight;
+  const MARGIN = 16;
+
+  // ── Preferred: dock to the LEFT of the target (sidebar is on the right) ────
+  let left = rect.left - TW - 24;
   let top  = rect.top + (rect.height / 2) - (TH / 2);
 
-  // Fallback if there isn't enough horizontal room on the left
-  if (left < 16) {
-    left = Math.max(16, rect.left);
-    top  = rect.bottom + padding + 12;
-    if (top + TH > window.innerHeight - 16) {
-      top = rect.top - TH - 12;
+  if (left < MARGIN) {
+    // Not enough room on the left — try ABOVE the target
+    left = rect.left + (rect.width / 2) - (TW / 2);
+    top  = rect.top - TH - 16;
+
+    if (top < MARGIN) {
+      // Not enough room above — fall BELOW
+      top = rect.bottom + 16;
     }
-  } else {
-    // Keep vertical within screen bounds
-    if (top < 16) top = 16;
-    if (top + TH > window.innerHeight - 16) top = window.innerHeight - TH - 16;
+    if (top + TH > VH - MARGIN) {
+      // Still doesn't fit — center vertically
+      top = (VH - TH) / 2;
+    }
   }
 
-  tooltip.style.top  = `${Math.round(top)}px`;
+  // Clamp horizontal within viewport
+  left = Math.max(MARGIN, Math.min(left, VW - TW - MARGIN));
+  // Clamp vertical within viewport
+  top  = Math.max(MARGIN, Math.min(top,  VH - TH - MARGIN));
+
   tooltip.style.left = `${Math.round(left)}px`;
+  tooltip.style.top  = `${Math.round(top)}px`;
 }
 
 // ── Fake upload simulation ─────────────────────────────────────────────────────

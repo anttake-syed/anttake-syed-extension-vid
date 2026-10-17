@@ -3,6 +3,12 @@ const path = require('path');
 const dotenv = require('dotenv');
 dotenv.config();
 
+// Fix: Support BigInt serialization in JSON.stringify() and res.json() across all routes
+BigInt.prototype.toJSON = function() {
+  const intVal = Number(this);
+  return Number.isSafeInteger(intVal) ? intVal : this.toString();
+};
+
 const corsMiddleware = require('./middleware/cors');
 const requestId     = require('./middleware/requestId');   // ← NEW: must be first
 const httpLogger    = require('./middleware/httpLogger');   // ← NEW: replaces old logger

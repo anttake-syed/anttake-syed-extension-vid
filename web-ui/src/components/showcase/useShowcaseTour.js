@@ -37,6 +37,11 @@ export function useShowcaseTour(steps = [], isOpen = false) {
     }
 
     if (element) {
+      try {
+        element.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+      } catch (_err) {
+        // Fallback if scrollIntoView not supported
+      }
       const rect = element.getBoundingClientRect();
       if (rect.width > 0 && rect.height > 0) {
         setTargetRect({

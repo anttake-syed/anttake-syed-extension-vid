@@ -410,7 +410,7 @@ export default function Dashboard({ isAuthenticated, isLocalMode, hasCloudAccess
       )}
 
       {/* ── Recent Activity ── */}
-      <div className="section-header dash-section-head">
+      <div className="section-header dash-section-head" data-tour-anchor="recent-activity">
         <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
           <span className="material-symbols-rounded" style={{ fontSize: '20px', color: '#818cf8' }}>history</span>
           Recent Activity

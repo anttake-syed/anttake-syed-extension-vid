@@ -320,6 +320,56 @@ export default function ShowcaseMediaPreview({ type, accentColor = '#6366f1' }) 
         </div>
       );
 
+    case 'interactive-settings':
+      return (
+        <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <div style={{
+            width: '100%',
+            background: 'rgba(255, 255, 255, 0.04)',
+            border: '1px solid rgba(255, 255, 255, 0.08)',
+            borderRadius: '8px',
+            padding: '8px 10px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span className="material-symbols-rounded" style={{ fontSize: '18px', color: '#10b981' }}>cloud_upload</span>
+              <div>
+                <div style={{ fontSize: '11px', fontWeight: 600, color: '#f1f5f9' }}>Storage Destination</div>
+                <div style={{ fontSize: '9px', color: '#94a3b8' }}>Direct Google Drive or AntCapture Cloud</div>
+              </div>
+            </div>
+            <span style={{ fontSize: '10px', fontWeight: 600, color: '#34d399', background: 'rgba(16, 185, 129, 0.2)', padding: '2px 6px', borderRadius: '4px' }}>
+              Configurable
+            </span>
+          </div>
+
+          <div style={{ display: 'flex', gap: '6px' }}>
+            <div style={{
+              flex: 1,
+              background: 'rgba(16, 185, 129, 0.1)',
+              border: '1px solid rgba(16, 185, 129, 0.3)',
+              borderRadius: '6px',
+              padding: '6px',
+              textAlign: 'center'
+            }}>
+              <span style={{ fontSize: '10px', fontWeight: 600, color: '#34d399' }}>📁 Google Drive</span>
+            </div>
+            <div style={{
+              flex: 1,
+              background: 'rgba(99, 102, 241, 0.1)',
+              border: '1px solid rgba(99, 102, 241, 0.3)',
+              borderRadius: '6px',
+              padding: '6px',
+              textAlign: 'center'
+            }}>
+              <span style={{ fontSize: '10px', fontWeight: 600, color: '#818cf8' }}>⚡ Ant Cloud</span>
+            </div>
+          </div>
+        </div>
+      );
+
     case 'cloud-upgrade':
       return (
         <div style={{

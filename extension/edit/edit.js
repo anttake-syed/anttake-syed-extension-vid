@@ -3,7 +3,7 @@ import { uploadToServer, uploadWithProgress, getServerUrl } from '../background/
 import { notify } from '../background/notify.js';
 import { readOPFSFile, deleteOPFSFile } from '../storage/opfsStorage.js';
 import { AntCapturePlayer } from '../shared/player/AntCapturePlayer.js';
-import { isUnpackedInstall } from '../shared/config.js';
+import { isUnpackedInstall, PROD_WEB_UI_URL } from '../shared/config.js';
 
 const urlParams = new URLSearchParams(window.location.search);
 const rawId  = urlParams.get('id');
@@ -627,9 +627,10 @@ async function init() {
   });
 
   // ── Brand Hero Click-Through & Accessibility ─────────────────────────────
+  // Always use the canonical domain from config — do NOT hardcode.
   const brandHero = document.getElementById('sidebarBrandHero');
   if (brandHero) {
-    const openSite = () => window.open('https://antcapture.com', '_blank');
+    const openSite = () => window.open(PROD_WEB_UI_URL, '_blank');
     brandHero.addEventListener('click', (e) => {
       // Don't trigger if admin clicked the Tour button inside the hero
       if (e.target.closest('#tourReplayBtn')) return;

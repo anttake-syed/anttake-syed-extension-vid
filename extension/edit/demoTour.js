@@ -15,21 +15,31 @@
 
 import { ACTIVE_VARIANT, UPGRADE_MODAL_CONFIG } from '../demoVariants.js';
 
-const STORAGE_KEY = `demo_seen_${ACTIVE_VARIANT.id}`;
+// ── Tour "seen" state — namespaced by userId so the same Google account
+// only ever sees the tour once, even if localStorage is cleared.
+// Anonymous / pre-auth uses the variant ID alone as a fallback key.
+function storageKey(userId) {
+  const userPart = userId ? `_u${userId}` : '';
+  return `demo_seen_${ACTIVE_VARIANT.id}${userPart}`;
+}
 
-// ── Check: should we show the demo? ───────────────────────────────────────────
-function shouldShowDemo() {
+// ── Check: should we show the demo? ────────────────────────────────────────
+function shouldShowDemo(userId, isAdmin) {
   if (!ACTIVE_VARIANT) return false;
-  // Check the cloud entitlement injected by background.js (if available)
-  // If the user already has cloud access, never show the demo.
+  // Admin users never get the auto-tour — they use the Tour button instead.
+  if (isAdmin) return false;
+  // Cloud subscribers skip the upgrade-push demo.
   if (window.__antCloud === true) return false;
-  if (ACTIVE_VARIANT.showOnceOnly && localStorage.getItem(STORAGE_KEY)) return false;
+  // Already seen on this account?
+  if (ACTIVE_VARIANT.showOnceOnly && localStorage.getItem(storageKey(userId))) return false;
   return true;
 }
 
-function markDemoSeen() {
+function markDemoSeen(userId) {
   if (ACTIVE_VARIANT.showOnceOnly) {
-    localStorage.setItem(STORAGE_KEY, '1');
+    localStorage.setItem(storageKey(userId), '1');
+    // Also mark anonymous key so we don't show again before auth resolves
+    localStorage.setItem(storageKey(null), '1');
   }
 }
 
@@ -409,8 +419,9 @@ function runFakeProgress(durationMs = 1200) {
 
 // ── Main Tour Class ────────────────────────────────────────────────────────────
 class DemoTour {
-  constructor(variant) {
+  constructor(variant, userId = null) {
     this.variant   = variant;
+    this.userId    = userId;
     this.steps     = variant.steps;
     this.current   = 0;
     this.backdrop  = null;
@@ -566,13 +577,13 @@ class DemoTour {
   }
 
   _finish() {
-    markDemoSeen();
+    markDemoSeen(this.userId);
     this._destroyTour();
     document.getElementById('__demo-upgrade-modal')?.remove();
   }
 
   _showUpgradeModal() {
-    markDemoSeen();
+    markDemoSeen(this.userId);
     const cfg = UPGRADE_MODAL_CONFIG;
     const modal = document.createElement('div');
     modal.id = '__demo-upgrade-modal';
@@ -598,7 +609,7 @@ class DemoTour {
 }
 
 // ── Entry Point ────────────────────────────────────────────────────────────────
-export function replayDemoTour(variant = ACTIVE_VARIANT) {
+export function replayDemoTour(variant = ACTIVE_VARIANT, userId = null) {
   // Clear any existing tour elements
   document.getElementById('__demo-backdrop')?.remove();
   document.getElementById('__demo-pulse-ring')?.remove();
@@ -606,14 +617,46 @@ export function replayDemoTour(variant = ACTIVE_VARIANT) {
   document.getElementById('__demo-tooltip')?.remove();
   document.getElementById('__demo-upgrade-modal')?.remove();
 
-  new DemoTour(variant).start();
+  new DemoTour(variant, userId).start();
 }
 
+/**
+ * initDemoTour()
+ *
+ * Tour visibility rules:
+ *   Admin user   → NEVER auto-shown; admin has the Tour button to replay.
+ *   New user     → Shown once per Google account ID (localStorage key).
+ *   Returning    → Skipped — localStorage key already set for their userId.
+ *   Cloud sub    → Skipped — window.__antCloud === true.
+ *
+ * Timing: waits for 'antcapture:user-ready' dispatched by edit.js after
+ * chrome.storage.local resolves, so we know user ID + role before deciding.
+ * Falls back to a 3 s timer if the event never fires (e.g. extension opened
+ * without a capture ID or in a context where edit.js doesn't run fully).
+ */
 export function initDemoTour() {
+  // Register the global replay handle so the admin Tour button always works.
   window.__replayExtensionDemo = () => replayDemoTour(ACTIVE_VARIANT);
   window.addEventListener('antcapture:replay-demo-tour', () => replayDemoTour(ACTIVE_VARIANT));
 
-  if (!shouldShowDemo()) return;
-  // Small delay so the main edit.js UI finishes rendering first
-  setTimeout(() => new DemoTour(ACTIVE_VARIANT).start(), 1200);
+  let decided = false;
+
+  function decide(userId, isAdmin) {
+    if (decided) return;
+    decided = true;
+    if (!shouldShowDemo(userId, isAdmin)) return;
+    // RAF + short delay so sidebar finishes layout before tour measures rects
+    requestAnimationFrame(() => {
+      setTimeout(() => new DemoTour(ACTIVE_VARIANT, userId).start(), 300);
+    });
+  }
+
+  // Primary: edit.js fires this event after chrome.storage.local is read
+  window.addEventListener('antcapture:user-ready', (e) => {
+    const { userId, isAdmin } = e.detail || {};
+    decide(userId || null, isAdmin || false);
+  }, { once: true });
+
+  // Fallback: if user-ready never fires decide anyway (unauthenticated path)
+  setTimeout(() => decide(null, false), 3000);
 }

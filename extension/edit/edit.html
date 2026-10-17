@@ -157,35 +157,37 @@
       border-color: rgba(239,68,68,0.4);
       color: #fca5a5;
     }
-    /* ── Professional Save Loading Overlay ──────────────────────────── */
+    /* ── Professional Save Loading Overlay (Scoped to Sidebar) ──────── */
     #saveLoadingOverlay {
       display: none;
-      position: fixed;
+      position: absolute;
       inset: 0;
-      z-index: 500;
-      background: rgba(10, 15, 29, 0.92);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
+      z-index: 50;
+      background: rgba(15, 23, 42, 0.94);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
       align-items: center;
       justify-content: center;
       flex-direction: column;
-      gap: 20px;
+      gap: 16px;
+      padding: 24px;
       pointer-events: all;
+      border-radius: 0;
     }
     #saveLoadingOverlay.visible { display: flex; }
 
     #saveLoadingOverlay .slo-logo-wrap {
       position: relative;
-      width: 72px;
-      height: 72px;
+      width: 64px;
+      height: 64px;
       display: flex;
       align-items: center;
       justify-content: center;
     }
     #saveLoadingOverlay .slo-logo {
-      width: 52px;
-      height: 52px;
-      filter: drop-shadow(0 0 16px rgba(99,102,241,0.7));
+      width: 44px;
+      height: 44px;
+      filter: drop-shadow(0 0 14px rgba(99,102,241,0.7));
       animation: slo-pulse-logo 2s ease-in-out infinite;
       position: relative;
       z-index: 2;
@@ -201,32 +203,32 @@
     }
     #saveLoadingOverlay .slo-ring-outer {
       position: absolute;
-      inset: -12px;
+      inset: -10px;
       border-radius: 50%;
       border: 1.5px solid rgba(99,102,241,0.25);
       animation: slo-spin 2s linear infinite reverse;
     }
     #saveLoadingOverlay .slo-text {
       color: #e2e8f0;
-      font-size: 15px;
+      font-size: 14px;
       font-weight: 600;
       letter-spacing: -0.01em;
       text-align: center;
     }
     #saveLoadingOverlay .slo-subtext {
       color: #64748b;
-      font-size: 12px;
+      font-size: 11px;
       font-weight: 500;
       text-align: center;
-      margin-top: -12px;
+      margin-top: -10px;
     }
     #saveLoadingOverlay .slo-dots {
       display: flex;
-      gap: 6px;
-      margin-top: -8px;
+      gap: 5px;
+      margin-top: -6px;
     }
     #saveLoadingOverlay .slo-dots span {
-      width: 6px; height: 6px;
+      width: 5px; height: 5px;
       border-radius: 50%;
       background: rgba(99,102,241,0.4);
       animation: slo-dot-bounce 1.2s ease-in-out infinite;
@@ -422,6 +424,18 @@
         <span>Tour</span>
       </button>
     </div>
+
+    <!-- ── Professional Save Loading Overlay (Scoped to Sidebar) ── -->
+    <div id="saveLoadingOverlay">
+      <div class="slo-logo-wrap">
+        <div class="slo-ring-outer"></div>
+        <div class="slo-ring"></div>
+        <img class="slo-logo" src="../icons/icon48.png" alt="AntCapture" />
+      </div>
+      <div id="saveLoadingText" class="slo-text">Saving…</div>
+      <div id="saveLoadingSubtext" class="slo-subtext">Please wait a moment</div>
+      <div class="slo-dots"><span></span><span></span><span></span></div>
+    </div>
   </div>
 
   <div class="main-content">
@@ -429,18 +443,6 @@
   </div>
 
   <div id="toastContainer" style="position:fixed; bottom:20px; left:50%; transform:translateX(-50%); display:flex; flex-direction:column; gap:8px; z-index:9999; pointer-events:none;"></div>
-
-  <!-- ── Professional Save Loading Overlay ── -->
-  <div id="saveLoadingOverlay">
-    <div class="slo-logo-wrap">
-      <div class="slo-ring-outer"></div>
-      <div class="slo-ring"></div>
-      <img class="slo-logo" src="../icons/icon48.png" alt="AntCapture" />
-    </div>
-    <div id="saveLoadingText" class="slo-text">Saving…</div>
-    <div id="saveLoadingSubtext" class="slo-subtext">Please wait a moment</div>
-    <div class="slo-dots"><span></span><span></span><span></span></div>
-  </div>
 
   <!-- Success Overlay -->
   <div id="successOverlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(15, 23, 42, 0.7); z-index:200; align-items:center; justify-content:center; backdrop-filter:blur(4px);">

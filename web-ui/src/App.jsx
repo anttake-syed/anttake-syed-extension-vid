@@ -282,6 +282,7 @@ export default function App() {
 
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showShowcaseTour, setShowShowcaseTour] = useState(false);
+  const [tourVariantOverride, setTourVariantOverride] = useState(null);
 
   useEffect(() => {
     if (isReady && isAuthenticated) {
@@ -293,7 +294,14 @@ export default function App() {
   }, [isReady, isAuthenticated]);
 
   useEffect(() => {
-    const handleTriggerOnboarding = () => setShowShowcaseTour(true);
+    const handleTriggerOnboarding = (e) => {
+      if (e?.detail?.variant) {
+        setTourVariantOverride(e.detail.variant);
+      } else {
+        setTourVariantOverride(null);
+      }
+      setShowShowcaseTour(true);
+    };
     window.addEventListener('trigger-onboarding', handleTriggerOnboarding);
     return () => window.removeEventListener('trigger-onboarding', handleTriggerOnboarding);
   }, []);
@@ -939,8 +947,11 @@ Found a security problem? Please report it privately through our GitHub security
       <OnboardingModal isOpen={showOnboarding} onClose={() => setShowOnboarding(false)} />
       <ShowcaseTour
         isOpen={showShowcaseTour}
-        variant={hasCloudAccess ? 'pro' : 'standard'}
-        onClose={() => setShowShowcaseTour(false)}
+        variant={tourVariantOverride || (hasCloudAccess ? 'pro' : 'standard')}
+        onClose={() => {
+          setShowShowcaseTour(false);
+          setTourVariantOverride(null);
+        }}
         onNavigate={(nav) => setActiveNav(nav)}
       />
     </div>

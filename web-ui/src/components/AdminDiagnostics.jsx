@@ -484,18 +484,34 @@ export default function AdminDiagnostics({ user }) {
         actions={
           <div style={{ display: 'flex', gap: '8px' }}>
             <button
-              onClick={() => window.dispatchEvent(new Event('trigger-onboarding'))}
+              onClick={() => window.dispatchEvent(new CustomEvent('trigger-onboarding', { detail: { variant: 'standard' } }))}
               style={{
                 display: 'flex', alignItems: 'center', gap: '8px',
-                padding: '10px 18px', borderRadius: '10px',
-                background: 'var(--bg-tertiary)',
-                color: 'var(--text-primary)',
-                border: '1px solid var(--border)', cursor: 'pointer',
+                padding: '10px 14px', borderRadius: '10px',
+                background: 'rgba(56, 189, 248, 0.1)',
+                color: '#38bdf8',
+                border: '1px solid rgba(56, 189, 248, 0.3)', cursor: 'pointer',
                 fontSize: '13px', fontWeight: 600, transition: 'all 0.15s',
               }}
+              title="Preview the interactive Free / New User Walkthrough"
             >
-              <span className="material-symbols-rounded" style={{ fontSize: '16px' }}>slideshow</span>
-              Trigger Onboarding UI
+              <span className="material-symbols-rounded" style={{ fontSize: '16px' }}>explore</span>
+              Free Tour UI
+            </button>
+            <button
+              onClick={() => window.dispatchEvent(new CustomEvent('trigger-onboarding', { detail: { variant: 'pro' } }))}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '8px',
+                padding: '10px 14px', borderRadius: '10px',
+                background: 'rgba(168, 85, 247, 0.1)',
+                color: '#c084fc',
+                border: '1px solid rgba(168, 85, 247, 0.3)', cursor: 'pointer',
+                fontSize: '13px', fontWeight: 600, transition: 'all 0.15s',
+              }}
+              title="Preview the Subscribed Pro Cloud Studio Walkthrough"
+            >
+              <span className="material-symbols-rounded" style={{ fontSize: '16px' }}>verified</span>
+              Pro Tour UI
             </button>
             <button
               onClick={() => { fetchHealth(); fetchErrors(); fetchActivity(); }}

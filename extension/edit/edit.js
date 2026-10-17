@@ -88,17 +88,14 @@ function updateAuthPanel(user, hintText) {
     signedInSection.style.display = 'flex';
     emailText.textContent  = user.email;
     profilePic.src         = user.picture || '';
-  } else if (hintText) {
-    // ── Needs sign-in (triggered by a save attempt) ────────────────
+  } else {
+    // ── Signed-out state: visible at top so user can easily sign in ─
     panel.classList.add('visible');
     signInSection.style.display   = 'flex';
     signedInSection.style.display = 'none';
-    if (hintEl) hintEl.textContent = hintText;
-  } else {
-    // ── No session & no prompt needed — keep panel hidden ──────────
-    panel.classList.remove('visible');
-    signInSection.style.display   = 'none';
-    signedInSection.style.display = 'none';
+    if (hintEl) {
+      hintEl.textContent = hintText || 'Sign in with Google to sync captures.';
+    }
   }
 }
 

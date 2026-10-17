@@ -34,6 +34,7 @@ export default function Sidebar({ activeNav, isAuthenticated, hasCloudAccess = t
     return (
       <li
         key={item}
+        data-nav={item}
         className={`nav-item ${activeNav === item ? 'active' : ''} ${secondary ? 'nav-item-secondary' : ''}`}
         onClick={() => {
           if (PUBLIC_ITEMS.includes(item)) {onNavClick(item);}

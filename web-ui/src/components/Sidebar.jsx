@@ -102,6 +102,33 @@ export default function Sidebar({ activeNav, isAuthenticated, hasCloudAccess = t
             </div>
             <ul className="nav-list" style={{ marginTop: '4px' }}>
               {ADMIN_NAV.map((item) => renderNavItem(item, true))}
+              <li
+                className="nav-item nav-item-secondary"
+                onClick={() => {
+                  window.dispatchEvent(new CustomEvent('trigger-onboarding'));
+                }}
+                title="Preview & test the onboarding demo modal (Admin only)"
+                style={{ cursor: 'pointer' }}
+              >
+                <span className="nav-icon material-symbols-rounded" style={{ fontSize: '18px', fontWeight: '300', color: '#a855f7' }}>
+                  preview
+                </span>
+                <span className="nav-label" style={{ color: '#cbd5e1' }}>Preview Onboarding</span>
+                <span
+                  style={{
+                    fontSize: '10px',
+                    marginLeft: 'auto',
+                    padding: '2px 6px',
+                    borderRadius: '4px',
+                    background: 'rgba(168, 85, 247, 0.15)',
+                    color: '#c084fc',
+                    fontWeight: 700,
+                    letterSpacing: '0.04em',
+                  }}
+                >
+                  TEST
+                </span>
+              </li>
             </ul>
           </>
         )}

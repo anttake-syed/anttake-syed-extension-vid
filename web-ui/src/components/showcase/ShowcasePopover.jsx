@@ -71,35 +71,45 @@ export default function ShowcasePopover({
             </button>
           )}
 
-          {step.actionUrl ? (
+          {step.actionUrl && (
             <a
               href={step.actionUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="showcase-btn-primary"
+              className="showcase-btn-secondary"
               style={{
                 textDecoration: 'none',
-                background: `linear-gradient(135deg, ${step.accentColor} 0%, #4338ca 100%)`
+                background: 'rgba(255, 255, 255, 0.08)',
+                color: '#e2e8f0',
+                border: '1px solid rgba(255, 255, 255, 0.15)',
+                padding: '7px 12px',
+                borderRadius: '9px',
+                fontSize: '12px',
+                fontWeight: 600,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '5px',
+                transition: 'all 0.15s ease'
               }}
               onClick={() => onActionClick && onActionClick(step)}
             >
               <span>{step.primaryActionText || 'Install'}</span>
-              <span className="material-symbols-rounded" style={{ fontSize: '14px' }}>open_in_new</span>
+              <span className="material-symbols-rounded" style={{ fontSize: '13px' }}>open_in_new</span>
             </a>
-          ) : (
-            <button
-              className="showcase-btn-primary"
-              style={{
-                background: `linear-gradient(135deg, ${step.accentColor} 0%, #4338ca 100%)`
-              }}
-              onClick={onNext}
-            >
-              <span>{isLast ? 'Done ✦' : 'Next'}</span>
-              {!isLast && (
-                <span className="material-symbols-rounded" style={{ fontSize: '14px' }}>arrow_forward</span>
-              )}
-            </button>
           )}
+
+          <button
+            className="showcase-btn-primary"
+            style={{
+              background: `linear-gradient(135deg, ${step.accentColor} 0%, #4338ca 100%)`
+            }}
+            onClick={onNext}
+          >
+            <span>{isLast ? 'Done ✦' : 'Next'}</span>
+            {!isLast && (
+              <span className="material-symbols-rounded" style={{ fontSize: '14px' }}>arrow_forward</span>
+            )}
+          </button>
         </div>
       </div>
     </div>

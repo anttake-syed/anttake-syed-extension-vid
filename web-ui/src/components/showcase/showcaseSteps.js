@@ -11,7 +11,7 @@ export const SHOWCASE_STEPS = {
   standard: [
     {
       id: 'extension-anchor',
-      targetSelector: '.header-actions',
+      targetSelector: '.profile-container, .header-actions, .header',
       preferredPosition: 'bottom',
       badge: 'Step 1: Capture Engine',
       badgeIcon: 'extension',
@@ -24,7 +24,7 @@ export const SHOWCASE_STEPS = {
     },
     {
       id: 'dashboard-anchor',
-      targetSelector: '.dash-hero, .dashboard, .title-section',
+      targetSelector: '.title-section, .header, .dash-ext, .dashboard',
       preferredPosition: 'bottom',
       badge: 'Command Center',
       badgeIcon: 'dashboard',
@@ -35,7 +35,7 @@ export const SHOWCASE_STEPS = {
     },
     {
       id: 'library-nav-anchor',
-      targetSelector: '[data-nav="My Library"], .nav-item:nth-child(2)',
+      targetSelector: '[data-nav="My Library"], .sidebar .nav-item:nth-child(2)',
       preferredPosition: 'right',
       badge: 'Media Library',
       badgeIcon: 'photo_library',
@@ -47,7 +47,7 @@ export const SHOWCASE_STEPS = {
     },
     {
       id: 'whiteboards-nav-anchor',
-      targetSelector: '[data-nav="Whiteboards"], .nav-item:nth-child(3)',
+      targetSelector: '[data-nav="Whiteboards"], .sidebar .nav-item:nth-child(3)',
       preferredPosition: 'right',
       badge: 'Infinite Canvas',
       badgeIcon: 'draw',
@@ -59,7 +59,7 @@ export const SHOWCASE_STEPS = {
     },
     {
       id: 'settings-nav-anchor',
-      targetSelector: '[data-nav="Settings"], .nav-item:nth-child(4)',
+      targetSelector: '[data-nav="Settings"], .sidebar .nav-item:nth-child(4)',
       preferredPosition: 'right',
       badge: 'Preferences & Cloud',
       badgeIcon: 'tune',
@@ -74,18 +74,18 @@ export const SHOWCASE_STEPS = {
   pro: [
     {
       id: 'pro-welcome',
-      targetSelector: '.header-actions',
+      targetSelector: '.profile-container, .header-actions, .header',
       preferredPosition: 'bottom',
       badge: 'Pro Workspace Active',
       badgeIcon: 'verified',
       title: 'Welcome to Your Cloud Studio',
       description: 'Full high-speed cloud synchronization and unlimited spatial VoidBoards are unlocked on your account.',
-      mediaType: 'pro-unlocked',
+      mediaType: 'dashboard',
       accentColor: '#a855f7',
     },
     {
       id: 'pro-voidboards',
-      targetSelector: '[data-nav="Whiteboards"], .nav-item:nth-child(3)',
+      targetSelector: '[data-nav="Whiteboards"], .sidebar .nav-item:nth-child(3)',
       preferredPosition: 'right',
       badge: 'VoidBoards Canvas',
       badgeIcon: 'draw',
@@ -97,7 +97,7 @@ export const SHOWCASE_STEPS = {
     },
     {
       id: 'pro-library',
-      targetSelector: '[data-nav="My Library"], .nav-item:nth-child(2)',
+      targetSelector: '[data-nav="My Library"], .sidebar .nav-item:nth-child(2)',
       preferredPosition: 'right',
       badge: 'Cloud Sync Active',
       badgeIcon: 'cloud_done',

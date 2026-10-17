@@ -3,13 +3,14 @@
 .showcase-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 9998;
-  pointer-events: none;
-  transition: opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  z-index: 99990;
+  pointer-events: auto;
+  animation: showcaseFadeIn 0.25s ease both;
 }
 
-.showcase-backdrop.active {
-  pointer-events: auto;
+@keyframes showcaseFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
 
 .showcase-svg-mask {
@@ -18,6 +19,7 @@
   width: 100%;
   height: 100%;
   pointer-events: none;
+  display: block;
 }
 
 /* ── Highlight Pulse Ring around target element ── */
@@ -28,7 +30,7 @@
   border: 2px solid rgba(99, 102, 241, 0.85);
   box-shadow: 0 0 25px rgba(99, 102, 241, 0.45);
   transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
-  z-index: 9999;
+  z-index: 100000;
   animation: showcaseGlow 2s ease-in-out infinite alternate;
 }
 
@@ -46,7 +48,7 @@
 /* ── Popover Container ── */
 .showcase-popover {
   position: fixed;
-  z-index: 10000;
+  z-index: 100001;
   width: 360px;
   max-width: calc(100vw - 32px);
   background: linear-gradient(165deg, rgba(24, 29, 47, 0.96) 0%, rgba(14, 18, 30, 0.98) 100%);

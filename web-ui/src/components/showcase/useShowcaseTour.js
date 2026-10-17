@@ -7,61 +7,87 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 export function useShowcaseTour(steps = [], isOpen = false) {
   const [stepIndex, setStepIndex] = useState(0);
   const [targetRect, setTargetRect] = useState(null);
-  const currentStep = steps[stepIndex] || null;
+
+  // Track whether the tour was open last render to detect fresh open transitions
+  const wasOpen = useRef(false);
+
+  // Resolve the current step index — while closed always use 0 so re-open never starts mid-tour
+  const resolvedIndex = isOpen ? stepIndex : 0;
+  const currentStep = steps[resolvedIndex] || null;
 
   const updateTargetRect = useCallback(() => {
-    if (!currentStep || !isOpen) {
+    if (!isOpen || !currentStep) {
       setTargetRect(null);
       return;
     }
 
-    const selectors = currentStep.targetSelector.split(',').map(s => s.trim());
+    const selectors = (currentStep.targetSelector || '').split(',').map(s => s.trim());
     let element = null;
     for (const sel of selectors) {
-      const found = document.querySelector(sel);
-      if (found) {
-        element = found;
-        break;
+      if (!sel) continue;
+      try {
+        const found = document.querySelector(sel);
+        if (found) {
+          element = found;
+          break;
+        }
+      } catch (_e) {
+        // Ignore invalid CSS selector strings
       }
     }
 
     if (element) {
       const rect = element.getBoundingClientRect();
-      setTargetRect({
-        top: rect.top,
-        left: rect.left,
-        width: rect.width,
-        height: rect.height,
-        bottom: rect.bottom,
-        right: rect.right
-      });
-    } else {
-      setTargetRect(null);
+      if (rect.width > 0 && rect.height > 0) {
+        setTargetRect({
+          top: rect.top,
+          left: rect.left,
+          width: rect.width,
+          height: rect.height,
+          bottom: rect.bottom,
+          right: rect.right
+        });
+        return;
+      }
     }
+
+    // No matching visible element — popover will center itself cleanly
+    setTargetRect(null);
   }, [currentStep, isOpen]);
 
-  // Recalculate on step switch, resize, or scroll
+  // Main effect: run on open/close and step changes
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen) {
+      setTargetRect(null);
+      wasOpen.current = false;
+      return;
+    }
 
+    // Reset to step 0 the moment the tour is freshly opened
+    if (!wasOpen.current) {
+      setStepIndex(0);
+    }
+    wasOpen.current = true;
+
+    // Immediate DOM check
     updateTargetRect();
-    const handleScrollOrResize = () => updateTargetRect();
+
+    // Second check after a layout tick (for lazy/async-rendered elements)
+    const timer = setTimeout(updateTargetRect, 80);
+
+    const handleScrollOrResize = () => {
+      requestAnimationFrame(updateTargetRect);
+    };
 
     window.addEventListener('resize', handleScrollOrResize, { passive: true });
     window.addEventListener('scroll', handleScrollOrResize, { passive: true });
 
     return () => {
+      clearTimeout(timer);
       window.removeEventListener('resize', handleScrollOrResize);
       window.removeEventListener('scroll', handleScrollOrResize);
     };
-  }, [isOpen, stepIndex, updateTargetRect]);
-
-  // Reset to step 0 when reopened
-  useEffect(() => {
-    if (isOpen) {
-      setStepIndex(0);
-    }
-  }, [isOpen]);
+  }, [isOpen, resolvedIndex, updateTargetRect]);
 
   const nextStep = useCallback(() => {
     if (stepIndex < steps.length - 1) {
@@ -76,12 +102,12 @@ export function useShowcaseTour(steps = [], isOpen = false) {
   }, [stepIndex]);
 
   return {
-    stepIndex,
+    stepIndex: resolvedIndex,
     setStepIndex,
     currentStep,
     targetRect,
     nextStep,
     prevStep,
-    isLastStep: stepIndex === steps.length - 1
+    isLastStep: resolvedIndex === steps.length - 1
   };
 }

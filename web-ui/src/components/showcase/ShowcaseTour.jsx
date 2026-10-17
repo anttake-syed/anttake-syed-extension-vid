@@ -16,7 +16,6 @@ export default function ShowcaseTour({
 
   const {
     stepIndex,
-    setStepIndex,
     currentStep,
     targetRect,
     nextStep,
@@ -24,32 +23,33 @@ export default function ShowcaseTour({
     isLastStep
   } = useShowcaseTour(steps, isOpen);
 
-  if (!isOpen || !currentStep) return null;
-
   // Calculate popover positioning relative to targetRect
   const popoverPositionStyle = useMemo(() => {
+    if (!isOpen) return {};
+
+    const popoverWidth = 360;
+    const popoverHeight = 320;
+    const vw = typeof window !== 'undefined' ? window.innerWidth : 1200;
+    const vh = typeof window !== 'undefined' ? window.innerHeight : 800;
+
     if (!targetRect) {
       // Fallback: center in viewport
       return {
         top: '50%',
         left: '50%',
-        transform: 'translate(-50%, -50%)'
+        transform: 'translate(-50%, -50%)',
+        position: 'fixed'
       };
     }
 
     const pad = 14;
-    const popoverWidth = 360;
-    const popoverHeight = 320;
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
-
     let top = 0;
     let left = 0;
 
-    if (currentStep.preferredPosition === 'bottom') {
+    if (currentStep?.preferredPosition === 'bottom') {
       top = targetRect.bottom + pad;
       left = targetRect.left + (targetRect.width / 2) - (popoverWidth / 2);
-    } else if (currentStep.preferredPosition === 'right') {
+    } else if (currentStep?.preferredPosition === 'right') {
       top = targetRect.top + (targetRect.height / 2) - 100;
       left = targetRect.right + pad;
     } else {
@@ -57,7 +57,7 @@ export default function ShowcaseTour({
       left = targetRect.left;
     }
 
-    // Boundary protections
+    // Boundary protections against screen clipping
     if (left + popoverWidth > vw - 16) left = vw - popoverWidth - 16;
     if (left < 16) left = 16;
     if (top + popoverHeight > vh - 16) top = Math.max(16, targetRect.top - popoverHeight - pad);
@@ -65,9 +65,15 @@ export default function ShowcaseTour({
 
     return {
       top: `${top}px`,
-      left: `${left}px`
+      left: `${left}px`,
+      position: 'fixed'
     };
-  }, [targetRect, currentStep]);
+  }, [targetRect, currentStep, isOpen]);
+
+  // Don't render at all when not open
+  if (!isOpen) return null;
+  // If steps haven't resolved yet, show centered popover with loading
+  if (!currentStep) return null;
 
   // Handle Next step with optional subpage navigation
   const handleNext = () => {
@@ -89,11 +95,25 @@ export default function ShowcaseTour({
   const rx = 10;
 
   return (
-    <div className={`showcase-backdrop ${isOpen ? 'active' : ''}`}>
-      {/* SVG Spotlight Mask */}
-      <svg className="showcase-svg-mask">
+    <div
+      className="showcase-backdrop active"
+      onClick={(e) => {
+        // Clicking the dark backdrop (not the popover) closes the tour
+        if (e.target === e.currentTarget) {
+          onClose();
+        }
+      }}
+    >
+      {/* SVG Full-screen Spotlight Mask */}
+      <svg
+        className="showcase-svg-mask"
+        xmlns="http://www.w3.org/2000/svg"
+        width="100%"
+        height="100%"
+      >
         <defs>
-          <mask id="showcase-mask">
+          <mask id="showcase-cutout-mask">
+            {/* White = show the dark overlay; black = transparent cutout (spotlight) */}
             <rect width="100%" height="100%" fill="white" />
             {targetRect && (
               <rect
@@ -107,15 +127,16 @@ export default function ShowcaseTour({
             )}
           </mask>
         </defs>
+        {/* Dark overlay — cut out by mask above */}
         <rect
           width="100%"
           height="100%"
-          fill="rgba(2, 6, 23, 0.72)"
-          mask="url(#showcase-mask)"
+          fill="rgba(2, 6, 23, 0.78)"
+          mask="url(#showcase-cutout-mask)"
         />
       </svg>
 
-      {/* Target Highlight Pulse Ring */}
+      {/* Glowing Pulse Ring around the highlighted target element */}
       {targetRect && (
         <div
           className="showcase-pulse-ring"
@@ -138,8 +159,8 @@ export default function ShowcaseTour({
         onPrev={handlePrev}
         onSkip={onClose}
         onActionClick={(step) => {
-          if (step.id === 'extension-anchor') {
-            // Optional callback hook
+          if (step.actionUrl) {
+            window.open(step.actionUrl, '_blank', 'noopener,noreferrer');
           }
         }}
       />

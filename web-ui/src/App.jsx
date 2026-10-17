@@ -24,6 +24,7 @@ import AdminDiagnostics from './components/AdminDiagnostics.jsx';
 import SubscriptionWarningBanner from './components/SubscriptionWarningBanner.jsx';
 import PurchaseSuccessToast from './components/PurchaseSuccessToast.jsx';
 import OnboardingModal from './components/OnboardingModal.jsx';
+import ShowcaseTour from './components/showcase/ShowcaseTour.jsx';
 import PaywallGate from './components/PaywallGate.jsx';
 
 
@@ -280,18 +281,27 @@ export default function App() {
   });
 
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [showShowcaseTour, setShowShowcaseTour] = useState(false);
+  const [tourVariantOverride, setTourVariantOverride] = useState(null);
 
   useEffect(() => {
     if (isReady && isAuthenticated) {
       if (!localStorage.getItem('hasSeenOnboarding')) {
-        setShowOnboarding(true);
+        setShowShowcaseTour(true);
         localStorage.setItem('hasSeenOnboarding', 'true');
       }
     }
   }, [isReady, isAuthenticated]);
 
   useEffect(() => {
-    const handleTriggerOnboarding = () => setShowOnboarding(true);
+    const handleTriggerOnboarding = (e) => {
+      if (e?.detail?.variant) {
+        setTourVariantOverride(e.detail.variant);
+      } else {
+        setTourVariantOverride(null);
+      }
+      setShowShowcaseTour(true);
+    };
     window.addEventListener('trigger-onboarding', handleTriggerOnboarding);
     return () => window.removeEventListener('trigger-onboarding', handleTriggerOnboarding);
   }, []);
@@ -935,6 +945,15 @@ Found a security problem? Please report it privately through our GitHub security
       </main>
       
       <OnboardingModal isOpen={showOnboarding} onClose={() => setShowOnboarding(false)} />
+      <ShowcaseTour
+        isOpen={showShowcaseTour}
+        variant={tourVariantOverride || (hasCloudAccess ? 'pro' : 'standard')}
+        onClose={() => {
+          setShowShowcaseTour(false);
+          setTourVariantOverride(null);
+        }}
+        onNavigate={(nav) => setActiveNav(nav)}
+      />
     </div>
   );
 }

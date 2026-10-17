@@ -556,7 +556,21 @@ class DemoTour {
 }
 
 // ── Entry Point ────────────────────────────────────────────────────────────────
+export function replayDemoTour(variant = ACTIVE_VARIANT) {
+  // Clear any existing tour elements
+  document.getElementById('__demo-backdrop')?.remove();
+  document.getElementById('__demo-pulse-ring')?.remove();
+  document.getElementById('__demo-fake-progress')?.remove();
+  document.getElementById('__demo-tooltip')?.remove();
+  document.getElementById('__demo-upgrade-modal')?.remove();
+
+  new DemoTour(variant).start();
+}
+
 export function initDemoTour() {
+  window.__replayExtensionDemo = () => replayDemoTour(ACTIVE_VARIANT);
+  window.addEventListener('antcapture:replay-demo-tour', () => replayDemoTour(ACTIVE_VARIANT));
+
   if (!shouldShowDemo()) return;
   // Small delay so the main edit.js UI finishes rendering first
   setTimeout(() => new DemoTour(ACTIVE_VARIANT).start(), 1200);

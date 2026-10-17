@@ -102,6 +102,19 @@ export default function Sidebar({ activeNav, isAuthenticated, hasCloudAccess = t
             </div>
             <ul className="nav-list" style={{ marginTop: '4px' }}>
               {ADMIN_NAV.map((item) => renderNavItem(item, true))}
+              <li
+                className="nav-item nav-item-secondary"
+                onClick={() => {
+                  window.dispatchEvent(new CustomEvent('trigger-onboarding'));
+                }}
+                title="Tour Preview"
+                style={{ cursor: 'pointer' }}
+              >
+                <span className="nav-icon material-symbols-rounded" style={{ fontSize: '18px', fontWeight: '300', color: '#a855f7' }}>
+                  explore
+                </span>
+                <span className="nav-label" style={{ color: '#cbd5e1' }}>Tour Preview</span>
+              </li>
             </ul>
           </>
         )}

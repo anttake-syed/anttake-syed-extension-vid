@@ -55,6 +55,22 @@ function updateAuthPanel(user, hintText) {
 
   const isRealUser = user && user.jwt && user.email && !user.email.includes('localhost');
 
+  const tourBtn = document.getElementById('tourReplayBtn');
+  if (tourBtn) {
+    if (user?.role === 'admin') {
+      tourBtn.style.display = 'inline-flex';
+      tourBtn.onclick = () => {
+        if (typeof window.__replayExtensionDemo === 'function') {
+          window.__replayExtensionDemo();
+        } else {
+          window.dispatchEvent(new CustomEvent('antcapture:replay-demo-tour'));
+        }
+      };
+    } else {
+      tourBtn.style.display = 'none';
+    }
+  }
+
   if (isRealUser) {
     // ── Signed-in state ────────────────────────────────────────────
     panel.classList.add('visible');

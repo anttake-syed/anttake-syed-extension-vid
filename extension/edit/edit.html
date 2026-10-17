@@ -357,73 +357,76 @@
 
     <div class="buttons-list">
       <div style="display:flex; gap:8px; align-items:stretch; width:100%;">
-        <button class="save-btn btn-computer" id="btnComputer" style="flex:1;">
+        <button class="save-btn btn-computer" id="btnComputer" style="flex:1;" aria-label="Save to Computer: download file directly">
           <span class="material-symbols-rounded">desktop_windows</span>
           <div>
             <div style="font-weight:600; margin-bottom:2px;">Save to Computer</div>
             <div style="font-size:11px; color:#94a3b8;">Download file directly</div>
           </div>
         </button>
-        <button class="auto-save-toggle" data-mode="computer" title="Set as Auto-Save Default">
+        <button class="auto-save-toggle" data-mode="computer" title="Set as Auto-Save Default" aria-label="Toggle auto-save to computer">
           <span class="material-symbols-rounded">bolt</span>
         </button>
       </div>
 
       <div style="display:flex; gap:8px; align-items:stretch; width:100%;">
-        <button class="save-btn btn-cloud" id="btnCloud" style="flex:1;">
+        <button class="save-btn btn-cloud" id="btnCloud" style="flex:1;" aria-label="AntCapture Web and Drive: sync to dashboard and cloud">
           <span class="material-symbols-rounded">cloud_sync</span>
           <div>
             <div style="font-weight:600; margin-bottom:2px;">AntCapture Web &amp; Drive</div>
             <div style="font-size:11px; color:#94a3b8;">Sync to dashboard &amp; cloud</div>
           </div>
         </button>
-        <button class="auto-save-toggle" data-mode="cloud" title="Set as Auto-Save Default">
+        <button class="auto-save-toggle" data-mode="cloud" title="Set as Auto-Save Default" aria-label="Toggle auto-save to cloud">
           <span class="material-symbols-rounded">bolt</span>
         </button>
       </div>
 
       <!-- ── Upload Progress (shown during cloud uploads) ── -->
-      <div id="uploadProgressWrap">
+      <div id="uploadProgressWrap" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
         <div id="uploadProgressBar"><div id="uploadProgressFill"></div></div>
         <div id="uploadProgressLabel">Uploading… 0%</div>
       </div>
 
       <div style="display:flex; gap:8px; align-items:stretch; width:100%;">
-        <button class="save-btn btn-drive" id="btnDrive" style="flex:1;">
+        <button class="save-btn btn-drive" id="btnDrive" style="flex:1;" aria-label="Save to Google Drive Only">
           <span class="material-symbols-rounded">add_to_drive</span>
           <div>
             <div style="font-weight:600; margin-bottom:2px;">Google Drive Only</div>
             <div style="font-size:11px; color:#94a3b8;">Send directly to Drive</div>
           </div>
         </button>
-        <button class="auto-save-toggle" data-mode="drive-only" title="Set as Auto-Save Default">
+        <button class="auto-save-toggle" data-mode="drive-only" title="Set as Auto-Save Default" aria-label="Toggle auto-save to Google Drive">
           <span class="material-symbols-rounded">bolt</span>
         </button>
       </div>
 
       <div style="display:flex; gap:8px; align-items:stretch; width:100%;">
-        <button class="save-btn btn-local" id="btnLocal" style="flex:1;">
+        <button class="save-btn btn-local" id="btnLocal" style="flex:1;" aria-label="Save to Self-Hosted server">
           <span class="material-symbols-rounded">dns</span>
           <div>
             <div style="font-weight:600; margin-bottom:2px;">Save to Self-Hosted</div>
             <div style="font-size:11px; color:#94a3b8;">Your local or custom server</div>
           </div>
         </button>
-        <button class="auto-save-toggle" data-mode="localhost" title="Set as Auto-Save Default">
+        <button class="auto-save-toggle" data-mode="localhost" title="Set as Auto-Save Default" aria-label="Toggle auto-save to self-hosted server">
           <span class="material-symbols-rounded">bolt</span>
         </button>
       </div>
 
-      <button class="save-btn btn-discard" id="btnDiscard" style="margin-top: 4px;">
+      <button class="save-btn btn-discard" id="btnDiscard" style="margin-top: 4px;" aria-label="Discard this capture">
         <span class="material-symbols-rounded" style="font-size:18px;">delete</span>
         <span>Discard</span>
       </button>
     </div>
 
     <!-- ── AntCapture Brand Hero (BOTTOM: Logo & Tagline) ── -->
-    <div class="sidebar-hero" style="position:relative; margin-top:auto;">
+    <div class="sidebar-hero" id="sidebarBrandHero" role="button" tabindex="0" title="Visit AntCapture (opens website)" style="position:relative; margin-top:auto; cursor:pointer;" aria-label="AntCapture - Review & Export Capture. Click to visit AntCapture website.">
       <img src="../icons/icon48.png" alt="AntCapture Logo" style="width:36px; height:36px; margin-bottom:2px; filter: drop-shadow(0 4px 8px rgba(99, 102, 241, 0.4));">
-      <div class="hero-title">AntCapture</div>
+      <div class="hero-title" style="display:flex; align-items:center; gap:4px;">
+        <span>AntCapture</span>
+        <span class="material-symbols-rounded" style="font-size:14px; opacity:0.6;">open_in_new</span>
+      </div>
       <div class="hero-tagline">Review &amp; Export Capture</div>
       <button id="tourReplayBtn" title="Tour Preview" style="display:none; position:absolute; top:4px; right:4px; background:rgba(168,85,247,0.12); border:1px solid rgba(168,85,247,0.3); color:#c084fc; border-radius:6px; font-size:11px; font-weight:600; padding:3px 8px; cursor:pointer; align-items:center; gap:4px; transition:all 0.15s ease;">
         <span class="material-symbols-rounded" style="font-size:13px;">explore</span>
@@ -456,7 +459,13 @@
       <span class="material-symbols-rounded" style="color:#10b981; font-size:32px;">check_circle</span>
       <div id="successOverlayText" style="color:white; font-size:16px; font-weight:600;">Successfully Saved!</div>
       <div id="successOverlaySubtext" style="color:#94a3b8; font-size:12px;">Closing window in 3s...</div>
-      <button id="successCancelBtn" style="margin-top:8px; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.1); color:#e2e8f0; padding:6px 14px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer; transition:all 0.15s;">Cancel</button>
+      <div style="display:flex; gap:8px; margin-top:8px;">
+        <button id="successActionBtn" style="display:none; background:#4f46e5; border:none; color:white; padding:6px 14px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer; transition:all 0.15s; align-items:center; gap:4px;">
+          <span class="material-symbols-rounded" style="font-size:14px;">open_in_new</span>
+          <span id="successActionBtnLabel">View in Drive</span>
+        </button>
+        <button id="successCancelBtn" style="background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.1); color:#e2e8f0; padding:6px 14px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer; transition:all 0.15s;">Cancel</button>
+      </div>
     </div>
   </div>
 

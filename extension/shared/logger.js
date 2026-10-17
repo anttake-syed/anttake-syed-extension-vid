@@ -60,9 +60,13 @@ class Logger {
       if (arg && typeof arg === 'object' && arg.code && arg.message !== undefined && arg.constructor.name === 'MediaError') {
         return `[MediaError code=${arg.code} message=${arg.message || 'unknown'}]`;
       }
+      if (typeof arg === 'bigint') {
+        return Number(arg);
+      }
       if (typeof arg === 'object') {
         try {
           return JSON.stringify(arg, (key, value) => {
+            if (typeof value === 'bigint') return Number(value);
             if (value instanceof Blob || value instanceof ArrayBuffer) return '[Binary Data]';
             if ((typeof HTMLElement !== 'undefined' && value instanceof HTMLElement) || (typeof Window !== 'undefined' && value instanceof Window)) return '[DOM Node]';
             return value;

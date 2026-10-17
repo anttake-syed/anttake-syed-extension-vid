@@ -208,17 +208,37 @@ function hideSaveLoading() {
   document.body.style.pointerEvents = 'auto';
 }
 
-async function showSuccessAndClose(message) {
+async function showSuccessAndClose(message, accessUrl = null) {
   const overlay = document.getElementById('successOverlay');
   const overlayText = document.getElementById('successOverlayText');
   const subText = document.getElementById('successOverlaySubtext');
   const cancelBtn = document.getElementById('successCancelBtn');
+  const actionBtn = document.getElementById('successActionBtn');
+  const actionBtnLabel = document.getElementById('successActionBtnLabel');
   
   if (overlay && overlayText) {
     overlayText.textContent = message;
     overlay.style.display = 'flex';
     document.body.style.pointerEvents = 'none'; // Prevent other clicks
     
+    // If an accessUrl is returned (Google Drive webViewLink or AntCapture accessUrl), wire action button
+    if (actionBtn && accessUrl) {
+      actionBtn.style.display = 'inline-flex';
+      actionBtn.style.pointerEvents = 'auto';
+      if (actionBtnLabel) {
+        actionBtnLabel.textContent = accessUrl.includes('drive.google.com') ? 'View in Drive' : 'View in Library';
+      }
+      actionBtn.onclick = () => {
+        window.open(accessUrl, '_blank');
+      };
+      // Auto-open in background or new tab if user wants direct access
+      try {
+        window.open(accessUrl, '_blank');
+      } catch (_) {}
+    } else if (actionBtn) {
+      actionBtn.style.display = 'none';
+    }
+
     // Enable clicks just for the cancel button
     if (cancelBtn) {
       cancelBtn.style.pointerEvents = 'auto';
@@ -240,7 +260,7 @@ async function showSuccessAndClose(message) {
       };
     }
 
-    successCountdown = 3;
+    successCountdown = accessUrl ? 4 : 3;
     if (subText) subText.textContent = `Closing window in ${successCountdown}s...`;
 
     await new Promise(resolve => {
@@ -605,6 +625,24 @@ async function init() {
       startAutoSaveCountdown(res.autoSavePref);
     }
   });
+
+  // ── Brand Hero Click-Through & Accessibility ─────────────────────────────
+  const brandHero = document.getElementById('sidebarBrandHero');
+  if (brandHero) {
+    const openSite = () => window.open('https://antcapture.com', '_blank');
+    brandHero.addEventListener('click', (e) => {
+      // Don't trigger if admin clicked the Tour button inside the hero
+      if (e.target.closest('#tourReplayBtn')) return;
+      openSite();
+    });
+    brandHero.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        if (e.target.closest('#tourReplayBtn')) return;
+        e.preventDefault();
+        openSite();
+      }
+    });
+  }
 }
 
 let activeCountdownToast = null;
@@ -762,6 +800,8 @@ async function processSave(mode) {
         const tokenToUse = hasValidUser ? user.jwt : 'local-mode';
 
         let cloudUploadConfirmed = true; // only meaningful when mode === 'cloud'
+        let returnedAccessUrl = null;
+
         if (mode === 'cloud') {
           // ── Cloud upload: XHR with real progress bar + branded loading overlay ──
           showSaveLoading('Uploading to AntCapture Cloud…', 'Syncing your capture to the cloud');
@@ -772,6 +812,7 @@ async function processSave(mode) {
               (pct) => updateUploadProgress(pct)
             );
             cloudUploadConfirmed = uploadResult?.confirmed === true;
+            returnedAccessUrl = uploadResult?.files?.[0]?.url || null;
           } finally {
             hideUploadProgress();
             hideSaveLoading();
@@ -782,7 +823,8 @@ async function processSave(mode) {
           const driveSub   = mode === 'drive-only' ? 'Sending your capture to Drive' : 'Storing on your local server';
           showSaveLoading(driveLabel, driveSub);
           try {
-            await uploadToServer(blob, type, mode, tokenToUse, resolution, format, customName, hasAudio);
+            const uploadResult = await uploadToServer(blob, type, mode, tokenToUse, resolution, format, customName, hasAudio);
+            returnedAccessUrl = uploadResult?.accessUrl || uploadResult?.storageObject?.providerMeta?.webViewLink || null;
           } finally {
             hideSaveLoading();
           }
@@ -813,7 +855,10 @@ async function processSave(mode) {
         if (mode !== 'cloud' || cloudUploadConfirmed) {
           await deleteCurrentItem();
         }
-        await showSuccessAndClose(mode === 'localhost' ? 'Saved to Self-Hosted!' : (mode === 'cloud' ? (cloudUploadConfirmed ? 'Saved to Cloud!' : 'Uploaded — confirming...') : 'Uploaded to Google Drive!'));
+        await showSuccessAndClose(
+          mode === 'localhost' ? 'Saved to Self-Hosted!' : (mode === 'cloud' ? (cloudUploadConfirmed ? 'Saved to Cloud!' : 'Uploaded — confirming...') : 'Uploaded to Google Drive!'),
+          returnedAccessUrl
+        );
 
       } else {
         if (!hasValidUser && !isLocalHost) {
@@ -827,7 +872,10 @@ async function processSave(mode) {
       return;
     }
   } catch (err) {
-    console.error(err);
+    console.error('Save error:', err);
+    hideSaveLoading();
+    hideUploadProgress();
+
     const sidebar = document.querySelector('.sidebar');
     if (sidebar) {
       sidebar.style.pointerEvents = 'auto';
@@ -835,21 +883,24 @@ async function processSave(mode) {
     }
     document.body.style.pointerEvents = 'auto'; // Fallback just in case
 
-    if (err.message && err.message.includes('AntCapture Cloud plan')) {
+    const errMsg = err?.message || String(err || 'Upload failed');
+    if (errMsg.includes('AntCapture Cloud plan')) {
       const serverBase = getServerUrl('cloud').replace('/api', '');
       const pricingUrl = `${serverBase}/pricing`;
       const htmlMessage = `
         <div style="display:flex;flex-direction:column;gap:6px;padding:4px 0;">
           <span style="font-weight:600;font-size:14px;">☁️ Cloud plan required</span>
-          <span style="font-size:13px;opacity:0.9;line-height:1.4;">${escapeHtml(err.message)}</span>
+          <span style="font-size:13px;opacity:0.9;line-height:1.4;">${escapeHtml(errMsg)}</span>
           <a href="${pricingUrl}" target="_blank" style="margin-top:4px;display:inline-flex;align-items:center;gap:4px;background:white;color:#4f46e5;padding:6px 12px;border-radius:6px;font-weight:700;text-decoration:none;font-size:13px;width:fit-content;box-shadow:0 2px 5px rgba(0,0,0,0.2);">
             Upgrade to Cloud
           </a>
         </div>
       `;
       showToast(htmlMessage, 'error', 12000);
+    } else if (errMsg.includes('Google Drive') || errMsg.includes('quota') || errMsg.includes('drive_full')) {
+      showToast(`Google Drive: ${escapeHtml(errMsg)}`, 'error', 8000);
     } else {
-      showToast(escapeHtml(err.message), 'error', 6000);
+      showToast(escapeHtml(errMsg), 'error', 6000);
     }
   }
 }

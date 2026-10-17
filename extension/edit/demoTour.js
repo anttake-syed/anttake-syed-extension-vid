@@ -324,15 +324,29 @@ function positionTooltip(tooltip, rect, padding) {
     return;
   }
   tooltip.style.transform = '';
-  const TH = tooltip.offsetHeight || 180;
-  const TW = tooltip.offsetWidth  || 280;
-  let top = rect.bottom + padding + 16;
-  let left = rect.left;
-  if (top + TH > window.innerHeight - 16) top = rect.top - TH - 16;
-  if (left + TW > window.innerWidth - 16)  left = window.innerWidth - TW - 16;
-  if (left < 16) left = 16;
-  tooltip.style.top  = `${top}px`;
-  tooltip.style.left = `${left}px`;
+  const TH = tooltip.offsetHeight || 190;
+  const TW = tooltip.offsetWidth  || 300;
+
+  // The sidebar is located on the right edge of the screen.
+  // Prefer placing the tooltip to the LEFT of the target in the main view area.
+  let left = rect.left - TW - 20;
+  let top  = rect.top + (rect.height / 2) - (TH / 2);
+
+  // Fallback if there isn't enough horizontal room on the left
+  if (left < 16) {
+    left = Math.max(16, rect.left);
+    top  = rect.bottom + padding + 12;
+    if (top + TH > window.innerHeight - 16) {
+      top = rect.top - TH - 12;
+    }
+  } else {
+    // Keep vertical within screen bounds
+    if (top < 16) top = 16;
+    if (top + TH > window.innerHeight - 16) top = window.innerHeight - TH - 16;
+  }
+
+  tooltip.style.top  = `${Math.round(top)}px`;
+  tooltip.style.left = `${Math.round(left)}px`;
 }
 
 // ── Fake upload simulation ─────────────────────────────────────────────────────

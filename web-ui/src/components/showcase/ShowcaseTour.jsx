@@ -27,8 +27,8 @@ export default function ShowcaseTour({
   const popoverPositionStyle = useMemo(() => {
     if (!isOpen) return {};
 
-    const popoverWidth = 360;
-    const popoverHeight = 320;
+    const popoverWidth = 420;
+    const popoverHeight = 340;
     const vw = typeof window !== 'undefined' ? window.innerWidth : 1200;
     const vh = typeof window !== 'undefined' ? window.innerHeight : 800;
 
@@ -94,10 +94,14 @@ export default function ShowcaseTour({
   const pad = 8;
   const rx = 10;
 
+  const isStandard = variant === 'standard';
+
   return (
     <div
       className="showcase-backdrop active"
       onClick={(e) => {
+        // Standard/free tour prevents accidental dismissals from backdrop clicks
+        if (isStandard) return;
         // Clicking the dark backdrop (not the popover) closes the tour
         if (e.target === e.currentTarget) {
           onClose();
@@ -155,6 +159,7 @@ export default function ShowcaseTour({
         stepIndex={stepIndex}
         totalSteps={steps.length}
         positionStyle={popoverPositionStyle}
+        variant={variant}
         onNext={handleNext}
         onPrev={handlePrev}
         onSkip={onClose}

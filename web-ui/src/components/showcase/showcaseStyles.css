@@ -49,15 +49,15 @@
 .showcase-popover {
   position: fixed;
   z-index: 100001;
-  width: 360px;
+  width: 420px;
   max-width: calc(100vw - 32px);
-  background: linear-gradient(165deg, rgba(24, 29, 47, 0.96) 0%, rgba(14, 18, 30, 0.98) 100%);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: linear-gradient(165deg, rgba(24, 29, 47, 0.98) 0%, rgba(14, 18, 30, 0.99) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 20px;
   box-shadow: 0 25px 60px rgba(0, 0, 0, 0.75), 0 0 40px rgba(99, 102, 241, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.15);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  padding: 22px 20px 18px;
+  padding: 24px 22px 20px;
   color: #f8fafc;
   transform-origin: center center;
   animation: showcasePopIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;

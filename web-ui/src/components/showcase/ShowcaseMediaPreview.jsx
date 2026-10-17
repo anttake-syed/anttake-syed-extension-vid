@@ -256,6 +256,7 @@ export default function ShowcaseMediaPreview({ type, accentColor = '#6366f1' }) 
         </div>
       );
 
+    case 'interactive-whiteboard':
     case 'interactive-voidboards':
     case 'whiteboards':
       return (
@@ -344,7 +345,7 @@ export default function ShowcaseMediaPreview({ type, accentColor = '#6366f1' }) 
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
               <span className="material-symbols-rounded" style={{ fontSize: '13px', color: '#34d399' }}>check_circle</span>
-              <span>Unlimited Spatial VoidBoards</span>
+              <span>Unlimited Spatial Whiteboard</span>
             </div>
           </div>
         </div>

@@ -1,0 +1,292 @@
+/* ── Demo Tour Component Styles ────────────────────────────────────────── */
+
+/* ── Backdrop ─────────────────────────────────────────────── */
+#__demo-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  pointer-events: none;
+  transition: opacity 0.35s ease;
+}
+#__demo-backdrop.active {
+  pointer-events: auto;
+}
+
+/* ── Spotlight cutout via SVG overlay ────────────────────── */
+#__demo-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* ── Step tooltip bubble ──────────────────────────────────── */
+#__demo-tooltip {
+  position: fixed;
+  max-width: 300px;
+  min-width: 260px;
+  background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+  border: 1px solid rgba(99, 102, 241, 0.4);
+  border-radius: 14px;
+  padding: 18px 20px;
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(99, 102, 241, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  z-index: 10100;
+  pointer-events: auto;
+  animation: __demoFadeUp 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes __demoFadeUp {
+  from { opacity: 0; transform: translateY(10px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0)   scale(1);    }
+}
+
+#__demo-badge {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  background: linear-gradient(90deg, #818cf8, #c084fc);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  margin-bottom: 8px;
+}
+
+#__demo-title {
+  color: #f1f5f9;
+  font-size: 14px;
+  font-weight: 700;
+  margin-bottom: 6px;
+  line-height: 1.3;
+}
+
+#__demo-desc {
+  color: #94a3b8;
+  font-size: 12px;
+  line-height: 1.6;
+  margin-bottom: 14px;
+}
+
+/* ── Progress dots ────────────────────────────────────────── */
+#__demo-dots {
+  display: flex;
+  gap: 5px;
+  margin-bottom: 12px;
+}
+
+.demo-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.15);
+  transition: all 0.25s ease;
+}
+
+.demo-dot.active {
+  width: 18px;
+  border-radius: 4px;
+  background: linear-gradient(90deg, #6366f1, #818cf8);
+}
+
+/* ── Action row ───────────────────────────────────────────── */
+#__demo-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+#__demo-skip {
+  background: none;
+  border: none;
+  color: #475569;
+  font-size: 11px;
+  cursor: pointer;
+  padding: 0;
+  font-family: inherit;
+  transition: color 0.2s;
+}
+
+#__demo-skip:hover {
+  color: #94a3b8;
+}
+
+#__demo-next {
+  background: linear-gradient(135deg, #6366f1, #818cf8);
+  border: none;
+  color: white;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 8px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: transform 0.15s, box-shadow 0.15s;
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
+}
+
+#__demo-next:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 20px rgba(99, 102, 241, 0.5);
+}
+
+/* ── Pulsing ring on target ───────────────────────────────── */
+#__demo-pulse-ring {
+  position: fixed;
+  border-radius: 10px;
+  border: 2px solid rgba(99, 102, 241, 0.8);
+  box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.5);
+  animation: __demoPulse 1.8s ease-out infinite;
+  pointer-events: none;
+  z-index: 10050;
+}
+
+@keyframes __demoPulse {
+  0%   { box-shadow: 0 0 0 0   rgba(99, 102, 241, 0.6); }
+  70%  { box-shadow: 0 0 0 12px rgba(99, 102, 241, 0);   }
+  100% { box-shadow: 0 0 0 0   rgba(99, 102, 241, 0);   }
+}
+
+/* ── Upgrade modal ────────────────────────────────────────── */
+#__demo-upgrade-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(2, 6, 23, 0.85);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  z-index: 10500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: __demoFadeIn 0.4s ease both;
+}
+
+@keyframes __demoFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+#__demo-upgrade-card {
+  background: linear-gradient(160deg, #1e293b, #0f172a);
+  border: 1px solid rgba(99, 102, 241, 0.35);
+  border-radius: 20px;
+  padding: 36px 32px;
+  max-width: 340px;
+  width: 90%;
+  text-align: center;
+  box-shadow: 0 40px 80px rgba(0, 0, 0, 0.8), 0 0 60px rgba(99, 102, 241, 0.1);
+  animation: __demoScaleIn 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes __demoScaleIn {
+  from { opacity: 0; transform: scale(0.9) translateY(16px); }
+  to   { opacity: 1; transform: scale(1)   translateY(0);    }
+}
+
+#__demo-upgrade-icon {
+  width: 56px;
+  height: 56px;
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.2), rgba(192, 132, 252, 0.1));
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 20px;
+  font-size: 26px;
+}
+
+#__demo-upgrade-headline {
+  color: #f1f5f9;
+  font-size: 18px;
+  font-weight: 800;
+  margin-bottom: 10px;
+  line-height: 1.3;
+}
+
+#__demo-upgrade-subtext {
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.6;
+  margin-bottom: 24px;
+}
+
+#__demo-upgrade-cta {
+  width: 100%;
+  padding: 13px 20px;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  border: none;
+  border-radius: 10px;
+  color: white;
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+  font-family: inherit;
+  margin-bottom: 10px;
+  transition: transform 0.15s, box-shadow 0.15s;
+  box-shadow: 0 6px 20px rgba(99, 102, 241, 0.5);
+  letter-spacing: 0.01em;
+}
+
+#__demo-upgrade-cta:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 32px rgba(99, 102, 241, 0.6);
+}
+
+#__demo-upgrade-skip {
+  background: none;
+  border: none;
+  color: #475569;
+  font-size: 12px;
+  cursor: pointer;
+  font-family: inherit;
+  padding: 6px;
+  transition: color 0.2s;
+  width: 100%;
+}
+
+#__demo-upgrade-skip:hover {
+  color: #64748b;
+}
+
+/* ── Simulated fake upload progress (for demo step) ─────── */
+#__demo-fake-progress {
+  display: none;
+  position: fixed;
+  z-index: 10090;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 14px;
+  background: rgba(99, 102, 241, 0.06);
+  border: 1px solid rgba(99, 102, 241, 0.15);
+  border-radius: 8px;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  min-width: 220px;
+}
+
+#__demo-fake-progress.visible {
+  display: flex;
+}
+
+#__demo-fake-bar-track {
+  height: 4px;
+  background: rgba(99, 102, 241, 0.15);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+#__demo-fake-bar-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, #6366f1, #a78bfa);
+  border-radius: 4px;
+  transition: width 0.15s linear;
+}
+
+#__demo-fake-bar-label {
+  font-size: 11px;
+  color: #818cf8;
+  font-weight: 600;
+  text-align: center;
+}

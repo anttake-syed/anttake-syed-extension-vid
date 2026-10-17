@@ -1,16 +1,15 @@
 /**
  * extension/edit/demoTour.js
  *
- * ──────────────────────────────────────────────────────────────────
- * ISOLATED DEMO TOUR OVERLAY
+ * ─────────────────────────────────────────────────────────────────────────────
+ * Interactive Demo / Feature Tour for AntCapture (edit.html).
  *
- * This module is 100% self-contained. It reads from demoVariants.js
- * and renders an overlay ON TOP of the existing edit.html UI.
- * It does NOT modify, import, or depend on edit.js in any way.
- *
- * Zero backend cost — all animations and "uploads" are simulated
- * locally using JS timers. Nothing hits the server.
- * ──────────────────────────────────────────────────────────────────
+ * Architecture:
+ * - HTML structure is built into edit.html for speed, clarity, and inspectability.
+ * - CSS styles are separated into demoTour.css.
+ * - This file contains purely the orchestration, step transitions, event routing,
+ *   and spotlight positioning logic.
+ * ─────────────────────────────────────────────────────────────────────────────
  */
 
 import { ACTIVE_VARIANT, UPGRADE_MODAL_CONFIG } from '../demoVariants.js';
@@ -43,277 +42,6 @@ function markDemoSeen(userId) {
   }
 }
 
-// ── Inject tour CSS once ───────────────────────────────────────────────────────
-function injectStyles() {
-  if (document.getElementById('__demo-tour-styles')) return;
-  const style = document.createElement('style');
-  style.id = '__demo-tour-styles';
-  style.textContent = `
-    /* ── Backdrop ─────────────────────────────────────────────── */
-    #__demo-backdrop {
-      position: fixed;
-      inset: 0;
-      /* Must be above sidebar (z-index:10) and all page modals (z-index:300).   */
-      /* Tour elements must live in the root stacking context (position:fixed)    */
-      /* so they can never be clipped by sidebar's overflow-y:auto context.       */
-      z-index: 10000;
-      pointer-events: none;
-      transition: opacity 0.35s ease;
-    }
-    #__demo-backdrop.active { pointer-events: auto; }
-
-    /* ── Spotlight cutout via SVG overlay ────────────────────── */
-    #__demo-svg {
-      position: absolute;
-      inset: 0;
-      width: 100%;
-      height: 100%;
-    }
-
-    /* ── Step tooltip bubble ──────────────────────────────────── */
-    /* CRITICAL: must be position:fixed — position:absolute would be trapped     */
-    /* inside body { overflow:hidden } and could not escape the sidebar's        */
-    /* stacking context (z-index:10 with position:relative creates a new SC).    */
-    #__demo-tooltip {
-      position: fixed;
-      max-width: 300px;
-      min-width: 260px;
-      background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
-      border: 1px solid rgba(99,102,241,0.4);
-      border-radius: 14px;
-      padding: 18px 20px;
-      box-shadow: 0 24px 48px rgba(0,0,0,0.7), 0 0 0 1px rgba(99,102,241,0.15), inset 0 1px 0 rgba(255,255,255,0.06);
-      z-index: 10100;
-      pointer-events: auto;
-      animation: __demoFadeUp 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
-    }
-    @keyframes __demoFadeUp {
-      from { opacity: 0; transform: translateY(10px) scale(0.97); }
-      to   { opacity: 1; transform: translateY(0)   scale(1);    }
-    }
-
-    #__demo-badge {
-      font-size: 10px;
-      font-weight: 800;
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
-      background: linear-gradient(90deg, #818cf8, #c084fc);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      margin-bottom: 8px;
-    }
-    #__demo-title {
-      color: #f1f5f9;
-      font-size: 14px;
-      font-weight: 700;
-      margin-bottom: 6px;
-      line-height: 1.3;
-    }
-    #__demo-desc {
-      color: #94a3b8;
-      font-size: 12px;
-      line-height: 1.6;
-      margin-bottom: 14px;
-    }
-
-    /* ── Progress dots ────────────────────────────────────────── */
-    #__demo-dots {
-      display: flex;
-      gap: 5px;
-      margin-bottom: 12px;
-    }
-    .demo-dot {
-      width: 6px; height: 6px;
-      border-radius: 50%;
-      background: rgba(255,255,255,0.15);
-      transition: all 0.25s ease;
-    }
-    .demo-dot.active {
-      width: 18px;
-      border-radius: 4px;
-      background: linear-gradient(90deg, #6366f1, #818cf8);
-    }
-
-    /* ── Action row ───────────────────────────────────────────── */
-    #__demo-actions {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 8px;
-    }
-    #__demo-skip {
-      background: none;
-      border: none;
-      color: #475569;
-      font-size: 11px;
-      cursor: pointer;
-      padding: 0;
-      font-family: inherit;
-      transition: color 0.2s;
-    }
-    #__demo-skip:hover { color: #94a3b8; }
-    #__demo-next {
-      background: linear-gradient(135deg, #6366f1, #818cf8);
-      border: none;
-      color: white;
-      font-size: 12px;
-      font-weight: 700;
-      padding: 8px 16px;
-      border-radius: 8px;
-      cursor: pointer;
-      font-family: inherit;
-      transition: transform 0.15s, box-shadow 0.15s;
-      box-shadow: 0 4px 12px rgba(99,102,241,0.4);
-    }
-    #__demo-next:hover {
-      transform: translateY(-1px);
-      box-shadow: 0 8px 20px rgba(99,102,241,0.5);
-    }
-
-    /* ── Pulsing ring on target ───────────────────────────────── */
-    /* position:fixed so it escapes sidebar's overflow:auto clipping context    */
-    #__demo-pulse-ring {
-      position: fixed;
-      border-radius: 10px;
-      border: 2px solid rgba(99,102,241,0.8);
-      box-shadow: 0 0 0 0 rgba(99,102,241,0.5);
-      animation: __demoPulse 1.8s ease-out infinite;
-      pointer-events: none;
-      z-index: 10050;
-    }
-    @keyframes __demoPulse {
-      0%   { box-shadow: 0 0 0 0   rgba(99,102,241,0.6); }
-      70%  { box-shadow: 0 0 0 12px rgba(99,102,241,0);   }
-      100% { box-shadow: 0 0 0 0   rgba(99,102,241,0);   }
-    }
-
-    /* ── Upgrade modal ────────────────────────────────────────── */
-    #__demo-upgrade-modal {
-      position: fixed;
-      inset: 0;
-      background: rgba(2,6,23,0.85);
-      backdrop-filter: blur(10px);
-      z-index: 10500;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      animation: __demoFadeIn 0.4s ease both;
-    }
-    @keyframes __demoFadeIn {
-      from { opacity: 0; } to { opacity: 1; }
-    }
-    #__demo-upgrade-card {
-      background: linear-gradient(160deg, #1e293b, #0f172a);
-      border: 1px solid rgba(99,102,241,0.35);
-      border-radius: 20px;
-      padding: 36px 32px;
-      max-width: 340px;
-      width: 90%;
-      text-align: center;
-      box-shadow: 0 40px 80px rgba(0,0,0,0.8), 0 0 60px rgba(99,102,241,0.1);
-      animation: __demoScaleIn 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
-    }
-    @keyframes __demoScaleIn {
-      from { opacity: 0; transform: scale(0.9) translateY(16px); }
-      to   { opacity: 1; transform: scale(1)   translateY(0);    }
-    }
-    #__demo-upgrade-icon {
-      width: 56px; height: 56px;
-      background: linear-gradient(135deg, rgba(99,102,241,0.2), rgba(192,132,252,0.1));
-      border: 1px solid rgba(99,102,241,0.3);
-      border-radius: 16px;
-      display: flex; align-items: center; justify-content: center;
-      margin: 0 auto 20px;
-      font-size: 26px;
-    }
-    #__demo-upgrade-headline {
-      color: #f1f5f9;
-      font-size: 18px;
-      font-weight: 800;
-      margin-bottom: 10px;
-      line-height: 1.3;
-    }
-    #__demo-upgrade-subtext {
-      color: #64748b;
-      font-size: 13px;
-      line-height: 1.6;
-      margin-bottom: 24px;
-    }
-    #__demo-upgrade-cta {
-      width: 100%;
-      padding: 13px 20px;
-      background: linear-gradient(135deg, #6366f1, #8b5cf6);
-      border: none;
-      border-radius: 10px;
-      color: white;
-      font-size: 14px;
-      font-weight: 800;
-      cursor: pointer;
-      font-family: inherit;
-      margin-bottom: 10px;
-      transition: transform 0.15s, box-shadow 0.15s;
-      box-shadow: 0 6px 20px rgba(99,102,241,0.5);
-      letter-spacing: 0.01em;
-    }
-    #__demo-upgrade-cta:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 12px 32px rgba(99,102,241,0.6);
-    }
-    #__demo-upgrade-skip {
-      background: none;
-      border: none;
-      color: #475569;
-      font-size: 12px;
-      cursor: pointer;
-      font-family: inherit;
-      padding: 6px;
-      transition: color 0.2s;
-      width: 100%;
-    }
-    #__demo-upgrade-skip:hover { color: #64748b; }
-
-    /* ── Simulated fake upload progress (for demo step) ─────── */
-    /* position:fixed so it renders above the page, positioned via JS           */
-    #__demo-fake-progress {
-      display: none;
-      position: fixed;
-      z-index: 10090;
-      flex-direction: column;
-      gap: 6px;
-      padding: 10px 14px;
-      background: rgba(99,102,241,0.06);
-      border: 1px solid rgba(99,102,241,0.15);
-      border-radius: 8px;
-      /* Anchored below the tooltip — JS will update if needed */
-      bottom: 80px;
-      left: 50%;
-      transform: translateX(-50%);
-      min-width: 220px;
-    }
-    #__demo-fake-progress.visible { display: flex; }
-    #__demo-fake-bar-track {
-      height: 4px;
-      background: rgba(99,102,241,0.15);
-      border-radius: 4px;
-      overflow: hidden;
-    }
-    #__demo-fake-bar-fill {
-      height: 100%;
-      width: 0%;
-      background: linear-gradient(90deg, #6366f1, #a78bfa);
-      border-radius: 4px;
-      transition: width 0.15s linear;
-    }
-    #__demo-fake-bar-label {
-      font-size: 11px;
-      color: #818cf8;
-      font-weight: 600;
-      text-align: center;
-    }
-  `;
-  document.head.appendChild(style);
-}
-
 // ── Spotlight SVG ──────────────────────────────────────────────────────────────
 function buildSpotlightSvg(rect, padding) {
   if (!rect) {
@@ -325,7 +53,6 @@ function buildSpotlightSvg(rect, padding) {
   const r = padding;
   const x = rect.left - r, y = rect.top - r;
   const w = rect.width + r * 2, h = rect.height + r * 2;
-  const W = window.innerWidth, H = window.innerHeight;
   return `<svg id="__demo-svg" xmlns="http://www.w3.org/2000/svg">
     <defs>
       <mask id="__dmask">
@@ -341,8 +68,8 @@ function buildSpotlightSvg(rect, padding) {
 
 // ── Position tooltip near target ──────────────────────────────────────────────
 // NOTE: tooltip is position:fixed — all coordinates are viewport-relative,
-// which is exactly what getBoundingClientRect() returns. No offset needed.
-function positionTooltip(tooltip, rect, padding) {
+// which is exactly what getBoundingClientRect() returns.
+function positionTooltip(tooltip, rect) {
   tooltip.style.transform = '';
 
   if (!rect) {
@@ -359,7 +86,7 @@ function positionTooltip(tooltip, rect, padding) {
   const VH = window.innerHeight;
   const MARGIN = 16;
 
-  // ── Preferred: dock to the LEFT of the target (sidebar is on the right) ────
+  // Preferred: dock to the LEFT of the target (sidebar is on the right)
   let left = rect.left - TW - 24;
   let top  = rect.top + (rect.height / 2) - (TH / 2);
 
@@ -378,9 +105,8 @@ function positionTooltip(tooltip, rect, padding) {
     }
   }
 
-  // Clamp horizontal within viewport
+  // Clamp within viewport
   left = Math.max(MARGIN, Math.min(left, VW - TW - MARGIN));
-  // Clamp vertical within viewport
   top  = Math.max(MARGIN, Math.min(top,  VH - TH - MARGIN));
 
   tooltip.style.left = `${Math.round(left)}px`;
@@ -424,46 +150,27 @@ class DemoTour {
     this.userId    = userId;
     this.steps     = variant.steps;
     this.current   = 0;
-    this.backdrop  = null;
-    this.tooltip   = null;
-    this.pulseRing = null;
+    this.backdrop  = document.getElementById('__demo-backdrop');
+    this.tooltip   = document.getElementById('__demo-tooltip');
+    this.pulseRing = document.getElementById('__demo-pulse-ring');
     this._clickHandler = null;
   }
 
   start() {
-    injectStyles();
-    this._buildDOM();
+    this._initDOM();
     this._renderStep(0);
   }
 
-  _buildDOM() {
-    // Backdrop
-    this.backdrop = document.createElement('div');
-    this.backdrop.id = '__demo-backdrop';
-    this.backdrop.innerHTML = buildSpotlightSvg(null, 0);
+  _initDOM() {
+    // Ensure all references are retrieved (if created dynamically or existing in HTML)
+    this.backdrop  = document.getElementById('__demo-backdrop');
+    this.tooltip   = document.getElementById('__demo-tooltip');
+    this.pulseRing = document.getElementById('__demo-pulse-ring');
 
-    // Pulse ring (reused, repositioned each step)
-    this.pulseRing = document.createElement('div');
-    this.pulseRing.id = '__demo-pulse-ring';
-    this.pulseRing.style.display = 'none';
-
-    // Fake progress (injected inside backdrop)
-    const fakeProgress = document.createElement('div');
-    fakeProgress.id = '__demo-fake-progress';
-    fakeProgress.innerHTML = `
-      <div id="__demo-fake-bar-track"><div id="__demo-fake-bar-fill"></div></div>
-      <div id="__demo-fake-bar-label">Uploading… 0%</div>
-    `;
-
-    // Tooltip bubble
-    this.tooltip = document.createElement('div');
-    this.tooltip.id = '__demo-tooltip';
-
-    document.body.appendChild(this.backdrop);
-    document.body.appendChild(this.pulseRing);
-    document.body.appendChild(fakeProgress);
-    document.body.appendChild(this.tooltip);
-    this.backdrop.classList.add('active');
+    if (this.backdrop) {
+      this.backdrop.style.display = 'block';
+      this.backdrop.classList.add('active');
+    }
   }
 
   _buildDots() {
@@ -484,21 +191,25 @@ class DemoTour {
     const pad    = step.spotlightPadding ?? 10;
 
     // Update SVG spotlight
-    const svg = this.backdrop.querySelector('#__demo-svg');
-    if (svg) svg.outerHTML = buildSpotlightSvg(rect, pad);
-    else      this.backdrop.innerHTML = buildSpotlightSvg(rect, pad);
+    if (this.backdrop) {
+      const svg = this.backdrop.querySelector('#__demo-svg');
+      if (svg) svg.outerHTML = buildSpotlightSvg(rect, pad);
+      else      this.backdrop.innerHTML = buildSpotlightSvg(rect, pad);
+    }
 
     // Pulse ring
-    if (rect) {
-      Object.assign(this.pulseRing.style, {
-        display: 'block',
-        top:     `${rect.top  - pad}px`,
-        left:    `${rect.left - pad}px`,
-        width:   `${rect.width  + pad * 2}px`,
-        height:  `${rect.height + pad * 2}px`,
-      });
-    } else {
-      this.pulseRing.style.display = 'none';
+    if (this.pulseRing) {
+      if (rect) {
+        Object.assign(this.pulseRing.style, {
+          display: 'block',
+          top:     `${rect.top  - pad}px`,
+          left:    `${rect.left - pad}px`,
+          width:   `${rect.width  + pad * 2}px`,
+          height:  `${rect.height + pad * 2}px`,
+        });
+      } else {
+        this.pulseRing.style.display = 'none';
+      }
     }
 
     if (step.action === 'show_upgrade_modal') {
@@ -508,31 +219,31 @@ class DemoTour {
     }
 
     // Render tooltip content
-    this.tooltip.style.display = 'block';
-    this.tooltip.innerHTML = `
-      ${step.badge ? `<div id="__demo-badge">${step.badge}</div>` : ''}
-      ${step.title ? `<div id="__demo-title">${step.title}</div>` : ''}
-      ${step.description ? `<div id="__demo-desc">${step.description}</div>` : ''}
-      <div id="__demo-dots">${this._buildDots()}</div>
-      <div id="__demo-actions">
-        ${this.variant.skippable ? '<button id="__demo-skip">Skip tour</button>' : '<span></span>'}
-        <button id="__demo-next">${step.action === 'click_to_advance' ? 'Click the button ↓' : 'Continue →'}</button>
-      </div>
-    `;
+    if (this.tooltip) {
+      this.tooltip.style.display = 'block';
+      this.tooltip.innerHTML = `
+        ${step.badge ? `<div id="__demo-badge">${step.badge}</div>` : ''}
+        ${step.title ? `<div id="__demo-title">${step.title}</div>` : ''}
+        ${step.description ? `<div id="__demo-desc">${step.description}</div>` : ''}
+        <div id="__demo-dots">${this._buildDots()}</div>
+        <div id="__demo-actions">
+          ${this.variant.skippable ? '<button id="__demo-skip">Skip tour</button>' : '<span></span>'}
+          <button id="__demo-next">${step.action === 'click_to_advance' ? 'Click the button ↓' : 'Continue →'}</button>
+        </div>
+      `;
 
-    // Position tooltip
-    requestAnimationFrame(() => positionTooltip(this.tooltip, rect, pad));
+      // Position tooltip
+      requestAnimationFrame(() => positionTooltip(this.tooltip, rect));
 
-    // Wire skip
-    document.getElementById('__demo-skip')?.addEventListener('click', () => this._finish());
+      // Wire skip
+      document.getElementById('__demo-skip')?.addEventListener('click', () => this._finish());
+    }
 
     // Action routing
     if (step.action === 'click_to_advance' && target) {
-      // Wait for the user to click the actual target element
       this._cleanupClickHandler();
       this._clickHandler = () => this._advanceAfterAction(index, step);
       target.addEventListener('click', this._clickHandler, { once: true });
-      // Also allow next button as fallback
       document.getElementById('__demo-next')?.addEventListener('click', () => {
         target.removeEventListener('click', this._clickHandler);
         this._advanceAfterAction(index, step);
@@ -541,13 +252,12 @@ class DemoTour {
       document.getElementById('__demo-next')?.addEventListener('click', () => this._renderStep(index + 1));
       setTimeout(() => this._renderStep(index + 1), step.durationMs ?? 2000);
     } else {
-      // 'simulate_progress' or default — next button advances
       document.getElementById('__demo-next')?.addEventListener('click', () => this._advanceAfterAction(index, step));
     }
   }
 
   async _advanceAfterAction(index, step) {
-    if (step.action === 'simulate_progress') {
+    if (step.action === 'simulate_progress' && this.tooltip) {
       this.tooltip.style.opacity = '0.4';
       this.tooltip.style.pointerEvents = 'none';
       await runFakeProgress(step.durationMs ?? 1200);
@@ -559,7 +269,6 @@ class DemoTour {
 
   _cleanupClickHandler() {
     if (this._clickHandler) {
-      // Remove from all possible targets
       this.steps.forEach(s => {
         const t = s.targetId ? document.getElementById(s.targetId) : null;
         if (t) t.removeEventListener('click', this._clickHandler);
@@ -570,23 +279,26 @@ class DemoTour {
 
   _destroyTour() {
     this._cleanupClickHandler();
-    this.backdrop?.remove();
-    this.tooltip?.remove();
-    this.pulseRing?.remove();
-    document.getElementById('__demo-fake-progress')?.remove();
+    if (this.backdrop)  { this.backdrop.style.display = 'none'; this.backdrop.classList.remove('active'); }
+    if (this.tooltip)   { this.tooltip.style.display = 'none'; }
+    if (this.pulseRing) { this.pulseRing.style.display = 'none'; }
+    const fake = document.getElementById('__demo-fake-progress');
+    if (fake) fake.classList.remove('visible');
   }
 
   _finish() {
     markDemoSeen(this.userId);
     this._destroyTour();
-    document.getElementById('__demo-upgrade-modal')?.remove();
+    const modal = document.getElementById('__demo-upgrade-modal');
+    if (modal) modal.style.display = 'none';
   }
 
   _showUpgradeModal() {
     markDemoSeen(this.userId);
     const cfg = UPGRADE_MODAL_CONFIG;
-    const modal = document.createElement('div');
-    modal.id = '__demo-upgrade-modal';
+    const modal = document.getElementById('__demo-upgrade-modal');
+    if (!modal) return;
+
     modal.innerHTML = `
       <div id="__demo-upgrade-card">
         <div id="__demo-upgrade-icon">☁️</div>
@@ -596,27 +308,22 @@ class DemoTour {
         <button id="__demo-upgrade-skip">${cfg.secondaryCta}</button>
       </div>
     `;
-    document.body.appendChild(modal);
+    modal.style.display = 'flex';
 
     document.getElementById('__demo-upgrade-cta')?.addEventListener('click', () => {
       window.open(cfg.upgradeUrl(), '_blank');
-      modal.remove();
+      modal.style.display = 'none';
     });
     document.getElementById('__demo-upgrade-skip')?.addEventListener('click', () => {
-      modal.remove();
+      modal.style.display = 'none';
     });
   }
 }
 
 // ── Entry Point ────────────────────────────────────────────────────────────────
 export function replayDemoTour(variant = ACTIVE_VARIANT, userId = null) {
-  // Clear any existing tour elements
-  document.getElementById('__demo-backdrop')?.remove();
-  document.getElementById('__demo-pulse-ring')?.remove();
-  document.getElementById('__demo-fake-progress')?.remove();
-  document.getElementById('__demo-tooltip')?.remove();
-  document.getElementById('__demo-upgrade-modal')?.remove();
-
+  const modal = document.getElementById('__demo-upgrade-modal');
+  if (modal) modal.style.display = 'none';
   new DemoTour(variant, userId).start();
 }
 
@@ -628,14 +335,8 @@ export function replayDemoTour(variant = ACTIVE_VARIANT, userId = null) {
  *   New user     → Shown once per Google account ID (localStorage key).
  *   Returning    → Skipped — localStorage key already set for their userId.
  *   Cloud sub    → Skipped — window.__antCloud === true.
- *
- * Timing: waits for 'antcapture:user-ready' dispatched by edit.js after
- * chrome.storage.local resolves, so we know user ID + role before deciding.
- * Falls back to a 3 s timer if the event never fires (e.g. extension opened
- * without a capture ID or in a context where edit.js doesn't run fully).
  */
 export function initDemoTour() {
-  // Register the global replay handle so the admin Tour button always works.
   window.__replayExtensionDemo = () => replayDemoTour(ACTIVE_VARIANT);
   window.addEventListener('antcapture:replay-demo-tour', () => replayDemoTour(ACTIVE_VARIANT));
 
@@ -645,18 +346,15 @@ export function initDemoTour() {
     if (decided) return;
     decided = true;
     if (!shouldShowDemo(userId, isAdmin)) return;
-    // RAF + short delay so sidebar finishes layout before tour measures rects
     requestAnimationFrame(() => {
       setTimeout(() => new DemoTour(ACTIVE_VARIANT, userId).start(), 300);
     });
   }
 
-  // Primary: edit.js fires this event after chrome.storage.local is read
   window.addEventListener('antcapture:user-ready', (e) => {
     const { userId, isAdmin } = e.detail || {};
     decide(userId || null, isAdmin || false);
   }, { once: true });
 
-  // Fallback: if user-ready never fires decide anyway (unauthenticated path)
   setTimeout(() => decide(null, false), 3000);
 }

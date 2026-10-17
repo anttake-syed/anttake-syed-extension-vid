@@ -5,6 +5,7 @@
   <title>Preview Capture - AntCapture</title>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,1,0" />
   <link rel="stylesheet" href="edit.css">
+  <link rel="stylesheet" href="demoTour.css">
   <link rel="stylesheet" href="../shared/player/player.css">
   <style>
     @keyframes popIn {
@@ -485,6 +486,33 @@
         <button id="discardCancelBtn" style="background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.1); color:#e2e8f0; padding:8px 18px; border-radius:7px; font-size:13px; font-weight:600; cursor:pointer; transition:all 0.15s;">Keep It</button>
         <button id="discardConfirmBtn" style="background:rgba(239,68,68,0.15); border:1px solid rgba(239,68,68,0.4); color:#f87171; padding:8px 18px; border-radius:7px; font-size:13px; font-weight:700; cursor:pointer; transition:all 0.15s;">Yes, Discard</button>
       </div>
+    </div>
+  </div>
+
+  <!-- ── Demo Tour Components ────────────────────────────────────────────── -->
+  <div id="__demo-backdrop" style="display:none;"></div>
+  <div id="__demo-pulse-ring" style="display:none;"></div>
+  <div id="__demo-fake-progress">
+    <div id="__demo-fake-bar-track"><div id="__demo-fake-bar-fill"></div></div>
+    <div id="__demo-fake-bar-label">Uploading… 0%</div>
+  </div>
+  <div id="__demo-tooltip" style="display:none;">
+    <div id="__demo-badge"></div>
+    <div id="__demo-title"></div>
+    <div id="__demo-desc"></div>
+    <div id="__demo-dots"></div>
+    <div id="__demo-actions">
+      <button id="__demo-skip">Skip tour</button>
+      <button id="__demo-next">Continue →</button>
+    </div>
+  </div>
+  <div id="__demo-upgrade-modal" style="display:none;">
+    <div id="__demo-upgrade-card">
+      <div id="__demo-upgrade-icon">⚡</div>
+      <div id="__demo-upgrade-headline">Upgrade to AntCapture Pro</div>
+      <div id="__demo-upgrade-subtext">Unlock unlimited cloud recording, instant share links, and automated team sync.</div>
+      <button id="__demo-upgrade-cta">Upgrade Now</button>
+      <button id="__demo-upgrade-skip">Maybe Later</button>
     </div>
   </div>
 

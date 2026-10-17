@@ -12,36 +12,58 @@
 export const DEMO_VARIANTS = {
 
   /**
-   * Variant A — 3-step interactive click-through Spotlight Tour.
-   * User is guided step-by-step, clicking highlighted elements.
+   * Variant A — Comprehensive click-through Feature Tour of edit.html.
+   * Highlights each save destination, auto-save toggle, and cloud benefits.
    */
   A: {
     id: 'A',
-    name: 'Interactive Spotlight Tour',
-    // Show the tour once then never again. Set to false to show every time (for testing).
+    name: 'Interactive Feature Tour',
     showOnceOnly: true,
-    // Whether the user can skip the tour at any step
     skippable: true,
     steps: [
       {
+        targetId: 'btnComputer',
+        spotlightPadding: 8,
+        badge: '💾 Local Export',
+        title: 'Save to Computer',
+        description: 'Instant zero-upload download. Saves your video (.webm) or screenshot (.png) directly to your machine with standard filename and quality controls.',
+        action: 'click_to_advance',
+      },
+      {
         targetId: 'btnCloud',
-        spotlightPadding: 10,
-        badge: '✦ Cloud Feature',
-        title: 'Instant Cloud Sync',
-        description: 'Click this button to experience exactly how fast AntCapture Cloud uploads your recording — instant, encrypted, shareable.',
-        action: 'click_to_advance', // wait for user to click the target element
+        spotlightPadding: 8,
+        badge: '✦ Cloud & Dashboard',
+        title: 'AntCapture Web & Drive',
+        description: 'Syncs your capture directly to your AntCapture web library and Google Drive. Instant shareable link, transcription, and preview in seconds.',
+        action: 'click_to_advance',
       },
       {
         targetId: 'uploadProgressWrap',
-        spotlightPadding: 14,
+        spotlightPadding: 12,
         badge: '⚡ Blazing Fast',
-        title: 'Uploads in Milliseconds',
-        description: 'Your captures are securely synced to the cloud. Sharing a link takes less than a second.',
-        action: 'simulate_progress', // play fake upload animation then auto-advance
+        title: 'Fast Cloud Processing',
+        description: 'Watch captures compress and upload with live percentage feedback directly inside your sidebar without blocking your work.',
+        action: 'simulate_progress',
         durationMs: 1200,
       },
       {
-        targetId: null, // no spotlight — full-screen upgrade modal
+        targetId: 'btnDrive',
+        spotlightPadding: 8,
+        badge: '📁 Direct Drive',
+        title: 'Google Drive Only',
+        description: 'Send files straight to your own personal Google Drive folder without storing copies on AntCapture cloud servers.',
+        action: 'click_to_advance',
+      },
+      {
+        targetId: 'btnLocal',
+        spotlightPadding: 8,
+        badge: '🛡️ Self-Hosted',
+        title: 'Self-Hosted Storage',
+        description: 'Connect your own private server or local network storage backend for 100% data sovereignty and corporate privacy compliance.',
+        action: 'click_to_advance',
+      },
+      {
+        targetId: null, // full-screen upgrade modal
         badge: null,
         title: null,
         description: null,

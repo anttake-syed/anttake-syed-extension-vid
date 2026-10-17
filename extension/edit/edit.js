@@ -66,19 +66,23 @@ function updateAuthPanel(user, hintText) {
   const isRealUser = user && user.jwt && user.email && !user.email.includes('localhost');
 
   const tourBtn = document.getElementById('tourReplayBtn');
-  if (tourBtn) {
-    if (user?.role === 'admin') {
-      tourBtn.style.display = 'inline-flex';
-      tourBtn.onclick = () => {
-        if (typeof window.__replayExtensionDemo === 'function') {
-          window.__replayExtensionDemo();
-        } else {
-          window.dispatchEvent(new CustomEvent('antcapture:replay-demo-tour'));
-        }
-      };
+  const adminTourBtn = document.getElementById('adminTourBtn');
+  const triggerTour = () => {
+    if (typeof window.__replayExtensionDemo === 'function') {
+      window.__replayExtensionDemo();
     } else {
-      tourBtn.style.display = 'none';
+      window.dispatchEvent(new CustomEvent('antcapture:replay-demo-tour'));
     }
+  };
+
+  const isAdmin = user?.role === 'admin';
+  if (tourBtn) {
+    tourBtn.style.display = isAdmin ? 'inline-flex' : 'none';
+    tourBtn.onclick = triggerTour;
+  }
+  if (adminTourBtn) {
+    adminTourBtn.style.display = isAdmin ? 'inline-flex' : 'none';
+    adminTourBtn.onclick = triggerTour;
   }
 
   if (isRealUser) {

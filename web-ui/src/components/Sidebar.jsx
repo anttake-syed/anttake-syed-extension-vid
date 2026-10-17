@@ -106,15 +106,28 @@ export default function Sidebar({ activeNav, isAuthenticated, hasCloudAccess = t
               <li
                 className="nav-item nav-item-secondary"
                 onClick={() => {
-                  window.dispatchEvent(new CustomEvent('trigger-onboarding'));
+                  window.dispatchEvent(new CustomEvent('trigger-onboarding', { detail: { variant: 'standard' } }));
                 }}
-                title="Tour Preview"
+                title="Preview Free Tour (Unsubscribed)"
+                style={{ cursor: 'pointer' }}
+              >
+                <span className="nav-icon material-symbols-rounded" style={{ fontSize: '18px', fontWeight: '300', color: '#38bdf8' }}>
+                  explore
+                </span>
+                <span className="nav-label" style={{ color: '#cbd5e1' }}>Free Tour Preview</span>
+              </li>
+              <li
+                className="nav-item nav-item-secondary"
+                onClick={() => {
+                  window.dispatchEvent(new CustomEvent('trigger-onboarding', { detail: { variant: 'pro' } }));
+                }}
+                title="Preview Pro Tour (Subscribed)"
                 style={{ cursor: 'pointer' }}
               >
                 <span className="nav-icon material-symbols-rounded" style={{ fontSize: '18px', fontWeight: '300', color: '#a855f7' }}>
-                  explore
+                  verified
                 </span>
-                <span className="nav-label" style={{ color: '#cbd5e1' }}>Tour Preview</span>
+                <span className="nav-label" style={{ color: '#cbd5e1' }}>Pro Tour Preview</span>
               </li>
             </ul>
           </>

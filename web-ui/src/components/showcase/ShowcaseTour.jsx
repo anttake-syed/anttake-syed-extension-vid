@@ -94,10 +94,14 @@ export default function ShowcaseTour({
   const pad = 8;
   const rx = 10;
 
+  const isStandard = variant === 'standard';
+
   return (
     <div
       className="showcase-backdrop active"
       onClick={(e) => {
+        // Standard/free tour prevents accidental dismissals from backdrop clicks
+        if (isStandard) return;
         // Clicking the dark backdrop (not the popover) closes the tour
         if (e.target === e.currentTarget) {
           onClose();
@@ -155,6 +159,7 @@ export default function ShowcaseTour({
         stepIndex={stepIndex}
         totalSteps={steps.length}
         positionStyle={popoverPositionStyle}
+        variant={variant}
         onNext={handleNext}
         onPrev={handlePrev}
         onSkip={onClose}

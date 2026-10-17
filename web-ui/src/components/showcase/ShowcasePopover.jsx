@@ -6,12 +6,14 @@ export default function ShowcasePopover({
   stepIndex,
   totalSteps,
   positionStyle,
+  variant = 'standard',
   onNext,
   onPrev,
   onSkip,
   onActionClick
 }) {
   const isLast = stepIndex === totalSteps - 1;
+  const isStandard = variant === 'standard';
 
   return (
     <div className="showcase-popover" style={positionStyle}>
@@ -30,9 +32,11 @@ export default function ShowcasePopover({
           </span>
           {step.badge}
         </span>
-        <button className="showcase-close-btn" onClick={onSkip} aria-label="Dismiss tour">
-          <span className="material-symbols-rounded" style={{ fontSize: '18px' }}>close</span>
-        </button>
+        {!isStandard && (
+          <button className="showcase-close-btn" onClick={onSkip} aria-label="Dismiss tour">
+            <span className="material-symbols-rounded" style={{ fontSize: '18px' }}>close</span>
+          </button>
+        )}
       </div>
 
       {/* Content */}

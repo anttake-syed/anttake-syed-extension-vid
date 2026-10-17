@@ -346,6 +346,7 @@ function MediaModalContent({ item, onClose, user, onSyncSuccess, onDelete, dbSta
               <VideoViewer
                 src={getFullSrc(item.src, user?.jwt)}
                 onClose={onClose}
+                mimeType={item.mimeType || ''}
               />
             </div>
           ) : (

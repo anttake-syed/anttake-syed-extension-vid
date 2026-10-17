@@ -32,6 +32,16 @@ chrome.storage.onChanged.addListener((changes, area) => {
           processSave(pendingSaveMode);
           pendingSaveMode = null;
         }
+        // Admin: auto-replay the door-preview tour on each new sign-in
+        if (newUser.role === 'admin') {
+          setTimeout(() => {
+            if (typeof window.__replayExtensionDemo === 'function') {
+              window.__replayExtensionDemo();
+            } else {
+              window.dispatchEvent(new CustomEvent('antcapture:replay-demo-tour'));
+            }
+          }, 600);
+        }
       }
     }
   }
@@ -176,6 +186,25 @@ function updateUploadProgress(pct) {
 function hideUploadProgress() {
   const wrap = document.getElementById('uploadProgressWrap');
   if (wrap) wrap.classList.remove('visible');
+}
+
+// ── Professional Save Loading Overlay Helpers ─────────────────────────────
+function showSaveLoading(primaryText = 'Saving…', subText = 'Please wait a moment') {
+  const overlay   = document.getElementById('saveLoadingOverlay');
+  const textEl    = document.getElementById('saveLoadingText');
+  const subTextEl = document.getElementById('saveLoadingSubtext');
+  if (!overlay) return;
+  if (textEl)    textEl.textContent    = primaryText;
+  if (subTextEl) subTextEl.textContent = subText;
+  overlay.classList.add('visible');
+  document.body.style.pointerEvents = 'none';
+  overlay.style.pointerEvents = 'all';
+}
+
+function hideSaveLoading() {
+  const overlay = document.getElementById('saveLoadingOverlay');
+  if (overlay) overlay.classList.remove('visible');
+  document.body.style.pointerEvents = 'auto';
 }
 
 async function showSuccessAndClose(message) {
@@ -733,7 +762,8 @@ async function processSave(mode) {
 
         let cloudUploadConfirmed = true; // only meaningful when mode === 'cloud'
         if (mode === 'cloud') {
-          // ── Cloud upload: XHR with real progress bar ──────────────────────────
+          // ── Cloud upload: XHR with real progress bar + branded loading overlay ──
+          showSaveLoading('Uploading to AntCapture Cloud…', 'Syncing your capture to the cloud');
           showUploadProgress();
           try {
             const uploadResult = await uploadWithProgress(blob, type, tokenToUse,
@@ -743,11 +773,18 @@ async function processSave(mode) {
             cloudUploadConfirmed = uploadResult?.confirmed === true;
           } finally {
             hideUploadProgress();
+            hideSaveLoading();
           }
         } else {
           // ── Local / Drive: standard fetch (no large-file concern) ─────────────
-          showToast('Saving capture...', 'success', 10000);
-          await uploadToServer(blob, type, mode, tokenToUse, resolution, format, customName, hasAudio);
+          const driveLabel = mode === 'drive-only' ? 'Uploading to Google Drive…' : 'Saving to Self-Hosted Server…';
+          const driveSub   = mode === 'drive-only' ? 'Sending your capture to Drive' : 'Storing on your local server';
+          showSaveLoading(driveLabel, driveSub);
+          try {
+            await uploadToServer(blob, type, mode, tokenToUse, resolution, format, customName, hasAudio);
+          } finally {
+            hideSaveLoading();
+          }
         }
 
         chrome.storage.local.get(['captureCount'], (r) =>

@@ -69,9 +69,10 @@ class VideoViewerErrorBoundary extends React.Component {
  *
  * Props:
  *   src      {string}   — fully resolved, authenticated video URL
+ *   mimeType {string}   — optional MIME type hint (e.g. 'video/webm;codecs=vp8,opus')
  *   onClose  {fn}       — called when the viewer wants to be dismissed
  */
-export default function VideoViewer({ src, onClose }) {
+export default function VideoViewer({ src, onClose, mimeType }) {
   if (!src) {
     return (
       <div className="vv-error-boundary">
@@ -88,7 +89,10 @@ export default function VideoViewer({ src, onClose }) {
 
   return (
     <VideoViewerErrorBoundary onClose={onClose}>
-      <VideoPlayer src={src} onError={onClose} />
+      {/* onError is intentionally omitted here — VideoPlayer shows its own
+          in-player error state with a Retry button. Passing onClose would
+          instantly close the modal on any transient load failure. */}
+      <VideoPlayer src={src} mimeType={mimeType} />
     </VideoViewerErrorBoundary>
   );
 }

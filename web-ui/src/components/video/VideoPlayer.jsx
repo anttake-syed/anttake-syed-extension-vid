@@ -18,7 +18,7 @@ import '../../styles/pages/media-modal.css';
  *   src     {string}   — full, resolved video URL
  *   onError {fn}       — called when the video fails to load
  */
-export default function VideoPlayer({ src, onError }) {
+export default function VideoPlayer({ src, onError, mimeType }) {
   const videoRef = useRef(null);
   const containerRef = useRef(null);
   const rafRef = useRef(null);
@@ -139,11 +139,20 @@ export default function VideoPlayer({ src, onError }) {
     // workaround) can occasionally trigger a genuine 'error' event on some
     // Chromium builds for headerless/short WebM files, even though the video
     // already proved itself decodable by firing loadedmetadata moments
-    // earlier. That's an artifact of our own diagnostic seek, not a real
-    // playback failure — don't show a false "can't play" error for a file
-    // that actually loaded fine.
+    // earlier. Add a short debounce so we don't misclassify a self-triggered
+    // seek error as a real playback failure.
     if (resolvingDurationRef.current) {
-      resolvingDurationRef.current = false;
+      // Give Chromium up to 400 ms to recover from the diagnostic seek
+      setTimeout(() => {
+        if (resolvingDurationRef.current) {
+          // Still unresolved after the grace window — treat as real error
+          resolvingDurationRef.current = false;
+          stopRaf();
+          setStatus('error');
+          if (onError) onError();
+        }
+        // else: duration resolved in time — this was a false alarm, ignore
+      }, 400);
       return;
     }
     stopRaf();
@@ -278,6 +287,7 @@ export default function VideoPlayer({ src, onError }) {
           className="vp-video"
           playsInline
           preload="metadata"
+          {...(mimeType ? { type: mimeType } : {})}
           onLoadedMetadata={handleLoadedMetadata}
           onCanPlay={handleCanPlay}
           onPlay={handlePlay}

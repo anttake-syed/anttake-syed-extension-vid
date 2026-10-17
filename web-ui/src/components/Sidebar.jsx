@@ -34,6 +34,7 @@ export default function Sidebar({ activeNav, isAuthenticated, hasCloudAccess = t
     return (
       <li
         key={item}
+        data-nav={item}
         className={`nav-item ${activeNav === item ? 'active' : ''} ${secondary ? 'nav-item-secondary' : ''}`}
         onClick={() => {
           if (PUBLIC_ITEMS.includes(item)) {onNavClick(item);}
@@ -102,6 +103,32 @@ export default function Sidebar({ activeNav, isAuthenticated, hasCloudAccess = t
             </div>
             <ul className="nav-list" style={{ marginTop: '4px' }}>
               {ADMIN_NAV.map((item) => renderNavItem(item, true))}
+              <li
+                className="nav-item nav-item-secondary"
+                onClick={() => {
+                  window.dispatchEvent(new CustomEvent('trigger-onboarding', { detail: { variant: 'standard' } }));
+                }}
+                title="Preview Free Tour (Unsubscribed)"
+                style={{ cursor: 'pointer' }}
+              >
+                <span className="nav-icon material-symbols-rounded" style={{ fontSize: '18px', fontWeight: '300', color: '#38bdf8' }}>
+                  explore
+                </span>
+                <span className="nav-label" style={{ color: '#cbd5e1' }}>Free Tour Preview</span>
+              </li>
+              <li
+                className="nav-item nav-item-secondary"
+                onClick={() => {
+                  window.dispatchEvent(new CustomEvent('trigger-onboarding', { detail: { variant: 'pro' } }));
+                }}
+                title="Preview Pro Tour (Subscribed)"
+                style={{ cursor: 'pointer' }}
+              >
+                <span className="nav-icon material-symbols-rounded" style={{ fontSize: '18px', fontWeight: '300', color: '#a855f7' }}>
+                  verified
+                </span>
+                <span className="nav-label" style={{ color: '#cbd5e1' }}>Pro Tour Preview</span>
+              </li>
             </ul>
           </>
         )}

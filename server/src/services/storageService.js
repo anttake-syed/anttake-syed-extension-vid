@@ -110,10 +110,7 @@ class StorageService {
 
   async deleteFile(storageObject, options = {}) {
     const providerInstance = this._getProviderInstance(storageObject.provider);
-    const success = await providerInstance.delete(storageObject.providerObjectId, {
-      userId: storageObject.capture.userId,
-      ...options
-    });
+    const success = await providerInstance.delete(storageObject.providerObjectId, options);
     if (success) {
       await prisma.storageObject.update({ where: { id: storageObject.id }, data: { status: 'deleted' } });
     }

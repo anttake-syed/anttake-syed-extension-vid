@@ -20,6 +20,7 @@ body {
 
 /* Sidebar Layout */
 .sidebar {
+  position: relative;
   width: 360px;
   min-width: 360px;
   background: #0f172a;

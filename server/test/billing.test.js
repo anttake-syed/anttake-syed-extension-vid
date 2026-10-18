@@ -11,7 +11,8 @@ function fakeDb({ plans = ['free', 'cloud'] } = {}) {
   const db = {
     calls,
     plan: {
-      findUnique: async ({ where }) => (plans.includes(where.name) ? { id: `plan_${where.name}`, name: where.name } : null),
+      findUnique: async ({ where }) => (plans.includes(where.name) ? { id: `plan_${where.name}`, name: where.name, isActive: true } : null),
+      upsert: async ({ where, create }) => ({ id: `plan_${where.name}`, name: where.name, ...create, isActive: true }),
     },
     lemonSqueezyCustomer: { upsert: async () => ({}), findUnique: async () => ({ id: 'cust_1' }) },
     lemonSqueezyEvent: { findUnique: async () => null, create: async () => ({}) },
@@ -70,13 +71,13 @@ test('a paid checkout variant is recorded on the cloud plan', async () => {
   assert.equal(db.calls.subscriptionUpserts[0].create.status, 'active');
 });
 
-test('a paid subscription is still recorded if the cloud plan row is missing', async () => {
+test('a paid subscription self-heals and creates the cloud plan row if missing', async () => {
   const db = fakeDb({ plans: ['free'] });
   const { handleWebhook } = loadWebhook(db);
   const res = mockRes();
   await handleWebhook(signedRequest(subscriptionCreated), res);
   assert.equal(res.statusCode, 200);
-  assert.equal(db.calls.subscriptionUpserts[0].create.planId, 'plan_free');
+  assert.equal(db.calls.subscriptionUpserts[0].create.planId, 'plan_cloud');
 });
 
 test('public /plans hides draft plans', async () => {

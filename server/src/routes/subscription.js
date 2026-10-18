@@ -8,5 +8,6 @@ router.post('/checkout', requireAuth, subscriptionController.createCheckout);
 // Called by the frontend after ?billing=success to recover from webhook delays.
 // Server fetches live state from LemonSqueezy, updates DB, returns fresh entitlements.
 router.post('/sync',   requireAuth, subscriptionController.syncSubscription);
+router.post('/cancel', requireAuth, subscriptionController.cancelSubscription);
 
 module.exports = router;

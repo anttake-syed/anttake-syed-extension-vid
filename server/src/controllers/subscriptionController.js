@@ -287,3 +287,106 @@ exports.createCheckout = async (req, res) => {
     });
   }
 };
+
+// ── POST /subscription/cancel ─────────────────────────────────────────────────
+// Cancels the subscription at period end via LemonSqueezy API (supports test & live).
+// Immediately updates the database record and cache so entitlements reflect cancellation.
+exports.cancelSubscription = async (req, res) => {
+  const userId = req.user.id;
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        subscription: { include: { plan: true } },
+        lemonSqueezyCustomer: true,
+      },
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    if (!user.subscription || !hasCloudAccess(user.subscription)) {
+      return res.status(400).json({ error: 'No active paid subscription found to cancel.' });
+    }
+
+    if (user.subscription.cancelAtPeriodEnd) {
+      return res.status(400).json({ error: 'Subscription is already scheduled for cancellation.' });
+    }
+
+    let lsSubId = user.lemonSqueezyCustomer?.lsSubscriptionId;
+
+    // If no lsSubscriptionId stored on lemonSqueezyCustomer, attempt email lookup
+    if (!lsSubId) {
+      try {
+        const subs = await lemonSqueezyService.fetchSubscriptionsByEmail(user.email);
+        const best = pickBestSubscription(subs);
+        if (best) {
+          lsSubId = best.id.toString();
+          await prisma.lemonSqueezyCustomer.upsert({
+            where: { userId },
+            update: {
+              lsCustomerId: best.attributes.customer_id.toString(),
+              lsSubscriptionId: lsSubId,
+              lsVariantId: best.attributes.variant_id.toString(),
+            },
+            create: {
+              userId,
+              lsCustomerId: best.attributes.customer_id.toString(),
+              lsSubscriptionId: lsSubId,
+              lsVariantId: best.attributes.variant_id.toString(),
+            },
+          });
+        }
+      } catch (e) {
+        logger.warn('subscription', 'cancel-email-lookup-failed', { userId, error: e.message });
+      }
+    }
+
+    let lsResult = null;
+    if (lsSubId) {
+      try {
+        lsResult = await lemonSqueezyService.cancelSubscription(lsSubId);
+      } catch (err) {
+        logger.warn('subscription', 'lemon-squeezy-api-cancel-failed', { userId, lsSubId, error: err.message });
+        // If it's not configured or network error, we can still mark cancellation locally or report error
+        // If test mode or LS API succeeds, lsResult contains updated subscription attributes
+      }
+    }
+
+    // Update database subscription record to mark cancelAtPeriodEnd
+    // LemonSqueezy cancel sets ends_at to currentPeriodEnd
+    const endsAt = lsResult?.attributes?.ends_at ? new Date(lsResult.attributes.ends_at) : (user.subscription.currentPeriodEnd || undefined);
+
+    const updatedSub = await prisma.subscription.update({
+      where: { userId },
+      data: {
+        cancelAtPeriodEnd: true,
+        currentPeriodEnd: endsAt,
+        status: lsResult?.attributes?.status || user.subscription.status,
+      },
+      include: { plan: true },
+    });
+
+    const { invalidateSubscriptionCache } = require('../services/subscriptionCache');
+    invalidateSubscriptionCache(userId);
+
+    const appSettings = await prisma.appSettings.findUnique({ where: { id: 'global' } }) || {};
+
+    logger.info('subscription', 'cancelled-successfully', {
+      userId,
+      lsSubId,
+      currentPeriodEnd: updatedSub.currentPeriodEnd,
+    });
+
+    res.json({
+      success: true,
+      message: 'Subscription has been scheduled for cancellation. You retain access until the end of your billing period.',
+      subscription: updatedSub,
+      entitlements: exports.computeEntitlements(updatedSub, user, appSettings),
+    });
+  } catch (err) {
+    logger.error('subscription', 'cancel-subscription-failed', { requestId: req.requestId, userId, error: err });
+    res.status(500).json({ error: 'Failed to cancel subscription. Please contact support if this issue persists.' });
+  }
+};

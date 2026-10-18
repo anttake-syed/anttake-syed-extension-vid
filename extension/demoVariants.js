@@ -9,6 +9,8 @@
  * ──────────────────────────────────────────────────────────────────
  */
 
+import { PROD_WEB_UI_URL } from './shared/config.js';
+
 export const DEMO_VARIANTS = {
 
   /**
@@ -123,12 +125,11 @@ export const ACTIVE_VARIANT = DEMO_VARIANTS[ACTIVE_VARIANT_ID];
 export const UPGRADE_MODAL_CONFIG = {
   headline: "That's Cloud. Yours to keep.",
   subtext: 'Unlimited uploads. Instant shareable links. Works with every capture you make.',
-  primaryCta: '✦ Unlock Cloud Now',
+  primaryCta: '\u2736 Unlock Cloud Now',
   secondaryCta: 'Maybe later',
-  // URL to redirect to when clicking the primary CTA
-  // source param helps track how many users upgrade from the demo
+  // URL to redirect to when clicking the primary CTA.
+  // source param tracks upgrades coming from the in-extension demo tour.
   upgradeUrl: () => {
-    const base = 'https://antcapture.com/pricing';
-    return `${base}?source=extension_demo_v${ACTIVE_VARIANT_ID}`;
+    return `${PROD_WEB_UI_URL}/pricing?source=extension_demo_v${ACTIVE_VARIANT_ID}`;
   },
 };

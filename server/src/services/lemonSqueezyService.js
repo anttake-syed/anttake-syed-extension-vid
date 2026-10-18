@@ -1,4 +1,4 @@
-const { lemonSqueezySetup, createCheckout, getCustomer, getSubscription } = require('@lemonsqueezy/lemonsqueezy.js');
+const { lemonSqueezySetup, createCheckout, getCustomer, getSubscription, cancelSubscription } = require('@lemonsqueezy/lemonsqueezy.js');
 
 class LemonSqueezyService {
   constructor() {
@@ -134,6 +134,28 @@ class LemonSqueezyService {
     } catch (err) {
       console.error('Fetch Subscriptions By Email Error:', err);
       return [];
+    }
+  }
+
+  /**
+   * Cancels a subscription in LemonSqueezy (sets it to cancel at period end).
+   * Works in both Test mode and Live mode.
+   */
+  async cancelSubscription(lsSubscriptionId) {
+    if (!this.apiKey) {
+      throw new Error('LemonSqueezy is not configured');
+    }
+    try {
+      const { data, error } = await cancelSubscription(lsSubscriptionId);
+      if (error) {
+        const detail = error.cause ?? error.body ?? error.errors ?? null;
+        const detailStr = detail ? ` — ${JSON.stringify(detail)}` : '';
+        throw new Error(`LemonSqueezy cancellation error: ${error.message}${detailStr}`);
+      }
+      return data?.data ?? null;
+    } catch (err) {
+      console.error('Cancel Subscription Error:', err);
+      throw err;
     }
   }
 }

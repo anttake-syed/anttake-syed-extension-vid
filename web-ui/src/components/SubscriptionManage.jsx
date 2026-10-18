@@ -47,6 +47,35 @@ export default function SubscriptionManage({ user }) {
     );
   }
 
+  const [confirmCancelOpen, setConfirmCancelOpen] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+  const [cancelMessage, setCancelMessage] = useState(null);
+
+  async function handleCancelSubscription() {
+    setCancelling(true);
+    setCancelMessage(null);
+    try {
+      const res = await fetch(`${SERVER_URL}/subscription/cancel`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${user.jwt}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to cancel subscription');
+      }
+      setSub(data.subscription);
+      setEntitlements(data.entitlements);
+      setConfirmCancelOpen(false);
+    } catch (err) {
+      setCancelMessage({ type: 'error', text: err.message });
+    } finally {
+      setCancelling(false);
+    }
+  }
+
   if (entitlements && entitlements.cloud) {
     const isCancelAtPeriodEnd = entitlements.cancelAtPeriodEnd;
     
@@ -80,9 +109,15 @@ export default function SubscriptionManage({ user }) {
             <div className="billing-row">
               <span style={{ color: 'var(--text-dim)', fontSize: '14px' }}>Cloud Quota</span>
               <span style={{ color: 'white', fontWeight: 600, fontSize: '14px' }}>
-                {sub.Plan ? (sub.Plan.cloudStorageLimit / (1024*1024*1024)).toFixed(0) + ' GB' : 'Unlimited'}
+                {sub?.Plan ? (sub.Plan.cloudStorageLimit / (1024*1024*1024)).toFixed(0) + ' GB' : 'Unlimited'}
               </span>
             </div>
+            {isCancelAtPeriodEnd && (
+              <div style={{ marginTop: '12px', padding: '10px 14px', background: 'rgba(245, 158, 11, 0.1)', border: '1px solid rgba(245, 158, 11, 0.25)', borderRadius: '8px', color: '#fbbf24', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span className="material-symbols-rounded" style={{ fontSize: '18px' }}>info</span>
+                Your plan is scheduled to cancel. You retain full access to Cloud storage and features until the end of your billing period.
+              </div>
+            )}
           </div>
           
           <div className="billing-actions">
@@ -98,20 +133,73 @@ export default function SubscriptionManage({ user }) {
                 Update Payment Method
               </a>
             )}
-            {sub && sub.cancelUrl && !isCancelAtPeriodEnd && (
-              <a
-                href={sub.cancelUrl}
-                target="_blank"
-                rel="noreferrer"
-                style={{ textAlign: 'center', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', color: '#f87171', padding: '12px', borderRadius: '8px', fontSize: '14px', fontWeight: 600, textDecoration: 'none', transition: 'all 0.15s' }}
+            {!isCancelAtPeriodEnd && (
+              <button
+                type="button"
+                onClick={() => { setCancelMessage(null); setConfirmCancelOpen(true); }}
+                style={{ textAlign: 'center', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)', color: '#f87171', padding: '12px 16px', borderRadius: '8px', fontSize: '14px', fontWeight: 600, cursor: 'pointer', transition: 'all 0.15s', fontFamily: 'inherit' }}
                 onMouseEnter={e => e.currentTarget.style.background = 'rgba(239,68,68,0.2)'}
                 onMouseLeave={e => e.currentTarget.style.background = 'rgba(239,68,68,0.1)'}
               >
                 Cancel Subscription
-              </a>
+              </button>
             )}
           </div>
         </div>
+
+        {/* Confirmation Modal */}
+        {confirmCancelOpen && (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '16px' }}>
+            <div style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: '16px', padding: '24px', maxWidth: '440px', width: '100%', boxShadow: '0 20px 40px rgba(0,0,0,0.5)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+                <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'rgba(239,68,68,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#f87171' }}>
+                  <span className="material-symbols-rounded">warning</span>
+                </div>
+                <h3 style={{ margin: 0, color: 'white', fontSize: '18px', fontWeight: 700 }}>Cancel Subscription?</h3>
+              </div>
+
+              <p style={{ color: 'var(--text-dim)', fontSize: '14px', lineHeight: '1.6', margin: '0 0 16px' }}>
+                Are you sure you want to cancel your AntCapture Cloud subscription?
+              </p>
+
+              <div style={{ background: 'var(--bg-secondary)', borderRadius: '8px', padding: '12px', marginBottom: '20px', fontSize: '13px', color: '#cbd5e1', lineHeight: '1.5' }}>
+                ✨ <strong>You will keep full access</strong> to Cloud storage, Screen recording sync, and Whiteboards until <strong>{entitlements.currentPeriodEnd ? new Date(entitlements.currentPeriodEnd).toLocaleDateString() : 'the end of your period'}</strong>. No further charges will occur.
+              </div>
+
+              {cancelMessage && (
+                <div style={{ marginBottom: '16px', padding: '10px 12px', borderRadius: '8px', background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', color: '#fca5a5', fontSize: '13px' }}>
+                  {cancelMessage.text}
+                </div>
+              )}
+
+              <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+                <button
+                  type="button"
+                  disabled={cancelling}
+                  onClick={() => setConfirmCancelOpen(false)}
+                  style={{ background: 'transparent', border: '1px solid #475569', color: '#cbd5e1', padding: '10px 16px', borderRadius: '8px', fontSize: '14px', fontWeight: 600, cursor: 'pointer' }}
+                >
+                  Keep Subscription
+                </button>
+                <button
+                  type="button"
+                  disabled={cancelling}
+                  onClick={handleCancelSubscription}
+                  style={{ background: '#ef4444', border: 'none', color: 'white', padding: '10px 18px', borderRadius: '8px', fontSize: '14px', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
+                >
+                  {cancelling ? (
+                    <>
+                      <div className="btn-spinner" style={{ width: '16px', height: '16px', borderWidth: '2px' }} />
+                      Cancelling...
+                    </>
+                  ) : (
+                    'Confirm Cancellation'
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </Page>
     );
   }

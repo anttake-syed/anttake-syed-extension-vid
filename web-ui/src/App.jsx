@@ -663,7 +663,12 @@ export default function App() {
         ) : activeNav === 'Settings' && isAuthenticated ? (
           <Settings user={user} captures={captures} dbStats={dbStats} onNameUpdate={handleNameUpdate} onDeleteAllCaptures={handleDeleteAllCaptures} onDeleteAccount={handleDeleteAccount} storagePreference={storagePreference} saveStoragePreference={saveStoragePreference} savingPref={savingPref} onManageSubscription={() => setActiveNav('Subscription')} />
         ) : activeNav === 'Subscription' && isAuthenticated ? (
-          <SubscriptionManage user={user} />
+          <SubscriptionManage
+            user={user}
+            initialSubscription={subscription}
+            initialEntitlements={entitlements}
+            onSubscriptionUpdate={refreshSubscription}
+          />
         ) : activeNav === 'Whiteboards' ? (
           <Whiteboards
             key={wbRefreshKey}

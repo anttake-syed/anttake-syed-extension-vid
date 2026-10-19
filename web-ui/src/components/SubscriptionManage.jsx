@@ -3,32 +3,47 @@ import { SERVER_URL } from '../config.js';
 import { Page } from './layout/Page.jsx';
 import '../styles/pages/billing.css';
 
-export default function SubscriptionManage({ user }) {
-  const [sub, setSub] = useState(null);
-  const [entitlements, setEntitlements] = useState(null);
-  const [loading, setLoading] = useState(true);
+export default function SubscriptionManage({
+  user,
+  initialSubscription = null,
+  initialEntitlements = null,
+  onSubscriptionUpdate = null
+}) {
+  const [sub, setSub] = useState(initialSubscription);
+  const [entitlements, setEntitlements] = useState(initialEntitlements);
+  const [loading, setLoading] = useState(!initialEntitlements);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
-  
-  useEffect(() => {
-    async function fetchSub() {
-      try {
-        const res = await fetch(`${SERVER_URL}/subscription`, {
-          headers: { 'Authorization': `Bearer ${user.jwt}` }
-        });
-        if (!res.ok) throw new Error('Failed to fetch subscription');
-        const data = await res.json();
-        setSub(data.subscription);
-        setEntitlements(data.entitlements);
-      } catch (err) {
-        setError(err.message);
-      } finally {
-        setLoading(false);
+
+  const fetchSub = async (isManualRefresh = false) => {
+    if (isManualRefresh) setRefreshing(true);
+    setError(null);
+    try {
+      const res = await fetch(`${SERVER_URL}/subscription`, {
+        headers: { 'Authorization': `Bearer ${user.jwt}` }
+      });
+      if (!res.ok) throw new Error('Failed to fetch subscription');
+      const data = await res.json();
+      setSub(data.subscription);
+      setEntitlements(data.entitlements);
+      if (onSubscriptionUpdate) {
+        onSubscriptionUpdate(user.jwt, user.sub || user.email);
       }
+    } catch (err) {
+      if (!entitlements) {
+        setError(err.message);
+      }
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
     }
+  };
+
+  useEffect(() => {
     fetchSub();
   }, [user]);
 
-  if (loading) {
+  if (loading && !entitlements) {
     return (
       <Page width="narrow" className="billing-page billing-page--empty" style={{ color: 'var(--text-muted)' }}>
         <div className="btn-spinner" style={{ margin: '0 auto 12px', width: '32px', height: '32px', borderTopColor: 'var(--primary)', borderRightColor: 'var(--primary)' }} />
@@ -36,13 +51,20 @@ export default function SubscriptionManage({ user }) {
       </Page>
     );
   }
-  
-  if (error) {
+
+  if (error && !entitlements) {
     return (
       <Page width="narrow" className="billing-page" style={{ textAlign: 'center' }}>
         <span className="material-symbols-rounded" style={{ fontSize: '48px', color: '#f87171', marginBottom: '16px' }}>error</span>
         <h2 style={{ color: 'white', margin: '0 0 12px' }}>Failed to load subscription</h2>
-        <p className="break-anywhere" style={{ color: 'var(--text-dim)' }}>{error}</p>
+        <p className="break-anywhere" style={{ color: 'var(--text-dim)', marginBottom: '20px' }}>{error}</p>
+        <button
+          onClick={() => { setLoading(true); fetchSub(); }}
+          style={{ background: 'var(--primary)', border: 'none', color: 'white', padding: '10px 20px', borderRadius: '8px', fontWeight: 600, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+        >
+          <span className="material-symbols-rounded" style={{ fontSize: '18px' }}>refresh</span>
+          Retry
+        </button>
       </Page>
     );
   }
@@ -68,6 +90,9 @@ export default function SubscriptionManage({ user }) {
       }
       setSub(data.subscription);
       setEntitlements(data.entitlements);
+      if (onSubscriptionUpdate) {
+        onSubscriptionUpdate(user.jwt, user.sub || user.email);
+      }
       setConfirmCancelOpen(false);
     } catch (err) {
       setCancelMessage({ type: 'error', text: err.message });
@@ -81,10 +106,36 @@ export default function SubscriptionManage({ user }) {
     
     return (
       <Page width="narrow" className="billing-page">
-        <h1 className="billing-title" style={{ color: 'white' }}>
-          <span className="material-symbols-rounded" style={{ color: 'var(--primary)', fontSize: '32px', flexShrink: 0 }}>card_membership</span>
-          Subscription Management
-        </h1>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--space-5)' }}>
+          <h1 className="billing-title" style={{ color: 'white', margin: 0 }}>
+            <span className="material-symbols-rounded" style={{ color: 'var(--primary)', fontSize: '32px', flexShrink: 0 }}>card_membership</span>
+            Subscription Management
+          </h1>
+          <button
+            type="button"
+            title="Refresh status"
+            onClick={() => fetchSub(true)}
+            disabled={refreshing}
+            style={{
+              background: 'transparent',
+              border: '1px solid #334155',
+              borderRadius: '8px',
+              color: 'var(--text-dim)',
+              padding: '8px 12px',
+              cursor: refreshing ? 'not-allowed' : 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              fontSize: '13px',
+              transition: 'all 0.15s'
+            }}
+            onMouseEnter={e => { if (!refreshing) e.currentTarget.style.color = '#fff'; }}
+            onMouseLeave={e => { if (!refreshing) e.currentTarget.style.color = 'var(--text-dim)'; }}
+          >
+            <span className="material-symbols-rounded" style={{ fontSize: '16px', animation: refreshing ? 'spin 1s linear infinite' : 'none' }}>sync</span>
+            {refreshing ? 'Updating...' : 'Refresh'}
+          </button>
+        </div>
         
         <div className="billing-card" style={{ background: 'var(--bg-tertiary)', border: '1px solid #334155', borderRadius: '16px', position: 'relative', overflow: 'hidden' }}>
           <div style={{ position: 'absolute', top: 0, right: 0, width: '120px', height: '120px', background: 'radial-gradient(circle, rgba(99,102,241,0.2) 0%, transparent 70%)', transform: 'translate(30%, -30%)' }} />

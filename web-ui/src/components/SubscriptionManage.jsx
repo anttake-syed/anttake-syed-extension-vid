@@ -213,8 +213,21 @@ export default function SubscriptionManage({
                 Are you sure you want to cancel your AntCapture Cloud subscription?
               </p>
 
-              <div style={{ background: 'var(--bg-secondary)', borderRadius: '8px', padding: '12px', marginBottom: '20px', fontSize: '13px', color: '#cbd5e1', lineHeight: '1.5' }}>
+              <div style={{ background: 'var(--bg-secondary)', borderRadius: '8px', padding: '12px', marginBottom: '16px', fontSize: '13px', color: '#cbd5e1', lineHeight: '1.5' }}>
                 ✨ <strong>You will keep full access</strong> to Cloud storage, Screen recording sync, and Whiteboards until <strong>{entitlements.currentPeriodEnd ? new Date(entitlements.currentPeriodEnd).toLocaleDateString() : 'the end of your period'}</strong>. No further charges will occur.
+              </div>
+
+              {/* Refund Info & Contact */}
+              <div style={{ background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.2)', borderRadius: '8px', padding: '12px', marginBottom: '20px', fontSize: '12px', color: '#94a3b8', lineHeight: '1.5' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#a5b4fc', fontWeight: 600, marginBottom: '4px' }}>
+                  <span className="material-symbols-rounded" style={{ fontSize: '16px' }}>help_outline</span>
+                  Looking for a refund?
+                </div>
+                Cancelling stops renewals. If you purchased within the last 14 days and want a full refund, contact us via{' '}
+                <a href="/feedback" style={{ color: '#818cf8', textDecoration: 'underline' }}>Feedback Form</a> or email{' '}
+                <a href={`mailto:support@antcapture.com?subject=Refund%20Request%20-%20${encodeURIComponent(user?.email || '')}&body=Hi%20AntCapture%20Team,%0A%0AI%20would%20like%20to%20request%20a%20refund%20for%20my%20Cloud%20subscription%20associated%20with%20${encodeURIComponent(user?.email || '')}.%0A%0AThank%20you!`} style={{ color: '#818cf8', textDecoration: 'underline' }}>
+                  support@antcapture.com
+                </a>.
               </div>
 
               {cancelMessage && (
@@ -251,6 +264,41 @@ export default function SubscriptionManage({
             </div>
           </div>
         )}
+
+        {/* Dedicated Billing Support / Refund Card */}
+        <div style={{ marginTop: '24px', background: 'var(--bg-secondary)', border: '1px solid #334155', borderRadius: '12px', padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{ width: '36px', height: '36px', borderRadius: '8px', background: 'rgba(99,102,241,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary-soft)' }}>
+              <span className="material-symbols-rounded" style={{ fontSize: '20px' }}>mail</span>
+            </div>
+            <div>
+              <div style={{ color: 'white', fontSize: '14px', fontWeight: 600 }}>Billing or Refund Questions?</div>
+              <div style={{ color: 'var(--text-dim)', fontSize: '12px' }}>14-day money-back guarantee applies to new subscriptions.</div>
+            </div>
+          </div>
+          <a
+            href={`mailto:support@antcapture.com?subject=Billing%20Support%20-%20${encodeURIComponent(user?.email || '')}`}
+            style={{
+              background: 'rgba(255,255,255,0.06)',
+              border: '1px solid #334155',
+              borderRadius: '8px',
+              color: '#e2e8f0',
+              padding: '8px 16px',
+              fontSize: '13px',
+              fontWeight: 600,
+              textDecoration: 'none',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              transition: 'all 0.15s'
+            }}
+            onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+            onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.06)'}
+          >
+            <span className="material-symbols-rounded" style={{ fontSize: '16px' }}>send</span>
+            Contact Support
+          </a>
+        </div>
       </Page>
     );
   }

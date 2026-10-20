@@ -499,6 +499,72 @@ async function checkSubscriptionHealth() {
   };
 }
 
+/** 12. Capture Activation Health — detect captures stuck in 'processing' that already have CDN files */
+async function checkCaptureActivation() {
+  const STUCK_THRESHOLD_MS = 2 * 60 * 1000; // 2 minutes
+  const stuckCutoff = new Date(Date.now() - STUCK_THRESHOLD_MS);
+
+  // 1. Stuck captures: status is processing, but storageObject has providerObjectId (file reached CDN)
+  const stuckCaptures = await prisma.capture.findMany({
+    where: {
+      status: 'processing',
+      createdAt: { lt: stuckCutoff },
+      storageObject: {
+        isNot: null,
+      }
+    },
+    include: {
+      storageObject: true,
+      user: { select: { id: true, email: true, name: true } }
+    },
+    take: 50,
+    orderBy: { createdAt: 'desc' }
+  });
+
+  const actuallyStuck = stuckCaptures.filter(c => !!c.storageObject?.providerObjectId);
+
+  // 2. Count total auto-healed captures historically
+  const autoHealedCount = await prisma.storageOperation.count({
+    where: { operation: 'auto_heal', status: 'success' }
+  }).catch(() => 0);
+
+  // 3. Count any captures in failed status
+  const failedCount = await prisma.capture.count({
+    where: { status: 'failed' }
+  }).catch(() => 0);
+
+  if (actuallyStuck.length > 0) {
+    const err = new Error(
+      `${actuallyStuck.length} capture(s) are stuck in 'processing' despite file existing on CDN (>2m old). ` +
+      `These captures are invisible to users in the web dashboard until healed.`
+    );
+    err.detail = {
+      stuckCount: actuallyStuck.length,
+      autoHealedTotal: autoHealedCount,
+      failedCount,
+      stuckCaptures: actuallyStuck.map(c => ({
+        id: c.id,
+        title: c.title,
+        userId: c.userId,
+        userEmail: c.user?.email,
+        createdAt: c.createdAt,
+        provider: c.storageObject?.provider,
+        providerObjectId: c.storageObject?.providerObjectId,
+        storageStatus: c.storageObject?.status,
+      }))
+    };
+    throw err;
+  }
+
+  return {
+    stuckCount: 0,
+    autoHealedTotal: autoHealedCount,
+    failedCount,
+    healthy: true
+  };
+}
+
+
 // ── Recent errors ─────────────────────────────────────────────────────────────
 function getRecentErrors() {
   return errorRingBuffer.get();
@@ -521,7 +587,7 @@ exports.getSystemHealth = async (req, res) => {
   const startAll = Date.now();
 
   // Run all checks (in parallel where safe, sequential for CRUD to keep orderly)
-  const [apiCheck, d1ConnCheck, schemaCheck, readCheck, writeCheck, authCheck, uploadThingCheck, lemonSqueezyCheck, subscriptionHealthCheck] =
+  const [apiCheck, d1ConnCheck, schemaCheck, readCheck, writeCheck, authCheck, uploadThingCheck, lemonSqueezyCheck, subscriptionHealthCheck, captureActivationCheck] =
     await Promise.all([
       runCheck('API',                      checkApi),
       runCheck('D1 Connection',            checkD1Connection),
@@ -532,6 +598,7 @@ exports.getSystemHealth = async (req, res) => {
       runCheck('UploadThing',              checkUploadThing),
       runCheck('LemonSqueezy Billing',     checkLemonSqueezy),
       runCheck('Subscription Health',      checkSubscriptionHealth),
+      runCheck('Capture Activation Health', checkCaptureActivation),
     ]);
 
   // CRUD checks depend on a valid userId — run after parallel batch
@@ -541,7 +608,7 @@ exports.getSystemHealth = async (req, res) => {
   const checks = [
     apiCheck, d1ConnCheck, schemaCheck, readCheck, writeCheck,
     boardCheck, captureCheck, authCheck, uploadThingCheck, lemonSqueezyCheck,
-    subscriptionHealthCheck,
+    subscriptionHealthCheck, captureActivationCheck,
   ];
 
   const totalMs  = Date.now() - startAll;
@@ -753,3 +820,181 @@ exports.getUserBillingDiagnostics = async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch billing diagnostics' });
   }
 };
+
+// ── Controller: GET /api/admin/diagnostics/capture-activation ─────────────────
+exports.getCaptureActivationSummary = async (req, res) => {
+  try {
+    const STUCK_THRESHOLD_MS = 2 * 60 * 1000;
+    const stuckCutoff = new Date(Date.now() - STUCK_THRESHOLD_MS);
+
+    // 1. Stuck captures with a file key (invisible captures)
+    const stuckCandidates = await prisma.capture.findMany({
+      where: {
+        status: 'processing',
+        createdAt: { lt: stuckCutoff },
+        storageObject: { isNot: null }
+      },
+      include: {
+        storageObject: true,
+        user: { select: { id: true, email: true, name: true } }
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 100
+    });
+
+    const stuckCaptures = stuckCandidates.filter(c => !!c.storageObject?.providerObjectId);
+
+    // 2. Pending captures without file key yet (never confirmed upload)
+    const unuploadedCandidates = await prisma.capture.findMany({
+      where: {
+        status: 'processing',
+        createdAt: { lt: stuckCutoff },
+      },
+      include: {
+        storageObject: true,
+        user: { select: { id: true, email: true, name: true } }
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 50
+    });
+    const orphanedCaptures = unuploadedCandidates.filter(c => !c.storageObject?.providerObjectId);
+
+    // 3. Count auto-heals recorded in storageOperation
+    const autoHealedCount = await prisma.storageOperation.count({
+      where: { operation: 'auto_heal', status: 'success' }
+    }).catch(() => 0);
+
+    // 4. Recent auto_heal operations
+    const recentHeals = await prisma.storageOperation.findMany({
+      where: { operation: 'auto_heal' },
+      orderBy: { createdAt: 'desc' },
+      take: 10,
+      include: {
+        capture: {
+          select: {
+            id: true,
+            title: true,
+            status: true,
+            userId: true,
+            user: { select: { email: true } }
+          }
+        }
+      }
+    }).catch(() => []);
+
+    res.json({
+      stuckCount: stuckCaptures.length,
+      stuckCaptures: stuckCaptures.map(c => ({
+        id: c.id,
+        title: c.title,
+        userId: c.userId,
+        userEmail: c.user?.email,
+        createdAt: c.createdAt,
+        provider: c.storageObject?.provider,
+        providerObjectId: c.storageObject?.providerObjectId,
+        storageStatus: c.storageObject?.status,
+        ageMinutes: Math.round((Date.now() - new Date(c.createdAt).getTime()) / 60000)
+      })),
+      orphanedCount: orphanedCaptures.length,
+      orphanedCaptures: orphanedCaptures.map(c => ({
+        id: c.id,
+        title: c.title,
+        userId: c.userId,
+        userEmail: c.user?.email,
+        createdAt: c.createdAt,
+        ageMinutes: Math.round((Date.now() - new Date(c.createdAt).getTime()) / 60000)
+      })),
+      autoHealedTotal: autoHealedCount,
+      recentHeals: recentHeals.map(h => ({
+        id: h.id,
+        captureId: h.captureId,
+        captureTitle: h.capture?.title,
+        userEmail: h.capture?.user?.email,
+        createdAt: h.createdAt,
+        status: h.status
+      }))
+    });
+  } catch (err) {
+    logger.error('diagnostics', 'capture-activation-summary-error', { error: err.message });
+    res.status(500).json({ error: 'Failed to fetch capture activation summary' });
+  }
+};
+
+// ── Controller: POST /api/admin/diagnostics/heal-stuck-captures ───────────────
+exports.healStuckCaptures = async (req, res) => {
+  const adminUserId = req.dbUser?.id || req.user?.id;
+  try {
+    const STUCK_THRESHOLD_MS = 2 * 60 * 1000;
+    const stuckCutoff = new Date(Date.now() - STUCK_THRESHOLD_MS);
+
+    // Find all stuck captures across all users that have a providerObjectId
+    const stuck = await prisma.capture.findMany({
+      where: {
+        status: 'processing',
+        createdAt: { lt: stuckCutoff },
+        storageObject: { isNot: null }
+      },
+      include: {
+        storageObject: true,
+        user: { select: { id: true, email: true } }
+      }
+    });
+
+    const eligible = stuck.filter(c => !!c.storageObject?.providerObjectId);
+
+    if (eligible.length === 0) {
+      return res.json({
+        message: 'No stuck captures found. All captures are active and healthy.',
+        healedCount: 0,
+        healed: []
+      });
+    }
+
+    const healed = [];
+    for (const c of eligible) {
+      try {
+        await prisma.storageObject.update({
+          where: { captureId: c.id },
+          data: { status: 'ready' }
+        });
+        await prisma.capture.update({
+          where: { id: c.id },
+          data: { status: 'active' }
+        });
+        await prisma.storageOperation.create({
+          data: {
+            captureId: c.id,
+            provider: c.storageObject.provider,
+            operation: 'auto_heal',
+            status: 'success'
+          }
+        }).catch(() => {});
+
+        healed.push({
+          id: c.id,
+          title: c.title,
+          userEmail: c.user?.email,
+          fileKey: c.storageObject.providerObjectId
+        });
+      } catch (err) {
+        logger.error('diagnostics', 'heal-single-capture-failed', { captureId: c.id, error: err.message });
+      }
+    }
+
+    logger.info('diagnostics', 'admin-healed-stuck-captures', {
+      adminUserId,
+      requestedCount: eligible.length,
+      healedCount: healed.length
+    });
+
+    res.json({
+      message: `Successfully healed ${healed.length} stuck capture(s). They are now active and visible in dashboards.`,
+      healedCount: healed.length,
+      healed
+    });
+  } catch (err) {
+    logger.error('diagnostics', 'heal-stuck-captures-failed', { error: err.message });
+    res.status(500).json({ error: 'Failed to heal stuck captures: ' + err.message });
+  }
+};
+

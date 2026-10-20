@@ -305,6 +305,13 @@ export default function AdminDiagnostics({ user }) {
   const [captureLoading, setCaptureLoading] = useState(false);
   const [captureError, setCaptureError] = useState('');
 
+  // Capture Activation & Stuck Captures state
+  const [activationData, setActivationData] = useState(null);
+  const [activationLoading, setActivationLoading] = useState(false);
+  const [healResult, setHealResult] = useState(null);
+  const [healLoading, setHealLoading] = useState(false);
+  const [healError, setHealError] = useState('');
+
   // Recovery state
   const [recoveryResult, setRecoveryResult] = useState(null);
   const [recoveryLoading, setRecoveryLoading] = useState(false);
@@ -313,6 +320,45 @@ export default function AdminDiagnostics({ user }) {
   // Billing Lookup state
   const [billingEmail, setBillingEmail] = useState('');
   const [billingResult, setBillingResult] = useState(null);
+
+  const authHeader = { Authorization: `Bearer ${user?.jwt}` };
+
+  const fetchActivationData = useCallback(async () => {
+    setActivationLoading(true);
+    try {
+      const r = await fetch(`${SERVER_URL}/api/admin/diagnostics/capture-activation`, { headers: authHeader });
+      if (r.ok) {
+        const data = await r.json();
+        setActivationData(data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch capture activation data:', err);
+    } finally {
+      setActivationLoading(false);
+    }
+  }, [user?.jwt]);
+
+  const runHealStuckCaptures = async () => {
+    setHealLoading(true);
+    setHealResult(null);
+    setHealError('');
+    try {
+      const r = await fetch(`${SERVER_URL}/api/admin/diagnostics/heal-stuck-captures`, {
+        method: 'POST',
+        headers: { ...authHeader, 'Content-Type': 'application/json' }
+      });
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`);
+      setHealResult(data);
+      // Refresh activation data and health checks
+      fetchActivationData();
+      fetchHealth();
+    } catch (err) {
+      setHealError(err.message);
+    } finally {
+      setHealLoading(false);
+    }
+  };
 
   const runRecovery = async () => {
     setRecoveryLoading(true);
@@ -333,7 +379,6 @@ export default function AdminDiagnostics({ user }) {
     }
   };
 
-  const authHeader = { Authorization: `Bearer ${user?.jwt}` };
 
   const fetchCaptureDiagnostics = async (e) => {
     if (e) e.preventDefault();
@@ -427,7 +472,8 @@ export default function AdminDiagnostics({ user }) {
     fetchHealth();
     fetchErrors();
     fetchActivity();
-  }, [fetchHealth, fetchErrors, fetchActivity]);
+    fetchActivationData();
+  }, [fetchHealth, fetchErrors, fetchActivity, fetchActivationData]);
 
   // ── Forbidden ──────────────────────────────────────────────────────────────
   if (forbidden) {
@@ -514,7 +560,7 @@ export default function AdminDiagnostics({ user }) {
               Pro Tour UI
             </button>
             <button
-              onClick={() => { fetchHealth(); fetchErrors(); fetchActivity(); }}
+              onClick={() => { fetchHealth(); fetchErrors(); fetchActivity(); fetchActivationData(); }}
               disabled={loading}
               style={{
                 display: 'flex', alignItems: 'center', gap: '8px',
@@ -544,7 +590,7 @@ export default function AdminDiagnostics({ user }) {
           { id: 'info',     label: 'System Info', icon: 'info' },
           { id: 'capture',  label: 'Capture Lookup', icon: 'search' },
           { id: 'billing',  label: 'Billing Lookup', icon: 'payments' },
-          { id: 'recovery', label: 'Recovery Tools', icon: 'build' },
+          { id: 'recovery', label: `Recovery Tools${activationData?.stuckCount > 0 ? ` (${activationData.stuckCount} stuck)` : ''}`, icon: 'build' },
         ].map(t => (
           <button
             key={t.id}
@@ -956,11 +1002,147 @@ export default function AdminDiagnostics({ user }) {
 
       {/* ── Recovery Tab ── */}
       {tab === 'recovery' && (
-        <div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          {/* Section 1: Capture Activation & Stuck Capture Healing */}
+          <div className="diag-panel-pad" style={{ background: 'var(--bg-tertiary)', borderRadius: '12px', border: '1px solid #1e293b22' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '12px' }}>
+              <div>
+                <h2 style={{ color: '#f1f5f9', fontSize: '18px', margin: '0 0 6px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span className="material-symbols-rounded" style={{ color: activationData?.stuckCount > 0 ? 'var(--danger)' : '#22c55e' }}>
+                    {activationData?.stuckCount > 0 ? 'warning' : 'task_alt'}
+                  </span>
+                  Capture Activation Status
+                </h2>
+                <p style={{ color: 'var(--text-dim)', fontSize: '13px', margin: 0, lineHeight: 1.5 }}>
+                  Detects captures that reached the CDN but were not activated in the dashboard (stuck in <code>processing</code>).
+                </p>
+              </div>
+              <button
+                onClick={fetchActivationData}
+                disabled={activationLoading}
+                className="diag-btn-ghost"
+                style={{ padding: '6px 12px', fontSize: '12px' }}
+              >
+                <span className="material-symbols-rounded" style={{ fontSize: '14px', animation: activationLoading ? 'spin 1s linear infinite' : 'none' }}>refresh</span>
+                Refresh Status
+              </button>
+            </div>
+
+            {/* Quick Metrics */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px', marginTop: '18px' }}>
+              <div style={{
+                background: activationData?.stuckCount > 0 ? 'rgba(239, 68, 68, 0.08)' : 'var(--bg-secondary)',
+                border: `1px solid ${activationData?.stuckCount > 0 ? 'rgba(239, 68, 68, 0.25)' : 'rgba(255,255,255,0.05)'}`,
+                borderRadius: '8px', padding: '12px 14px'
+              }}>
+                <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Stuck (Invisible)</div>
+                <div style={{ fontSize: '24px', fontWeight: 700, color: activationData?.stuckCount > 0 ? 'var(--danger)' : '#22c55e', marginTop: '4px' }}>
+                  {activationData ? activationData.stuckCount : '—'}
+                </div>
+                <div style={{ fontSize: '11px', color: 'var(--text-dim)', marginTop: '2px' }}>File on CDN, pending activate</div>
+              </div>
+
+              <div style={{
+                background: 'var(--bg-secondary)',
+                border: '1px solid rgba(255,255,255,0.05)',
+                borderRadius: '8px', padding: '12px 14px'
+              }}>
+                <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Total Auto-Healed</div>
+                <div style={{ fontSize: '24px', fontWeight: 700, color: 'var(--primary)', marginTop: '4px' }}>
+                  {activationData ? activationData.autoHealedTotal : '—'}
+                </div>
+                <div style={{ fontSize: '11px', color: 'var(--text-dim)', marginTop: '2px' }}>Healed at read time</div>
+              </div>
+
+              <div style={{
+                background: 'var(--bg-secondary)',
+                border: '1px solid rgba(255,255,255,0.05)',
+                borderRadius: '8px', padding: '12px 14px'
+              }}>
+                <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Unuploaded Drafts</div>
+                <div style={{ fontSize: '24px', fontWeight: 700, color: '#f1f5f9', marginTop: '4px' }}>
+                  {activationData ? activationData.orphanedCount : '—'}
+                </div>
+                <div style={{ fontSize: '11px', color: 'var(--text-dim)', marginTop: '2px' }}>No CDN file received yet</div>
+              </div>
+            </div>
+
+            {/* Stuck Captures list & Action */}
+            {activationData?.stuckCaptures && activationData.stuckCaptures.length > 0 && (
+              <div style={{ marginTop: '16px' }}>
+                <div style={{
+                  background: 'rgba(239, 68, 68, 0.08)',
+                  border: '1px solid rgba(239, 68, 68, 0.25)',
+                  borderRadius: '8px', padding: '14px', marginBottom: '12px'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                    <div>
+                      <div style={{ fontWeight: 600, color: 'var(--danger)', fontSize: '13px' }}>
+                        {activationData.stuckCaptures.length} capture(s) currently invisible to users
+                      </div>
+                      <div style={{ fontSize: '12px', color: 'var(--text-dim)', marginTop: '2px' }}>
+                        Their files exist on CDN but captures are in 'processing' status. Auto-heal will fix them on next user refresh, or you can force-heal now:
+                      </div>
+                    </div>
+                    <button
+                      onClick={runHealStuckCaptures}
+                      disabled={healLoading}
+                      style={{
+                        background: 'var(--primary)', color: 'white', border: 'none',
+                        borderRadius: '6px', padding: '8px 16px', fontWeight: 600, fontSize: '12px',
+                        cursor: healLoading ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '6px'
+                      }}
+                    >
+                      <span className="material-symbols-rounded" style={{ fontSize: '16px' }}>healing</span>
+                      {healLoading ? 'Healing...' : 'Heal All Now'}
+                    </button>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '200px', overflowY: 'auto' }}>
+                  {activationData.stuckCaptures.map(c => (
+                    <div key={c.id} style={{
+                      background: 'var(--bg-secondary)', padding: '10px 12px', borderRadius: '6px',
+                      fontSize: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px'
+                    }}>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontWeight: 600, color: '#f1f5f9' }} className="truncate">{c.title || c.id}</div>
+                        <div style={{ color: 'var(--text-dim)', fontSize: '11px', fontFamily: 'monospace' }}>
+                          User: {c.userEmail || c.userId} · Key: {c.providerObjectId}
+                        </div>
+                      </div>
+                      <div style={{ color: 'var(--warning)', fontSize: '11px', whiteSpace: 'nowrap' }}>
+                        {c.ageMinutes}m old
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {healResult && (
+              <div style={{ background: 'rgba(34, 197, 94, 0.1)', border: '1px solid rgba(34, 197, 94, 0.2)', padding: '12px 14px', borderRadius: '8px', marginTop: '14px', fontSize: '13px', color: '#22c55e' }}>
+                <div style={{ fontWeight: 600 }}>{healResult.message}</div>
+                {healResult.healed && healResult.healed.length > 0 && (
+                  <div style={{ fontSize: '11px', color: 'var(--text-dim)', marginTop: '4px' }}>
+                    Healed: {healResult.healed.map(h => h.title || h.id).join(', ')}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {healError && (
+              <div style={{ background: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)', padding: '12px 14px', borderRadius: '8px', marginTop: '14px', fontSize: '13px' }}>
+                {healError}
+              </div>
+            )}
+          </div>
+
+          {/* Section 2: UploadThing Deep CDN Sync */}
           <div className="diag-panel-pad" style={{ background: 'var(--bg-tertiary)', borderRadius: '12px', border: '1px solid #1e293b22' }}>
             <h2 style={{ color: '#f1f5f9', fontSize: '18px', marginTop: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
               <span className="material-symbols-rounded" style={{ color: 'var(--danger)' }}>build</span>
-              Stuck Capture Recovery
+              UploadThing Deep CDN Sync
             </h2>
             <p style={{ color: 'var(--text-dim)', fontSize: '14px', lineHeight: '1.6' }}>
               If UploadThing webhook deliveries failed (e.g., due to Vercel timeout), some captures may remain stuck in the <code style={{ color: 'var(--warning)' }}>'processing'</code> state even though the file reached the CDN successfully.

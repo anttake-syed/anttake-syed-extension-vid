@@ -7,13 +7,72 @@ const { getUtApi } = require('../utils/uploadThing');
 // ── List all captures for the current user ────────────────────────────────────
 exports.getCaptures = async (req, res) => {
   try {
+    // Fetch active captures AND captures that are stuck in 'processing' but
+    // already have a storageObject with a file key (upload succeeded on CDN,
+    // but the DB was never updated — e.g. UploadThing webhook failed AND the
+    // extension's MV3 service worker was killed before confirm-upload could run).
     const captures = await prisma.capture.findMany({
-      where: { userId: req.user.id, status: 'active' },
+      where: {
+        userId: req.user.id,
+        status: { in: ['active', 'processing'] }
+      },
       orderBy: { createdAt: 'desc' },
       include: { storageObject: true }
     });
 
-    const validCaptures = captures.filter(c => c.storageObject && c.storageObject.status === 'ready');
+    // ── Self-heal stuck captures ──────────────────────────────────────────────
+    // A capture is "stuck" when:
+    //   status = 'processing'  — never got marked active
+    //   storageObject exists   — the file DID land on the CDN
+    //   providerObjectId set   — we have the file key to serve it
+    // We fix these in-band so the user sees their videos on the very next
+    // dashboard visit, without needing any manual intervention or cron job.
+    const STUCK_THRESHOLD_MS = 2 * 60 * 1000; // 2 minutes — safe window for webhook/confirm to arrive
+    const now = Date.now();
+    const stuckCaptures = captures.filter(c =>
+      c.status === 'processing' &&
+      c.storageObject?.providerObjectId &&
+      (now - new Date(c.createdAt).getTime()) > STUCK_THRESHOLD_MS
+    );
+
+    if (stuckCaptures.length > 0) {
+      logger.warn('capture', 'auto-healing-stuck-captures', {
+        userId: req.user.id,
+        count: stuckCaptures.length,
+        ids: stuckCaptures.map(c => c.id),
+      });
+      // Heal them all in parallel — failures are non-fatal (we still return them)
+      await Promise.allSettled(
+        stuckCaptures.map(async (c) => {
+          await prisma.storageObject.update({
+            where: { captureId: c.id },
+            data: { status: 'ready' }
+          });
+          await prisma.capture.update({
+            where: { id: c.id },
+            data: { status: 'active' }
+          });
+          await prisma.storageOperation.create({
+            data: {
+              captureId: c.id,
+              provider: c.storageObject.provider,
+              operation: 'auto_heal',
+              status: 'success'
+            }
+          }).catch(() => {});
+          // Update the in-memory objects so shaped() sees the corrected state
+          c.status = 'active';
+          c.storageObject.status = 'ready';
+        })
+      );
+    }
+
+    // Only show captures that are now active with a ready storageObject
+    const validCaptures = captures.filter(c =>
+      c.storageObject &&
+      c.storageObject.status === 'ready' &&
+      c.status === 'active'
+    );
 
     const shaped = validCaptures.map(c => {
       const mime = (c.mimeType || '').split(';')[0].trim();

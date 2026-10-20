@@ -235,6 +235,13 @@ export async function uploadWithProgress(blob, type, jwt, opts = {}, onProgress 
               const confirmData = await confirmRes.json().catch(() => ({}));
               log.info('Confirmed upload in DB');
               confirmed = true;
+              // Notify any open web dashboard tab to refresh immediately
+              // without waiting for the 5-second poll or a focus event.
+              try {
+                const bc = new BroadcastChannel('antcapture');
+                bc.postMessage({ type: 'capture-uploaded', captureId });
+                bc.close();
+              } catch (_) { /* BroadcastChannel unavailable — polling covers it */ }
             } else {
               log.warn(`confirm-upload attempt ${attempt} failed: HTTP ${confirmRes.status}`);
             }

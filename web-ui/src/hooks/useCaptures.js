@@ -119,9 +119,28 @@ export function useCaptures(user, isAuthenticated, hasCloudAccess) {
     };
     window.addEventListener('focus', handleFocus);
 
+    // ── BroadcastChannel: instant refresh when extension signals a new upload ──────
+    // When the user saves a capture from the extension while the web dashboard
+    // is open (even in a background tab), the extension posts a 'capture-uploaded'
+    // message on the 'antcapture' channel. We catch it here and immediately
+    // refresh captures so the new item appears without any tab-focus trick.
+    let bc;
+    try {
+      bc = new BroadcastChannel('antcapture');
+      bc.onmessage = (event) => {
+        if (event.data?.type === 'capture-uploaded') {
+          fetchCaptures(jwt, true);
+          fetchStats(jwt);
+        }
+      };
+    } catch (_) {
+      // BroadcastChannel not available in this environment — no-op, polling covers it
+    }
+
     return () => {
       clearInterval(interval);
       window.removeEventListener('focus', handleFocus);
+      if (bc) { try { bc.close(); } catch (_) {} }
     };
   }, [isAuthenticated, user?.jwt, hasCloudAccess, fetchCaptures, fetchStats, fetchSettings]);
 

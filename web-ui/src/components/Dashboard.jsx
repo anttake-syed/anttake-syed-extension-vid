@@ -383,7 +383,7 @@ export default function Dashboard({ isAuthenticated, isLocalMode, hasCloudAccess
               Upgrade to Cloud
             </button>
             <span style={{ fontSize: '12px', color: '#475569', paddingLeft: '4px' }}>
-              From $12/mo &middot; Cancel anytime
+              From $12/mo &middot; Manage anytime
             </span>
           </div>
         </div>

@@ -1,5 +1,5 @@
 // Icon map — proper icons per nav item
-const MAIN_NAV = ['Dashboard', 'My Library', 'Whiteboards', 'Settings', 'Feedback'];
+const MAIN_NAV = ['Dashboard', 'Whiteboards', 'My Library', 'Settings', 'Feedback'];
 const SECONDARY_NAV = ['Pricing', 'Privacy', 'Terms', 'Refund Policy', 'Security', 'Documentation'];
 const ADMIN_NAV = ['Diagnostics'];  // Only visible to admins; access is also enforced server-side
 

@@ -32,6 +32,7 @@ router.get('/diagnostics/activity', diag.getRecentActivity);
 router.get('/diagnostics/info',   diag.getSystemInfo);
 router.get('/diagnostics/capture-activation', diag.getCaptureActivationSummary);
 router.post('/diagnostics/heal-stuck-captures', diag.healStuckCaptures);
+router.get('/diagnostics/storage-analytics', diag.getStorageAndUserAnalytics);
 router.get('/diagnostics/capture/:id', diag.getCaptureDiagnostics);
 router.get('/diagnostics/billing/:email', diag.getUserBillingDiagnostics);
 

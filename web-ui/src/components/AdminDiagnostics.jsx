@@ -321,6 +321,11 @@ export default function AdminDiagnostics({ user }) {
   const [billingEmail, setBillingEmail] = useState('');
   const [billingResult, setBillingResult] = useState(null);
 
+  // Storage & User Analytics state
+  const [storageAnalytics, setStorageAnalytics] = useState(null);
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
+  const [analyticsError, setAnalyticsError] = useState('');
+
   const authHeader = { Authorization: `Bearer ${user?.jwt}` };
 
   const fetchActivationData = useCallback(async () => {
@@ -415,6 +420,22 @@ export default function AdminDiagnostics({ user }) {
     }
   };
 
+  const fetchStorageAnalytics = useCallback(async () => {
+    setAnalyticsLoading(true);
+    setAnalyticsError('');
+    try {
+      const r = await fetch(`${SERVER_URL}/api/admin/diagnostics/storage-analytics`, { headers: authHeader });
+      if (r.status === 403) { setForbidden(true); return; }
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const data = await r.json();
+      setStorageAnalytics(data);
+    } catch (err) {
+      setAnalyticsError(err.message);
+    } finally {
+      setAnalyticsLoading(false);
+    }
+  }, [user?.jwt]);
+
   // ── Fetch health ───────────────────────────────────────────────────────────
   const fetchHealth = useCallback(async () => {
     setLoading(true);
@@ -473,7 +494,8 @@ export default function AdminDiagnostics({ user }) {
     fetchErrors();
     fetchActivity();
     fetchActivationData();
-  }, [fetchHealth, fetchErrors, fetchActivity, fetchActivationData]);
+    fetchStorageAnalytics();
+  }, [fetchHealth, fetchErrors, fetchActivity, fetchActivationData, fetchStorageAnalytics]);
 
   // ── Forbidden ──────────────────────────────────────────────────────────────
   if (forbidden) {
@@ -585,6 +607,7 @@ export default function AdminDiagnostics({ user }) {
       <div className="diag-tabs">
         {[
           { id: 'health',   label: 'Health Checks', icon: 'check_circle' },
+          { id: 'storage',  label: 'Storage & Analytics', icon: 'pie_chart' },
           { id: 'activity', label: 'Live Activity', icon: 'bolt' },
           { id: 'errors',   label: `Recent Errors${errors.length ? ` (${errors.length})` : ''}`, icon: 'error' },
           { id: 'info',     label: 'System Info', icon: 'info' },
@@ -1197,6 +1220,184 @@ export default function AdminDiagnostics({ user }) {
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {/* ── Storage & User Analytics Tab ── */}
+      {tab === 'storage' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <h2 style={{ fontSize: '18px', fontWeight: 700, color: '#f1f5f9', margin: '0 0 4px' }}>
+                Storage Quota & User Analytics
+              </h2>
+              <p style={{ color: 'var(--text-dim)', fontSize: '13px', margin: 0 }}>
+                Real-time UploadThing CDN utilization, storage capacity breakdown, and active user footprint.
+              </p>
+            </div>
+            <button
+              onClick={fetchStorageAnalytics}
+              disabled={analyticsLoading}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: '6px',
+                padding: '8px 14px', borderRadius: '8px',
+                background: 'var(--bg-tertiary)', border: '1px solid #334155',
+                color: 'white', cursor: analyticsLoading ? 'not-allowed' : 'pointer',
+                fontSize: '13px', fontWeight: 600
+              }}
+            >
+              <span className="material-symbols-rounded" style={{ fontSize: '16px', animation: analyticsLoading ? 'spin 1s linear infinite' : 'none' }}>
+                refresh
+              </span>
+              Refresh Analytics
+            </button>
+          </div>
+
+          {analyticsError && (
+            <div style={{ background: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)', padding: '12px 16px', borderRadius: '10px', fontSize: '13px' }}>
+              {analyticsError}
+            </div>
+          )}
+
+          {storageAnalytics && (
+            <>
+              {/* Top Overview Metric Cards */}
+              <Grid cols={3} gap="16px">
+                {/* UploadThing CDN Card */}
+                <div style={{ background: 'var(--bg-tertiary)', padding: '20px', borderRadius: '14px', border: '1px solid #334155' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                    <span style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-dim)', letterSpacing: '0.05em' }}>
+                      UploadThing CDN
+                    </span>
+                    <span className="material-symbols-rounded" style={{ fontSize: '20px', color: '#6366f1' }}>cloud_sync</span>
+                  </div>
+                  <div style={{ fontSize: '28px', fontWeight: 800, color: 'white', marginBottom: '4px' }}>
+                    {storageAnalytics.uploadThing.usedFormatted}
+                  </div>
+                  <div style={{ fontSize: '13px', color: 'var(--text-dim)', marginBottom: '14px' }}>
+                    of {storageAnalytics.uploadThing.limitFormatted} limit ({storageAnalytics.uploadThing.percentUsed}% full)
+                  </div>
+                  {/* Progress Bar */}
+                  <div style={{ height: '8px', background: 'rgba(255,255,255,0.06)', borderRadius: '999px', overflow: 'hidden' }}>
+                    <div style={{
+                      height: '100%',
+                      width: `${Math.min(100, storageAnalytics.uploadThing.percentUsed)}%`,
+                      background: storageAnalytics.uploadThing.percentUsed > 85 ? '#ef4444' : storageAnalytics.uploadThing.percentUsed > 60 ? '#f59e0b' : '#10b981',
+                      borderRadius: '999px'
+                    }} />
+                  </div>
+                </div>
+
+                {/* Total Captured Files */}
+                <div style={{ background: 'var(--bg-tertiary)', padding: '20px', borderRadius: '14px', border: '1px solid #334155' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                    <span style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-dim)', letterSpacing: '0.05em' }}>
+                      Total Uploaded Files
+                    </span>
+                    <span className="material-symbols-rounded" style={{ fontSize: '20px', color: '#10b981' }}>folder_open</span>
+                  </div>
+                  <div style={{ fontSize: '28px', fontWeight: 800, color: 'white', marginBottom: '4px' }}>
+                    {storageAnalytics.database.totalFiles.toLocaleString()}
+                  </div>
+                  <div style={{ fontSize: '13px', color: 'var(--text-dim)' }}>
+                    {storageAnalytics.uploadThing.filesUploaded || storageAnalytics.database.totalFiles} files registered on CDN
+                  </div>
+                </div>
+
+                {/* Users & Subscribers Card */}
+                <div style={{ background: 'var(--bg-tertiary)', padding: '20px', borderRadius: '14px', border: '1px solid #334155' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                    <span style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-dim)', letterSpacing: '0.05em' }}>
+                      User Footprint
+                    </span>
+                    <span className="material-symbols-rounded" style={{ fontSize: '20px', color: '#38bdf8' }}>group</span>
+                  </div>
+                  <div style={{ fontSize: '28px', fontWeight: 800, color: 'white', marginBottom: '4px' }}>
+                    {storageAnalytics.database.totalUsers} Users
+                  </div>
+                  <div style={{ fontSize: '13px', color: 'var(--text-dim)' }}>
+                    <span style={{ color: '#34d399', fontWeight: 600 }}>{storageAnalytics.database.activeSubscribers}</span> active cloud subscriber(s)
+                  </div>
+                </div>
+              </Grid>
+
+              {/* Per-User Storage Usage Table */}
+              <div style={{ background: 'var(--bg-tertiary)', borderRadius: '14px', border: '1px solid #334155', overflow: 'hidden' }}>
+                <div style={{ padding: '16px 20px', borderBottom: '1px solid #334155', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <h3 style={{ margin: 0, fontSize: '15px', color: '#f1f5f9', fontWeight: 700 }}>
+                    User Storage Breakdown (Top Storage Consumers)
+                  </h3>
+                  <span style={{ fontSize: '12px', color: 'var(--text-dim)' }}>
+                    Showing top {storageAnalytics.topUsers?.length || 0} accounts
+                  </span>
+                </div>
+                <TableScroll>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid #334155', color: 'var(--text-dim)' }}>
+                        <th style={{ padding: '12px 18px', fontWeight: 600 }}>User / Email</th>
+                        <th style={{ padding: '12px 18px', fontWeight: 600 }}>Plan</th>
+                        <th style={{ padding: '12px 18px', fontWeight: 600 }}>Total Captures</th>
+                        <th style={{ padding: '12px 18px', fontWeight: 600 }}>Storage Consumed</th>
+                        <th style={{ padding: '12px 18px', fontWeight: 600 }}>Role</th>
+                        <th style={{ padding: '12px 18px', fontWeight: 600, textAlign: 'right' }}>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {storageAnalytics.topUsers?.map(u => (
+                        <tr key={u.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                          <td style={{ padding: '12px 18px' }}>
+                            <div style={{ fontWeight: 600, color: '#f1f5f9' }}>{u.name || 'Unnamed'}</div>
+                            <div style={{ fontSize: '11px', color: 'var(--text-dim)', fontFamily: 'monospace' }}>{u.email}</div>
+                          </td>
+                          <td style={{ padding: '12px 18px' }}>
+                            <span style={{
+                              fontSize: '11px', fontWeight: 700, padding: '3px 8px', borderRadius: '4px',
+                              background: u.plan === 'cloud' ? 'rgba(99,102,241,0.15)' : 'rgba(255,255,255,0.06)',
+                              color: u.plan === 'cloud' ? '#818cf8' : 'var(--text-dim)'
+                            }}>
+                              {u.plan.toUpperCase()}
+                            </span>
+                          </td>
+                          <td style={{ padding: '12px 18px', color: '#cbd5e1' }}>
+                            {u.captureCount} files
+                          </td>
+                          <td style={{ padding: '12px 18px' }}>
+                            <span style={{ fontWeight: 700, color: u.bytesUsed > 1024 * 1024 * 500 ? '#f59e0b' : '#34d399' }}>
+                              {u.formattedUsage}
+                            </span>
+                          </td>
+                          <td style={{ padding: '12px 18px' }}>
+                            <span style={{
+                              fontSize: '11px', color: u.role === 'admin' ? '#c084fc' : 'var(--text-dim)',
+                              fontWeight: u.role === 'admin' ? 700 : 400
+                            }}>
+                              {u.role}
+                            </span>
+                          </td>
+                          <td style={{ padding: '12px 18px', textAlign: 'right' }}>
+                            <button
+                              onClick={() => {
+                                setBillingEmail(u.email);
+                                setTab('billing');
+                              }}
+                              style={{
+                                background: 'transparent', border: '1px solid #334155', borderRadius: '6px',
+                                color: 'var(--text-dim)', padding: '4px 10px', fontSize: '11px', cursor: 'pointer',
+                                fontWeight: 600
+                              }}
+                            >
+                              Inspect Billing
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </TableScroll>
+              </div>
+            </>
+          )}
         </div>
       )}
 

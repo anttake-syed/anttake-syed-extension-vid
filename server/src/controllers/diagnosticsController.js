@@ -998,3 +998,124 @@ exports.healStuckCaptures = async (req, res) => {
   }
 };
 
+// ── Controller: GET /api/admin/diagnostics/storage-analytics ─────────────────
+exports.getStorageAndUserAnalytics = async (req, res) => {
+  try {
+    // 1. Fetch live UploadThing usage & quota
+    let utUsage = null;
+    const rawToken = (process.env.UPLOADTHING_TOKEN || '').replace(/^['\"]|['\"]$/g, '').trim();
+    if (rawToken) {
+      try {
+        const decoded = JSON.parse(Buffer.from(rawToken, 'base64').toString('utf8'));
+        if (decoded?.apiKey) {
+          const utRes = await fetch('https://api.uploadthing.com/v6/getUsageInfo', {
+            method: 'POST',
+            headers: {
+              'x-uploadthing-api-key': decoded.apiKey,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({}),
+            signal: AbortSignal.timeout(6000)
+          });
+          if (utRes.ok) {
+            const data = await utRes.json();
+            const totalBytes = Number(data.totalBytes || 0);
+            const limitBytes = Number(data.limitBytes || 2 * 1024 * 1024 * 1024); // 2GB free tier default or limitBytes
+            utUsage = {
+              totalBytes,
+              limitBytes,
+              filesUploaded: data.filesUploaded || 0,
+              usedFormatted: `${(totalBytes / (1024 * 1024 * 1024)).toFixed(2)} GB`,
+              limitFormatted: `${(limitBytes / (1024 * 1024 * 1024)).toFixed(2)} GB`,
+              percentUsed: limitBytes > 0 ? Math.min(100, Math.round((totalBytes / limitBytes) * 100)) : 0
+            };
+          }
+        }
+      } catch (err) {
+        logger.warn('diagnostics', 'uploadthing-analytics-failed', { error: err.message });
+      }
+    }
+
+    // 2. Aggregate DB Storage Objects across all users
+    const storageSummary = await prisma.storageObject.aggregate({
+      _sum: { sizeBytes: true },
+      _count: { id: true }
+    });
+
+    // 3. User analytics: count total users, subscribers, and users by storage usage
+    const totalUsers = await prisma.user.count();
+    const activeSubscribers = await prisma.subscription.count({
+      where: { status: 'active' }
+    });
+
+    const userUsages = await prisma.user.findMany({
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+        createdAt: true,
+        subscription: {
+          select: {
+            status: true,
+            plan: { select: { name: true } }
+          }
+        },
+        usage: {
+          select: {
+            cloudBytes: true,
+            captureCount: true
+          }
+        },
+        _count: {
+          select: { captures: true }
+        }
+      },
+      take: 50
+    });
+
+    // Sort by largest storage consumers
+    const usersWithAnalytics = userUsages.map(u => {
+      const bytes = Number(u.usage?.cloudBytes || 0);
+      return {
+        id: u.id,
+        email: u.email,
+        name: u.name,
+        role: u.role,
+        joinedAt: u.createdAt,
+        plan: u.subscription?.plan?.name || 'free',
+        subStatus: u.subscription?.status || 'none',
+        captureCount: u._count?.captures || u.usage?.captureCount || 0,
+        bytesUsed: bytes,
+        formattedUsage: bytes > 1024 * 1024 * 1024
+          ? `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`
+          : `${(bytes / (1024 * 1024)).toFixed(2)} MB`
+      };
+    }).sort((a, b) => b.bytesUsed - a.bytesUsed);
+
+    const totalDbBytes = Number(storageSummary._sum.sizeBytes || 0);
+
+    res.json({
+      uploadThing: utUsage || {
+        totalBytes: totalDbBytes,
+        limitBytes: 2 * 1024 * 1024 * 1024,
+        filesUploaded: storageSummary._count.id || 0,
+        usedFormatted: `${(totalDbBytes / (1024 * 1024 * 1024)).toFixed(2)} GB`,
+        limitFormatted: '2.00 GB',
+        percentUsed: Math.min(100, Math.round((totalDbBytes / (2 * 1024 * 1024 * 1024)) * 100))
+      },
+      database: {
+        totalStorageBytes: totalDbBytes,
+        totalStorageFormatted: `${(totalDbBytes / (1024 * 1024 * 1024)).toFixed(2)} GB`,
+        totalFiles: storageSummary._count.id || 0,
+        totalUsers,
+        activeSubscribers
+      },
+      topUsers: usersWithAnalytics
+    });
+  } catch (err) {
+    logger.error('diagnostics', 'storage-analytics-error', { error: err.message });
+    res.status(500).json({ error: 'Failed to compute storage analytics' });
+  }
+};
+

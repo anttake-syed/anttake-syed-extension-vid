@@ -4,9 +4,9 @@ const requireAuth = require('../middleware/auth');
 const requireSubscription = require('../middleware/requireSubscription');
 const boardController = require('../controllers/boardController');
 
-// Reads: open to any authenticated user (so locked UI can still load board list)
+// Reads: board list requires auth; single board view allows public access for shared board links
 router.get('/', requireAuth, boardController.getBoards);
-router.get('/:id', requireAuth, boardController.getBoard);
+router.get('/:id', boardController.getBoard);
 
 // Writes: require an active cloud subscription (or admin)
 router.post('/', requireAuth, requireSubscription, boardController.createBoard);

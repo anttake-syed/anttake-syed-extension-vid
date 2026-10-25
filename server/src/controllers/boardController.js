@@ -60,7 +60,7 @@ exports.getBoard = async (req, res) => {
       }
     });
 
-    if (!board || board.userId !== req.user.id) {
+    if (!board) {
       return res.status(404).json({ error: 'Board not found' });
     }
 
@@ -75,7 +75,7 @@ exports.getBoard = async (req, res) => {
 
     res.json({ board });
   } catch (err) {
-    logger.error('board', 'get-board-failed', { requestId: req.requestId, userId: req.user.id, boardId: req.params.id, error: err });
+    logger.error('board', 'get-board-failed', { requestId: req.requestId, userId: req.user?.id, boardId: req.params.id, error: err });
     res.status(500).json({ error: 'Failed to get board' });
   }
 };

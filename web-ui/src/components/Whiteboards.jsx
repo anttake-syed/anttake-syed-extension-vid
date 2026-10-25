@@ -65,12 +65,23 @@ function GridCard({ board, onOpen, onRename, onDelete }) {
   const [hov, setHov] = useState(false);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(board.name);
+  const [shareCopied, setShareCopied] = useState(false);
   const thumb = board.thumbnail || null;
 
   const commit = () => {
     const v = draft.trim() || board.name;
     setEditing(false);
     if (v !== board.name) onRename(board.id, v);
+  };
+
+  const copyShareLink = (e) => {
+    e.stopPropagation();
+    const slug = (board.name || 'untitled').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+    const url = `${window.location.origin}/whiteboard/${board.id}/${slug}`;
+    navigator.clipboard.writeText(url).then(() => {
+      setShareCopied(true);
+      setTimeout(() => setShareCopied(false), 2200);
+    }).catch(() => {});
   };
 
   return (
@@ -135,6 +146,11 @@ function GridCard({ board, onOpen, onRename, onDelete }) {
           </div>
           <div style={{ display:'flex', gap:2 }} onClick={e => e.stopPropagation()}>
             <IconBtn icon="edit" label="Rename board" onClick={e => { e.stopPropagation(); setEditing(true); setDraft(board.name); }} />
+            <IconBtn
+              icon={shareCopied ? 'check' : 'share'}
+              label={shareCopied ? 'Link copied!' : 'Copy share link'}
+              onClick={copyShareLink}
+            />
             <IconBtn icon="delete" label="Delete board" danger onClick={e => { e.stopPropagation(); onDelete(board.id); }} />
           </div>
         </div>
@@ -147,8 +163,19 @@ function ListRow({ board, onOpen, onRename, onDelete }) {
   const [hov, setHov] = useState(false);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(board.name);
+  const [shareCopied, setShareCopied] = useState(false);
   const thumb = board.thumbnail || null;
   const commit = () => { const v = draft.trim() || board.name; setEditing(false); if (v !== board.name) onRename(board.id, v); };
+
+  const copyShareLink = (e) => {
+    e.stopPropagation();
+    const slug = (board.name || 'untitled').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+    const url = `${window.location.origin}/whiteboard/${board.id}/${slug}`;
+    navigator.clipboard.writeText(url).then(() => {
+      setShareCopied(true);
+      setTimeout(() => setShareCopied(false), 2200);
+    }).catch(() => {});
+  };
 
   return (
     <article
@@ -201,6 +228,11 @@ function ListRow({ board, onOpen, onRename, onDelete }) {
       {/* Actions */}
       <div className="wb-row-actions" data-show={hov} onClick={e => e.stopPropagation()}>
         <IconBtn icon="edit" label="Rename board" onClick={e => { e.stopPropagation(); setEditing(true); setDraft(board.name); }} />
+        <IconBtn
+          icon={shareCopied ? 'check' : 'share'}
+          label={shareCopied ? 'Copied!' : 'Copy share link'}
+          onClick={copyShareLink}
+        />
         <IconBtn icon="delete" label="Delete board" danger onClick={e => { e.stopPropagation(); onDelete(board.id); }} />
         <IconBtn icon="arrow_forward" label="Open board" className="hide-below-sm" onClick={e => { e.stopPropagation(); onOpen(board); }} />
       </div>

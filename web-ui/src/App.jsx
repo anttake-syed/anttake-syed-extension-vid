@@ -940,6 +940,7 @@ Found a security problem? Please report it privately through our GitHub security
           />
         ) : (
           <Dashboard
+            user={user}
             isAuthenticated={isAuthenticated}
             isLocalMode={IS_LOCAL_MODE}
             hasCloudAccess={hasCloudAccess}
@@ -952,6 +953,7 @@ Found a security problem? Please report it privately through our GitHub security
             onOpenMedia={setActiveMedia}
             onGoToLibrary={() => setActiveNav('My Library')}
             onGoToPricing={() => setActiveNav('Pricing')}
+            onGoToWhiteboards={() => setActiveNav('Whiteboards')}
           />
         )}
       </main>

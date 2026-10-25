@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { SERVER_URL } from '../config.js';
 import '../styles/pages/whiteboards.css';
+import WhiteboardShareModal from './whiteboard/WhiteboardShareModal.jsx';
 
 // ── Helpers ─────────────────────────────────────────────────
 function generateDefaultName() {
@@ -10,15 +11,15 @@ function generateDefaultName() {
 }
 
 const TOOLS = [
-  { id: 'select',  icon: 'near_me',       label: 'Select'  },
-  { id: 'pen',     icon: 'draw',          label: 'Pen'     },
-  { id: 'text',    icon: 'text_fields',   label: 'Text'    },
-  { id: 'rect',    icon: 'crop_square',   label: 'Rect'    },
-  { id: 'circle',  icon: 'circle',        label: 'Circle'  },
-  { id: 'arrow',   icon: 'arrow_forward', label: 'Arrow'   },
-  { id: 'eraser',  icon: 'ink_eraser',    label: 'Eraser'  },
-  { id: 'image',   icon: 'image',         label: 'Image'   },
-  { id: 'video',   icon: 'movie',         label: 'Video'   },
+  { id: 'select',  icon: 'near_me',                label: 'Select'  },
+  { id: 'pen',     icon: 'edit',                   label: 'Pen'     },
+  { id: 'text',    icon: 'title',                  label: 'Text'    },
+  { id: 'rect',    icon: 'crop_square',            label: 'Rect'    },
+  { id: 'circle',  icon: 'radio_button_unchecked', label: 'Circle'  },
+  { id: 'arrow',   icon: 'arrow_right_alt',        label: 'Arrow'   },
+  { id: 'eraser',  icon: 'ink_eraser',             label: 'Eraser'  },
+  { id: 'image',   icon: 'image',                  label: 'Image'   },
+  { id: 'video',   icon: 'videocam',               label: 'Video'   },
 ];
 
 const COLORS = ['#f8fafc','#f87171','#fb923c','#facc15','#4ade80','#60a5fa','#a78bfa','#f472b6','#94a3b8'];
@@ -198,12 +199,15 @@ export default function WhiteboardEditor({ board, onClose, user }) {
   const [showLibrary, setShowLibrary]     = useState('none'); // 'none', 'images', 'videos'
   const [elements, setElements]           = useState([]);
   const [selectedId, setSelectedId]       = useState(null);
+  const [selectedIds, setSelectedIds]     = useState([]);
+  const [marquee, setMarquee]             = useState(null); // { startX, startY, currentX, currentY }
   const [isSaved, setIsSaved]             = useState(false);
   const [isSaving, setIsSaving]           = useState(false);
   const [saveError, setSaveError]         = useState(null);
   const [loadError, setLoadError]         = useState(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [showExitModal, setShowExitModal] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
   const [zoom, setZoom]                   = useState(1);
   const [boardStateItemId, setBoardStateItemId] = useState(null);
   const [contextMenu, setContextMenu]     = useState(null); // {x,y,elIdx}
@@ -211,19 +215,21 @@ export default function WhiteboardEditor({ board, onClose, user }) {
   const [textPromptValue, setTextPromptValue] = useState('');
   const [mediaLoadError, setMediaLoadError] = useState(null); // replaces native alert()
 
-  const canvasRef      = useRef(null);
-  const drawing        = useRef(false);
-  const currentPath    = useRef([]);
-  const liveShape      = useRef(null); // {startPt, endPt} for live shape preview
-  const dragRef        = useRef(null);
-  const nameInputRef   = useRef(null);
-  const boardThumbItemId = useRef(null);
-  const needsCommitRef = useRef(false);
-  const isSavingRef    = useRef(false);
-  const nameCommittedRef = useRef(false);
+  const canvasRef         = useRef(null);
+  const drawing           = useRef(false);
+  const currentPath       = useRef([]);
+  const liveShape         = useRef(null); // {startPt, endPt} for live shape preview
+  const dragRef           = useRef(null);
+  const marqueeRef        = useRef(null);
+  const nameInputRef      = useRef(null);
+  const boardThumbItemId  = useRef(null);
+  const boardStateItemIdRef = useRef(null);
+  const needsCommitRef    = useRef(false);
+  const isSavingRef       = useRef(false);
+  const nameCommittedRef  = useRef(false);
   
-  const historyRef = useRef([[]]);
-  const historyStepRef = useRef(0);
+  const historyRef        = useRef([[]]);
+  const historyStepRef    = useRef(0);
 
   const commitToHistory = (newElements) => {
     const nextStep = historyStepRef.current + 1;
@@ -342,17 +348,6 @@ export default function WhiteboardEditor({ board, onClose, user }) {
           ctx.lineTo(el.x + el.w/2 - 8, el.y + el.h/2 + 10);
           ctx.fill();
         }
-
-        if (selectedId === idx) {
-          ctx.strokeStyle = '#6366f1';
-          ctx.lineWidth   = 2;
-          ctx.setLineDash([5, 4]);
-          ctx.strokeRect(el.x - 2, el.y - 2, el.w + 4, el.h + 4);
-          ctx.setLineDash([]);
-          // Resize handle
-          ctx.fillStyle = '#6366f1';
-          ctx.fillRect(el.x + el.w - 4, el.y + el.h - 4, 8, 8);
-        }
       }
       ctx.restore();
     });
@@ -403,7 +398,69 @@ export default function WhiteboardEditor({ board, onClose, user }) {
       }
       ctx.restore();
     }
-  }, [elements, color, strokeSize, tool, selectedId]);
+
+    // Selection bounding outlines + handles
+    const allSelected = selectedIds.length > 0 ? selectedIds : (selectedId !== null ? [selectedId] : []);
+    allSelected.forEach(idx => {
+      const el = elements[idx];
+      if (!el) return;
+      ctx.save();
+      ctx.strokeStyle = '#6366f1';
+      ctx.lineWidth   = 1.5;
+      ctx.setLineDash([5, 4]);
+
+      if (el.type === 'image') {
+        ctx.strokeRect(el.x - 2, el.y - 2, el.w + 4, el.h + 4);
+        ctx.setLineDash([]);
+        ctx.fillStyle = '#6366f1';
+        ctx.fillRect(el.x + el.w - 4, el.y + el.h - 4, 8, 8);
+      } else if (el.type === 'rect') {
+        const minX = Math.min(el.x, el.x + el.w), maxX = Math.max(el.x, el.x + el.w);
+        const minY = Math.min(el.y, el.y + el.h), maxY = Math.max(el.y, el.y + el.h);
+        ctx.strokeRect(minX - 4, minY - 4, (maxX - minX) + 8, (maxY - minY) + 8);
+      } else if (el.type === 'circle') {
+        const cx = el.x + el.w/2, cy = el.y + el.h/2;
+        const rx = Math.abs(el.w/2), ry = Math.abs(el.h/2);
+        ctx.strokeRect(cx - rx - 4, cy - ry - 4, (rx * 2) + 8, (ry * 2) + 8);
+      } else if (el.type === 'text') {
+        ctx.font = `${el.fontSize}px 'Outfit', sans-serif`;
+        const tw = ctx.measureText(el.text).width;
+        ctx.strokeRect(el.x - 4, el.y - el.fontSize, tw + 8, el.fontSize + 8);
+      } else if (el.type === 'arrow') {
+        const minX = Math.min(el.x, el.x2), maxX = Math.max(el.x, el.x2);
+        const minY = Math.min(el.y, el.y2), maxY = Math.max(el.y, el.y2);
+        ctx.strokeRect(minX - 8, minY - 8, (maxX - minX) + 16, (maxY - minY) + 16);
+      } else if (el.type === 'path' && el.points?.length) {
+        let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+        el.points.forEach(p => {
+          if (p.x < minX) minX = p.x;
+          if (p.x > maxX) maxX = p.x;
+          if (p.y < minY) minY = p.y;
+          if (p.y > maxY) maxY = p.y;
+        });
+        ctx.strokeRect(minX - 6, minY - 6, (maxX - minX) + 12, (maxY - minY) + 12);
+      }
+      ctx.restore();
+    });
+
+    // Marquee selection box ("Guiding blue line that moves with mouse")
+    const m = marqueeRef.current;
+    if (m && m.active) {
+      const rx = Math.min(m.startX, m.currentX);
+      const ry = Math.min(m.startY, m.currentY);
+      const rw = Math.abs(m.currentX - m.startX);
+      const rh = Math.abs(m.currentY - m.startY);
+
+      ctx.save();
+      ctx.fillStyle = 'rgba(99, 102, 241, 0.12)';
+      ctx.fillRect(rx, ry, rw, rh);
+      ctx.strokeStyle = '#6366f1';
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([6, 4]);
+      ctx.strokeRect(rx, ry, rw, rh);
+      ctx.restore();
+    }
+  }, [elements, color, strokeSize, tool, selectedId, selectedIds]);
 
   useEffect(() => { redraw(); }, [redraw]);
 
@@ -437,6 +494,7 @@ export default function WhiteboardEditor({ board, onClose, user }) {
         const stateItem = items.find(i => i.type === 'board_state');
         if (stateItem?.content) {
           setBoardStateItemId(stateItem.id);
+          boardStateItemIdRef.current = stateItem.id;
           const state = JSON.parse(stateItem.content);
           if (state.elements) {
             const restored = await Promise.all(
@@ -538,8 +596,14 @@ export default function WhiteboardEditor({ board, onClose, user }) {
   };
   const ctxDelete = () => {
     if (contextMenu === null) return;
-    const next = elements.filter((_, i) => i !== contextMenu.elIdx);
-    setElements(next); commitToHistory(next); setSelectedId(null); setContextMenu(null);
+    const targetIdx = contextMenu.elIdx;
+    const toDelete = selectedIds.includes(targetIdx) ? selectedIds : [targetIdx];
+    const next = elements.filter((_, i) => !toDelete.includes(i));
+    setElements(next);
+    commitToHistory(next);
+    setSelectedId(null);
+    setSelectedIds([]);
+    setContextMenu(null);
   };
 
   const onMouseDown = (e) => {
@@ -553,7 +617,7 @@ export default function WhiteboardEditor({ board, onClose, user }) {
       for (let i = elements.length - 1; i >= 0; i--) {
         const el = elements[i];
         if (el.type === 'image') {
-          if (selectedId === i) {
+          if (selectedId === i || selectedIds.includes(i)) {
             const hx = el.x + el.w, hy = el.y + el.h;
             if (pos.x >= hx - 8 && pos.x <= hx + 8 && pos.y >= hy - 8 && pos.y <= hy + 8) {
               hit = i; hitResize = true; break;
@@ -574,15 +638,18 @@ export default function WhiteboardEditor({ board, onClose, user }) {
           }
         }
         else if (el.type === 'text') {
-          if (pos.x >= el.x && pos.x <= el.x + 200 && pos.y >= el.y - 20 && pos.y <= el.y + 5) { hit = i; break; }
+          const fontSize = el.fontSize || 20;
+          if (pos.x >= el.x - 4 && pos.x <= el.x + 240 && pos.y >= el.y - fontSize - 4 && pos.y <= el.y + 6) { hit = i; break; }
         }
         else if (el.type === 'rect') {
-          if (pos.x >= el.x && pos.x <= el.x + el.w && pos.y >= el.y && pos.y <= el.y + el.h) { hit = i; break; }
+          const minX = Math.min(el.x, el.x + el.w), maxX = Math.max(el.x, el.x + el.w);
+          const minY = Math.min(el.y, el.y + el.h), maxY = Math.max(el.y, el.y + el.h);
+          if (pos.x >= minX - 4 && pos.x <= maxX + 4 && pos.y >= minY - 4 && pos.y <= maxY + 4) { hit = i; break; }
         }
         else if (el.type === 'circle') {
           const cx = el.x + el.w/2, cy = el.y + el.h/2;
           const rx = Math.abs(el.w/2), ry = Math.abs(el.h/2);
-          if (pos.x >= cx - rx && pos.x <= cx + rx && pos.y >= cy - ry && pos.y <= cy + ry) { hit = i; break; }
+          if (pos.x >= cx - rx - 4 && pos.x <= cx + rx + 4 && pos.y >= cy - ry - 4 && pos.y <= cy + ry + 4) { hit = i; break; }
         }
         else if (el.type === 'arrow') {
           const minX = Math.min(el.x, el.x2), maxX = Math.max(el.x, el.x2);
@@ -591,22 +658,68 @@ export default function WhiteboardEditor({ board, onClose, user }) {
         }
         else if (el.type === 'path') {
           let pathHit = false;
-          for(let p of el.points) {
-             if(Math.hypot(p.x - pos.x, p.y - pos.y) < el.size + 5) { pathHit = true; break; }
+          for(let p of (el.points || [])) {
+             if(Math.hypot(p.x - pos.x, p.y - pos.y) < el.size + 6) { pathHit = true; break; }
           }
           if (pathHit) { hit = i; break; }
         }
       }
-      setSelectedId(hit);
+
       if (hit !== null) {
+        // If clicking on an element:
+        // If Shift is pressed or already in selectedIds, keep selection set
+        let newSelectedIds = [hit];
+        if (e.shiftKey) {
+          newSelectedIds = selectedIds.includes(hit)
+            ? selectedIds.filter(id => id !== hit)
+            : [...selectedIds, hit];
+        } else if (selectedIds.includes(hit) && selectedIds.length > 1) {
+          newSelectedIds = selectedIds;
+        }
+
+        setSelectedId(hit);
+        setSelectedIds(newSelectedIds);
+
+        // Prepare multi-drag or single-drag
+        const movingIndices = newSelectedIds.includes(hit) ? newSelectedIds : [hit];
+        const initialSnapshots = {};
+        movingIndices.forEach(idx => {
+          const el = elements[idx];
+          if (el) {
+            initialSnapshots[idx] = {
+              x: el.x, y: el.y,
+              w: el.w, h: el.h,
+              x2: el.x2, y2: el.y2,
+              points: el.points ? el.points.map(p => ({ ...p })) : null,
+            };
+          }
+        });
+
         dragRef.current = { 
-          idx: hit, isResize: hitResize,
-          startX: pos.x, startY: pos.y, 
+          idx: hit, 
+          isResize: hitResize,
+          startX: pos.x, 
+          startY: pos.y, 
+          movingIndices,
+          initialSnapshots,
           origX: elements[hit].x, origY: elements[hit].y,
           origW: elements[hit].w, origH: elements[hit].h,
           origX2: elements[hit].x2, origY2: elements[hit].y2,
           origPoints: elements[hit].points ? [...elements[hit].points] : null
         };
+      } else {
+        // Clicked on empty space: clear element selection and start marquee bounding box
+        setSelectedId(null);
+        setSelectedIds([]);
+        marqueeRef.current = {
+          active: true,
+          startX: pos.x,
+          startY: pos.y,
+          currentX: pos.x,
+          currentY: pos.y,
+        };
+        setMarquee({ startX: pos.x, startY: pos.y, currentX: pos.x, currentY: pos.y });
+        redraw();
       }
       return;
     }
@@ -623,29 +736,46 @@ export default function WhiteboardEditor({ board, onClose, user }) {
   };
 
   const onMouseMove = (e) => {
+    // 1. Selector marquee active (guiding blue line that moves with mouse)
+    if (tool === 'select' && marqueeRef.current && marqueeRef.current.active) {
+      const pos = getPos(e);
+      marqueeRef.current.currentX = pos.x;
+      marqueeRef.current.currentY = pos.y;
+      setMarquee({ ...marqueeRef.current });
+      redraw();
+      return;
+    }
+
+    // 2. Dragging/moving selected elements
     if (tool === 'select' && dragRef.current) {
       const pos = getPos(e);
-      const { idx, isResize, startX, startY, origX, origY, origW, origH, origX2, origY2, origPoints } = dragRef.current;
+      const { idx, isResize, startX, startY, origX, origY, origW, origH, origX2, origY2, origPoints, movingIndices, initialSnapshots } = dragRef.current;
       const dx = pos.x - startX, dy = pos.y - startY;
-      setElements(prev => prev.map((el, i) => {
-        if (i !== idx) return el;
-        if (isResize && el.type === 'image') {
+
+      if (isResize && idx !== null) {
+        setElements(prev => prev.map((el, i) => {
+          if (i !== idx) return el;
           const ratio = origW / origH;
           const newW = Math.max(20, origW + dx);
           const newH = newW / ratio;
           return { ...el, w: newW, h: newH };
-        } else {
-          if (el.type === 'path') {
-            return { ...el, points: origPoints.map(p => ({ x: p.x + dx, y: p.y + dy })) };
+        }));
+      } else if (movingIndices && movingIndices.length > 0) {
+        setElements(prev => prev.map((el, i) => {
+          if (!movingIndices.includes(i) || !initialSnapshots[i]) return el;
+          const snap = initialSnapshots[i];
+          if (el.type === 'path' && snap.points) {
+            return { ...el, points: snap.points.map(p => ({ x: p.x + dx, y: p.y + dy })) };
           } else if (el.type === 'arrow') {
-            return { ...el, x: origX + dx, y: origY + dy, x2: origX2 + dx, y2: origY2 + dy };
+            return { ...el, x: snap.x + dx, y: snap.y + dy, x2: snap.x2 + dx, y2: snap.y2 + dy };
           } else {
-            return { ...el, x: origX + dx, y: origY + dy };
+            return { ...el, x: snap.x + dx, y: snap.y + dy };
           }
-        }
-      }));
+        }));
+      }
       return;
     }
+
     if (!drawing.current) return;
     const pos = getPos(e);
     currentPath.current = [...currentPath.current, pos];
@@ -654,13 +784,60 @@ export default function WhiteboardEditor({ board, onClose, user }) {
   };
 
   const onMouseUp = (e) => {
+    // Finish marquee selection
+    if (tool === 'select' && marqueeRef.current && marqueeRef.current.active) {
+      const m = marqueeRef.current;
+      marqueeRef.current = null;
+      setMarquee(null);
+
+      const minX = Math.min(m.startX, m.currentX);
+      const maxX = Math.max(m.startX, m.currentX);
+      const minY = Math.min(m.startY, m.currentY);
+      const maxY = Math.max(m.startY, m.currentY);
+
+      // Only perform marquee selection if mouse actually moved
+      if (maxX - minX > 3 || maxY - minY > 3) {
+        const hits = [];
+        elements.forEach((el, i) => {
+          let elMinX = el.x, elMaxX = el.x, elMinY = el.y, elMaxY = el.y;
+          if (el.type === 'image' || el.type === 'rect') {
+            elMinX = Math.min(el.x, el.x + (el.w || 0));
+            elMaxX = Math.max(el.x, el.x + (el.w || 0));
+            elMinY = Math.min(el.y, el.y + (el.h || 0));
+            elMaxY = Math.max(el.y, el.y + (el.h || 0));
+          } else if (el.type === 'circle') {
+            const rx = Math.abs((el.w || 0) / 2), ry = Math.abs((el.h || 0) / 2);
+            const cx = el.x + (el.w || 0) / 2, cy = el.y + (el.h || 0) / 2;
+            elMinX = cx - rx; elMaxX = cx + rx;
+            elMinY = cy - ry; elMaxY = cy + ry;
+          } else if (el.type === 'arrow') {
+            elMinX = Math.min(el.x, el.x2); elMaxX = Math.max(el.x, el.x2);
+            elMinY = Math.min(el.y, el.y2); elMaxY = Math.max(el.y, el.y2);
+          } else if (el.type === 'text') {
+            elMinX = el.x; elMaxX = el.x + 120;
+            elMinY = el.y - (el.fontSize || 20); elMaxY = el.y;
+          } else if (el.type === 'path' && el.points?.length) {
+            elMinX = Math.min(...el.points.map(p => p.x));
+            elMaxX = Math.max(...el.points.map(p => p.x));
+            elMinY = Math.min(...el.points.map(p => p.y));
+            elMaxY = Math.max(...el.points.map(p => p.y));
+          }
+
+          // AABB overlap test
+          const overlap = !(elMaxX < minX || elMinX > maxX || elMaxY < minY || elMinY > maxY);
+          if (overlap) hits.push(i);
+        });
+
+        setSelectedIds(hits);
+        setSelectedId(hits.length === 1 ? hits[0] : (hits.length > 1 ? hits[hits.length - 1] : null));
+      }
+      redraw();
+      return;
+    }
+
     if (dragRef.current) {
       dragRef.current = null;
       needsCommitRef.current = true;
-      // Must be a new array reference — setElements(prev => prev) is a no-op
-      // React bails out of, so the [elements] effect that flushes
-      // needsCommitRef (and marks hasUnsavedChanges) never fired, silently
-      // losing drag/resize edits if the user didn't separately click Save.
       setElements(prev => [...prev]);
     }
     if (!drawing.current) return;
@@ -816,17 +993,14 @@ export default function WhiteboardEditor({ board, onClose, user }) {
     }
   };
 
-  const handleSave = async () => {
-    // Guard against a second Save firing while the first is still in flight —
-    // both would otherwise see the same stale boardStateItemId and POST two
-    // separate board_state items instead of the second one PATCHing the first.
+  const handleSave = useCallback(async (isSilent = false) => {
+    // Guard against duplicate save in flight
     if (isSavingRef.current) return;
     isSavingRef.current = true;
     setIsSaving(true);
     setSaveError(null);
 
     const thumbnail = generateThumbnail();
-
     const elementsToSave = elements.map(el => {
       const { img, ...rest } = (el.type === 'image' ? el : el);
       return el.type === 'image' ? rest : el;
@@ -835,8 +1009,9 @@ export default function WhiteboardEditor({ board, onClose, user }) {
     try {
       // ── 1. Save elements (board_state) ──
       const stateContent = JSON.stringify({ elements: elementsToSave });
-      if (boardStateItemId) {
-        const res = await fetch(`${SERVER_URL}/boards/${board.id}/items/${boardStateItemId}`, {
+      const currentItemId = boardStateItemIdRef.current || boardStateItemId;
+      if (currentItemId) {
+        const res = await fetch(`${SERVER_URL}/boards/${board.id}/items/${currentItemId}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${user?.jwt}` },
           body: JSON.stringify({ content: stateContent }),
@@ -850,7 +1025,10 @@ export default function WhiteboardEditor({ board, onClose, user }) {
         });
         if (!res.ok) throw new Error(`Failed to save (HTTP ${res.status})`);
         const d = await res.json();
-        if (d.item) setBoardStateItemId(d.item.id);
+        if (d.item) {
+          setBoardStateItemId(d.item.id);
+          boardStateItemIdRef.current = d.item.id;
+        }
       }
 
       // ── 2. Save thumbnail on the board directly ──
@@ -865,21 +1043,28 @@ export default function WhiteboardEditor({ board, onClose, user }) {
         }
       }
 
-      // Only clear the unsaved-changes flag and show "Saved!" once the save
-      // actually succeeded — previously both happened unconditionally even
-      // on failure, so a failed save silently looked identical to success
-      // and the user could close the tab believing their work was safe.
       setHasUnsavedChanges(false);
       setIsSaved(true);
       setTimeout(() => setIsSaved(false), 2000);
     } catch (err) {
       console.error('Save failed', err);
-      setSaveError('Save failed — your changes are still here, but not on the server yet. Try again.');
+      if (!isSilent) {
+        setSaveError('Save failed — your changes are still here, but not on the server yet. Try again.');
+      }
     } finally {
       isSavingRef.current = false;
       setIsSaving(false);
     }
-  };
+  }, [board?.id, boardStateItemId, elements, user?.jwt]);
+
+  // Debounced auto-save: saves automatically 1.5s after any element modification
+  useEffect(() => {
+    if (!hasUnsavedChanges || !board?.id || !user?.jwt) return;
+    const timer = setTimeout(() => {
+      handleSave(true);
+    }, 1500);
+    return () => clearTimeout(timer);
+  }, [hasUnsavedChanges, elements, board?.id, user?.jwt, handleSave]);
   
   const handleClose = async () => {
     if (hasUnsavedChanges) {
@@ -945,16 +1130,29 @@ export default function WhiteboardEditor({ board, onClose, user }) {
 
         {/* Right */}
         <div className="wb-group">
+          {/* Subtle auto-save status indicator */}
+          <div className="wb-save-status hide-below-sm" data-state={isSaving ? 'saving' : isSaved ? 'saved' : hasUnsavedChanges ? 'unsaved' : 'saved'}>
+            <span className="material-symbols-rounded" style={{ fontSize:'14px' }}>
+              {isSaving ? 'sync' : isSaved ? 'check' : hasUnsavedChanges ? 'edit_note' : 'cloud_done'}
+            </span>
+            <span>
+              {isSaving ? 'Saving…' : isSaved ? 'All saved' : hasUnsavedChanges ? 'Unsaved' : 'Saved'}
+            </span>
+          </div>
+
           <button onClick={handleUndo} title="Undo" aria-label="Undo" className="wb-action-btn">
             <span className="material-symbols-rounded" style={{ fontSize:'16px' }}>undo</span>
           </button>
           <button onClick={handleRedo} title="Redo" aria-label="Redo" className="wb-action-btn">
             <span className="material-symbols-rounded" style={{ fontSize:'16px' }}>redo</span>
           </button>
-          <button onClick={handleClear} title="Clear all" aria-label="Clear all" className="wb-action-btn">
-            <span className="material-symbols-rounded" style={{ fontSize:'16px' }}>delete_sweep</span>
-          </button>
-          <button onClick={handleSave} disabled={isSaving} className="wb-save-btn" style={{ background: saveError ? 'rgba(239,68,68,0.15)' : isSaved ? 'rgba(52,211,153,0.15)' : 'linear-gradient(135deg,#6366f1,#8b5cf6)', border:'none', color: saveError ? '#f87171' : isSaved ? '#34d399' : 'white', padding:'6px 16px', borderRadius:'8px', cursor: isSaving ? 'default' : 'pointer', opacity: isSaving ? 0.7 : 1, display:'flex', alignItems:'center', gap:'6px', fontSize:'13px', fontWeight:600, fontFamily:"'Outfit', sans-serif", transition:'all 0.2s' }}>
+          {board?.id && (
+            <button onClick={() => setShowShareModal(true)} title="Share whiteboard" aria-label="Share" className="wb-action-btn" style={{ gap:'5px', padding:'6px 12px' }}>
+              <span className="material-symbols-rounded" style={{ fontSize:'16px' }}>share</span>
+              <span style={{ fontSize:'12px', fontWeight:600 }} className="hide-below-sm">Share</span>
+            </button>
+          )}
+          <button onClick={() => handleSave(false)} disabled={isSaving} className="wb-save-btn" style={{ background: saveError ? 'rgba(239,68,68,0.15)' : isSaved ? 'rgba(52,211,153,0.15)' : 'linear-gradient(135deg,#6366f1,#8b5cf6)', border:'none', color: saveError ? '#f87171' : isSaved ? '#34d399' : 'white', padding:'6px 16px', borderRadius:'8px', cursor: isSaving ? 'default' : 'pointer', opacity: isSaving ? 0.7 : 1, display:'flex', alignItems:'center', gap:'6px', fontSize:'13px', fontWeight:600, fontFamily:"'Outfit', sans-serif", transition:'all 0.2s' }}>
             <span className="material-symbols-rounded" style={{ fontSize:'16px' }}>{isSaving ? 'progress_activity' : saveError ? 'error' : isSaved ? 'check_circle' : 'save'}</span>
             {isSaving ? 'Saving…' : saveError ? 'Save failed' : isSaved ? 'Saved!' : 'Save'}
           </button>
@@ -1081,6 +1279,15 @@ export default function WhiteboardEditor({ board, onClose, user }) {
       {/* Library Picker */}
       {showLibrary !== 'none' && (
         <LibraryPicker user={user} onSelect={handleImageInsert} onClose={() => setShowLibrary('none')} initialTab={showLibrary} />
+      )}
+
+      {/* Share Modal */}
+      {showShareModal && board?.id && (
+        <WhiteboardShareModal
+          board={board}
+          boardName={boardName}
+          onClose={() => setShowShareModal(false)}
+        />
       )}
 
       {/* Right-click context menu */}

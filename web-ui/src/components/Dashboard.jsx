@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { parseStorageState, parseDriveState } from '../services/storage/StorageService';
-import StorageUsageCard from './storage/StorageUsageCard';
 import StorageUsageBar from './storage/StorageUsageBar';
 import { DriveLogoSVG, AntCaptureCloudLogoSVG } from './icons/StorageIcons.jsx';
 import { Page, Grid } from './layout/Page.jsx';
+import { SERVER_URL } from '../config.js';
 import '../styles/pages/dashboard.css';
 
 // The actual Chrome Web Store URL for AntCapture
@@ -237,8 +237,20 @@ function MediaThumb({ item, onOpen }) {
   );
 }
 
-export default function Dashboard({ isAuthenticated, isLocalMode, hasCloudAccess, subscription, stats, captures, loadingCaptures, dbStats, onSignIn, onOpenMedia, onGoToLibrary, onGoToPricing }) {
+export default function Dashboard({ user, isAuthenticated, isLocalMode, hasCloudAccess, subscription, stats, captures, loadingCaptures, dbStats, onSignIn, onOpenMedia, onGoToLibrary, onGoToPricing, onGoToWhiteboards }) {
   const recentCaptures = captures.slice(0, 6);
+
+  // ── Whiteboard count fetch ───────────────────────────────────────────────
+  const [boardCount, setBoardCount] = useState(null);
+  useEffect(() => {
+    if (!isAuthenticated || !user?.jwt) { setBoardCount(null); return; }
+    let cancelled = false;
+    fetch(`${SERVER_URL}/boards`, { headers: { Authorization: `Bearer ${user.jwt}` } })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (!cancelled) setBoardCount(data?.boards?.length ?? null); })
+      .catch(() => { if (!cancelled) setBoardCount(null); });
+    return () => { cancelled = true; };
+  }, [isAuthenticated, user?.jwt]);
 
   // ── Smooth banner enter/exit animation ──────────────────────────────────────
   // showBanner drives DOM presence; isExiting triggers the exit animation.
@@ -405,6 +417,57 @@ export default function Dashboard({ isAuthenticated, isLocalMode, hasCloudAccess
               ctaLabel="Get More Storage"
               ctaHref="https://one.google.com/storage"
             />
+          )}
+          {/* Whiteboard Usage Bar */}
+          {boardCount !== null && (
+            <div className="storage-bar">
+              <div className="storage-bar__icon">
+                <span className="material-symbols-rounded" style={{ fontSize: '20px', color: '#818cf8' }}>dashboard</span>
+              </div>
+              <div className="storage-bar__body">
+                <div className="storage-bar__head">
+                  <div className="min-w-0">
+                    <span style={{ color: '#f8fafc', fontWeight: 600, fontSize: '13px', display: 'block' }}>
+                      Whiteboards
+                    </span>
+                    {!isLocalMode && (
+                      <span style={{ color: '#64748b', fontSize: '11px', fontWeight: 500 }}>
+                        {hasCloudAccess ? 'Cloud' : 'Free'} Plan · 1,000 board limit
+                      </span>
+                    )}
+                    {isLocalMode && (
+                      <span style={{ color: '#64748b', fontSize: '11px', fontWeight: 500 }}>Self-Hosted · Unlimited</span>
+                    )}
+                  </div>
+                  <span style={{ color: '#94a3b8', fontSize: '12px', fontWeight: 500 }}>
+                    <strong style={{ color: '#f8fafc' }}>{boardCount}</strong>
+                    {!isLocalMode && ' / 1,000'}
+                    {isLocalMode && ' Created'}
+                  </span>
+                </div>
+                <div style={{ height: '6px', background: '#0f172a', borderRadius: '999px', overflow: 'hidden' }}>
+                  <div style={{
+                    height: '100%',
+                    width: isLocalMode
+                      ? (boardCount > 0 ? '100%' : '0%')
+                      : `${Math.min(100, Math.max(boardCount > 0 ? 2 : 0, (boardCount / 1000) * 100))}%`,
+                    background: 'linear-gradient(90deg, #6366f1, #8b5cf6)',
+                    borderRadius: '999px',
+                    transition: 'width 0.6s ease',
+                  }} />
+                </div>
+              </div>
+              {onGoToWhiteboards && (
+                <button
+                  onClick={onGoToWhiteboards}
+                  className="storage-bar__cta"
+                  style={{ cursor: 'pointer', border: 'none', background: 'none' }}
+                >
+                  Open Whiteboards
+                  <span className="material-symbols-rounded" style={{ fontSize: '14px' }}>arrow_forward</span>
+                </button>
+              )}
+            </div>
           )}
         </>
       )}

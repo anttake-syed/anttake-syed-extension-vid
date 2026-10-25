@@ -221,8 +221,8 @@ export default function Pricing({ user, isAuthenticated, onSignIn, paywalled = f
                 <span className="material-symbols-rounded" style={{ fontSize: '20px', color: '#10b981' }}>verified</span>
                 <span style={{ fontSize: '18px', fontWeight: 700, color: '#10b981' }}>Active</span>
                 {entitlements?.cancelAtPeriodEnd && (
-                  <span style={{ fontSize: '11px', background: 'rgba(234,179,8,0.12)', color: '#fbbf24', border: '1px solid rgba(234,179,8,0.25)', borderRadius: '6px', padding: '2px 8px', fontWeight: 600 }}>
-                    Cancels at period end
+                  <span style={{ fontSize: '11px', background: 'rgba(100,116,139,0.12)', color: '#94a3b8', border: '1px solid rgba(100,116,139,0.25)', borderRadius: '6px', padding: '2px 8px', fontWeight: 600 }}>
+                    Access ends at period end
                   </span>
                 )}
               </div>
@@ -277,7 +277,7 @@ export default function Pricing({ user, isAuthenticated, onSignIn, paywalled = f
               </button>
               {/* Subtle text link for cancel — keeps it professional, not aggressive */}
               <p style={{ textAlign: 'center', margin: 0, fontSize: '12px', color: '#334155' }}>
-                Need to cancel?{' '}
+                Need to change your plan?{' '}
                 <button
                   onClick={onManageSubscription}
                   style={{

@@ -38,7 +38,7 @@ export const SHOWCASE_STEPS = {
     },
     {
       id: 'library-nav-anchor',
-      targetSelector: '[data-nav="My Library"], .sidebar .nav-item:nth-child(2)',
+      targetSelector: '[data-nav="My Library"], .sidebar .nav-item:nth-child(3)',
       preferredPosition: 'right',
       badge: 'Pro Feature Preview 🔒',
       badgeIcon: 'photo_library',
@@ -49,7 +49,7 @@ export const SHOWCASE_STEPS = {
     },
     {
       id: 'whiteboards-nav-anchor',
-      targetSelector: '[data-nav="Whiteboards"], .sidebar .nav-item:nth-child(3)',
+      targetSelector: '[data-nav="Whiteboards"], .sidebar .nav-item:nth-child(2)',
       preferredPosition: 'right',
       badge: 'Pro Feature Preview 🔒',
       badgeIcon: 'draw',
@@ -99,7 +99,7 @@ export const SHOWCASE_STEPS = {
     },
     {
       id: 'pro-whiteboard',
-      targetSelector: '[data-nav="Whiteboards"], .sidebar .nav-item:nth-child(3)',
+      targetSelector: '[data-nav="Whiteboards"], .sidebar .nav-item:nth-child(2)',
       preferredPosition: 'right',
       badge: 'Spatial Workspace',
       badgeIcon: 'draw',
@@ -112,7 +112,7 @@ export const SHOWCASE_STEPS = {
     },
     {
       id: 'pro-library',
-      targetSelector: '[data-nav="My Library"], .sidebar .nav-item:nth-child(2)',
+      targetSelector: '[data-nav="My Library"], .sidebar .nav-item:nth-child(3)',
       preferredPosition: 'right',
       badge: 'Cloud Sync Active',
       badgeIcon: 'cloud_done',

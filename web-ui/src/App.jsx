@@ -740,28 +740,35 @@ We want you to be completely satisfied with AntCapture. This Refund Policy expla
 We offer a 14-day money-back guarantee for new Cloud plan subscriptions. If you are not satisfied for any reason, contact us within 14 days of your initial purchase and we will issue a full refund — no questions asked.
 
 2. HOW TO REQUEST A REFUND
-- Email us through the Feedback page or the contact form on our Pricing page.
+- Use our Feedback Form: ${GOOGLE_FORM_URL}
+- Or email us at: support@antcapture.com with the subject "Refund Request".
 - Include the email address associated with your account and your reason for the refund request (optional but helpful).
-- Refunds are typically processed within 5–10 business days depending on your bank or card provider.
+- Refunds are typically processed within 5-10 business days depending on your bank or card provider.
 
-3. RENEWALS
+3. DATA RETENTION AFTER CANCELLATION
+When your subscription ends, your captures and data remain stored on our servers for 30 days. During this window you can log in and download all your files at any time. After 30 days, data associated with an inactive account may be permanently removed.
+
+4. RENEWALS
 - Subscription renewals (monthly or annual) are not refundable after the renewal date has passed, except where required by applicable law.
 - If you wish to avoid a renewal charge, please cancel your subscription at least 24 hours before the next billing date from the Settings page.
 
-4. PARTIAL REFUNDS
+5. PARTIAL REFUNDS
 We do not issue partial or pro-rated refunds for unused time within a billing period, except where required by law.
 
-5. PAYMENT PROCESSOR
+6. PAYMENT PROCESSOR
 All payments are securely handled by LemonSqueezy. Refunds will be returned to the original payment method used at checkout.
 
-6. EXCEPTIONS
+7. EXCEPTIONS
 Refunds may be denied if we reasonably determine that the policy is being abused (e.g., repeated purchase-and-refund cycles).
 
-7. SELF-HOSTED / FREE TIER
+8. SELF-HOSTED / FREE TIER
 The self-hosted version of AntCapture is free and no refunds are applicable.
 
-8. CONTACT
-For refund requests or billing questions, please use the contact form on our Pricing page or reach us through the Feedback page. We respond within 1 business day.`}
+9. CONTACT
+For refund requests or billing questions:
+- Feedback Form: ${GOOGLE_FORM_URL}
+- Email: support@antcapture.com
+We respond within 1 business day.`}
           />
         ) : activeNav === 'Privacy' ? (
           <StaticPage

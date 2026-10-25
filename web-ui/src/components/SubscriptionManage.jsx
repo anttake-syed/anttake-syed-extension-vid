@@ -145,8 +145,8 @@ export default function SubscriptionManage({
               <div style={{ fontSize: '13px', color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 700, marginBottom: '4px' }}>Current Plan</div>
               <div className="break-anywhere" style={{ fontSize: '24px', color: 'white', fontWeight: 800 }}>{entitlements.plan.charAt(0).toUpperCase() + entitlements.plan.slice(1)} Plan</div>
             </div>
-            <div style={{ background: isCancelAtPeriodEnd ? 'rgba(245,158,11,0.15)' : 'rgba(16,185,129,0.15)', color: isCancelAtPeriodEnd ? 'var(--warning)' : '#34d399', padding: '6px 14px', borderRadius: '999px', fontSize: '12px', fontWeight: 700 }}>
-              {isCancelAtPeriodEnd ? 'Cancels at period end' : 'Active'}
+            <div style={{ background: isCancelAtPeriodEnd ? 'rgba(100,116,139,0.15)' : 'rgba(16,185,129,0.15)', color: isCancelAtPeriodEnd ? '#94a3b8' : '#34d399', padding: '6px 14px', borderRadius: '999px', fontSize: '12px', fontWeight: 700 }}>
+              {isCancelAtPeriodEnd ? 'Access ends at period end' : 'Active'}
             </div>
           </div>
           
@@ -164,9 +164,14 @@ export default function SubscriptionManage({
               </span>
             </div>
             {isCancelAtPeriodEnd && (
-              <div style={{ marginTop: '12px', padding: '10px 14px', background: 'rgba(245, 158, 11, 0.1)', border: '1px solid rgba(245, 158, 11, 0.25)', borderRadius: '8px', color: '#fbbf24', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span className="material-symbols-rounded" style={{ fontSize: '18px' }}>info</span>
-                Your plan is scheduled to cancel. You retain full access to Cloud storage and features until the end of your billing period.
+              <div style={{ marginTop: '12px', padding: '10px 14px', background: 'rgba(100,116,139,0.08)', border: '1px solid rgba(100,116,139,0.2)', borderRadius: '8px', color: '#94a3b8', fontSize: '13px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span className="material-symbols-rounded" style={{ fontSize: '18px' }}>info</span>
+                  <span>Your plan access will continue until the end of your billing period. You can re-subscribe at any time.</span>
+                </div>
+                <div style={{ fontSize: '12px', color: '#64748b', paddingLeft: '26px' }}>
+                  📁 Your captures and data remain stored for 30 days after access ends — download them anytime during this window.
+                </div>
               </div>
             )}
           </div>
@@ -224,7 +229,7 @@ export default function SubscriptionManage({
                   Looking for a refund?
                 </div>
                 Cancelling stops renewals. If you purchased within the last 14 days and want a full refund, contact us via{' '}
-                <a href="/feedback" style={{ color: '#818cf8', textDecoration: 'underline' }}>Feedback Form</a> or email{' '}
+                <a href="https://docs.google.com/forms/d/e/1FAIpQLSdoXSIVDaVBnik4oA3CsIigkfa6PcJshfH7dRTqrkDnn9Kj7g/viewform" target="_blank" rel="noreferrer" style={{ color: '#818cf8', textDecoration: 'underline' }}>Feedback Form</a>{' '}or email{' '}
                 <a href={`mailto:support@antcapture.com?subject=Refund%20Request%20-%20${encodeURIComponent(user?.email || '')}&body=Hi%20AntCapture%20Team,%0A%0AI%20would%20like%20to%20request%20a%20refund%20for%20my%20Cloud%20subscription%20associated%20with%20${encodeURIComponent(user?.email || '')}.%0A%0AThank%20you!`} style={{ color: '#818cf8', textDecoration: 'underline' }}>
                   support@antcapture.com
                 </a>.
@@ -257,7 +262,7 @@ export default function SubscriptionManage({
                       Cancelling...
                     </>
                   ) : (
-                    'Confirm Cancellation'
+                    'End Subscription'
                   )}
                 </button>
               </div>

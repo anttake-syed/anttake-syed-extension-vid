@@ -459,6 +459,189 @@
   margin-bottom: 3px;
 }
 
+/* ── Contextual Floating Toolbar ── */
+.wb-context-bar {
+  position: absolute;
+  top: 16px;
+  left: 90px;
+  z-index: 48;
+  height: 44px;
+  background: rgba(13, 20, 36, 0.92);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.05);
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  gap: 10px;
+  animation: wbContextFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  max-width: calc(100% - 110px);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.wb-context-bar::-webkit-scrollbar {
+  display: none;
+}
+
+@keyframes wbContextFadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.wb-context-section {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.wb-context-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #64748b;
+  letter-spacing: 0.05em;
+  margin-right: 2px;
+}
+
+.wb-context-divider {
+  width: 1px;
+  height: 20px;
+  background: rgba(255, 255, 255, 0.1);
+  flex-shrink: 0;
+}
+
+.wb-context-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #f1f5f9;
+  padding: 5px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.wb-context-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.wb-context-btn--templates {
+  background: linear-gradient(135deg, rgba(99,102,241,0.18), rgba(168,85,247,0.18));
+  border-color: rgba(99,102,241,0.35);
+  color: #e0e7ff;
+}
+
+.wb-context-btn--templates:hover {
+  background: linear-gradient(135deg, rgba(99,102,241,0.28), rgba(168,85,247,0.28));
+  border-color: rgba(99,102,241,0.5);
+  transform: translateY(-1px);
+}
+
+.wb-context-colors {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.wb-context-swatch {
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  cursor: pointer;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  transition: all 0.12s ease;
+}
+
+.wb-context-sizes {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.wb-context-size-btn {
+  width: 26px;
+  height: 24px;
+  border-radius: 5px;
+  background: none;
+  border: 1px solid transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.12s ease;
+}
+
+.wb-context-size-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.wb-context-size-btn.is-active {
+  background: rgba(99, 102, 241, 0.2);
+  border-color: rgba(99, 102, 241, 0.4);
+}
+
+.wb-context-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  background: rgba(99, 102, 241, 0.15);
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  color: #a5b4fc;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.wb-context-icon-btn {
+  background: none;
+  border: none;
+  color: #94a3b8;
+  padding: 4px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.wb-context-icon-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #f1f5f9;
+}
+
+.wb-context-icon-btn--danger:hover {
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+}
+
+.wb-context-title-tag {
+  font-size: 11.5px;
+  color: #94a3b8;
+  background: rgba(255, 255, 255, 0.05);
+  padding: 3px 8px;
+  border-radius: 6px;
+}
+
+/* Modal styling for Templates */
+.wb-template-modal {
+  background: #0b1120 !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border-radius: 16px !important;
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.8) !important;
+}
+
 .wb-canvas-area {
   flex: 1;
   min-width: 0;

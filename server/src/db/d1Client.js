@@ -65,11 +65,43 @@ function newId() {
 //   deleteMany({ where })
 
 // ── Helper: build a simple WHERE clause from a flat object ─────────────────────
+// Supports:
+//   { key: value }          → "key" = ?
+//   { key: { in: [...] } }  → "key" IN (?,?,?)
+//   { key: { gte: val } }   → "key" >= ?
+//   { key: { lt:  val } }   → "key" < ?
 function buildWhere(where = {}) {
   const keys = Object.keys(where).filter(k => where[k] !== undefined);
   if (keys.length === 0) return { clause: '', params: [] };
-  const clause = 'WHERE ' + keys.map(k => `"${k}" = ?`).join(' AND ');
-  const params = keys.map(k => where[k]);
+
+  const parts = [];
+  const params = [];
+
+  for (const k of keys) {
+    const val = where[k];
+    if (val !== null && typeof val === 'object' && !Array.isArray(val) && !(val instanceof Date)) {
+      // Operator object: { in, gte, lte, lt, gt, not }
+      if (val.in !== undefined) {
+        const arr = val.in;
+        if (!arr || arr.length === 0) {
+          // Nothing can match an empty IN list — use a always-false condition
+          parts.push('1 = 0');
+        } else {
+          parts.push(`"${k}" IN (${arr.map(() => '?').join(', ')})`);
+          params.push(...arr);
+        }
+      }
+      if (val.gte !== undefined) { parts.push(`"${k}" >= ?`); params.push(val.gte instanceof Date ? val.gte.toISOString() : val.gte); }
+      if (val.gt  !== undefined) { parts.push(`"${k}" > ?`);  params.push(val.gt  instanceof Date ? val.gt.toISOString()  : val.gt);  }
+      if (val.lte !== undefined) { parts.push(`"${k}" <= ?`); params.push(val.lte instanceof Date ? val.lte.toISOString() : val.lte); }
+      if (val.lt  !== undefined) { parts.push(`"${k}" < ?`);  params.push(val.lt  instanceof Date ? val.lt.toISOString()  : val.lt);  }
+    } else {
+      parts.push(`"${k}" = ?`);
+      params.push(val instanceof Date ? val.toISOString() : val);
+    }
+  }
+
+  const clause = parts.length > 0 ? 'WHERE ' + parts.join(' AND ') : '';
   return { clause, params };
 }
 
@@ -146,9 +178,19 @@ async function resolveIncludes(modelName, rows, includeObj) {
       
       subRows = subRows.map(coerceRow);
       
-      // Recursive nested include
-      if (typeof val === 'object' && val.include) {
-        subRows = await resolveIncludes(rel.table, subRows, val.include);
+      // Recursive nested include — handles both { include: {...} } and { select: {...} } patterns
+      if (typeof val === 'object') {
+        if (val.include) {
+          subRows = await resolveIncludes(rel.table, subRows, val.include);
+        } else if (val.select) {
+          // Extract only relation keys from the select object for recursion
+          const nestedRels = Object.fromEntries(
+            Object.entries(val.select).filter(([k, v]) => typeof v === 'object' && v !== null)
+          );
+          if (Object.keys(nestedRels).length > 0) {
+            subRows = await resolveIncludes(rel.table, subRows, nestedRels);
+          }
+        }
       }
       
       row[key] = rel.type === 'one' ? (subRows[0] || null) : subRows;
@@ -170,17 +212,62 @@ function makeModel(tableName) {
       return rows[0] || null;
     },
 
-    async findMany({ where = {}, orderBy = {}, include } = {}) {
+    async findMany({ where = {}, orderBy = {}, include, select, take, skip } = {}) {
       const { clause, params } = buildWhere(where);
       const orderKeys = Object.keys(orderBy);
       const orderClause = orderKeys.length
         ? 'ORDER BY ' + orderKeys.map(k => `"${k}" ${orderBy[k] === 'desc' ? 'DESC' : 'ASC'}`).join(', ')
         : '';
-      let rows = await query(`SELECT * FROM "${tableName}" ${clause} ${orderClause}`, params);
-      rows = rows.map(coerceRow);
-      if (include && rows.length > 0) {
-        rows = await resolveIncludes(tableName, rows, include);
+
+      // Build SELECT clause — strip Prisma-only pseudo-fields like _count
+      let selectClause = '*';
+      let wantedCols = null;
+      if (select && typeof select === 'object') {
+        const plainCols = Object.keys(select).filter(k => {
+          if (k === '_count') return false;             // aggregate, resolved separately
+          const v = select[k];
+          return v === true || (typeof v === 'object'); // nested include-style selects become *
+        });
+        if (plainCols.length > 0) {
+          // Always include 'id' so relation resolution works
+          const colSet = new Set(['id', ...plainCols.filter(k => typeof select[k] === 'true' || select[k] === true)]);
+          // For nested selects (relations), we still fetch all cols and use resolveIncludes
+          selectClause = '*';
+          wantedCols = plainCols;
+        }
       }
+
+      const limitClause  = take  ? `LIMIT ${parseInt(take, 10)}`  : '';
+      const offsetClause = skip  ? `OFFSET ${parseInt(skip, 10)}` : '';
+
+      let rows = await query(
+        `SELECT ${selectClause} FROM "${tableName}" ${clause} ${orderClause} ${limitClause} ${offsetClause}`.trim(),
+        params
+      );
+      rows = rows.map(coerceRow);
+
+      // Resolve nested relation selects (treated like include)
+      const resolvedInclude = select
+        ? Object.fromEntries(
+            Object.entries(select)
+              .filter(([k, v]) => k !== '_count' && typeof v === 'object' && v !== null)
+              .map(([k, v]) => [k, v])
+          )
+        : null;
+
+      if ((include || (resolvedInclude && Object.keys(resolvedInclude).length > 0)) && rows.length > 0) {
+        rows = await resolveIncludes(tableName, rows, include || resolvedInclude);
+      }
+
+      // Strip columns not in select (if a plain-columns select was requested)
+      if (wantedCols) {
+        rows = rows.map(row => {
+          const out = {};
+          for (const k of wantedCols) out[k] = row[k];
+          return out;
+        });
+      }
+
       return rows;
     },
 
@@ -282,6 +369,30 @@ function makeModel(tableName) {
       const { clause, params } = buildWhere(where);
       const rows = await query(`SELECT COUNT(*) as cnt FROM "${tableName}" ${clause}`, params);
       return rows[0]?.cnt ?? 0;
+    },
+
+    async groupBy({ by = [], where = {}, _count = {} } = {}) {
+      const { clause, params } = buildWhere(where);
+      const groupCols = by.map(k => `"${k}"`).join(', ');
+
+      const countParts = Object.keys(_count).length > 0
+        ? Object.keys(_count).map(k => `COUNT("${k}") as "count_${k}"`)
+        : ['COUNT(*) as "count_all"'];
+
+      const sql = `SELECT ${groupCols}, ${countParts.join(', ')} FROM "${tableName}" ${clause} GROUP BY ${groupCols}`;
+      const rows = await query(sql, params);
+
+      return rows.map(row => {
+        const result = {};
+        for (const k of by) result[k] = row[k];
+        if (Object.keys(_count).length > 0) {
+          result._count = {};
+          for (const k of Object.keys(_count)) result._count[k] = Number(row[`count_${k}`] ?? 0);
+        } else {
+          result._count = Number(row['count_all'] ?? 0);
+        }
+        return result;
+      });
     },
 
     async aggregate({ where = {}, _sum = {}, _count = {}, _avg = {}, _min = {}, _max = {} } = {}) {

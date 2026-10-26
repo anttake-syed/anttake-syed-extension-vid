@@ -25,7 +25,7 @@ export default function WhiteboardEditor({ board, onClose, user }) {
   const [elements, setElements]           = useState([]);
   const [selectedId, setSelectedId]       = useState(null);
   const [selectedIds, setSelectedIds]     = useState([]);
-  const [marquee, setMarquee]             = useState(null); // { startX, startY, currentX, currentY }
+  const [marquee, setMarquee]             = useState(null);
   const [isSaved, setIsSaved]             = useState(false);
   const [isSaving, setIsSaving]           = useState(false);
   const [saveError, setSaveError]         = useState(null);
@@ -34,25 +34,32 @@ export default function WhiteboardEditor({ board, onClose, user }) {
   const [showExitModal, setShowExitModal] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
   const [zoom, setZoom]                   = useState(1);
+  const [panOffset, setPanOffset]         = useState({ x: 0, y: 0 });
   const [boardStateItemId, setBoardStateItemId] = useState(null);
-  const [contextMenu, setContextMenu]     = useState(null); // {x,y,elIdx}
-  const [textPrompt, setTextPrompt]       = useState(null); // {x,y} — replaces native prompt()
+  const [contextMenu, setContextMenu]     = useState(null);
+  const [textPrompt, setTextPrompt]       = useState(null);
   const [textPromptValue, setTextPromptValue] = useState('');
-  const [mediaLoadError, setMediaLoadError] = useState(null); // replaces native alert()
+  const [mediaLoadError, setMediaLoadError] = useState(null);
 
   const canvasRef         = useRef(null);
   const drawing           = useRef(false);
   const currentPath       = useRef([]);
-  const liveShape         = useRef(null); // {startPt, endPt} for live shape preview
+  const liveShape         = useRef(null);
   const dragRef           = useRef(null);
+  const panDragRef        = useRef(null); // for pan tool
   const marqueeRef        = useRef(null);
   const nameInputRef      = useRef(null);
-  const boardThumbItemId  = useRef(null);
   const boardStateItemIdRef = useRef(null);
   const needsCommitRef    = useRef(false);
   const isSavingRef       = useRef(false);
   const nameCommittedRef  = useRef(false);
-  
+  const zoomRef           = useRef(zoom);
+  const panOffsetRef      = useRef(panOffset);
+
+  // Keep refs in sync for use in event handlers
+  useEffect(() => { zoomRef.current = zoom; }, [zoom]);
+  useEffect(() => { panOffsetRef.current = panOffset; }, [panOffset]);
+
   const historyRef        = useRef([[]]);
   const historyStepRef    = useRef(0);
 
@@ -77,7 +84,6 @@ export default function WhiteboardEditor({ board, onClose, user }) {
       const slug = boardName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'untitled';
       const targetUrl = `/whiteboard/${board.id}/${slug}`;
       const currentPath = window.location.pathname;
-      
       if (currentPath !== targetUrl) {
         if (currentPath.startsWith(`/whiteboard/${board.id}`)) {
           window.history.replaceState(null, '', targetUrl);
@@ -99,14 +105,36 @@ export default function WhiteboardEditor({ board, onClose, user }) {
     return () => window.removeEventListener('beforeunload', onBeforeUnload);
   }, [hasUnsavedChanges]);
 
+  // ── Canvas coordinate helpers (accounts for zoom + pan) ──
+  // Convert screen/client coords → canvas world coords
+  const screenToWorld = useCallback((clientX, clientY) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return { x: 0, y: 0 };
+    const rect = canvas.getBoundingClientRect();
+    const z = zoomRef.current;
+    const pan = panOffsetRef.current;
+    return {
+      x: (clientX - rect.left - pan.x) / z,
+      y: (clientY - rect.top  - pan.y) / z,
+    };
+  }, []);
+
   // ── Canvas draw ──────────────────────────────────────────
   const redraw = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
+    const z = zoomRef.current;
+    const pan = panOffsetRef.current;
+
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    elements.forEach((el, idx) => {
+    // Apply zoom + pan transform
+    ctx.save();
+    ctx.translate(pan.x, pan.y);
+    ctx.scale(z, z);
+
+    elements.forEach((el) => {
       ctx.save();
       if (el.type === 'path') {
         ctx.strokeStyle = el.color;
@@ -133,7 +161,6 @@ export default function WhiteboardEditor({ board, onClose, user }) {
         ctx.moveTo(el.x, el.y);
         ctx.lineTo(el.x2, el.y2);
         ctx.stroke();
-        // arrowhead
         const angle = Math.atan2(el.y2 - el.y, el.x2 - el.x);
         const hw = 10 + el.size;
         ctx.beginPath();
@@ -149,8 +176,7 @@ export default function WhiteboardEditor({ board, onClose, user }) {
         ctx.fillText(el.text, el.x, el.y);
       } else if (el.type === 'image' && el.img) {
         ctx.drawImage(el.img, el.x, el.y, el.w, el.h);
-        
-        // Draw title
+
         if (el.title) {
           ctx.font = "14px 'Outfit', sans-serif";
           const tw = ctx.measureText(el.title).width;
@@ -160,7 +186,6 @@ export default function WhiteboardEditor({ board, onClose, user }) {
           ctx.fillText(el.title, el.x + 6, el.y - 8);
         }
 
-        // Draw play button if paused video
         if (el.isVideo && !el.isPlaying) {
           ctx.fillStyle = "rgba(0,0,0,0.5)";
           ctx.beginPath();
@@ -190,10 +215,7 @@ export default function WhiteboardEditor({ board, onClose, user }) {
       ctx.restore();
     }
 
-    // Live shape preview (rect/circle/arrow) — drawn as a guide outline in
-    // the app's brand indigo rather than the user's active draw color, so it
-    // reads as "this is a preview" instead of looking like already-drawn
-    // (and, with a dark draw color, jarringly black) content.
+    // Live shape preview
     if (drawing.current && liveShape.current) {
       const { startPt: s, endPt: ep, tool: lt } = liveShape.current;
       ctx.save();
@@ -231,8 +253,8 @@ export default function WhiteboardEditor({ board, onClose, user }) {
       if (!el) return;
       ctx.save();
       ctx.strokeStyle = '#6366f1';
-      ctx.lineWidth   = 1.5;
-      ctx.setLineDash([5, 4]);
+      ctx.lineWidth   = 1.5 / z; // keep outline thin regardless of zoom
+      ctx.setLineDash([5 / z, 4 / z]);
 
       if (el.type === 'image') {
         ctx.strokeRect(el.x - 2, el.y - 2, el.w + 4, el.h + 4);
@@ -268,23 +290,24 @@ export default function WhiteboardEditor({ board, onClose, user }) {
       ctx.restore();
     });
 
-    // Marquee selection box ("Guiding blue line that moves with mouse")
+    // Marquee selection box
     const m = marqueeRef.current;
     if (m && m.active) {
       const rx = Math.min(m.startX, m.currentX);
       const ry = Math.min(m.startY, m.currentY);
       const rw = Math.abs(m.currentX - m.startX);
       const rh = Math.abs(m.currentY - m.startY);
-
       ctx.save();
       ctx.fillStyle = 'rgba(99, 102, 241, 0.12)';
       ctx.fillRect(rx, ry, rw, rh);
       ctx.strokeStyle = '#6366f1';
-      ctx.lineWidth = 1.5;
-      ctx.setLineDash([6, 4]);
+      ctx.lineWidth = 1.5 / z;
+      ctx.setLineDash([6 / z, 4 / z]);
       ctx.strokeRect(rx, ry, rw, rh);
       ctx.restore();
     }
+
+    ctx.restore(); // restore zoom+pan transform
   }, [elements, color, strokeSize, tool, selectedId, selectedIds]);
 
   useEffect(() => { redraw(); }, [redraw]);
@@ -308,14 +331,13 @@ export default function WhiteboardEditor({ board, onClose, user }) {
           headers: { Authorization: `Bearer ${user?.jwt}` },
         });
         const data = await res.json();
-        
+
         if (data.board?.name) {
           setBoardName(data.board.name);
           setNameDraft(data.board.name);
         }
-        
-        const items = data.board?.items || [];
 
+        const items = data.board?.items || [];
         const stateItem = items.find(i => i.type === 'board_state');
         if (stateItem?.content) {
           setBoardStateItemId(stateItem.id);
@@ -342,7 +364,6 @@ export default function WhiteboardEditor({ board, onClose, user }) {
                       video.oncanplay = () => {
                         setTimeout(() => resolve({ ...el, img: video, isPlaying: false }), 200);
                       };
-                      // Fallback just in case seek fails or video is too short
                       setTimeout(() => resolve({ ...el, img: video, isPlaying: false }), 1500);
                       video.onerror = () => {
                         if (video.crossOrigin) {
@@ -385,10 +406,11 @@ export default function WhiteboardEditor({ board, onClose, user }) {
     if (board?.id && user?.jwt) loadBoardState();
   }, [board?.id, user?.jwt]);
 
+  // Canvas resize observer
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || !canvas.parentElement) return;
-    
+
     const resize = () => {
       const rect = canvas.parentElement.getBoundingClientRect();
       if (rect.width > 0 && rect.height > 0) {
@@ -397,23 +419,308 @@ export default function WhiteboardEditor({ board, onClose, user }) {
         redraw();
       }
     };
-    
-    // ResizeObserver ensures we get the size correctly even if flex layout is delayed
+
     const obs = new ResizeObserver(resize);
     obs.observe(canvas.parentElement);
-    
     return () => obs.disconnect();
   }, [redraw]);
 
-  const getPos = (e) => {
-    const rect = canvasRef.current.getBoundingClientRect();
-    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+  // Mousewheel zoom (Ctrl+wheel or pinch)
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const onWheel = (e) => {
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+        const delta = -e.deltaY * 0.001;
+        setZoom(z => Math.min(4, Math.max(0.1, z + delta * z)));
+      }
+    };
+    canvas.addEventListener('wheel', onWheel, { passive: false });
+    return () => canvas.removeEventListener('wheel', onWheel);
+  }, []);
+
+  // ── Mouse Events ─────────────────────────────────────────
+  const onMouseDown = (e) => {
+    setContextMenu(null);
+    if (e.button !== 0) return;
+    const pos = screenToWorld(e.clientX, e.clientY);
+
+    // ── Pan tool ──
+    if (tool === 'pan') {
+      panDragRef.current = {
+        startClient: { x: e.clientX, y: e.clientY },
+        startPan: { ...panOffsetRef.current },
+      };
+      return;
+    }
+
+    if (tool === 'select') {
+      let hit = null;
+      let hitResize = false;
+      for (let i = elements.length - 1; i >= 0; i--) {
+        const el = elements[i];
+        if (el.type === 'image') {
+          if (selectedId === i || selectedIds.includes(i)) {
+            const hx = el.x + el.w, hy = el.y + el.h;
+            if (pos.x >= hx - 8 && pos.x <= hx + 8 && pos.y >= hy - 8 && pos.y <= hy + 8) {
+              hit = i; hitResize = true; break;
+            }
+          }
+          if (pos.x >= el.x && pos.x <= el.x + el.w && pos.y >= el.y && pos.y <= el.y + el.h) {
+            if (el.isVideo) {
+              const cx = el.x + el.w/2, cy = el.y + el.h/2;
+              if (Math.hypot(pos.x - cx, pos.y - cy) < 24) {
+                const next = [...elements];
+                next[i].isPlaying = !next[i].isPlaying;
+                if (next[i].isPlaying) next[i].img.play(); else next[i].img.pause();
+                setElements(next);
+                return;
+              }
+            }
+            hit = i; break;
+          }
+        } else if (el.type === 'text') {
+          const fontSize = el.fontSize || 20;
+          if (pos.x >= el.x - 4 && pos.x <= el.x + 240 && pos.y >= el.y - fontSize - 4 && pos.y <= el.y + 6) { hit = i; break; }
+        } else if (el.type === 'rect') {
+          const minX = Math.min(el.x, el.x + el.w), maxX = Math.max(el.x, el.x + el.w);
+          const minY = Math.min(el.y, el.y + el.h), maxY = Math.max(el.y, el.y + el.h);
+          if (pos.x >= minX - 4 && pos.x <= maxX + 4 && pos.y >= minY - 4 && pos.y <= maxY + 4) { hit = i; break; }
+        } else if (el.type === 'circle') {
+          const cx = el.x + el.w/2, cy = el.y + el.h/2;
+          const rx = Math.abs(el.w/2), ry = Math.abs(el.h/2);
+          if (pos.x >= cx - rx - 4 && pos.x <= cx + rx + 4 && pos.y >= cy - ry - 4 && pos.y <= cy + ry + 4) { hit = i; break; }
+        } else if (el.type === 'arrow') {
+          const minX = Math.min(el.x, el.x2), maxX = Math.max(el.x, el.x2);
+          const minY = Math.min(el.y, el.y2), maxY = Math.max(el.y, el.y2);
+          if (pos.x >= minX - 10 && pos.x <= maxX + 10 && pos.y >= minY - 10 && pos.y <= maxY + 10) { hit = i; break; }
+        } else if (el.type === 'path') {
+          let pathHit = false;
+          for (let p of (el.points || [])) {
+            if (Math.hypot(p.x - pos.x, p.y - pos.y) < el.size + 6) { pathHit = true; break; }
+          }
+          if (pathHit) { hit = i; break; }
+        }
+      }
+
+      if (hit !== null) {
+        let newSelectedIds = [hit];
+        if (e.shiftKey) {
+          newSelectedIds = selectedIds.includes(hit)
+            ? selectedIds.filter(id => id !== hit)
+            : [...selectedIds, hit];
+        } else if (selectedIds.includes(hit) && selectedIds.length > 1) {
+          newSelectedIds = selectedIds;
+        }
+
+        setSelectedId(hit);
+        setSelectedIds(newSelectedIds);
+
+        const movingIndices = newSelectedIds.includes(hit) ? newSelectedIds : [hit];
+        const initialSnapshots = {};
+        movingIndices.forEach(idx => {
+          const el = elements[idx];
+          if (el) {
+            initialSnapshots[idx] = {
+              x: el.x, y: el.y,
+              w: el.w, h: el.h,
+              x2: el.x2, y2: el.y2,
+              points: el.points ? el.points.map(p => ({ ...p })) : null,
+            };
+          }
+        });
+
+        dragRef.current = {
+          idx: hit,
+          isResize: hitResize,
+          startX: pos.x,
+          startY: pos.y,
+          movingIndices,
+          initialSnapshots,
+          origX: elements[hit].x, origY: elements[hit].y,
+          origW: elements[hit].w, origH: elements[hit].h,
+          origX2: elements[hit].x2, origY2: elements[hit].y2,
+          origPoints: elements[hit].points ? [...elements[hit].points] : null
+        };
+      } else {
+        setSelectedId(null);
+        setSelectedIds([]);
+        marqueeRef.current = {
+          active: true,
+          startX: pos.x,
+          startY: pos.y,
+          currentX: pos.x,
+          currentY: pos.y,
+        };
+        setMarquee({ startX: pos.x, startY: pos.y, currentX: pos.x, currentY: pos.y });
+        redraw();
+      }
+      return;
+    }
+
+    if (tool === 'text') {
+      setTextPromptValue('');
+      setTextPrompt({ x: pos.x, y: pos.y });
+      return;
+    }
+
+    drawing.current = true;
+    currentPath.current = [pos];
+    if (['rect', 'circle', 'arrow'].includes(tool)) liveShape.current = { startPt: pos, endPt: pos, tool };
+  };
+
+  const onMouseMove = (e) => {
+    // Pan tool dragging
+    if (tool === 'pan' && panDragRef.current) {
+      const dx = e.clientX - panDragRef.current.startClient.x;
+      const dy = e.clientY - panDragRef.current.startClient.y;
+      const newPan = {
+        x: panDragRef.current.startPan.x + dx,
+        y: panDragRef.current.startPan.y + dy,
+      };
+      setPanOffset(newPan);
+      panOffsetRef.current = newPan;
+      redraw();
+      return;
+    }
+
+    // Selector marquee
+    if (tool === 'select' && marqueeRef.current && marqueeRef.current.active) {
+      const pos = screenToWorld(e.clientX, e.clientY);
+      marqueeRef.current.currentX = pos.x;
+      marqueeRef.current.currentY = pos.y;
+      setMarquee({ ...marqueeRef.current });
+      redraw();
+      return;
+    }
+
+    // Dragging/moving selected elements
+    if (tool === 'select' && dragRef.current) {
+      const pos = screenToWorld(e.clientX, e.clientY);
+      const { idx, isResize, startX, startY, origW, origH, movingIndices, initialSnapshots } = dragRef.current;
+      const dx = pos.x - startX, dy = pos.y - startY;
+
+      if (isResize && idx !== null) {
+        setElements(prev => prev.map((el, i) => {
+          if (i !== idx) return el;
+          const ratio = origW / origH;
+          const newW = Math.max(20, origW + dx);
+          const newH = newW / ratio;
+          return { ...el, w: newW, h: newH };
+        }));
+      } else if (movingIndices && movingIndices.length > 0) {
+        setElements(prev => prev.map((el, i) => {
+          if (!movingIndices.includes(i) || !initialSnapshots[i]) return el;
+          const snap = initialSnapshots[i];
+          if (el.type === 'path' && snap.points) {
+            return { ...el, points: snap.points.map(p => ({ x: p.x + dx, y: p.y + dy })) };
+          } else if (el.type === 'arrow') {
+            return { ...el, x: snap.x + dx, y: snap.y + dy, x2: snap.x2 + dx, y2: snap.y2 + dy };
+          } else {
+            return { ...el, x: snap.x + dx, y: snap.y + dy };
+          }
+        }));
+      }
+      return;
+    }
+
+    if (!drawing.current) return;
+    const pos = screenToWorld(e.clientX, e.clientY);
+    currentPath.current = [...currentPath.current, pos];
+    if (liveShape.current) liveShape.current = { ...liveShape.current, endPt: pos };
+    redraw();
+  };
+
+  const onMouseUp = (e) => {
+    // Finish pan
+    if (tool === 'pan') {
+      panDragRef.current = null;
+      return;
+    }
+
+    // Finish marquee selection
+    if (tool === 'select' && marqueeRef.current && marqueeRef.current.active) {
+      const m = marqueeRef.current;
+      marqueeRef.current = null;
+      setMarquee(null);
+
+      const minX = Math.min(m.startX, m.currentX);
+      const maxX = Math.max(m.startX, m.currentX);
+      const minY = Math.min(m.startY, m.currentY);
+      const maxY = Math.max(m.startY, m.currentY);
+
+      if (maxX - minX > 3 || maxY - minY > 3) {
+        const hits = [];
+        elements.forEach((el, i) => {
+          let elMinX = el.x, elMaxX = el.x, elMinY = el.y, elMaxY = el.y;
+          if (el.type === 'image' || el.type === 'rect') {
+            elMinX = Math.min(el.x, el.x + (el.w || 0));
+            elMaxX = Math.max(el.x, el.x + (el.w || 0));
+            elMinY = Math.min(el.y, el.y + (el.h || 0));
+            elMaxY = Math.max(el.y, el.y + (el.h || 0));
+          } else if (el.type === 'circle') {
+            const rx = Math.abs((el.w || 0) / 2), ry = Math.abs((el.h || 0) / 2);
+            const cx = el.x + (el.w || 0) / 2, cy = el.y + (el.h || 0) / 2;
+            elMinX = cx - rx; elMaxX = cx + rx;
+            elMinY = cy - ry; elMaxY = cy + ry;
+          } else if (el.type === 'arrow') {
+            elMinX = Math.min(el.x, el.x2); elMaxX = Math.max(el.x, el.x2);
+            elMinY = Math.min(el.y, el.y2); elMaxY = Math.max(el.y, el.y2);
+          } else if (el.type === 'text') {
+            elMinX = el.x; elMaxX = el.x + 120;
+            elMinY = el.y - (el.fontSize || 20); elMaxY = el.y;
+          } else if (el.type === 'path' && el.points?.length) {
+            elMinX = Math.min(...el.points.map(p => p.x));
+            elMaxX = Math.max(...el.points.map(p => p.x));
+            elMinY = Math.min(...el.points.map(p => p.y));
+            elMaxY = Math.max(...el.points.map(p => p.y));
+          }
+          const overlap = !(elMaxX < minX || elMinX > maxX || elMaxY < minY || elMinY > maxY);
+          if (overlap) hits.push(i);
+        });
+        setSelectedIds(hits);
+        setSelectedId(hits.length === 1 ? hits[0] : (hits.length > 1 ? hits[hits.length - 1] : null));
+      }
+      redraw();
+      return;
+    }
+
+    if (dragRef.current) {
+      dragRef.current = null;
+      needsCommitRef.current = true;
+      setElements(prev => [...prev]);
+    }
+    if (!drawing.current) return;
+    drawing.current = false;
+    const pts = currentPath.current;
+    liveShape.current = null;
+    if (pts.length < 2) { currentPath.current = []; redraw(); return; }
+
+    const startPt = pts[0];
+    const endPt   = pts[pts.length - 1];
+    const minDist = Math.hypot(endPt.x - startPt.x, endPt.y - startPt.y);
+    if (minDist < 3) { currentPath.current = []; redraw(); return; }
+
+    let newEl = null;
+    if (tool === 'pen' || tool === 'eraser') {
+      newEl = { type: 'path', points: pts, color: tool === 'eraser' ? '#020617' : color, size: tool === 'eraser' ? strokeSize * 5 : strokeSize };
+    } else if (tool === 'rect') {
+      newEl = { type: 'rect', x: startPt.x, y: startPt.y, w: endPt.x - startPt.x, h: endPt.y - startPt.y, color, size: strokeSize };
+    } else if (tool === 'circle') {
+      newEl = { type: 'circle', x: startPt.x, y: startPt.y, w: endPt.x - startPt.x, h: endPt.y - startPt.y, color, size: strokeSize };
+    } else if (tool === 'arrow') {
+      newEl = { type: 'arrow', x: startPt.x, y: startPt.y, x2: endPt.x, y2: endPt.y, color, size: strokeSize };
+    }
+    if (newEl) { const next = [...elements, newEl]; setElements(next); commitToHistory(next); }
+    currentPath.current = [];
+    redraw();
   };
 
   // Right-click context menu
   const onContextMenu = (e) => {
     e.preventDefault();
-    const pos = getPos(e);
+    const pos = screenToWorld(e.clientX, e.clientY);
     let hit = null;
     for (let i = elements.length - 1; i >= 0; i--) {
       const el = elements[i];
@@ -481,267 +788,6 @@ export default function WhiteboardEditor({ board, onClose, user }) {
     commitToHistory(next);
   };
 
-
-  const onMouseDown = (e) => {
-    setContextMenu(null);
-    if (e.button !== 0) return;
-    const pos = getPos(e);
-
-    if (tool === 'select') {
-      let hit = null;
-      let hitResize = false;
-      for (let i = elements.length - 1; i >= 0; i--) {
-        const el = elements[i];
-        if (el.type === 'image') {
-          if (selectedId === i || selectedIds.includes(i)) {
-            const hx = el.x + el.w, hy = el.y + el.h;
-            if (pos.x >= hx - 8 && pos.x <= hx + 8 && pos.y >= hy - 8 && pos.y <= hy + 8) {
-              hit = i; hitResize = true; break;
-            }
-          }
-          if (pos.x >= el.x && pos.x <= el.x + el.w && pos.y >= el.y && pos.y <= el.y + el.h) {
-            if (el.isVideo) {
-              const cx = el.x + el.w/2, cy = el.y + el.h/2;
-              if (Math.hypot(pos.x - cx, pos.y - cy) < 24) {
-                const next = [...elements];
-                next[i].isPlaying = !next[i].isPlaying;
-                if (next[i].isPlaying) next[i].img.play(); else next[i].img.pause();
-                setElements(next);
-                return; // handled play toggle
-              }
-            }
-            hit = i; break;
-          }
-        }
-        else if (el.type === 'text') {
-          const fontSize = el.fontSize || 20;
-          if (pos.x >= el.x - 4 && pos.x <= el.x + 240 && pos.y >= el.y - fontSize - 4 && pos.y <= el.y + 6) { hit = i; break; }
-        }
-        else if (el.type === 'rect') {
-          const minX = Math.min(el.x, el.x + el.w), maxX = Math.max(el.x, el.x + el.w);
-          const minY = Math.min(el.y, el.y + el.h), maxY = Math.max(el.y, el.y + el.h);
-          if (pos.x >= minX - 4 && pos.x <= maxX + 4 && pos.y >= minY - 4 && pos.y <= maxY + 4) { hit = i; break; }
-        }
-        else if (el.type === 'circle') {
-          const cx = el.x + el.w/2, cy = el.y + el.h/2;
-          const rx = Math.abs(el.w/2), ry = Math.abs(el.h/2);
-          if (pos.x >= cx - rx - 4 && pos.x <= cx + rx + 4 && pos.y >= cy - ry - 4 && pos.y <= cy + ry + 4) { hit = i; break; }
-        }
-        else if (el.type === 'arrow') {
-          const minX = Math.min(el.x, el.x2), maxX = Math.max(el.x, el.x2);
-          const minY = Math.min(el.y, el.y2), maxY = Math.max(el.y, el.y2);
-          if (pos.x >= minX - 10 && pos.x <= maxX + 10 && pos.y >= minY - 10 && pos.y <= maxY + 10) { hit = i; break; }
-        }
-        else if (el.type === 'path') {
-          let pathHit = false;
-          for(let p of (el.points || [])) {
-             if(Math.hypot(p.x - pos.x, p.y - pos.y) < el.size + 6) { pathHit = true; break; }
-          }
-          if (pathHit) { hit = i; break; }
-        }
-      }
-
-      if (hit !== null) {
-        // If clicking on an element:
-        // If Shift is pressed or already in selectedIds, keep selection set
-        let newSelectedIds = [hit];
-        if (e.shiftKey) {
-          newSelectedIds = selectedIds.includes(hit)
-            ? selectedIds.filter(id => id !== hit)
-            : [...selectedIds, hit];
-        } else if (selectedIds.includes(hit) && selectedIds.length > 1) {
-          newSelectedIds = selectedIds;
-        }
-
-        setSelectedId(hit);
-        setSelectedIds(newSelectedIds);
-
-        // Prepare multi-drag or single-drag
-        const movingIndices = newSelectedIds.includes(hit) ? newSelectedIds : [hit];
-        const initialSnapshots = {};
-        movingIndices.forEach(idx => {
-          const el = elements[idx];
-          if (el) {
-            initialSnapshots[idx] = {
-              x: el.x, y: el.y,
-              w: el.w, h: el.h,
-              x2: el.x2, y2: el.y2,
-              points: el.points ? el.points.map(p => ({ ...p })) : null,
-            };
-          }
-        });
-
-        dragRef.current = { 
-          idx: hit, 
-          isResize: hitResize,
-          startX: pos.x, 
-          startY: pos.y, 
-          movingIndices,
-          initialSnapshots,
-          origX: elements[hit].x, origY: elements[hit].y,
-          origW: elements[hit].w, origH: elements[hit].h,
-          origX2: elements[hit].x2, origY2: elements[hit].y2,
-          origPoints: elements[hit].points ? [...elements[hit].points] : null
-        };
-      } else {
-        // Clicked on empty space: clear element selection and start marquee bounding box
-        setSelectedId(null);
-        setSelectedIds([]);
-        marqueeRef.current = {
-          active: true,
-          startX: pos.x,
-          startY: pos.y,
-          currentX: pos.x,
-          currentY: pos.y,
-        };
-        setMarquee({ startX: pos.x, startY: pos.y, currentX: pos.x, currentY: pos.y });
-        redraw();
-      }
-      return;
-    }
-
-    if (tool === 'text') {
-      setTextPromptValue('');
-      setTextPrompt({ x: pos.x, y: pos.y });
-      return;
-    }
-
-    drawing.current = true;
-    currentPath.current = [pos];
-    if (['rect','circle','arrow'].includes(tool)) liveShape.current = { startPt: pos, endPt: pos, tool };
-  };
-
-  const onMouseMove = (e) => {
-    // 1. Selector marquee active (guiding blue line that moves with mouse)
-    if (tool === 'select' && marqueeRef.current && marqueeRef.current.active) {
-      const pos = getPos(e);
-      marqueeRef.current.currentX = pos.x;
-      marqueeRef.current.currentY = pos.y;
-      setMarquee({ ...marqueeRef.current });
-      redraw();
-      return;
-    }
-
-    // 2. Dragging/moving selected elements
-    if (tool === 'select' && dragRef.current) {
-      const pos = getPos(e);
-      const { idx, isResize, startX, startY, origX, origY, origW, origH, origX2, origY2, origPoints, movingIndices, initialSnapshots } = dragRef.current;
-      const dx = pos.x - startX, dy = pos.y - startY;
-
-      if (isResize && idx !== null) {
-        setElements(prev => prev.map((el, i) => {
-          if (i !== idx) return el;
-          const ratio = origW / origH;
-          const newW = Math.max(20, origW + dx);
-          const newH = newW / ratio;
-          return { ...el, w: newW, h: newH };
-        }));
-      } else if (movingIndices && movingIndices.length > 0) {
-        setElements(prev => prev.map((el, i) => {
-          if (!movingIndices.includes(i) || !initialSnapshots[i]) return el;
-          const snap = initialSnapshots[i];
-          if (el.type === 'path' && snap.points) {
-            return { ...el, points: snap.points.map(p => ({ x: p.x + dx, y: p.y + dy })) };
-          } else if (el.type === 'arrow') {
-            return { ...el, x: snap.x + dx, y: snap.y + dy, x2: snap.x2 + dx, y2: snap.y2 + dy };
-          } else {
-            return { ...el, x: snap.x + dx, y: snap.y + dy };
-          }
-        }));
-      }
-      return;
-    }
-
-    if (!drawing.current) return;
-    const pos = getPos(e);
-    currentPath.current = [...currentPath.current, pos];
-    if (liveShape.current) liveShape.current = { ...liveShape.current, endPt: pos };
-    redraw();
-  };
-
-  const onMouseUp = (e) => {
-    // Finish marquee selection
-    if (tool === 'select' && marqueeRef.current && marqueeRef.current.active) {
-      const m = marqueeRef.current;
-      marqueeRef.current = null;
-      setMarquee(null);
-
-      const minX = Math.min(m.startX, m.currentX);
-      const maxX = Math.max(m.startX, m.currentX);
-      const minY = Math.min(m.startY, m.currentY);
-      const maxY = Math.max(m.startY, m.currentY);
-
-      // Only perform marquee selection if mouse actually moved
-      if (maxX - minX > 3 || maxY - minY > 3) {
-        const hits = [];
-        elements.forEach((el, i) => {
-          let elMinX = el.x, elMaxX = el.x, elMinY = el.y, elMaxY = el.y;
-          if (el.type === 'image' || el.type === 'rect') {
-            elMinX = Math.min(el.x, el.x + (el.w || 0));
-            elMaxX = Math.max(el.x, el.x + (el.w || 0));
-            elMinY = Math.min(el.y, el.y + (el.h || 0));
-            elMaxY = Math.max(el.y, el.y + (el.h || 0));
-          } else if (el.type === 'circle') {
-            const rx = Math.abs((el.w || 0) / 2), ry = Math.abs((el.h || 0) / 2);
-            const cx = el.x + (el.w || 0) / 2, cy = el.y + (el.h || 0) / 2;
-            elMinX = cx - rx; elMaxX = cx + rx;
-            elMinY = cy - ry; elMaxY = cy + ry;
-          } else if (el.type === 'arrow') {
-            elMinX = Math.min(el.x, el.x2); elMaxX = Math.max(el.x, el.x2);
-            elMinY = Math.min(el.y, el.y2); elMaxY = Math.max(el.y, el.y2);
-          } else if (el.type === 'text') {
-            elMinX = el.x; elMaxX = el.x + 120;
-            elMinY = el.y - (el.fontSize || 20); elMaxY = el.y;
-          } else if (el.type === 'path' && el.points?.length) {
-            elMinX = Math.min(...el.points.map(p => p.x));
-            elMaxX = Math.max(...el.points.map(p => p.x));
-            elMinY = Math.min(...el.points.map(p => p.y));
-            elMaxY = Math.max(...el.points.map(p => p.y));
-          }
-
-          // AABB overlap test
-          const overlap = !(elMaxX < minX || elMinX > maxX || elMaxY < minY || elMinY > maxY);
-          if (overlap) hits.push(i);
-        });
-
-        setSelectedIds(hits);
-        setSelectedId(hits.length === 1 ? hits[0] : (hits.length > 1 ? hits[hits.length - 1] : null));
-      }
-      redraw();
-      return;
-    }
-
-    if (dragRef.current) {
-      dragRef.current = null;
-      needsCommitRef.current = true;
-      setElements(prev => [...prev]);
-    }
-    if (!drawing.current) return;
-    drawing.current = false;
-    const pts = currentPath.current;
-    liveShape.current = null;
-    if (pts.length < 2) { currentPath.current = []; redraw(); return; }
-
-    const startPt = pts[0];
-    const endPt   = pts[pts.length - 1];
-    const minDist = Math.hypot(endPt.x - startPt.x, endPt.y - startPt.y);
-    if (minDist < 3) { currentPath.current = []; redraw(); return; }
-
-    let newEl = null;
-    if (tool === 'pen' || tool === 'eraser') {
-      newEl = { type:'path', points: pts, color: tool === 'eraser' ? '#020617' : color, size: tool === 'eraser' ? strokeSize * 5 : strokeSize };
-    } else if (tool === 'rect') {
-      newEl = { type:'rect', x:startPt.x, y:startPt.y, w:endPt.x-startPt.x, h:endPt.y-startPt.y, color, size:strokeSize };
-    } else if (tool === 'circle') {
-      newEl = { type:'circle', x:startPt.x, y:startPt.y, w:endPt.x-startPt.x, h:endPt.y-startPt.y, color, size:strokeSize };
-    } else if (tool === 'arrow') {
-      newEl = { type:'arrow', x:startPt.x, y:startPt.y, x2:endPt.x, y2:endPt.y, color, size:strokeSize };
-    }
-    if (newEl) { const next = [...elements, newEl]; setElements(next); commitToHistory(next); }
-    currentPath.current = [];
-    redraw();
-  };
-
   const handleImageInsert = (src, isVideo, title) => {
     setShowLibrary('none');
     if (!src) return;
@@ -751,8 +797,6 @@ export default function WhiteboardEditor({ board, onClose, user }) {
       video.muted = true;
       video.loop = true;
       video.playsInline = true;
-
-      // Try with crossOrigin='anonymous', but if it fails fall back without it
       video.crossOrigin = 'anonymous';
 
       let loaded = false;
@@ -770,8 +814,7 @@ export default function WhiteboardEditor({ board, onClose, user }) {
           title: title || 'Video',
           isPlaying: false,
           src,
-          x: 60,
-          y: 60,
+          x: 60, y: 60,
           w: Math.round(vw * ratio),
           h: Math.round(vh * ratio)
         }];
@@ -779,18 +822,11 @@ export default function WhiteboardEditor({ board, onClose, user }) {
         commitToHistory(next);
       };
 
-      video.onloadeddata = () => {
-        try { video.currentTime = 0.1; } catch (_) {}
-      };
+      video.onloadeddata = () => { try { video.currentTime = 0.1; } catch (_) {} };
       video.onseeked = onReady;
-      video.oncanplay = () => {
-        // Fallback in case onseeked does not fire
-        setTimeout(onReady, 300);
-      };
-
+      video.oncanplay = () => { setTimeout(onReady, 300); };
       video.onerror = () => {
         if (video.crossOrigin) {
-          // Retry without crossOrigin
           video.crossOrigin = null;
           video.src = src;
           video.load();
@@ -798,7 +834,6 @@ export default function WhiteboardEditor({ board, onClose, user }) {
           setMediaLoadError('Could not load video for preview.');
         }
       };
-
       video.src = src;
       video.load();
     } else {
@@ -814,8 +849,7 @@ export default function WhiteboardEditor({ board, onClose, user }) {
           img,
           title: title || 'Image',
           src,
-          x: 60,
-          y: 60,
+          x: 60, y: 60,
           w: Math.round(iw * ratio),
           h: Math.round(ih * ratio)
         }];
@@ -824,7 +858,6 @@ export default function WhiteboardEditor({ board, onClose, user }) {
       };
       img.onerror = () => {
         if (img.crossOrigin) {
-          // Retry without crossOrigin
           img.crossOrigin = null;
           img.src = src;
         } else {
@@ -840,6 +873,7 @@ export default function WhiteboardEditor({ board, onClose, user }) {
     if (t === 'video') { setShowLibrary('videos'); return; }
     setTool(t);
     setSelectedId(null);
+    setSelectedIds([]);
   };
 
   const handleUndo = () => {
@@ -849,7 +883,7 @@ export default function WhiteboardEditor({ board, onClose, user }) {
       setHasUnsavedChanges(true);
     }
   };
-  
+
   const handleRedo = () => {
     if (historyStepRef.current < historyRef.current.length - 1) {
       historyStepRef.current += 1;
@@ -866,28 +900,26 @@ export default function WhiteboardEditor({ board, onClose, user }) {
     }
   };
 
+  const handleZoomIn  = () => setZoom(z => Math.min(4, parseFloat((z + 0.25).toFixed(2))));
+  const handleZoomOut = () => setZoom(z => Math.max(0.1, parseFloat((z - 0.25).toFixed(2))));
+  const handleZoomReset = () => { setZoom(1); setPanOffset({ x: 0, y: 0 }); };
+
   const commitTextPrompt = () => {
     const text = textPromptValue.trim();
     if (text && textPrompt) {
-      const next = [...elements, { type:'text', text, x: textPrompt.x, y: textPrompt.y, color, fontSize: 20 + strokeSize * 2 }];
+      const next = [...elements, { type: 'text', text, x: textPrompt.x, y: textPrompt.y, color, fontSize: 20 + strokeSize * 2 }];
       setElements(next); commitToHistory(next);
     }
     setTextPrompt(null);
   };
 
   const handleNameCommit = () => {
-    // Enter calls this, then blurring the input as it unmounts (setEditingName
-    // below) can fire a native blur that calls this a second time — guard so
-    // the rename PATCH only fires once per edit.
     if (nameCommittedRef.current) return;
     nameCommittedRef.current = true;
-
     const trimmed = nameDraft.trim() || generateDefaultName();
     setBoardName(trimmed);
     setEditingName(false);
     setIsSaved(false);
-
-    // Save new name to server
     fetch(`${SERVER_URL}/boards/${board.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${user?.jwt}` },
@@ -895,35 +927,29 @@ export default function WhiteboardEditor({ board, onClose, user }) {
     }).catch(console.error);
   };
 
-  // Generate a tiny fixed-size thumbnail (320×180 JPEG)
+  // Generate thumbnail
   const generateThumbnail = () => {
     try {
       const src = canvasRef.current;
       if (!src) return null;
-      // If width or height is 0, we can't draw, but it shouldn't be 0 if mounted correctly.
-      if (src.width === 0 || src.height === 0) {
-        console.warn('Canvas width or height is 0, cannot generate thumbnail');
-        return null;
-      }
+      if (src.width === 0 || src.height === 0) return null;
       const THUMB_W = 320, THUMB_H = 180;
       const tc = document.createElement('canvas');
       tc.width = THUMB_W; tc.height = THUMB_H;
       const ctx = tc.getContext('2d');
       ctx.fillStyle = '#0a0f1c';
       ctx.fillRect(0, 0, THUMB_W, THUMB_H);
-      // letterbox-fit the drawing
       const scale = Math.min(THUMB_W / src.width, THUMB_H / src.height);
       const dw = src.width * scale, dh = src.height * scale;
       ctx.drawImage(src, (THUMB_W - dw) / 2, (THUMB_H - dh) / 2, dw, dh);
       return tc.toDataURL('image/jpeg', 0.45);
     } catch (e) {
-      console.error('Failed to generate thumbnail (possibly CORS or tainted canvas):', e);
+      console.error('Failed to generate thumbnail:', e);
       return null;
     }
   };
 
   const handleSave = useCallback(async (isSilent = false) => {
-    // Guard against duplicate save in flight
     if (isSavingRef.current) return;
     isSavingRef.current = true;
     setIsSaving(true);
@@ -931,12 +957,14 @@ export default function WhiteboardEditor({ board, onClose, user }) {
 
     const thumbnail = generateThumbnail();
     const elementsToSave = elements.map(el => {
-      const { img, ...rest } = (el.type === 'image' ? el : el);
-      return el.type === 'image' ? rest : el;
+      if (el.type === 'image') {
+        const { img, ...rest } = el;
+        return rest;
+      }
+      return el;
     });
 
     try {
-      // ── 1. Save elements (board_state) ──
       const stateContent = JSON.stringify({ elements: elementsToSave });
       const currentItemId = boardStateItemIdRef.current || boardStateItemId;
       if (currentItemId) {
@@ -960,16 +988,12 @@ export default function WhiteboardEditor({ board, onClose, user }) {
         }
       }
 
-      // ── 2. Save thumbnail on the board directly ──
       if (thumbnail) {
-        const resThumb = await fetch(`${SERVER_URL}/boards/${board.id}`, {
+        await fetch(`${SERVER_URL}/boards/${board.id}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${user?.jwt}` },
           body: JSON.stringify({ thumbnail }),
-        });
-        if (!resThumb.ok) {
-          console.error('[WhiteboardEditor] Failed to save thumbnail on server:', await resThumb.text());
-        }
+        }).catch(console.error);
       }
 
       setHasUnsavedChanges(false);
@@ -986,15 +1010,13 @@ export default function WhiteboardEditor({ board, onClose, user }) {
     }
   }, [board?.id, boardStateItemId, elements, user?.jwt]);
 
-  // Debounced auto-save: saves automatically 1.5s after any element modification
+  // Debounced auto-save
   useEffect(() => {
     if (!hasUnsavedChanges || !board?.id || !user?.jwt) return;
-    const timer = setTimeout(() => {
-      handleSave(true);
-    }, 1500);
+    const timer = setTimeout(() => { handleSave(true); }, 1500);
     return () => clearTimeout(timer);
   }, [hasUnsavedChanges, elements, board?.id, user?.jwt, handleSave]);
-  
+
   const handleClose = async () => {
     if (hasUnsavedChanges) {
       setShowExitModal(true);
@@ -1004,6 +1026,7 @@ export default function WhiteboardEditor({ board, onClose, user }) {
   };
 
   const getCursor = () => {
+    if (tool === 'pan')    return panDragRef.current ? 'grabbing' : 'grab';
     if (tool === 'select') return 'default';
     if (tool === 'eraser') return 'cell';
     if (tool === 'text')   return 'text';
@@ -1011,7 +1034,7 @@ export default function WhiteboardEditor({ board, onClose, user }) {
   };
 
   return (
-    <div style={{ position:'fixed', inset:0, zIndex:1000, background:'var(--bg-primary)', display:'flex', flexDirection:'column', fontFamily:"'Outfit', sans-serif" }}>
+    <div style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'var(--bg-primary)', display: 'flex', flexDirection: 'column', fontFamily: "'Outfit', sans-serif" }}>
       {/* ── Top Bar ── */}
       <WhiteboardTopbar
         boardName={boardName}
@@ -1023,7 +1046,9 @@ export default function WhiteboardEditor({ board, onClose, user }) {
         handleNameCommit={handleNameCommit}
         nameCommittedRef={nameCommittedRef}
         zoom={zoom}
-        setZoom={setZoom}
+        onZoomIn={handleZoomIn}
+        onZoomOut={handleZoomOut}
+        onZoomReset={handleZoomReset}
         handleUndo={handleUndo}
         handleRedo={handleRedo}
         handleSave={handleSave}
@@ -1036,8 +1061,8 @@ export default function WhiteboardEditor({ board, onClose, user }) {
       />
 
       {(loadError || saveError) && (
-        <div style={{ background:'rgba(239,68,68,0.1)', borderBottom:'1px solid rgba(239,68,68,0.3)', color:'#f87171', fontSize:'12px', padding:'8px 20px', display:'flex', alignItems:'center', gap:'8px' }}>
-          <span className="material-symbols-rounded" style={{ fontSize:'16px', flexShrink:0 }}>warning</span>
+        <div style={{ background: 'rgba(239,68,68,0.1)', borderBottom: '1px solid rgba(239,68,68,0.3)', color: '#f87171', fontSize: '12px', padding: '8px 20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span className="material-symbols-rounded" style={{ fontSize: '16px', flexShrink: 0 }}>warning</span>
           {loadError || saveError}
         </div>
       )}
@@ -1051,7 +1076,14 @@ export default function WhiteboardEditor({ board, onClose, user }) {
         />
 
         {/* Canvas Area */}
-        <div className="wb-canvas-area" style={{ background:'radial-gradient(circle, #1e293b 1px, transparent 1px)', backgroundSize:'24px 24px', backgroundColor:'var(--bg-primary)' }}>
+        <div
+          className="wb-canvas-area"
+          style={{
+            background: 'radial-gradient(circle, #1e293b 1px, transparent 1px)',
+            backgroundSize: '24px 24px',
+            backgroundColor: 'var(--bg-primary)'
+          }}
+        >
           {/* Floating Contextual Tool Properties Bar */}
           <WhiteboardContextBar
             tool={tool}
@@ -1066,42 +1098,43 @@ export default function WhiteboardEditor({ board, onClose, user }) {
             onDeleteSelected={handleDeleteSelected}
           />
 
-          <div style={{ transform:`scale(${zoom})`, transformOrigin:'top left', width: `${100/zoom}%`, height: `${100/zoom}%` }}>
-            <canvas
-              ref={canvasRef}
-              style={{ display:'block', width:'100%', height:'100%', cursor: getCursor() }}
-              onMouseDown={onMouseDown}
-              onMouseMove={onMouseMove}
-              onMouseUp={onMouseUp}
-              onMouseLeave={onMouseUp}
-              onContextMenu={onContextMenu}
-            />
-          </div>
+          <canvas
+            ref={canvasRef}
+            style={{ display: 'block', width: '100%', height: '100%', cursor: getCursor() }}
+            onMouseDown={onMouseDown}
+            onMouseMove={onMouseMove}
+            onMouseUp={onMouseUp}
+            onMouseLeave={onMouseUp}
+            onContextMenu={onContextMenu}
+          />
         </div>
       </div>
 
-      {/* ── Status / Tip Bar ── */}
+      {/* ── Status Bar ── */}
       <div className="wb-statusbar">
         <div className="wb-status-left">
-          <span className="hide-below-sm" style={{ fontSize:'11px', color:'#334155', fontWeight:600, textTransform:'uppercase', letterSpacing:'0.05em', whiteSpace:'nowrap' }}>AntCapture Whiteboard</span>
-          <span className="hide-below-sm" style={{ fontSize:'11px', color:'#334155' }}>·</span>
-          <span className="material-symbols-rounded" style={{ fontSize:'13px', color:'var(--text-faint)', flexShrink:0 }}>
+          <span className="hide-below-sm" style={{ fontSize: '11px', color: '#334155', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', whiteSpace: 'nowrap' }}>AntCapture Whiteboard</span>
+          <span className="hide-below-sm" style={{ fontSize: '11px', color: '#334155' }}>·</span>
+          <span className="material-symbols-rounded" style={{ fontSize: '13px', color: 'var(--text-faint)', flexShrink: 0 }}>
             {TOOLS.find(t => t.id === tool)?.icon || 'near_me'}
           </span>
-          <span className="truncate" style={{ fontSize:'11px', color:'var(--text-faint)' }}>
+          <span className="truncate" style={{ fontSize: '11px', color: 'var(--text-faint)' }}>
             {tool === 'pen'    && 'Click and drag to draw freely'}
             {tool === 'eraser' && 'Drag over strokes to erase'}
             {tool === 'text'   && 'Click anywhere to add text'}
             {tool === 'rect'   && 'Drag to draw a rectangle'}
             {tool === 'circle' && 'Drag to draw an ellipse'}
             {tool === 'arrow'  && 'Drag to draw an arrow'}
-            {tool === 'select' && 'Click an image to select and drag it'}
+            {tool === 'select' && 'Click to select · Shift-click for multi-select · Drag to marquee'}
+            {tool === 'pan'    && 'Drag to pan the canvas · Use Ctrl+Scroll to zoom'}
             {tool === 'image'  && 'Pick an image from your library'}
             {tool === 'video'  && 'Pick a video from your library'}
           </span>
         </div>
-        <div className="hide-below-md" style={{ display:'flex', alignItems:'center', gap:'16px', flexShrink:0 }}>
-          <span style={{ fontSize:'11px', color:'#334155' }}>No infinite canvas — focused &amp; distraction-free</span>
+        <div className="hide-below-md" style={{ display: 'flex', alignItems: 'center', gap: '16px', flexShrink: 0 }}>
+          <span style={{ fontSize: '11px', color: '#475569' }}>
+            {Math.round(zoom * 100)}% · {elements.length} element{elements.length !== 1 ? 's' : ''}
+          </span>
         </div>
         <span className="wb-status-hint show-below-sm">Best on a larger screen</span>
       </div>
@@ -1132,7 +1165,6 @@ export default function WhiteboardEditor({ board, onClose, user }) {
         onSelectTemplate={handleApplyTemplate}
       />
 
-
       {/* Right-click context menu */}
       <WhiteboardContextMenu
         contextMenu={contextMenu}
@@ -1161,11 +1193,11 @@ export default function WhiteboardEditor({ board, onClose, user }) {
 
       {/* Media load failure toast */}
       {mediaLoadError && (
-        <div className="wb-toast" role="alert" style={{ zIndex:4500 }}>
-          <span className="material-symbols-rounded" style={{ fontSize:'20px', color:'#f87171', flexShrink:0 }}>error</span>
-          <span style={{ fontSize:'13px', color:'var(--danger-soft)', flex:1, minWidth:0 }}>{mediaLoadError}</span>
+        <div className="wb-toast" role="alert" style={{ zIndex: 4500 }}>
+          <span className="material-symbols-rounded" style={{ fontSize: '20px', color: '#f87171', flexShrink: 0 }}>error</span>
+          <span style={{ fontSize: '13px', color: 'var(--danger-soft)', flex: 1, minWidth: 0 }}>{mediaLoadError}</span>
           <button onClick={() => setMediaLoadError(null)} className="wb-toast-close" aria-label="Dismiss">
-            <span className="material-symbols-rounded" style={{ fontSize:'18px' }}>close</span>
+            <span className="material-symbols-rounded" style={{ fontSize: '18px' }}>close</span>
           </button>
         </div>
       )}

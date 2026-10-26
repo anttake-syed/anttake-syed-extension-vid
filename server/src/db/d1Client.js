@@ -199,6 +199,26 @@ function makeModel(tableName) {
         fullData.updatedAt = now;
       }
 
+      // Schema defaults for tables where Prisma schema specifies defaults but D1 requires explicit values
+      if (tableName === 'BoardItem') {
+        if (fullData.x === undefined || fullData.x === null) fullData.x = 0;
+        if (fullData.y === undefined || fullData.y === null) fullData.y = 0;
+        if (fullData.width === undefined || fullData.width === null) fullData.width = 300;
+        if (fullData.height === undefined || fullData.height === null) fullData.height = 200;
+        if (fullData.rotation === undefined || fullData.rotation === null) fullData.rotation = 0;
+        if (fullData.zIndex === undefined || fullData.zIndex === null) fullData.zIndex = 0;
+        if (fullData.type === undefined || fullData.type === null) fullData.type = 'capture';
+      } else if (tableName === 'Board') {
+        if (fullData.title === undefined || fullData.title === null) fullData.title = 'Untitled Board';
+        if (fullData.width === undefined || fullData.width === null) fullData.width = 1920;
+        if (fullData.height === undefined || fullData.height === null) fullData.height = 1080;
+        if (fullData.background === undefined || fullData.background === null) fullData.background = '#1a1a2e';
+      } else if (tableName === 'Capture') {
+        if (fullData.status === undefined || fullData.status === null) fullData.status = 'processing';
+        if (fullData.hasAudio === undefined || fullData.hasAudio === null) fullData.hasAudio = false;
+        if (fullData.shareCount === undefined || fullData.shareCount === null) fullData.shareCount = 0;
+      }
+
       const keys = Object.keys(fullData);
       const placeholders = keys.map(() => '?').join(', ');
       const vals = keys.map(k => {

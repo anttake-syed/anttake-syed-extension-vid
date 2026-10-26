@@ -1037,12 +1037,29 @@ exports.getStorageAndUserAnalytics = async (req, res) => {
     }
 
     // 2. Aggregate DB storage objects — BigInt-safe conversion
-    const storageSummary = await prisma.storageObject.aggregate({
-      _sum: { sizeBytes: true },
-      _count: { id: true }
-    });
-    const totalDbBytes = Number(storageSummary._sum.sizeBytes ?? 0);
-    const totalDbFiles = Number(storageSummary._count.id ?? 0);
+    let totalDbBytes = 0;
+    let totalDbFiles = 0;
+    try {
+      if (typeof prisma.storageObject.aggregate === 'function') {
+        const storageSummary = await prisma.storageObject.aggregate({
+          _sum: { sizeBytes: true },
+          _count: { id: true }
+        });
+        totalDbBytes = Number(storageSummary?._sum?.sizeBytes ?? 0);
+        totalDbFiles = typeof storageSummary?._count === 'number' 
+          ? storageSummary._count 
+          : Number(storageSummary?._count?.id ?? 0);
+      } else {
+        const objs = await prisma.storageObject.findMany({ select: { sizeBytes: true } });
+        totalDbFiles = objs.length;
+        totalDbBytes = objs.reduce((acc, o) => acc + Number(o.sizeBytes || 0), 0);
+      }
+    } catch (aggErr) {
+      logger.warn('diagnostics', 'storage-aggregate-fallback', { error: aggErr.message });
+      const objs = await prisma.storageObject.findMany({ select: { sizeBytes: true } }).catch(() => []);
+      totalDbFiles = objs.length;
+      totalDbBytes = objs.reduce((acc, o) => acc + Number(o.sizeBytes || 0), 0);
+    }
 
     // 3. User counts
     const totalUsers = await prisma.user.count();

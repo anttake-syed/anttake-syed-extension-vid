@@ -174,8 +174,25 @@ export default function WhiteboardEditor({ board, onClose, user }) {
         ctx.fillStyle  = el.color;
         ctx.font       = `${el.fontSize}px 'Outfit', sans-serif`;
         ctx.fillText(el.text, el.x, el.y);
-      } else if (el.type === 'image' && el.img) {
-        ctx.drawImage(el.img, el.x, el.y, el.w, el.h);
+      } else if (el.type === 'image') {
+        if (el.img) {
+          try {
+            ctx.drawImage(el.img, el.x, el.y, el.w, el.h);
+          } catch (e) {
+            console.warn('Canvas drawImage error for element:', e);
+          }
+        } else {
+          // Fallback placeholder card if image is loading or failed
+          ctx.fillStyle = '#0f172a';
+          ctx.fillRect(el.x, el.y, el.w || 300, el.h || 200);
+          ctx.strokeStyle = '#334155';
+          ctx.lineWidth = 1;
+          ctx.strokeRect(el.x, el.y, el.w || 300, el.h || 200);
+
+          ctx.fillStyle = '#94a3b8';
+          ctx.font = "14px 'Outfit', sans-serif";
+          ctx.fillText(el.title || (el.isVideo ? 'Video Preview' : 'Image Preview'), el.x + 16, el.y + (el.h ? el.h / 2 : 100));
+        }
 
         if (el.title) {
           ctx.font = "14px 'Outfit', sans-serif";
@@ -973,14 +990,28 @@ export default function WhiteboardEditor({ board, onClose, user }) {
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${user?.jwt}` },
           body: JSON.stringify({ content: stateContent }),
         });
-        if (!res.ok) throw new Error(`Failed to save (HTTP ${res.status})`);
+        if (!res.ok) {
+          let errDetail = `HTTP ${res.status}`;
+          try {
+            const errJson = await res.json();
+            if (errJson?.error || errJson?.message) errDetail = errJson.error || errJson.message;
+          } catch (_) {}
+          throw new Error(`Failed to save: ${errDetail}`);
+        }
       } else {
         const res = await fetch(`${SERVER_URL}/boards/${board.id}/items`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${user?.jwt}` },
           body: JSON.stringify({ type: 'board_state', content: stateContent }),
         });
-        if (!res.ok) throw new Error(`Failed to save (HTTP ${res.status})`);
+        if (!res.ok) {
+          let errDetail = `HTTP ${res.status}`;
+          try {
+            const errJson = await res.json();
+            if (errJson?.error || errJson?.message) errDetail = errJson.error || errJson.message;
+          } catch (_) {}
+          throw new Error(`Failed to save: ${errDetail}`);
+        }
         const d = await res.json();
         if (d.item) {
           setBoardStateItemId(d.item.id);
@@ -989,11 +1020,11 @@ export default function WhiteboardEditor({ board, onClose, user }) {
       }
 
       if (thumbnail) {
-        await fetch(`${SERVER_URL}/boards/${board.id}`, {
+        fetch(`${SERVER_URL}/boards/${board.id}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${user?.jwt}` },
           body: JSON.stringify({ thumbnail }),
-        }).catch(console.error);
+        }).catch((err) => console.warn('Thumbnail upload warning:', err));
       }
 
       setHasUnsavedChanges(false);
@@ -1002,7 +1033,7 @@ export default function WhiteboardEditor({ board, onClose, user }) {
     } catch (err) {
       console.error('Save failed', err);
       if (!isSilent) {
-        setSaveError('Save failed — your changes are still here, but not on the server yet. Try again.');
+        setSaveError(err.message || 'Save failed — your changes are still here, but not on the server yet. Try again.');
       }
     } finally {
       isSavingRef.current = false;

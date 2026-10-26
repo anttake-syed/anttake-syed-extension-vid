@@ -152,17 +152,22 @@ exports.addBoardItem = async (req, res) => {
     const item = await prisma.boardItem.create({
       data: {
         boardId: board.id,
-        captureId,
-        type,
-        x, y, width, height, rotation, zIndex,
-        content
+        captureId: captureId || null,
+        type: type || 'capture',
+        x: Number.isFinite(Number(x)) ? Number(x) : 0,
+        y: Number.isFinite(Number(y)) ? Number(y) : 0,
+        width: Number.isFinite(Number(width)) ? Number(width) : 300,
+        height: Number.isFinite(Number(height)) ? Number(height) : 200,
+        rotation: Number.isFinite(Number(rotation)) ? Number(rotation) : 0,
+        zIndex: Number.isInteger(Number(zIndex)) ? Number(zIndex) : 0,
+        content: content || null
       }
     });
 
     res.json({ success: true, item });
   } catch (err) {
     logger.error('board', 'add-item-failed', { requestId: req.requestId, userId: req.user.id, boardId: req.params.id, error: err });
-    res.status(500).json({ error: 'Failed to add board item' });
+    res.status(500).json({ error: `Failed to add board item: ${err.message}` });
   }
 };
 

@@ -283,6 +283,60 @@ function makeModel(tableName) {
       const rows = await query(`SELECT COUNT(*) as cnt FROM "${tableName}" ${clause}`, params);
       return rows[0]?.cnt ?? 0;
     },
+
+    async aggregate({ where = {}, _sum = {}, _count = {}, _avg = {}, _min = {}, _max = {} } = {}) {
+      const { clause, params } = buildWhere(where);
+      const selectParts = [];
+
+      if (_count && Object.keys(_count).length > 0) {
+        for (const k of Object.keys(_count)) {
+          selectParts.push(`COUNT("${k}") as "count_${k}"`);
+        }
+      } else {
+        selectParts.push(`COUNT(*) as "count_all"`);
+      }
+
+      for (const k of Object.keys(_sum || {})) {
+        selectParts.push(`SUM(COALESCE("${k}", 0)) as "sum_${k}"`);
+      }
+      for (const k of Object.keys(_avg || {})) {
+        selectParts.push(`AVG("${k}") as "avg_${k}"`);
+      }
+      for (const k of Object.keys(_min || {})) {
+        selectParts.push(`MIN("${k}") as "min_${k}"`);
+      }
+      for (const k of Object.keys(_max || {})) {
+        selectParts.push(`MAX("${k}") as "max_${k}"`);
+      }
+
+      const sql = `SELECT ${selectParts.join(', ')} FROM "${tableName}" ${clause}`;
+      const rows = await query(sql, params);
+      const row = rows[0] || {};
+
+      const result = { _count: {}, _sum: {}, _avg: {}, _min: {}, _max: {} };
+      if (_count && Object.keys(_count).length > 0) {
+        for (const k of Object.keys(_count)) {
+          result._count[k] = Number(row[`count_${k}`] ?? 0);
+        }
+      } else {
+        result._count = Number(row['count_all'] ?? 0);
+      }
+
+      for (const k of Object.keys(_sum || {})) {
+        result._sum[k] = row[`sum_${k}`] !== null && row[`sum_${k}`] !== undefined ? Number(row[`sum_${k}`]) : null;
+      }
+      for (const k of Object.keys(_avg || {})) {
+        result._avg[k] = row[`avg_${k}`] !== null && row[`avg_${k}`] !== undefined ? Number(row[`avg_${k}`]) : null;
+      }
+      for (const k of Object.keys(_min || {})) {
+        result._min[k] = row[`min_${k}`] ?? null;
+      }
+      for (const k of Object.keys(_max || {})) {
+        result._max[k] = row[`max_${k}`] ?? null;
+      }
+
+      return result;
+    },
   };
 }
 

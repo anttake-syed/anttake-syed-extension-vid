@@ -506,21 +506,40 @@ export default function WhiteboardEditor({ board, onClose, user }) {
                       video.crossOrigin = 'anonymous';
                       video.muted = true;
                       video.loop = true;
+                      video.playsInline = true;
                       video.src = el.src;
                       video.onloadeddata = () => {
-                        video.currentTime = 0.5;
+                        try { video.currentTime = 0.1; } catch (_) {}
                       };
                       video.onseeked = () => {
                         resolve({ ...el, img: video, isPlaying: false });
                       };
+                      video.oncanplay = () => {
+                        setTimeout(() => resolve({ ...el, img: video, isPlaying: false }), 200);
+                      };
                       // Fallback just in case seek fails or video is too short
                       setTimeout(() => resolve({ ...el, img: video, isPlaying: false }), 1500);
-                      video.onerror = () => resolve(el);
+                      video.onerror = () => {
+                        if (video.crossOrigin) {
+                          video.crossOrigin = null;
+                          video.src = el.src;
+                          video.load();
+                        } else {
+                          resolve(el);
+                        }
+                      };
                     } else {
                       const img = new Image();
                       img.crossOrigin = 'anonymous';
                       img.onload = () => resolve({ ...el, img });
-                      img.onerror = () => resolve(el);
+                      img.onerror = () => {
+                        if (img.crossOrigin) {
+                          img.crossOrigin = null;
+                          img.src = el.src;
+                        } else {
+                          resolve(el);
+                        }
+                      };
                       img.src = el.src;
                     }
                   });
@@ -872,36 +891,89 @@ export default function WhiteboardEditor({ board, onClose, user }) {
 
     if (isVideo) {
       const video = document.createElement('video');
-      video.crossOrigin = 'anonymous';
       video.muted = true;
       video.loop = true;
-      video.src = src;
-      
-      video.onloadeddata = () => {
-        video.currentTime = 0.5;
-      };
-      
-      video.onseeked = () => {
+      video.playsInline = true;
+
+      // Try with crossOrigin='anonymous', but if it fails fall back without it
+      video.crossOrigin = 'anonymous';
+
+      let loaded = false;
+      const onReady = () => {
+        if (loaded) return;
+        loaded = true;
         const maxW = 480, maxH = 360;
-        const ratio = Math.min(1, Math.min(maxW / video.videoWidth, maxH / video.videoHeight));
-        const next = [...elements, { type:'image', img: video, isVideo: true, title: title || 'Video', isPlaying: false, src, x:60, y:60, w:video.videoWidth * ratio, h:video.videoHeight * ratio }];
+        const vw = video.videoWidth || 320;
+        const vh = video.videoHeight || 240;
+        const ratio = Math.min(1, Math.min(maxW / vw, maxH / vh));
+        const next = [...elements, {
+          type: 'image',
+          img: video,
+          isVideo: true,
+          title: title || 'Video',
+          isPlaying: false,
+          src,
+          x: 60,
+          y: 60,
+          w: Math.round(vw * ratio),
+          h: Math.round(vh * ratio)
+        }];
         setElements(next);
         commitToHistory(next);
       };
-      
-      video.onerror = () => setMediaLoadError('Could not load video for preview.');
+
+      video.onloadeddata = () => {
+        try { video.currentTime = 0.1; } catch (_) {}
+      };
+      video.onseeked = onReady;
+      video.oncanplay = () => {
+        // Fallback in case onseeked does not fire
+        setTimeout(onReady, 300);
+      };
+
+      video.onerror = () => {
+        if (video.crossOrigin) {
+          // Retry without crossOrigin
+          video.crossOrigin = null;
+          video.src = src;
+          video.load();
+        } else {
+          setMediaLoadError('Could not load video for preview.');
+        }
+      };
+
+      video.src = src;
       video.load();
     } else {
       const img = new Image();
       img.crossOrigin = 'anonymous';
       img.onload = () => {
         const maxW = 480, maxH = 360;
-        const ratio = Math.min(1, Math.min(maxW / img.width, maxH / img.height));
-        const next = [...elements, { type:'image', img, title: title || 'Image', src, x:60, y:60, w:img.width * ratio, h:img.height * ratio }];
+        const iw = img.naturalWidth || img.width || 320;
+        const ih = img.naturalHeight || img.height || 240;
+        const ratio = Math.min(1, Math.min(maxW / iw, maxH / ih));
+        const next = [...elements, {
+          type: 'image',
+          img,
+          title: title || 'Image',
+          src,
+          x: 60,
+          y: 60,
+          w: Math.round(iw * ratio),
+          h: Math.round(ih * ratio)
+        }];
         setElements(next);
         commitToHistory(next);
       };
-      img.onerror = () => setMediaLoadError('Could not load image.');
+      img.onerror = () => {
+        if (img.crossOrigin) {
+          // Retry without crossOrigin
+          img.crossOrigin = null;
+          img.src = src;
+        } else {
+          setMediaLoadError('Could not load image.');
+        }
+      };
       img.src = src;
     }
   };

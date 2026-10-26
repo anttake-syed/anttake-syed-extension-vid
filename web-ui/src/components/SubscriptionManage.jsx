@@ -228,10 +228,9 @@ export default function SubscriptionManage({
                   <span className="material-symbols-rounded" style={{ fontSize: '16px' }}>help_outline</span>
                   Looking for a refund?
                 </div>
-                Cancelling stops renewals. If you purchased within the last 14 days and want a full refund, contact us via{' '}
-                <a href="https://docs.google.com/forms/d/e/1FAIpQLSdoXSIVDaVBnik4oA3CsIigkfa6PcJshfH7dRTqrkDnn9Kj7g/viewform" target="_blank" rel="noreferrer" style={{ color: '#818cf8', textDecoration: 'underline' }}>Feedback Form</a>{' '}or email{' '}
-                <a href={`mailto:support@antcapture.com?subject=Refund%20Request%20-%20${encodeURIComponent(user?.email || '')}&body=Hi%20AntCapture%20Team,%0A%0AI%20would%20like%20to%20request%20a%20refund%20for%20my%20Cloud%20subscription%20associated%20with%20${encodeURIComponent(user?.email || '')}.%0A%0AThank%20you!`} style={{ color: '#818cf8', textDecoration: 'underline' }}>
-                  support@antcapture.com
+                Cancelling stops renewals. If you purchased within the last 14 days and want a full refund, submit your request through our{' '}
+                <a href="https://docs.google.com/forms/d/e/1FAIpQLSdoXSIVDaVBnik4oA3CsIigkfa6PcJshfH7dRTqrkDnn9Kj7g/viewform" target="_blank" rel="noreferrer" style={{ color: '#818cf8', textDecoration: 'underline', fontWeight: 600 }}>
+                  Refund &amp; Support Form
                 </a>.
               </div>
 
@@ -274,7 +273,7 @@ export default function SubscriptionManage({
         <div style={{ marginTop: '24px', background: 'var(--bg-secondary)', border: '1px solid #334155', borderRadius: '12px', padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <div style={{ width: '36px', height: '36px', borderRadius: '8px', background: 'rgba(99,102,241,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary-soft)' }}>
-              <span className="material-symbols-rounded" style={{ fontSize: '20px' }}>mail</span>
+              <span className="material-symbols-rounded" style={{ fontSize: '20px' }}>support_agent</span>
             </div>
             <div>
               <div style={{ color: 'white', fontSize: '14px', fontWeight: 600 }}>Billing or Refund Questions?</div>
@@ -282,7 +281,9 @@ export default function SubscriptionManage({
             </div>
           </div>
           <a
-            href={`mailto:support@antcapture.com?subject=Billing%20Support%20-%20${encodeURIComponent(user?.email || '')}`}
+            href="https://docs.google.com/forms/d/e/1FAIpQLSdoXSIVDaVBnik4oA3CsIigkfa6PcJshfH7dRTqrkDnn9Kj7g/viewform"
+            target="_blank"
+            rel="noreferrer"
             style={{
               background: 'rgba(255,255,255,0.06)',
               border: '1px solid #334155',
@@ -300,8 +301,8 @@ export default function SubscriptionManage({
             onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
             onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.06)'}
           >
-            <span className="material-symbols-rounded" style={{ fontSize: '16px' }}>send</span>
-            Contact Support
+            <span className="material-symbols-rounded" style={{ fontSize: '16px' }}>open_in_new</span>
+            Contact Support Form
           </a>
         </div>
       </Page>

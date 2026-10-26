@@ -1064,7 +1064,7 @@ exports.getStorageAndUserAnalytics = async (req, res) => {
         usage: {
           select: {
             cloudBytes: true,
-            captureCount: true
+            cloudObjectCount: true
           }
         },
         _count: {
@@ -1085,7 +1085,7 @@ exports.getStorageAndUserAnalytics = async (req, res) => {
         joinedAt: u.createdAt,
         plan: u.subscription?.plan?.name || 'free',
         subStatus: u.subscription?.status || 'none',
-        captureCount: u._count?.captures || u.usage?.captureCount || 0,
+        captureCount: u._count?.captures || u.usage?.cloudObjectCount || 0,
         bytesUsed: bytes,
         formattedUsage: bytes > 1024 * 1024 * 1024
           ? `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`

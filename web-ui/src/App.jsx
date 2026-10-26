@@ -766,8 +766,7 @@ The self-hosted version of AntCapture is free and no refunds are applicable.
 
 9. CONTACT
 For refund requests or billing questions:
-- Feedback Form: ${GOOGLE_FORM_URL}
-- Email: support@antcapture.com
+- Feedback & Support Form: ${GOOGLE_FORM_URL}
 We respond within 1 business day.`}
           />
         ) : activeNav === 'Privacy' ? (

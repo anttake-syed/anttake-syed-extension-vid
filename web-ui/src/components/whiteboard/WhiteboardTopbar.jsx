@@ -10,7 +10,9 @@ export default function WhiteboardTopbar({
   handleNameCommit,
   nameCommittedRef,
   zoom,
-  setZoom,
+  onZoomIn,
+  onZoomOut,
+  onZoomReset,
   handleUndo,
   handleRedo,
   handleSave,
@@ -70,10 +72,10 @@ export default function WhiteboardTopbar({
       <div className="wb-topbar-tools">
         {/* Center — zoom */}
         <div className="wb-group">
-          <button onClick={() => setZoom(z => Math.max(0.25, z - 0.25))} className="wb-zoom-btn" aria-label="Zoom out">-</button>
+          <button onClick={onZoomOut} className="wb-zoom-btn" aria-label="Zoom out" title="Zoom out (or Ctrl+Scroll)">-</button>
           <span className="wb-zoom-label">{Math.round(zoom * 100)}%</span>
-          <button onClick={() => setZoom(z => Math.min(3, z + 0.25))} className="wb-zoom-btn" aria-label="Zoom in">+</button>
-          <button onClick={() => setZoom(1)} className="wb-zoom-reset">Reset</button>
+          <button onClick={onZoomIn} className="wb-zoom-btn" aria-label="Zoom in" title="Zoom in (or Ctrl+Scroll)">+</button>
+          <button onClick={onZoomReset} className="wb-zoom-reset" title="Reset zoom and pan">Reset</button>
         </div>
 
         {/* Right */}

@@ -6,6 +6,7 @@ export function generateDefaultName() {
 
 export const TOOLS = [
   { id: 'select',  icon: 'near_me',                label: 'Select'  },
+  { id: 'pan',     icon: 'pan_tool',               label: 'Pan'     },
   { id: 'pen',     icon: 'edit',                   label: 'Pen'     },
   { id: 'text',    icon: 'title',                  label: 'Text'    },
   { id: 'rect',    icon: 'crop_square',            label: 'Rect'    },

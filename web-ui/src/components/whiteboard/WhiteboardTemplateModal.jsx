@@ -12,11 +12,22 @@ export default function WhiteboardTemplateModal({ isOpen, onClose, onSelectTempl
     : WHITEBOARD_TEMPLATES.filter(t => t.category === selectedCategory);
 
   return (
-    <div className="wb-modal-overlay" onClick={onClose} style={{ zIndex: 4000 }}>
+    <div className="wb-overlay" onClick={onClose} style={{ zIndex: 4500 }}>
       <div 
-        className="wb-modal-content wb-template-modal" 
+        className="wb-template-modal" 
         onClick={e => e.stopPropagation()}
-        style={{ maxWidth: '780px', width: '92%', maxHeight: '86vh', display: 'flex', flexDirection: 'column' }}
+        style={{ 
+          maxWidth: '820px', 
+          width: '94%', 
+          maxHeight: '86vh', 
+          display: 'flex', 
+          flexDirection: 'column',
+          background: '#0c1322',
+          border: '1px solid rgba(255, 255, 255, 0.12)',
+          borderRadius: '20px',
+          boxShadow: '0 25px 60px rgba(0, 0, 0, 0.85)',
+          overflow: 'hidden'
+        }}
       >
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px 16px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>

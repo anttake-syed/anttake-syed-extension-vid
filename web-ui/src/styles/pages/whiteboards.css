@@ -770,6 +770,7 @@
 .wb-overlay {
   position: fixed;
   inset: 0;
+  z-index: 5000;
   background: rgba(2, 6, 23, 0.85);
   backdrop-filter: blur(8px);
   display: flex;
@@ -981,3 +982,13 @@
     font-size: 16px !important;
   }
 }
+
+@keyframes wb-pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+

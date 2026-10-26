@@ -25,7 +25,6 @@ import SubscriptionWarningBanner from './components/SubscriptionWarningBanner.js
 import PurchaseSuccessToast from './components/PurchaseSuccessToast.jsx';
 import OnboardingModal from './components/OnboardingModal.jsx';
 import ShowcaseTour from './components/showcase/ShowcaseTour.jsx';
-import PaywallGate from './components/PaywallGate.jsx';
 
 
 const NAV_TO_PATH = {
@@ -555,24 +554,6 @@ export default function App() {
   return (
     <div className={`layout ${isAuthenticated ? 'isAuthenticated' : ''}`}>
       {showModal && !IS_LOCAL_MODE && <LoginModal onClose={() => setShowModal(false)} />}
-
-      {/* ── Paywall Gate — shown to authenticated users with no active Cloud plan ──
-           Only renders on the cloud-gated pages (Whiteboards / My Library); every
-           other page (Dashboard, Settings, Pricing, etc.) stays freely usable.
-           Stays mounted across navigation (so its state/animation never resets on
-           every page switch) — it just suppresses its own render elsewhere. */}
-      {!IS_LOCAL_MODE && (
-        <PaywallGate
-          isReady={isReady}
-          isAuthenticated={isAuthenticated}
-          hasCloudAccess={hasCloudAccess}
-          entitlements={entitlements}
-          isLocalMode={IS_LOCAL_MODE}
-          isGatedPage={activeNav === 'Whiteboards' || activeNav === 'My Library'}
-          onGoToPricing={() => setActiveNav('Pricing')}
-          onSignIn={() => setShowModal(true)}
-        />
-      )}
 
       {/* ── Billing Success Toast ── */}
       {showBillingToast && (

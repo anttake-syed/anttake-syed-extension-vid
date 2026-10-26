@@ -1,14 +1,11 @@
 import React from 'react';
 
-/**
- * WhiteboardContextMenu
- * Right click actions: Bring to front, Send to back, Delete element
- */
 export default function WhiteboardContextMenu({
   contextMenu,
   onBringToFront,
   onSendToBack,
   onDelete,
+  onClose,
 }) {
   if (!contextMenu) return null;
 
@@ -16,91 +13,95 @@ export default function WhiteboardContextMenu({
     <div
       style={{
         position: 'fixed',
-        left: contextMenu.x,
-        top: contextMenu.y,
-        zIndex: 1000,
-        backgroundColor: '#1e293b',
-        border: '1px solid rgba(255,255,255,0.12)',
-        borderRadius: '8px',
-        boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
-        padding: '4px',
-        minWidth: '160px',
-        backdropFilter: 'blur(12px)',
+        top: `min(${contextMenu.y}px, calc(100dvh - 150px))`,
+        left: `min(${contextMenu.x}px, calc(100vw - 196px))`,
+        zIndex: 3000,
+        background: 'var(--bg-secondary)',
+        border: '1px solid #334155',
+        borderRadius: '12px',
+        padding: '6px',
+        boxShadow: '0 12px 40px rgba(0,0,0,0.5)',
+        minWidth: '180px',
+        fontFamily: "'Outfit', sans-serif"
       }}
+      onMouseLeave={onClose}
       onClick={(e) => e.stopPropagation()}
     >
       <button
+        onClick={onBringToFront}
         style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px',
           width: '100%',
-          padding: '7px 12px',
           background: 'none',
           border: 'none',
-          color: '#e2e8f0',
-          fontSize: '13px',
+          color: '#cbd5e1',
           cursor: 'pointer',
-          borderRadius: '4px',
+          padding: '9px 14px',
+          borderRadius: '8px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '10px',
+          fontSize: '13px',
+          fontWeight: 600,
+          fontFamily: "'Outfit', sans-serif",
           textAlign: 'left',
+          transition: 'background 0.12s'
         }}
-        onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.08)')}
-        onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
-        onClick={() => onBringToFront(contextMenu.id)}
+        onMouseEnter={e => e.currentTarget.style.background = '#1e293b'}
+        onMouseLeave={e => e.currentTarget.style.background = 'none'}
       >
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <polyline points="18 15 12 9 6 15" />
-        </svg>
+        <span className="material-symbols-rounded" style={{ fontSize: '17px', color: '#6366f1' }}>flip_to_front</span>
         Bring to Front
       </button>
       <button
+        onClick={onSendToBack}
         style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px',
           width: '100%',
-          padding: '7px 12px',
           background: 'none',
           border: 'none',
-          color: '#e2e8f0',
-          fontSize: '13px',
+          color: '#cbd5e1',
           cursor: 'pointer',
-          borderRadius: '4px',
+          padding: '9px 14px',
+          borderRadius: '8px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '10px',
+          fontSize: '13px',
+          fontWeight: 600,
+          fontFamily: "'Outfit', sans-serif",
           textAlign: 'left',
+          transition: 'background 0.12s'
         }}
-        onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.08)')}
-        onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
-        onClick={() => onSendToBack(contextMenu.id)}
+        onMouseEnter={e => e.currentTarget.style.background = '#1e293b'}
+        onMouseLeave={e => e.currentTarget.style.background = 'none'}
       >
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <polyline points="6 9 12 15 18 9" />
-        </svg>
+        <span className="material-symbols-rounded" style={{ fontSize: '17px', color: '#6366f1' }}>flip_to_back</span>
         Send to Back
       </button>
-      <div style={{ height: '1px', backgroundColor: 'rgba(255,255,255,0.08)', margin: '4px 0' }} />
+
+      <div style={{ height: '1px', background: '#1e293b', margin: '4px 6px' }} />
+
       <button
+        onClick={onDelete}
         style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px',
           width: '100%',
-          padding: '7px 12px',
           background: 'none',
           border: 'none',
-          color: '#ef4444',
-          fontSize: '13px',
+          color: '#f87171',
           cursor: 'pointer',
-          borderRadius: '4px',
-          textAlign: 'left',
+          padding: '9px 14px',
+          borderRadius: '8px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '10px',
+          fontSize: '13px',
+          fontWeight: 600,
+          fontFamily: "'Outfit', sans-serif",
+          transition: 'background 0.12s'
         }}
-        onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'rgba(239,68,68,0.12)')}
-        onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
-        onClick={() => onDelete(contextMenu.id)}
+        onMouseEnter={e => e.currentTarget.style.background = 'rgba(239,68,68,0.1)'}
+        onMouseLeave={e => e.currentTarget.style.background = 'none'}
       >
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <polyline points="3 6 5 6 21 6" />
-          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-        </svg>
+        <span className="material-symbols-rounded" style={{ fontSize: '17px' }}>delete</span>
         Delete
       </button>
     </div>

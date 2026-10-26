@@ -283,14 +283,50 @@ export default function App() {
   const [showShowcaseTour, setShowShowcaseTour] = useState(false);
   const [tourVariantOverride, setTourVariantOverride] = useState(null);
 
+  /**
+   * Tour Orchestration Logic
+   *
+   * Rule 1 — Free/unpaid users:
+   *   Show the FREE showcase tour on EVERY sign-in session.
+   *   We track this with sessionStorage (cleared when the tab closes), so:
+   *     - Refreshing the page → no re-show (same session)
+   *     - Logging out then back in → shows again (new session)
+   *
+   * Rule 2 — User just purchased (hasCloudAccess became true for the first time):
+   *   Show the PRO tour exactly ONCE, stored per-user in localStorage.
+   *   Key: `hasSeenProTour:<userId>` — persists across sessions forever.
+   *
+   * Rule 3 — Returning paid user (has already seen pro tour):
+   *   No automatic tour. They can trigger it manually from the admin panel.
+   */
   useEffect(() => {
-    if (isReady && isAuthenticated) {
-      if (!localStorage.getItem('hasSeenOnboarding')) {
-        setShowShowcaseTour(true);
-        localStorage.setItem('hasSeenOnboarding', 'true');
+    if (!isReady || !isAuthenticated || !user?.id) return;
+
+    const userId = user.id;
+    const proTourKey = `hasSeenProTour:${userId}`;
+    const freeTourSessionKey = `shownFreeTour:${userId}`;
+
+    if (hasCloudAccess) {
+      // ── Paid user ─────────────────────────────────────────────────────────
+      const alreadySeenProTour = localStorage.getItem(proTourKey);
+      if (!alreadySeenProTour) {
+        // First time as a paid user — show pro tour once
+        localStorage.setItem(proTourKey, 'true');
+        // Small delay so dashboard renders first
+        setTimeout(() => setShowShowcaseTour(true), 600);
+      }
+      // If they've seen it — do nothing automatically
+    } else {
+      // ── Free user ─────────────────────────────────────────────────────────
+      // Show free tour once per login session (sessionStorage resets on logout/tab close)
+      const alreadyShownThisSession = sessionStorage.getItem(freeTourSessionKey);
+      if (!alreadyShownThisSession) {
+        sessionStorage.setItem(freeTourSessionKey, 'true');
+        setTimeout(() => setShowShowcaseTour(true), 600);
       }
     }
-  }, [isReady, isAuthenticated]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isReady, isAuthenticated, user?.id, hasCloudAccess]);
 
   useEffect(() => {
     const handleTriggerOnboarding = (e) => {

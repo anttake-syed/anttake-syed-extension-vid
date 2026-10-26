@@ -1003,7 +1003,7 @@ exports.getStorageAndUserAnalytics = async (req, res) => {
   try {
     // 1. Fetch live UploadThing usage & quota
     let utUsage = null;
-    const rawToken = (process.env.UPLOADTHING_TOKEN || '').replace(/^['\"]|['\"]$/g, '').trim();
+    const rawToken = (process.env.UPLOADTHING_TOKEN || '').replace(/^['"]|['"]$/g, '').trim();
     if (rawToken) {
       try {
         const decoded = JSON.parse(Buffer.from(rawToken, 'base64').toString('utf8'));
@@ -1020,7 +1020,7 @@ exports.getStorageAndUserAnalytics = async (req, res) => {
           if (utRes.ok) {
             const data = await utRes.json();
             const totalBytes = Number(data.totalBytes || 0);
-            const limitBytes = Number(data.limitBytes || 2 * 1024 * 1024 * 1024); // 2GB free tier default or limitBytes
+            const limitBytes = Number(data.limitBytes || 2 * 1024 * 1024 * 1024);
             utUsage = {
               totalBytes,
               limitBytes,
@@ -1036,70 +1036,91 @@ exports.getStorageAndUserAnalytics = async (req, res) => {
       }
     }
 
-    // 2. Aggregate DB Storage Objects across all users
+    // 2. Aggregate DB storage objects — BigInt-safe conversion
     const storageSummary = await prisma.storageObject.aggregate({
       _sum: { sizeBytes: true },
       _count: { id: true }
     });
+    const totalDbBytes = Number(storageSummary._sum.sizeBytes ?? 0);
+    const totalDbFiles = Number(storageSummary._count.id ?? 0);
 
-    // 3. User analytics: count total users, subscribers, and users by storage usage
+    // 3. User counts
     const totalUsers = await prisma.user.count();
-    const activeSubscribers = await prisma.subscription.count({
-      where: { status: 'active' }
+    const activeSubscribers = await prisma.subscription.count({ where: { status: 'active' } });
+    const freeUsers = totalUsers - activeSubscribers;
+
+    // 4. New user signup trend — last 30 days grouped by day
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const sevenDaysAgo  = new Date(Date.now() -  7 * 24 * 60 * 60 * 1000);
+    const oneDayAgo     = new Date(Date.now() -      24 * 60 * 60 * 1000);
+
+    const recentUsers = await prisma.user.findMany({
+      where: { createdAt: { gte: thirtyDaysAgo } },
+      select: { createdAt: true },
+      orderBy: { createdAt: 'asc' }
     });
 
+    const dayMap = {};
+    for (let i = 29; i >= 0; i--) {
+      const d = new Date(Date.now() - i * 24 * 60 * 60 * 1000);
+      dayMap[d.toISOString().slice(0, 10)] = 0;
+    }
+    for (const u of recentUsers) {
+      const key = new Date(u.createdAt).toISOString().slice(0, 10);
+      if (dayMap[key] !== undefined) dayMap[key]++;
+    }
+    const signupTrend = Object.entries(dayMap).map(([date, count]) => ({ date, count }));
+    const newUsersLast7d  = recentUsers.filter(u => new Date(u.createdAt) >= sevenDaysAgo).length;
+    const newUsersLast24h = recentUsers.filter(u => new Date(u.createdAt) >= oneDayAgo).length;
+
+    // 5. Plan distribution
+    const planGroups = await prisma.subscription.groupBy({
+      by: ['planId'],
+      where: { status: 'active' },
+      _count: { planId: true }
+    });
+    const planIds = planGroups.map(p => p.planId);
+    const planNames = planIds.length > 0
+      ? await prisma.plan.findMany({ where: { id: { in: planIds } }, select: { id: true, name: true } })
+      : [];
+    const planNameMap = Object.fromEntries(planNames.map(p => [p.id, p.name]));
+    const planDistribution = [
+      { planName: 'Free', count: freeUsers },
+      ...planGroups.map(p => ({ planName: planNameMap[p.planId] || p.planId, count: Number(p._count.planId) }))
+    ];
+
+    // 6. Per-user storage table (top 50 consumers, BigInt-safe)
     const userUsages = await prisma.user.findMany({
       select: {
-        id: true,
-        email: true,
-        name: true,
-        role: true,
-        createdAt: true,
-        subscription: {
-          select: {
-            status: true,
-            plan: { select: { name: true } }
-          }
-        },
-        usage: {
-          select: {
-            cloudBytes: true,
-            cloudObjectCount: true
-          }
-        },
-        _count: {
-          select: { captures: true }
-        }
+        id: true, email: true, name: true, role: true, createdAt: true,
+        subscription: { select: { status: true, plan: { select: { name: true } } } },
+        usage: { select: { cloudBytes: true, cloudObjectCount: true } },
+        _count: { select: { captures: true } }
       },
       take: 50
     });
 
-    // Sort by largest storage consumers
-    const usersWithAnalytics = userUsages.map(u => {
-      const bytes = Number(u.usage?.cloudBytes || 0);
+    const topUsers = userUsages.map(u => {
+      const bytes = Number(u.usage?.cloudBytes ?? 0);
       return {
-        id: u.id,
-        email: u.email,
-        name: u.name,
-        role: u.role,
-        joinedAt: u.createdAt,
+        id: u.id, email: u.email, name: u.name, role: u.role, joinedAt: u.createdAt,
         plan: u.subscription?.plan?.name || 'free',
         subStatus: u.subscription?.status || 'none',
-        captureCount: u._count?.captures || u.usage?.cloudObjectCount || 0,
+        captureCount: u._count?.captures || Number(u.usage?.cloudObjectCount ?? 0),
         bytesUsed: bytes,
-        formattedUsage: bytes > 1024 * 1024 * 1024
+        formattedUsage: bytes >= 1024 * 1024 * 1024
           ? `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`
           : `${(bytes / (1024 * 1024)).toFixed(2)} MB`
       };
     }).sort((a, b) => b.bytesUsed - a.bytesUsed);
 
-    const totalDbBytes = Number(storageSummary._sum.sizeBytes || 0);
+    // 7. Capture counts
+    const totalCaptures = await prisma.capture.count();
+    const activeCaptures = await prisma.capture.count({ where: { status: 'active' } });
 
     res.json({
       uploadThing: utUsage || {
-        totalBytes: totalDbBytes,
-        limitBytes: 2 * 1024 * 1024 * 1024,
-        filesUploaded: storageSummary._count.id || 0,
+        totalBytes: totalDbBytes, limitBytes: 2 * 1024 * 1024 * 1024, filesUploaded: totalDbFiles,
         usedFormatted: `${(totalDbBytes / (1024 * 1024 * 1024)).toFixed(2)} GB`,
         limitFormatted: '2.00 GB',
         percentUsed: Math.min(100, Math.round((totalDbBytes / (2 * 1024 * 1024 * 1024)) * 100))
@@ -1107,15 +1128,15 @@ exports.getStorageAndUserAnalytics = async (req, res) => {
       database: {
         totalStorageBytes: totalDbBytes,
         totalStorageFormatted: `${(totalDbBytes / (1024 * 1024 * 1024)).toFixed(2)} GB`,
-        totalFiles: storageSummary._count.id || 0,
-        totalUsers,
-        activeSubscribers
+        totalFiles: totalDbFiles, totalUsers, activeSubscribers, freeUsers,
+        totalCaptures, activeCaptures
       },
-      topUsers: usersWithAnalytics
+      userGrowth: { newLast24h: newUsersLast24h, newLast7d: newUsersLast7d, newLast30d: recentUsers.length, signupTrend },
+      planDistribution,
+      topUsers
     });
   } catch (err) {
-    logger.error('diagnostics', 'storage-analytics-error', { error: err.message });
-    res.status(500).json({ error: 'Failed to compute storage analytics' });
+    logger.error('diagnostics', 'storage-analytics-error', { error: err.message, stack: err.stack });
+    res.status(500).json({ error: 'Failed to compute storage analytics: ' + err.message });
   }
 };
-

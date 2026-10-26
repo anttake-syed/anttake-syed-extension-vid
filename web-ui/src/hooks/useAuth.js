@@ -200,6 +200,13 @@ export function useAuth() {
     try { localStorage.setItem(SIGNED_OUT_KEY, '1'); } catch { /* storage blocked */ }
     localStorage.removeItem('antcapture_user');
     clearCachedEntitlements();
+    try {
+      Object.keys(sessionStorage).forEach((k) => {
+        if (k.startsWith('shownFreeTour:')) {
+          sessionStorage.removeItem(k);
+        }
+      });
+    } catch { /* storage blocked */ }
     setUser(null);
     setIsAuthenticated(false);
     setSubscription(null);

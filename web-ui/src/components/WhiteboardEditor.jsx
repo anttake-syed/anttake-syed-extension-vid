@@ -3,6 +3,8 @@ import { SERVER_URL } from '../config.js';
 import '../styles/pages/whiteboards.css';
 import WhiteboardTopbar from './whiteboard/WhiteboardTopbar.jsx';
 import WhiteboardToolbar from './whiteboard/WhiteboardToolbar.jsx';
+import WhiteboardContextBar from './whiteboard/WhiteboardContextBar.jsx';
+import WhiteboardTemplateModal from './whiteboard/WhiteboardTemplateModal.jsx';
 import WhiteboardLibraryPicker from './whiteboard/WhiteboardLibraryPicker.jsx';
 import WhiteboardShareModal from './whiteboard/WhiteboardShareModal.jsx';
 import WhiteboardContextMenu from './whiteboard/WhiteboardContextMenu.jsx';
@@ -19,6 +21,7 @@ export default function WhiteboardEditor({ board, onClose, user }) {
   const [color, setColor]                 = useState('#f8fafc');
   const [strokeSize, setStrokeSize]       = useState(4);
   const [showLibrary, setShowLibrary]     = useState('none'); // 'none', 'images', 'videos'
+  const [showTemplateModal, setShowTemplateModal] = useState(false);
   const [elements, setElements]           = useState([]);
   const [selectedId, setSelectedId]       = useState(null);
   const [selectedIds, setSelectedIds]     = useState([]);
@@ -446,6 +449,38 @@ export default function WhiteboardEditor({ board, onClose, user }) {
     setSelectedIds([]);
     setContextMenu(null);
   };
+
+  const handleDeleteSelected = () => {
+    const targets = selectedIds.length > 0 ? selectedIds : (selectedId !== null ? [selectedId] : []);
+    if (targets.length === 0) return;
+    const next = elements.filter((_, i) => !targets.includes(i));
+    setElements(next);
+    commitToHistory(next);
+    setSelectedId(null);
+    setSelectedIds([]);
+  };
+
+  const handleUpdateSelectedElement = (updates) => {
+    const targets = selectedIds.length > 0 ? selectedIds : (selectedId !== null ? [selectedId] : []);
+    if (targets.length === 0) return;
+    const next = elements.map((el, i) => {
+      if (targets.includes(i)) {
+        return { ...el, ...updates };
+      }
+      return el;
+    });
+    setElements(next);
+    commitToHistory(next);
+  };
+
+  const handleApplyTemplate = (tpl) => {
+    if (!tpl || typeof tpl.createElements !== 'function') return;
+    const newItems = tpl.createElements();
+    const next = [...elements, ...newItems];
+    setElements(next);
+    commitToHistory(next);
+  };
+
 
   const onMouseDown = (e) => {
     setContextMenu(null);
@@ -1012,15 +1047,25 @@ export default function WhiteboardEditor({ board, onClose, user }) {
         {/* Left Toolbar */}
         <WhiteboardToolbar
           tool={tool}
-          color={color}
-          strokeSize={strokeSize}
           onToolClick={handleToolClick}
-          setColor={setColor}
-          setStrokeSize={setStrokeSize}
         />
 
         {/* Canvas Area */}
         <div className="wb-canvas-area" style={{ background:'radial-gradient(circle, #1e293b 1px, transparent 1px)', backgroundSize:'24px 24px', backgroundColor:'var(--bg-primary)' }}>
+          {/* Floating Contextual Tool Properties Bar */}
+          <WhiteboardContextBar
+            tool={tool}
+            selectedElement={selectedId !== null ? elements[selectedId] : null}
+            selectedCount={selectedIds.length > 0 ? selectedIds.length : (selectedId !== null ? 1 : 0)}
+            color={color}
+            strokeSize={strokeSize}
+            setColor={setColor}
+            setStrokeSize={setStrokeSize}
+            onOpenTemplates={() => setShowTemplateModal(true)}
+            onUpdateSelectedElement={handleUpdateSelectedElement}
+            onDeleteSelected={handleDeleteSelected}
+          />
+
           <div style={{ transform:`scale(${zoom})`, transformOrigin:'top left', width: `${100/zoom}%`, height: `${100/zoom}%` }}>
             <canvas
               ref={canvasRef}
@@ -1079,6 +1124,14 @@ export default function WhiteboardEditor({ board, onClose, user }) {
           onClose={() => setShowShareModal(false)}
         />
       )}
+
+      {/* Whiteboard Starter Templates Modal */}
+      <WhiteboardTemplateModal
+        isOpen={showTemplateModal}
+        onClose={() => setShowTemplateModal(false)}
+        onSelectTemplate={handleApplyTemplate}
+      />
+
 
       {/* Right-click context menu */}
       <WhiteboardContextMenu

@@ -422,7 +422,7 @@ export default function Dashboard({ user, isAuthenticated, isLocalMode, hasCloud
           {boardCount !== null && (
             <div className="storage-bar">
               <div className="storage-bar__icon">
-                <span className="material-symbols-rounded" style={{ fontSize: '20px', color: '#818cf8' }}>dashboard</span>
+                <span className="material-symbols-rounded" style={{ fontSize: '20px', color: '#818cf8' }}>draw</span>
               </div>
               <div className="storage-bar__body">
                 <div className="storage-bar__head">
@@ -459,9 +459,36 @@ export default function Dashboard({ user, isAuthenticated, isLocalMode, hasCloud
               </div>
               {onGoToWhiteboards && (
                 <button
+                  type="button"
                   onClick={onGoToWhiteboards}
-                  className="storage-bar__cta"
-                  style={{ cursor: 'pointer', border: 'none', background: 'none' }}
+                  style={{
+                    flexShrink: 0,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px',
+                    background: 'rgba(99, 102, 241, 0.12)',
+                    border: '1px solid rgba(99, 102, 241, 0.3)',
+                    color: '#a5b4fc',
+                    borderRadius: '8px',
+                    padding: '7px 14px',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                    transition: 'all 0.15s',
+                    fontFamily: "'Outfit', sans-serif"
+                  }}
+                  onMouseEnter={e => {
+                    e.currentTarget.style.background = 'rgba(99, 102, 241, 0.22)';
+                    e.currentTarget.style.borderColor = 'rgba(99, 102, 241, 0.5)';
+                    e.currentTarget.style.color = '#c7d2fe';
+                  }}
+                  onMouseLeave={e => {
+                    e.currentTarget.style.background = 'rgba(99, 102, 241, 0.12)';
+                    e.currentTarget.style.borderColor = 'rgba(99, 102, 241, 0.3)';
+                    e.currentTarget.style.color = '#a5b4fc';
+                  }}
                 >
                   Open Whiteboards
                   <span className="material-symbols-rounded" style={{ fontSize: '14px' }}>arrow_forward</span>

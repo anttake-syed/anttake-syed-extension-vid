@@ -1,117 +1,80 @@
-import React, { useState } from 'react';
+import React from 'react';
 
-/**
- * WhiteboardTextPromptModal
- * Modal to prompt user for text content when creating a text element.
- */
 export default function WhiteboardTextPromptModal({
   isOpen,
+  value,
+  onChange,
+  onCommit,
   onClose,
-  onSubmit,
 }) {
-  const [text, setText] = useState('');
-
   if (!isOpen) return null;
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (text.trim()) {
-      onSubmit(text.trim());
-      setText('');
-      onClose();
-    }
-  };
-
   return (
-    <div
-      style={{
-        position: 'fixed',
-        inset: 0,
-        backgroundColor: 'rgba(0, 0, 0, 0.65)',
-        backdropFilter: 'blur(4px)',
-        zIndex: 9999,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '16px',
-      }}
-      onClick={onClose}
-    >
+    <div className="wb-overlay" style={{ zIndex: 4000 }} onClick={onClose}>
       <div
-        style={{
-          backgroundColor: '#0f172a',
-          border: '1px solid rgba(255, 255, 255, 0.12)',
-          borderRadius: '16px',
-          width: '100%',
-          maxWidth: '400px',
-          padding: '24px',
-          boxShadow: '0 20px 40px rgba(0,0,0,0.6)',
-        }}
-        onClick={(e) => e.stopPropagation()}
+        className="wb-dialog wb-dialog--compact"
+        role="dialog"
+        aria-modal="true"
+        onClick={e => e.stopPropagation()}
       >
-        <h3 style={{ margin: '0 0 12px 0', color: '#f8fafc', fontSize: '17px', fontWeight: 600 }}>
-          Add Text Note
+        <h3 style={{ margin: '0 0 16px', fontSize: '16px', fontWeight: 700, color: 'var(--text-main)' }}>
+          Add Text
         </h3>
-        <p style={{ margin: '0 0 16px 0', color: '#94a3b8', fontSize: '13px' }}>
-          Enter the text you want to place onto the whiteboard canvas.
-        </p>
-
-        <form onSubmit={handleSubmit}>
-          <textarea
-            autoFocus
-            rows={3}
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            placeholder="Type your notes or labels here..."
+        <input
+          autoFocus
+          value={value}
+          onChange={e => onChange(e.target.value)}
+          onKeyDown={e => {
+            if (e.key === 'Enter') onCommit();
+            if (e.key === 'Escape') onClose();
+          }}
+          placeholder="Type something…"
+          className="wb-text-input"
+          style={{
+            width: '100%',
+            background: 'var(--bg-tertiary)',
+            border: '1px solid var(--primary)',
+            borderRadius: '10px',
+            color: 'var(--text-main)',
+            padding: '10px 14px',
+            outline: 'none',
+            fontFamily: "'Outfit', sans-serif",
+            boxSizing: 'border-box',
+            marginBottom: '20px'
+          }}
+        />
+        <div className="dialog-actions" style={{ gap: '10px' }}>
+          <button
+            onClick={onClose}
             style={{
-              width: '100%',
-              backgroundColor: '#1e293b',
-              border: '1px solid rgba(255, 255, 255, 0.12)',
-              borderRadius: '8px',
-              padding: '10px 12px',
-              color: '#f8fafc',
-              fontSize: '14px',
-              resize: 'none',
-              outline: 'none',
-              boxSizing: 'border-box',
-              marginBottom: '20px',
+              background: 'transparent',
+              border: 'none',
+              color: '#94a3b8',
+              padding: '9px 14px',
+              borderRadius: '10px',
+              fontSize: '13px',
+              fontWeight: 600,
+              cursor: 'pointer'
             }}
-          />
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-            <button
-              type="button"
-              onClick={onClose}
-              style={{
-                padding: '8px 16px',
-                borderRadius: '8px',
-                backgroundColor: 'rgba(255, 255, 255, 0.05)',
-                border: '1px solid rgba(255, 255, 255, 0.1)',
-                color: '#cbd5e1',
-                fontSize: '13px',
-                cursor: 'pointer',
-              }}
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={!text.trim()}
-              style={{
-                padding: '8px 18px',
-                borderRadius: '8px',
-                backgroundColor: '#6366f1',
-                border: 'none',
-                color: '#ffffff',
-                fontSize: '13px',
-                fontWeight: 600,
-                cursor: text.trim() ? 'pointer' : 'not-allowed',
-                opacity: text.trim() ? 1 : 0.5,
-              }}
-            >
-              Add to Board
-            </button>
-          </div>
-        </form>
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onCommit}
+            style={{
+              background: 'linear-gradient(135deg,#6366f1,#8b5cf6)',
+              border: 'none',
+              color: 'white',
+              padding: '9px 18px',
+              borderRadius: '10px',
+              fontSize: '13px',
+              fontWeight: 600,
+              cursor: 'pointer'
+            }}
+          >
+            Add
+          </button>
+        </div>
       </div>
     </div>
   );

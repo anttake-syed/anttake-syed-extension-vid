@@ -1,192 +1,14 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { SERVER_URL } from '../config.js';
 import '../styles/pages/whiteboards.css';
+import WhiteboardTopbar from './whiteboard/WhiteboardTopbar.jsx';
+import WhiteboardToolbar from './whiteboard/WhiteboardToolbar.jsx';
+import WhiteboardLibraryPicker from './whiteboard/WhiteboardLibraryPicker.jsx';
 import WhiteboardShareModal from './whiteboard/WhiteboardShareModal.jsx';
-
-// ── Helpers ─────────────────────────────────────────────────
-function generateDefaultName() {
-  const now = new Date();
-  const pad = n => String(n).padStart(2, '0');
-  return `Board ${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
-}
-
-const TOOLS = [
-  { id: 'select',  icon: 'near_me',                label: 'Select'  },
-  { id: 'pen',     icon: 'edit',                   label: 'Pen'     },
-  { id: 'text',    icon: 'title',                  label: 'Text'    },
-  { id: 'rect',    icon: 'crop_square',            label: 'Rect'    },
-  { id: 'circle',  icon: 'radio_button_unchecked', label: 'Circle'  },
-  { id: 'arrow',   icon: 'arrow_right_alt',        label: 'Arrow'   },
-  { id: 'eraser',  icon: 'ink_eraser',             label: 'Eraser'  },
-  { id: 'image',   icon: 'image',                  label: 'Image'   },
-  { id: 'video',   icon: 'videocam',               label: 'Video'   },
-];
-
-const COLORS = ['#f8fafc','#f87171','#fb923c','#facc15','#4ade80','#60a5fa','#a78bfa','#f472b6','#94a3b8'];
-const SIZES  = [2, 4, 8, 14, 20];
-
-// ── Library Image Picker Modal ───────────────────────────────
-const getFullSrc = (src, jwt) => {
-  if (!src) return '';
-  const url = src.startsWith('/') ? `${SERVER_URL}${src}` : src;
-  if (!jwt) return url;
-  return url.includes('?') ? `${url}&token=${jwt}` : `${url}?token=${jwt}`;
-};
-
-function LibraryPicker({ user, onSelect, onClose, initialTab }) {
-  const [captures, setCaptures] = useState([]);
-  const [loading, setLoading]   = useState(true);
-  const [search, setSearch]     = useState('');
-  const [tab, setTab]           = useState(initialTab || 'all'); // 'all' | 'images' | 'videos'
-
-  useEffect(() => {
-    async function load() {
-      try {
-        const res = await fetch(`${SERVER_URL}/captures`, {
-          headers: { Authorization: `Bearer ${user?.jwt}` },
-        });
-        if (!res.ok) throw new Error('fetch failed');
-        const data = await res.json();
-        setCaptures(data.captures || []);
-      } catch { setCaptures([]); }
-      finally  { setLoading(false); }
-    }
-    load();
-  }, [user]);
-
-  const filtered = captures.filter(c => {
-    const matchSearch = !search || (c.title || '').toLowerCase().includes(search.toLowerCase());
-    const matchTab = tab === 'all' || (tab === 'images' && c.type !== 'video') || (tab === 'videos' && c.type === 'video');
-    return matchSearch && matchTab;
-  });
-  const imgCount = captures.filter(c => c.type !== 'video').length;
-  const vidCount = captures.filter(c => c.type === 'video').length;
-  const TAB_STYLE = (active) => ({
-    background: active ? 'rgba(99,102,241,0.15)' : 'transparent',
-    border: active ? '1px solid rgba(99,102,241,0.4)' : '1px solid transparent',
-    color: active ? '#a5b4fc' : '#64748b',
-    borderRadius: '8px', padding: '6px 14px', cursor: 'pointer',
-    fontSize: '13px', fontWeight: 600, fontFamily: "'Outfit', sans-serif", transition: 'all 0.15s',
-  });
-
-  return (
-    <div className="wb-overlay" style={{ zIndex:2000 }} onClick={onClose}>
-      <div className="wb-library" onClick={e => e.stopPropagation()}>
-        {/* Header */}
-        <div className="wb-library-head">
-          <div className="wb-library-title">
-            <div style={{ width:'44px', height:'44px', flexShrink:0, borderRadius:'12px', background:'linear-gradient(135deg,rgba(99,102,241,0.2),rgba(168,85,247,0.2))', border:'1px solid rgba(99,102,241,0.3)', display:'flex', alignItems:'center', justifyContent:'center' }}>
-              <span className="material-symbols-rounded" style={{ fontSize:'22px', color:'#a5b4fc' }}>photo_library</span>
-            </div>
-            <div className="min-w-0">
-              <h3 style={{ color:'var(--text-main)', fontSize:'18px', fontWeight:700, margin:0, letterSpacing:'-0.02em' }}>Import from Library</h3>
-              <p style={{ color:'var(--text-dim)', fontSize:'13px', margin:'3px 0 0' }}>Click any capture to add it to your board</p>
-            </div>
-          </div>
-          <button onClick={onClose} className="wb-library-close" aria-label="Close" style={{ background:'rgba(255,255,255,0.05)', border:'none', color:'#94a3b8', cursor:'pointer', borderRadius:'10px', display:'flex', alignItems:'center', justifyContent:'center' }}
-            onMouseEnter={e => { e.currentTarget.style.background='rgba(239,68,68,0.15)'; e.currentTarget.style.color='#f87171'; }}
-            onMouseLeave={e => { e.currentTarget.style.background='rgba(255,255,255,0.05)'; e.currentTarget.style.color='#94a3b8'; }}>
-            <span className="material-symbols-rounded" style={{ fontSize:'20px' }}>close</span>
-          </button>
-        </div>
-
-        {/* Filter + Search bar */}
-        <div className="wb-library-filters">
-          {/* Tabs */}
-          <div className="wb-library-tabs">
-            <button style={TAB_STYLE(tab === 'all')} onClick={() => setTab('all')}>All ({captures.length})</button>
-            <button style={TAB_STYLE(tab === 'images')} onClick={() => setTab('images')}>
-              <span className="material-symbols-rounded" style={{ fontSize:'15px', verticalAlign:'middle', marginRight:'6px' }}>image</span>Images ({imgCount})
-            </button>
-            <button style={TAB_STYLE(tab === 'videos')} onClick={() => setTab('videos')}>
-              <span className="material-symbols-rounded" style={{ fontSize:'15px', verticalAlign:'middle', marginRight:'6px' }}>movie</span>Videos ({vidCount})
-            </button>
-          </div>
-          {/* Search */}
-          <div className="wb-library-search">
-            <span className="material-symbols-rounded" style={{ position:'absolute', left:'12px', top:'50%', transform:'translateY(-50%)', fontSize:'17px', color:'#64748b' }}>search</span>
-            <input
-              value={search} onChange={e => setSearch(e.target.value)} placeholder="Search..."
-              autoFocus
-              style={{ width:'100%', background:'#1e293b', border:'1px solid #334155', borderRadius:'9px', color:'#f1f5f9', fontSize:'13px', padding:'9px 12px 9px 38px', outline:'none', fontFamily:"'Outfit', sans-serif", boxSizing:'border-box' }}
-              onFocus={e => e.target.style.borderColor='#6366f1'}
-              onBlur={e => e.target.style.borderColor='#334155'}
-            />
-          </div>
-        </div>
-
-        {/* Grid */}
-        <div className="wb-library-body">
-          {loading ? (
-            <div style={{ textAlign:'center', padding:'80px 0', color:'#64748b' }}>
-              <div className="btn-spinner" style={{ margin:'0 auto 16px', width:'32px', height:'32px', borderTopColor:'#6366f1', borderRightColor:'#6366f1' }} />
-              <p style={{ fontSize:'15px', fontWeight:500 }}>Loading your captures…</p>
-            </div>
-          ) : filtered.length === 0 ? (
-            <div style={{ textAlign:'center', padding:'80px 0', color:'#475569' }}>
-              <div style={{ width:'80px', height:'80px', borderRadius:'24px', background:'rgba(255,255,255,0.02)', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 16px' }}>
-                <span className="material-symbols-rounded" style={{ fontSize:'40px', color:'#334155' }}>search_off</span>
-              </div>
-              <p style={{ fontSize:'16px', fontWeight:600, color:'#e2e8f0', margin:'0 0 6px' }}>No captures found</p>
-              <p style={{ margin:0, fontSize:'14px' }}>Try adjusting your search terms.</p>
-            </div>
-          ) : (
-            <div className="wb-library-grid">
-              {filtered.map(cap => {
-                const src = getFullSrc(cap.src, user?.jwt);
-                const isVideo = cap.type === 'video';
-                
-                return (
-                  <div
-                    key={cap.id}
-                    onClick={() => onSelect(src, isVideo, cap.title)}
-                    style={{ borderRadius:'16px', overflow:'hidden', border:'1px solid #1e293b', cursor:'pointer', transition:'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)', background:'#0f172a', display:'flex', flexDirection:'column' }}
-                    onMouseEnter={e => { e.currentTarget.style.borderColor = '#6366f1'; e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.boxShadow = '0 16px 40px rgba(0,0,0,0.4), 0 0 0 1px rgba(99,102,241,0.2)'; }}
-                    onMouseLeave={e => { e.currentTarget.style.borderColor = '#1e293b'; e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = 'none'; }}
-                  >
-                    <div style={{ aspectRatio:'16/10', background:'#070b14', position:'relative', overflow:'hidden' }}>
-                      {isVideo ? (
-                        <>
-                          <video src={src} style={{ width:'100%', height:'100%', objectFit:'cover' }} muted onMouseOver={e => e.target.play()} onMouseOut={e => { e.target.pause(); e.target.currentTime=0; }} />
-                          <div style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center', pointerEvents:'none' }}>
-                            <div style={{ width:'36px', height:'36px', borderRadius:'50%', background:'rgba(0,0,0,0.5)', display:'flex', alignItems:'center', justifyContent:'center', backdropFilter:'blur(4px)' }}>
-                              <span className="material-symbols-rounded" style={{ fontSize:'20px', color:'white', marginLeft:'2px' }}>play_arrow</span>
-                            </div>
-                          </div>
-                        </>
-                      ) : src ? (
-                        <img src={src} alt={cap.title} style={{ width:'100%', height:'100%', objectFit:'cover' }} />
-                      ) : (
-                        <div style={{ width:'100%', height:'100%', display:'flex', alignItems:'center', justifyContent:'center' }}>
-                          <span className="material-symbols-rounded" style={{ fontSize:'32px', color:'#334155' }}>image</span>
-                        </div>
-                      )}
-                      
-                      {/* Type Badge */}
-                      <div style={{ position:'absolute', top:'10px', left:'10px', background:'rgba(0,0,0,0.65)', backdropFilter:'blur(4px)', borderRadius:'8px', padding:'3px 10px', fontSize:'11px', fontWeight:700, color: isVideo ? '#a5b4fc' : '#6ee7b7', border: '1px solid rgba(255,255,255,0.08)' }}>
-                        {isVideo ? 'Video' : 'Screenshot'}
-                      </div>
-                    </div>
-                    
-                    <div style={{ padding:'12px 14px', borderTop:'1px solid #1e293b' }}>
-                      <div style={{ fontSize:'14px', color:'var(--text-main)', fontWeight:600, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', marginBottom:'4px' }}>
-                        {cap.title || 'Untitled'}
-                      </div>
-                      <div style={{ fontSize:'12px', color:'var(--text-muted)', display:'flex', justifyContent:'space-between', gap:'8px' }}>
-                        <span>{new Date(cap.date).toLocaleDateString()}</span>
-                        <span>{cap.size || ''}</span>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
+import WhiteboardContextMenu from './whiteboard/WhiteboardContextMenu.jsx';
+import WhiteboardExitModal from './whiteboard/WhiteboardExitModal.jsx';
+import WhiteboardTextPromptModal from './whiteboard/WhiteboardTextPromptModal.jsx';
+import { TOOLS, COLORS, SIZES, generateDefaultName } from './whiteboard/whiteboardConstants.js';
 
 // ── Main WhiteboardEditor ────────────────────────────────────
 export default function WhiteboardEditor({ board, onClose, user }) {
@@ -506,21 +328,40 @@ export default function WhiteboardEditor({ board, onClose, user }) {
                       video.crossOrigin = 'anonymous';
                       video.muted = true;
                       video.loop = true;
+                      video.playsInline = true;
                       video.src = el.src;
                       video.onloadeddata = () => {
-                        video.currentTime = 0.5;
+                        try { video.currentTime = 0.1; } catch (_) {}
                       };
                       video.onseeked = () => {
                         resolve({ ...el, img: video, isPlaying: false });
                       };
+                      video.oncanplay = () => {
+                        setTimeout(() => resolve({ ...el, img: video, isPlaying: false }), 200);
+                      };
                       // Fallback just in case seek fails or video is too short
                       setTimeout(() => resolve({ ...el, img: video, isPlaying: false }), 1500);
-                      video.onerror = () => resolve(el);
+                      video.onerror = () => {
+                        if (video.crossOrigin) {
+                          video.crossOrigin = null;
+                          video.src = el.src;
+                          video.load();
+                        } else {
+                          resolve(el);
+                        }
+                      };
                     } else {
                       const img = new Image();
                       img.crossOrigin = 'anonymous';
                       img.onload = () => resolve({ ...el, img });
-                      img.onerror = () => resolve(el);
+                      img.onerror = () => {
+                        if (img.crossOrigin) {
+                          img.crossOrigin = null;
+                          img.src = el.src;
+                        } else {
+                          resolve(el);
+                        }
+                      };
                       img.src = el.src;
                     }
                   });
@@ -872,36 +713,89 @@ export default function WhiteboardEditor({ board, onClose, user }) {
 
     if (isVideo) {
       const video = document.createElement('video');
-      video.crossOrigin = 'anonymous';
       video.muted = true;
       video.loop = true;
-      video.src = src;
-      
-      video.onloadeddata = () => {
-        video.currentTime = 0.5;
-      };
-      
-      video.onseeked = () => {
+      video.playsInline = true;
+
+      // Try with crossOrigin='anonymous', but if it fails fall back without it
+      video.crossOrigin = 'anonymous';
+
+      let loaded = false;
+      const onReady = () => {
+        if (loaded) return;
+        loaded = true;
         const maxW = 480, maxH = 360;
-        const ratio = Math.min(1, Math.min(maxW / video.videoWidth, maxH / video.videoHeight));
-        const next = [...elements, { type:'image', img: video, isVideo: true, title: title || 'Video', isPlaying: false, src, x:60, y:60, w:video.videoWidth * ratio, h:video.videoHeight * ratio }];
+        const vw = video.videoWidth || 320;
+        const vh = video.videoHeight || 240;
+        const ratio = Math.min(1, Math.min(maxW / vw, maxH / vh));
+        const next = [...elements, {
+          type: 'image',
+          img: video,
+          isVideo: true,
+          title: title || 'Video',
+          isPlaying: false,
+          src,
+          x: 60,
+          y: 60,
+          w: Math.round(vw * ratio),
+          h: Math.round(vh * ratio)
+        }];
         setElements(next);
         commitToHistory(next);
       };
-      
-      video.onerror = () => setMediaLoadError('Could not load video for preview.');
+
+      video.onloadeddata = () => {
+        try { video.currentTime = 0.1; } catch (_) {}
+      };
+      video.onseeked = onReady;
+      video.oncanplay = () => {
+        // Fallback in case onseeked does not fire
+        setTimeout(onReady, 300);
+      };
+
+      video.onerror = () => {
+        if (video.crossOrigin) {
+          // Retry without crossOrigin
+          video.crossOrigin = null;
+          video.src = src;
+          video.load();
+        } else {
+          setMediaLoadError('Could not load video for preview.');
+        }
+      };
+
+      video.src = src;
       video.load();
     } else {
       const img = new Image();
       img.crossOrigin = 'anonymous';
       img.onload = () => {
         const maxW = 480, maxH = 360;
-        const ratio = Math.min(1, Math.min(maxW / img.width, maxH / img.height));
-        const next = [...elements, { type:'image', img, title: title || 'Image', src, x:60, y:60, w:img.width * ratio, h:img.height * ratio }];
+        const iw = img.naturalWidth || img.width || 320;
+        const ih = img.naturalHeight || img.height || 240;
+        const ratio = Math.min(1, Math.min(maxW / iw, maxH / ih));
+        const next = [...elements, {
+          type: 'image',
+          img,
+          title: title || 'Image',
+          src,
+          x: 60,
+          y: 60,
+          w: Math.round(iw * ratio),
+          h: Math.round(ih * ratio)
+        }];
         setElements(next);
         commitToHistory(next);
       };
-      img.onerror = () => setMediaLoadError('Could not load image.');
+      img.onerror = () => {
+        if (img.crossOrigin) {
+          // Retry without crossOrigin
+          img.crossOrigin = null;
+          img.src = src;
+        } else {
+          setMediaLoadError('Could not load image.');
+        }
+      };
       img.src = src;
     }
   };
@@ -1083,82 +977,28 @@ export default function WhiteboardEditor({ board, onClose, user }) {
 
   return (
     <div style={{ position:'fixed', inset:0, zIndex:1000, background:'var(--bg-primary)', display:'flex', flexDirection:'column', fontFamily:"'Outfit', sans-serif" }}>
-
       {/* ── Top Bar ── */}
-      <div className="wb-topbar">
-        {/* Left */}
-        <div className="wb-topbar-left">
-          <button onClick={handleClose} className="wb-back-btn" aria-label="Back">
-            <span className="material-symbols-rounded" style={{ fontSize:'20px' }}>arrow_back</span>
-          </button>
-
-          {/* Editable name */}
-          {editingName ? (
-            <input
-              ref={nameInputRef}
-              value={nameDraft}
-              onChange={e => setNameDraft(e.target.value)}
-              onBlur={handleNameCommit}
-              onKeyDown={e => {
-                if (e.key === 'Enter') handleNameCommit();
-                // Suppress the native blur-on-unmount that follows, so Escape
-                // actually cancels instead of still committing the draft name.
-                if (e.key === 'Escape') { nameCommittedRef.current = true; setEditingName(false); }
-              }}
-              autoFocus
-              className="wb-name-input"
-              style={{ background:'var(--bg-tertiary)', border:'1px solid var(--primary)', borderRadius:'8px', color:'var(--text-main)', padding:'5px 10px', fontSize:'14px', fontWeight:600, fontFamily:"'Outfit', sans-serif", outline:'none' }}
-            />
-          ) : (
-            <div className="wb-name"
-              onClick={() => { nameCommittedRef.current = false; setNameDraft(boardName); setEditingName(true); }}>
-              <span className="truncate" title={boardName} style={{ fontSize:'14px', fontWeight:700, color:'var(--text-main)' }}>{boardName}</span>
-              <span className="material-symbols-rounded" style={{ fontSize:'14px', color:'var(--text-faint)', flexShrink:0 }}>edit</span>
-            </div>
-          )}
-        </div>
-
-        {/* Zoom + actions — one wrapping row on phones, plain top-bar items above */}
-        <div className="wb-topbar-tools">
-        {/* Center — zoom */}
-        <div className="wb-group">
-          <button onClick={() => setZoom(z => Math.max(0.25, z - 0.25))} className="wb-zoom-btn" aria-label="Zoom out">-</button>
-          <span className="wb-zoom-label">{Math.round(zoom * 100)}%</span>
-          <button onClick={() => setZoom(z => Math.min(3, z + 0.25))} className="wb-zoom-btn" aria-label="Zoom in">+</button>
-          <button onClick={() => setZoom(1)} className="wb-zoom-reset">Reset</button>
-        </div>
-
-        {/* Right */}
-        <div className="wb-group">
-          {/* Subtle auto-save status indicator */}
-          <div className="wb-save-status hide-below-sm" data-state={isSaving ? 'saving' : isSaved ? 'saved' : hasUnsavedChanges ? 'unsaved' : 'saved'}>
-            <span className="material-symbols-rounded" style={{ fontSize:'14px' }}>
-              {isSaving ? 'sync' : isSaved ? 'check' : hasUnsavedChanges ? 'edit_note' : 'cloud_done'}
-            </span>
-            <span>
-              {isSaving ? 'Saving…' : isSaved ? 'All saved' : hasUnsavedChanges ? 'Unsaved' : 'Saved'}
-            </span>
-          </div>
-
-          <button onClick={handleUndo} title="Undo" aria-label="Undo" className="wb-action-btn">
-            <span className="material-symbols-rounded" style={{ fontSize:'16px' }}>undo</span>
-          </button>
-          <button onClick={handleRedo} title="Redo" aria-label="Redo" className="wb-action-btn">
-            <span className="material-symbols-rounded" style={{ fontSize:'16px' }}>redo</span>
-          </button>
-          {board?.id && (
-            <button onClick={() => setShowShareModal(true)} title="Share whiteboard" aria-label="Share" className="wb-action-btn" style={{ gap:'5px', padding:'6px 12px' }}>
-              <span className="material-symbols-rounded" style={{ fontSize:'16px' }}>share</span>
-              <span style={{ fontSize:'12px', fontWeight:600 }} className="hide-below-sm">Share</span>
-            </button>
-          )}
-          <button onClick={() => handleSave(false)} disabled={isSaving} className="wb-save-btn" style={{ background: saveError ? 'rgba(239,68,68,0.15)' : isSaved ? 'rgba(52,211,153,0.15)' : 'linear-gradient(135deg,#6366f1,#8b5cf6)', border:'none', color: saveError ? '#f87171' : isSaved ? '#34d399' : 'white', padding:'6px 16px', borderRadius:'8px', cursor: isSaving ? 'default' : 'pointer', opacity: isSaving ? 0.7 : 1, display:'flex', alignItems:'center', gap:'6px', fontSize:'13px', fontWeight:600, fontFamily:"'Outfit', sans-serif", transition:'all 0.2s' }}>
-            <span className="material-symbols-rounded" style={{ fontSize:'16px' }}>{isSaving ? 'progress_activity' : saveError ? 'error' : isSaved ? 'check_circle' : 'save'}</span>
-            {isSaving ? 'Saving…' : saveError ? 'Save failed' : isSaved ? 'Saved!' : 'Save'}
-          </button>
-        </div>
-        </div>
-      </div>
+      <WhiteboardTopbar
+        boardName={boardName}
+        editingName={editingName}
+        nameDraft={nameDraft}
+        nameInputRef={nameInputRef}
+        setNameDraft={setNameDraft}
+        setEditingName={setEditingName}
+        handleNameCommit={handleNameCommit}
+        nameCommittedRef={nameCommittedRef}
+        zoom={zoom}
+        setZoom={setZoom}
+        handleUndo={handleUndo}
+        handleRedo={handleRedo}
+        handleSave={handleSave}
+        isSaving={isSaving}
+        isSaved={isSaved}
+        saveError={saveError}
+        hasUnsavedChanges={hasUnsavedChanges}
+        handleClose={handleClose}
+        onOpenShare={() => setShowShareModal(true)}
+      />
 
       {(loadError || saveError) && (
         <div style={{ background:'rgba(239,68,68,0.1)', borderBottom:'1px solid rgba(239,68,68,0.3)', color:'#f87171', fontSize:'12px', padding:'8px 20px', display:'flex', alignItems:'center', gap:'8px' }}>
@@ -1169,70 +1009,15 @@ export default function WhiteboardEditor({ board, onClose, user }) {
 
       {/* ── Content Row ── */}
       <div className="wb-body">
-
-        {/* Left Toolbar — modern lean sidebar */}
-        <div className="wb-toolbar" role="toolbar" aria-label="Whiteboard tools">
-          {/* Draw tools group */}
-          <div className="wb-tool-group wb-tool-group--draw">
-            <span className="wb-group-label">Draw</span>
-            {TOOLS.filter(t => !['select','image', 'video'].includes(t.id)).map(t => {
-              const active = tool === t.id;
-              return (
-                <button key={t.id} title={t.label} onClick={() => handleToolClick(t.id)}
-                  className="wb-tool-btn" data-active={active} aria-pressed={active}>
-                  <span className="material-symbols-rounded">{t.icon}</span>
-                  <span className="wb-tool-label">{t.label}</span>
-                </button>
-              );
-            })}
-          </div>
-
-          <div className="wb-divider" aria-hidden="true" />
-
-          {/* Select + Media group */}
-          <div className="wb-tool-group wb-tool-group--media">
-            <span className="wb-group-label">Media</span>
-            {TOOLS.filter(t => ['select','image', 'video'].includes(t.id)).map(t => {
-              const active = tool === t.id;
-              return (
-                <button key={t.id} title={t.label} onClick={() => handleToolClick(t.id)}
-                  className="wb-tool-btn" data-active={active} aria-pressed={active}>
-                  <span className="material-symbols-rounded">{t.icon}</span>
-                  <span className="wb-tool-label">{t.label}</span>
-                </button>
-              );
-            })}
-          </div>
-
-          <div className="wb-divider" aria-hidden="true" />
-
-          {/* Colors */}
-          <div className="wb-tool-group">
-            <span className="wb-group-label">Color</span>
-            <div className="wb-colors">
-              {COLORS.map(c => (
-                <button key={c} onClick={() => setColor(c)} title={c} aria-label={`Colour ${c}`} aria-pressed={color === c}
-                  className="wb-swatch"
-                  style={{ background:c, border: color === c ? '2px solid var(--primary)' : '2px solid transparent', outline: color === c ? '2px solid rgba(99,102,241,0.3)' : 'none' }}
-                />
-              ))}
-            </div>
-          </div>
-
-          <div className="wb-divider wb-divider--tight" aria-hidden="true" />
-
-          {/* Stroke sizes */}
-          <div className="wb-tool-group">
-            <span className="wb-group-label">Size</span>
-            {SIZES.map(s => (
-              <button key={s} onClick={() => setStrokeSize(s)} title={`Size ${s}`} aria-label={`Size ${s}`} aria-pressed={strokeSize === s}
-                className="wb-size-btn"
-                style={{ background: strokeSize === s ? 'rgba(99,102,241,0.15)' : 'none', border: strokeSize === s ? '1px solid rgba(99,102,241,0.4)' : '1px solid transparent' }}>
-                <div style={{ width: Math.min(32, s * 2.5 + 6), height: Math.min(s, 8), maxWidth:'100%', background: strokeSize === s ? 'var(--primary-soft)' : 'var(--text-faint)', borderRadius:'999px' }} />
-              </button>
-            ))}
-          </div>
-        </div>
+        {/* Left Toolbar */}
+        <WhiteboardToolbar
+          tool={tool}
+          color={color}
+          strokeSize={strokeSize}
+          onToolClick={handleToolClick}
+          setColor={setColor}
+          setStrokeSize={setStrokeSize}
+        />
 
         {/* Canvas Area */}
         <div className="wb-canvas-area" style={{ background:'radial-gradient(circle, #1e293b 1px, transparent 1px)', backgroundSize:'24px 24px', backgroundColor:'var(--bg-primary)' }}>
@@ -1278,7 +1063,12 @@ export default function WhiteboardEditor({ board, onClose, user }) {
 
       {/* Library Picker */}
       {showLibrary !== 'none' && (
-        <LibraryPicker user={user} onSelect={handleImageInsert} onClose={() => setShowLibrary('none')} initialTab={showLibrary} />
+        <WhiteboardLibraryPicker
+          user={user}
+          onSelect={handleImageInsert}
+          onClose={() => setShowLibrary('none')}
+          initialTab={showLibrary}
+        />
       )}
 
       {/* Share Modal */}
@@ -1291,92 +1081,32 @@ export default function WhiteboardEditor({ board, onClose, user }) {
       )}
 
       {/* Right-click context menu */}
-      {contextMenu && (
-        <div
-          style={{ position:'fixed', top: `min(${contextMenu.y}px, calc(100dvh - 150px))`, left: `min(${contextMenu.x}px, calc(100vw - 196px))`, zIndex:3000, background:'var(--bg-secondary)', border:'1px solid #334155', borderRadius:'12px', padding:'6px', boxShadow:'0 12px 40px rgba(0,0,0,0.5)', minWidth:'180px', fontFamily:"'Outfit',sans-serif" }}
-          onMouseLeave={() => setContextMenu(null)}
-        >
-          {[
-            { icon:'flip_to_front', label:'Bring to Front', fn: ctxBringFront },
-            { icon:'flip_to_back',  label:'Send to Back',   fn: ctxSendBack  },
-          ].map(item => (
-            <button key={item.label} onClick={item.fn}
-              style={{ width:'100%', background:'none', border:'none', color:'#cbd5e1', cursor:'pointer', padding:'9px 14px', borderRadius:'8px', display:'flex', alignItems:'center', gap:'10px', fontSize:'13px', fontWeight:600, fontFamily:"'Outfit',sans-serif", textAlign:'left', transition:'background 0.12s' }}
-              onMouseEnter={e => e.currentTarget.style.background='#1e293b'}
-              onMouseLeave={e => e.currentTarget.style.background='none'}>
-              <span className="material-symbols-rounded" style={{ fontSize:'17px', color:'#6366f1' }}>{item.icon}</span>
-              {item.label}
-            </button>
-          ))}
-          <div style={{ height:'1px', background:'#1e293b', margin:'4px 6px' }} />
-          <button onClick={ctxDelete}
-            style={{ width:'100%', background:'none', border:'none', color:'#f87171', cursor:'pointer', padding:'9px 14px', borderRadius:'8px', display:'flex', alignItems:'center', gap:'10px', fontSize:'13px', fontWeight:600, fontFamily:"'Outfit',sans-serif", transition:'background 0.12s' }}
-            onMouseEnter={e => e.currentTarget.style.background='rgba(239,68,68,0.1)'}
-            onMouseLeave={e => e.currentTarget.style.background='none'}>
-            <span className="material-symbols-rounded" style={{ fontSize:'17px' }}>delete</span>
-            Delete
-          </button>
-        </div>
-      )}
+      <WhiteboardContextMenu
+        contextMenu={contextMenu}
+        onBringToFront={ctxBringFront}
+        onSendToBack={ctxSendBack}
+        onDelete={ctxDelete}
+        onClose={() => setContextMenu(null)}
+      />
 
       {/* Exit Warning Modal */}
-      {showExitModal && (
-        <div className="wb-overlay" style={{ zIndex:4000 }}>
-          <div className="wb-dialog" role="dialog" aria-modal="true">
-            <div style={{ width:'56px', height:'56px', borderRadius:'16px', background:'rgba(245,158,11,0.15)', border:'1px solid rgba(245,158,11,0.3)', display:'flex', alignItems:'center', justifyContent:'center', marginBottom:'20px' }}>
-              <span className="material-symbols-rounded" style={{ fontSize:'28px', color:'#fbbf24' }}>warning</span>
-            </div>
-            <h3 style={{ margin:'0 0 12px', fontSize:'20px', fontWeight:700, color:'var(--text-main)' }}>Unsaved Changes</h3>
-            <p style={{ margin:'0 0 28px', fontSize:'15px', color:'var(--text-dim)', lineHeight:'1.5' }}>
-              You have unsaved changes on your whiteboard. Do you want to save them before leaving?
-            </p>
-            <div className="dialog-actions" style={{ gap:'12px' }}>
-              <button onClick={() => setShowExitModal(false)} style={{ background:'transparent', border:'none', color:'#94a3b8', padding:'10px 16px', borderRadius:'10px', fontSize:'14px', fontWeight:600, cursor:'pointer' }}>
-                Cancel
-              </button>
-              <button onClick={() => { setShowExitModal(false); onClose(); }} style={{ background:'rgba(239,68,68,0.1)', border:'1px solid rgba(239,68,68,0.2)', color:'#f87171', padding:'10px 16px', borderRadius:'10px', fontSize:'14px', fontWeight:600, cursor:'pointer' }}>
-                Discard
-              </button>
-              <button onClick={async () => { setShowExitModal(false); await handleSave(); onClose(); }} style={{ background:'linear-gradient(135deg,#6366f1,#8b5cf6)', border:'none', color:'white', padding:'10px 20px', borderRadius:'10px', fontSize:'14px', fontWeight:600, cursor:'pointer' }}>
-                Save &amp; Leave
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <WhiteboardExitModal
+        isOpen={showExitModal}
+        onCancel={() => setShowExitModal(false)}
+        onDiscard={() => { setShowExitModal(false); onClose(); }}
+        onSaveAndExit={async () => { setShowExitModal(false); await handleSave(); onClose(); }}
+      />
 
-      {/* Add Text — replaces native prompt() */}
-      {textPrompt && (
-        <div className="wb-overlay" style={{ zIndex:4000 }}
-          onClick={() => setTextPrompt(null)}>
-          <div className="wb-dialog wb-dialog--compact" role="dialog" aria-modal="true"
-            onClick={e => e.stopPropagation()}>
-            <h3 style={{ margin:'0 0 16px', fontSize:'16px', fontWeight:700, color:'var(--text-main)' }}>Add Text</h3>
-            <input
-              autoFocus
-              value={textPromptValue}
-              onChange={e => setTextPromptValue(e.target.value)}
-              onKeyDown={e => {
-                if (e.key === 'Enter') commitTextPrompt();
-                if (e.key === 'Escape') setTextPrompt(null);
-              }}
-              placeholder="Type something…"
-              className="wb-text-input"
-              style={{ width:'100%', background:'var(--bg-tertiary)', border:'1px solid var(--primary)', borderRadius:'10px', color:'var(--text-main)', padding:'10px 14px', outline:'none', fontFamily:"'Outfit', sans-serif", boxSizing:'border-box', marginBottom:'20px' }}
-            />
-            <div className="dialog-actions" style={{ gap:'10px' }}>
-              <button onClick={() => setTextPrompt(null)} style={{ background:'transparent', border:'none', color:'#94a3b8', padding:'9px 14px', borderRadius:'10px', fontSize:'13px', fontWeight:600, cursor:'pointer' }}>
-                Cancel
-              </button>
-              <button onClick={commitTextPrompt} style={{ background:'linear-gradient(135deg,#6366f1,#8b5cf6)', border:'none', color:'white', padding:'9px 18px', borderRadius:'10px', fontSize:'13px', fontWeight:600, cursor:'pointer' }}>
-                Add
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Add Text Modal */}
+      <WhiteboardTextPromptModal
+        isOpen={Boolean(textPrompt)}
+        value={textPromptValue}
+        onChange={setTextPromptValue}
+        onCommit={commitTextPrompt}
+        onClose={() => setTextPrompt(null)}
+      />
 
-      {/* Media load failure — replaces native alert() */}
+      {/* Media load failure toast */}
       {mediaLoadError && (
         <div className="wb-toast" role="alert" style={{ zIndex:4500 }}>
           <span className="material-symbols-rounded" style={{ fontSize:'20px', color:'#f87171', flexShrink:0 }}>error</span>

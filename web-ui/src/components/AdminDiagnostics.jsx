@@ -913,7 +913,7 @@ export default function AdminDiagnostics({ user }) {
             <form onSubmit={handleBillingLookup} className="diag-search" style={{ marginTop: '20px' }}>
               <input
                 type="text"
-                placeholder="saleh@gmail.com"
+                placeholder="user@example.com"
                 value={billingEmail}
                 onChange={e => setBillingEmail(e.target.value)}
                 style={{

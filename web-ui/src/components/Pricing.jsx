@@ -368,8 +368,10 @@ export default function Pricing({ user, isAuthenticated, onSignIn, paywalled = f
             <span style={{ fontSize: '32px', fontWeight: 800, color: 'var(--text-dim)' }}>Contact us</span>
           </div>
 
-          <button
-            onClick={() => setShowContactForm(true)}
+          <a
+            href="https://docs.google.com/forms/d/e/1FAIpQLSdoXSIVDaVBnik4oA3CsIigkfa6PcJshfH7dRTqrkDnn9Kj7g/viewform"
+            target="_blank"
+            rel="noreferrer"
             style={{
               width: '100%', padding: '14px',
               borderRadius: '12px', border: '1px solid #2d3a50',
@@ -378,14 +380,16 @@ export default function Pricing({ user, isAuthenticated, onSignIn, paywalled = f
               cursor: 'pointer', marginBottom: '28px',
               fontFamily: "'Outfit', sans-serif",
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+              textDecoration: 'none',
+              boxSizing: 'border-box',
               transition: 'all 0.2s',
             }}
             onMouseEnter={e => { e.currentTarget.style.background = '#273044'; e.currentTarget.style.borderColor = 'var(--text-faint)'; }}
             onMouseLeave={e => { e.currentTarget.style.background = 'var(--bg-tertiary)'; e.currentTarget.style.borderColor = '#2d3a50'; }}
           >
-            <span className="material-symbols-rounded" style={{ fontSize: '18px' }}>mail</span>
-            Contact Us
-          </button>
+            <span className="material-symbols-rounded" style={{ fontSize: '18px' }}>open_in_new</span>
+            Contact Us via Form
+          </a>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
             <div style={{ fontSize: '11px', fontWeight: 700, color: '#3d4f6a', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '4px' }}>

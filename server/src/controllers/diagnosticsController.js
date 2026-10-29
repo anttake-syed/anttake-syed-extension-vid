@@ -1127,23 +1127,48 @@ exports.getStorageAndUserAnalytics = async (req, res) => {
       }
     }
 
-    // 2. Aggregate DB storage objects — BigInt-safe conversion
+    // 2. Aggregate DB storage objects & category breakdown
     let totalDbBytes = 0;
     let totalDbFiles = 0;
+    const mediaBreakdown = {
+      videoBytes: 0,
+      videoCount: 0,
+      imageBytes: 0,
+      imageCount: 0,
+      cloudBytes: 0,
+      driveBytes: 0,
+      localBytes: 0
+    };
+
     try {
-      if (typeof prisma.storageObject.aggregate === 'function') {
-        const storageSummary = await prisma.storageObject.aggregate({
-          _sum: { sizeBytes: true },
-          _count: { id: true }
-        });
-        totalDbBytes = Number(storageSummary?._sum?.sizeBytes ?? 0);
-        totalDbFiles = typeof storageSummary?._count === 'number' 
-          ? storageSummary._count 
-          : Number(storageSummary?._count?.id ?? 0);
-      } else {
-        const objs = await prisma.storageObject.findMany({ select: { sizeBytes: true } });
-        totalDbFiles = objs.length;
-        totalDbBytes = objs.reduce((acc, o) => acc + Number(o.sizeBytes || 0), 0);
+      const allStorageObjects = await prisma.storageObject.findMany({
+        select: {
+          sizeBytes: true,
+          provider: true,
+          capture: {
+            select: { type: true, mimeType: true }
+          }
+        }
+      });
+
+      totalDbFiles = allStorageObjects.length;
+      for (const obj of allStorageObjects) {
+        const bytes = Number(obj.sizeBytes || 0);
+        totalDbBytes += bytes;
+
+        const prov = obj.provider || 'local';
+        if (prov === 'cloud' || prov === 'upload_thing') mediaBreakdown.cloudBytes += bytes;
+        else if (prov === 'google_drive') mediaBreakdown.driveBytes += bytes;
+        else mediaBreakdown.localBytes += bytes;
+
+        const isVid = obj.capture?.type === 'video' || (obj.capture?.mimeType || '').includes('video');
+        if (isVid) {
+          mediaBreakdown.videoBytes += bytes;
+          mediaBreakdown.videoCount++;
+        } else {
+          mediaBreakdown.imageBytes += bytes;
+          mediaBreakdown.imageCount++;
+        }
       }
     } catch (aggErr) {
       logger.warn('diagnostics', 'storage-aggregate-fallback', { error: aggErr.message });
@@ -1151,6 +1176,10 @@ exports.getStorageAndUserAnalytics = async (req, res) => {
       totalDbFiles = objs.length;
       totalDbBytes = objs.reduce((acc, o) => acc + Number(o.sizeBytes || 0), 0);
     }
+
+    // 2b. Whiteboards aggregate
+    const totalBoards = await prisma.board.count().catch(() => 0);
+    const totalBoardItems = await prisma.boardItem.count().catch(() => 0);
 
     // 3. User counts
     const totalUsers = await prisma.user.count();
@@ -1197,7 +1226,7 @@ exports.getStorageAndUserAnalytics = async (req, res) => {
       ...planGroups.map(p => ({ planName: planNameMap[p.planId] || p.planId, count: Number(p._count.planId) }))
     ];
 
-    // 6. Per-user storage table (top 50 consumers, BigInt-safe, checks captures + storageObjects)
+    // 6. Per-user storage table (top 50 consumers, BigInt-safe, checks captures + storageObjects + boards)
     const userUsages = await prisma.user.findMany({
       select: {
         id: true, email: true, name: true, role: true, createdAt: true,
@@ -1206,9 +1235,16 @@ exports.getStorageAndUserAnalytics = async (req, res) => {
         captures: {
           select: {
             id: true,
+            type: true,
             storageObject: {
               select: { sizeBytes: true, provider: true }
             }
+          }
+        },
+        boards: {
+          select: {
+            id: true,
+            _count: { select: { items: true } }
           }
         },
         _count: { select: { captures: true, boards: true } }
@@ -1216,13 +1252,31 @@ exports.getStorageAndUserAnalytics = async (req, res) => {
       take: 50
     });
 
-    const topUsers = userUsages.map(u => {
-      // Sum actual capture sizes on disk/CDN/Drive from associated StorageObjects
-      const actualCalculatedBytes = (u.captures || []).reduce((acc, c) => {
-        return acc + Number(c.storageObject?.sizeBytes || 0);
-      }, 0);
+    const formatSize = (bytes) => {
+      if (!bytes || bytes === 0) return '0 B';
+      if (bytes < 1024) return bytes + ' B';
+      if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+      if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+      return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
+    };
 
-      // Best of recorded usage counter vs calculated capture sizes
+    const topUsers = userUsages.map(u => {
+      let userVidBytes = 0;
+      let userImgBytes = 0;
+      let userCloudBytes = 0;
+      let userDriveBytes = 0;
+
+      for (const c of (u.captures || [])) {
+        const b = Number(c.storageObject?.sizeBytes || 0);
+        if (c.type === 'video') userVidBytes += b;
+        else userImgBytes += b;
+
+        const prov = c.storageObject?.provider;
+        if (prov === 'cloud' || prov === 'upload_thing') userCloudBytes += b;
+        else if (prov === 'google_drive') userDriveBytes += b;
+      }
+
+      const actualCalculatedBytes = userVidBytes + userImgBytes;
       const recordedUsageBytes = Number(u.usage?.cloudBytes || 0) + Number(u.usage?.driveBytes || 0);
       const totalBytesUsed = Math.max(actualCalculatedBytes, recordedUsageBytes);
 
@@ -1230,7 +1284,11 @@ exports.getStorageAndUserAnalytics = async (req, res) => {
         ? u.captures.length
         : (u._count?.captures || Number(u.usage?.cloudObjectCount ?? 0));
 
-      const boardCount = u._count?.boards || 0;
+      const boardCount = (u.boards && u.boards.length > 0)
+        ? u.boards.length
+        : (u._count?.boards || 0);
+
+      const boardItemCount = (u.boards || []).reduce((acc, b) => acc + (b._count?.items || 0), 0);
 
       return {
         id: u.id, email: u.email, name: u.name, role: u.role, joinedAt: u.createdAt,
@@ -1238,10 +1296,15 @@ exports.getStorageAndUserAnalytics = async (req, res) => {
         subStatus: u.subscription?.status || 'none',
         captureCount,
         boardCount,
+        boardItemCount,
         bytesUsed: totalBytesUsed,
-        formattedUsage: totalBytesUsed >= 1024 * 1024 * 1024
-          ? `${(totalBytesUsed / (1024 * 1024 * 1024)).toFixed(2)} GB`
-          : `${(totalBytesUsed / (1024 * 1024)).toFixed(2)} MB`
+        videoBytes: userVidBytes,
+        imageBytes: userImgBytes,
+        cloudBytes: userCloudBytes,
+        driveBytes: userDriveBytes,
+        formattedUsage: formatSize(totalBytesUsed),
+        formattedVideo: formatSize(userVidBytes),
+        formattedImage: formatSize(userImgBytes)
       };
     }).sort((a, b) => b.bytesUsed - a.bytesUsed);
 
@@ -1249,18 +1312,41 @@ exports.getStorageAndUserAnalytics = async (req, res) => {
     const totalCaptures = await prisma.capture.count();
     const activeCaptures = await prisma.capture.count({ where: { status: 'active' } });
 
+    // Format CDN storage intelligently
+    const effectiveCdnBytes = utUsage?.totalBytes || mediaBreakdown.cloudBytes || totalDbBytes;
+    const cdnUsedFormatted = formatSize(effectiveCdnBytes);
+
     res.json({
       uploadThing: utUsage || {
-        totalBytes: totalDbBytes, limitBytes: 2 * 1024 * 1024 * 1024, filesUploaded: totalDbFiles,
-        usedFormatted: `${(totalDbBytes / (1024 * 1024 * 1024)).toFixed(2)} GB`,
+        totalBytes: effectiveCdnBytes,
+        limitBytes: 2 * 1024 * 1024 * 1024,
+        filesUploaded: mediaBreakdown.cloudBytes > 0 ? mediaBreakdown.videoCount + mediaBreakdown.imageCount : totalDbFiles,
+        usedFormatted: cdnUsedFormatted,
         limitFormatted: '2.00 GB',
-        percentUsed: Math.min(100, Math.round((totalDbBytes / (2 * 1024 * 1024 * 1024)) * 100))
+        percentUsed: Math.min(100, Math.round((effectiveCdnBytes / (2 * 1024 * 1024 * 1024)) * 100))
       },
       database: {
         totalStorageBytes: totalDbBytes,
-        totalStorageFormatted: `${(totalDbBytes / (1024 * 1024 * 1024)).toFixed(2)} GB`,
-        totalFiles: totalDbFiles, totalUsers, activeSubscribers, freeUsers,
-        totalCaptures, activeCaptures
+        totalStorageFormatted: formatSize(totalDbBytes),
+        totalFiles: totalDbFiles,
+        totalUsers,
+        activeSubscribers,
+        freeUsers,
+        totalCaptures,
+        activeCaptures,
+        totalBoards,
+        totalBoardItems,
+        mediaBreakdown: {
+          videoBytes: mediaBreakdown.videoBytes,
+          videoFormatted: formatSize(mediaBreakdown.videoBytes),
+          videoCount: mediaBreakdown.videoCount,
+          imageBytes: mediaBreakdown.imageBytes,
+          imageFormatted: formatSize(mediaBreakdown.imageBytes),
+          imageCount: mediaBreakdown.imageCount,
+          cloudFormatted: formatSize(mediaBreakdown.cloudBytes),
+          driveFormatted: formatSize(mediaBreakdown.driveBytes),
+          localFormatted: formatSize(mediaBreakdown.localBytes)
+        }
       },
       userGrowth: { newLast24h: newUsersLast24h, newLast7d: newUsersLast7d, newLast30d: recentUsers.length, signupTrend },
       planDistribution,

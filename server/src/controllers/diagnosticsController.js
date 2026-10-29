@@ -253,6 +253,44 @@ async function checkUploadThing() {
   };
 }
 
+/** 10. Google Drive / OAuth Connectivity — verify Google client config & Google APIs reachability */
+async function checkGoogleDrive() {
+  const clientId = process.env.GOOGLE_CLIENT_ID;
+  const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+
+  if (!clientId || !clientSecret) {
+    throw new Error('Google OAuth credentials not configured (GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET missing)');
+  }
+
+  // Ping Google OAuth Discovery document to check network reachability & Google API availability
+  const pingStart = Date.now();
+  const res = await fetch('https://accounts.google.com/.well-known/openid-configuration', {
+    method: 'GET',
+    signal: AbortSignal.timeout(5000),
+  }).catch(e => {
+    throw new Error(`Google API network unreachable: ${e.message}`);
+  });
+
+  if (!res.ok) {
+    throw new Error(`Google API returned status ${res.status}`);
+  }
+
+  const durationMs = Date.now() - pingStart;
+
+  // Count active Google Drive connected accounts in D1
+  const connectedCount = await prisma.googleDriveConnection.count({
+    where: { isConnected: true }
+  }).catch(() => 0);
+
+  return {
+    configured: true,
+    clientIdPrefix: clientId.slice(0, 15) + '...',
+    googleReachable: true,
+    latencyMs: durationMs,
+    connectedUsers: connectedCount
+  };
+}
+
 
 /** 10. LemonSqueezy — verify billing config is set up correctly */
 async function checkLemonSqueezy() {
@@ -587,7 +625,7 @@ exports.getSystemHealth = async (req, res) => {
   const startAll = Date.now();
 
   // Run all checks (in parallel where safe, sequential for CRUD to keep orderly)
-  const [apiCheck, d1ConnCheck, schemaCheck, readCheck, writeCheck, authCheck, uploadThingCheck, lemonSqueezyCheck, subscriptionHealthCheck, captureActivationCheck] =
+  const [apiCheck, d1ConnCheck, schemaCheck, readCheck, writeCheck, authCheck, uploadThingCheck, googleDriveCheck, lemonSqueezyCheck, subscriptionHealthCheck, captureActivationCheck] =
     await Promise.all([
       runCheck('API',                      checkApi),
       runCheck('D1 Connection',            checkD1Connection),
@@ -596,6 +634,7 @@ exports.getSystemHealth = async (req, res) => {
       runCheck('Database Write',           checkDatabaseWrite),
       runCheck('Authentication (JWT)',     checkAuthentication),
       runCheck('UploadThing',              checkUploadThing),
+      runCheck('Google Drive API',         checkGoogleDrive),
       runCheck('LemonSqueezy Billing',     checkLemonSqueezy),
       runCheck('Subscription Health',      checkSubscriptionHealth),
       runCheck('Capture Activation Health', checkCaptureActivation),
@@ -607,7 +646,7 @@ exports.getSystemHealth = async (req, res) => {
 
   const checks = [
     apiCheck, d1ConnCheck, schemaCheck, readCheck, writeCheck,
-    boardCheck, captureCheck, authCheck, uploadThingCheck, lemonSqueezyCheck,
+    boardCheck, captureCheck, authCheck, uploadThingCheck, googleDriveCheck, lemonSqueezyCheck,
     subscriptionHealthCheck, captureActivationCheck,
   ];
 
@@ -638,14 +677,66 @@ exports.getSystemHealth = async (req, res) => {
 // ── Controller: GET /api/admin/diagnostics/errors ─────────────────────────────
 exports.getRecentErrors = async (req, res) => {
   const adminUserId = req.dbUser?.id || req.user?.id;
+  const categoryFilter = req.query.category; // optional category filter
   
   logger.info('diagnostics', 'recent-errors-fetch', {
     requestId: req.requestId,
     userId:    adminUserId,
   });
 
-  const errors = getRecentErrors();
-  res.json({ errors, count: errors.length });
+  const allErrors = getRecentErrors();
+
+  // Helper to categorize errors cleanly
+  const categorize = (e) => {
+    const feat = (e.feature || '').toLowerCase();
+    const op = (e.operation || '').toLowerCase();
+    const msg = (e.error?.message || e.meta?.message || '').toLowerCase();
+
+    if (feat.includes('drive') || op.includes('drive') || msg.includes('drive') || msg.includes('google')) {
+      return 'drive';
+    }
+    if (feat.includes('upload') || op.includes('upload') || op.includes('cdn') || msg.includes('uploadthing') || msg.includes('storage')) {
+      return 'upload';
+    }
+    if (feat.includes('board') || op.includes('board') || msg.includes('whiteboard')) {
+      return 'whiteboard';
+    }
+    if (feat.includes('auth') || op.includes('auth') || msg.includes('jwt') || msg.includes('token') || msg.includes('unauthorized')) {
+      return 'auth';
+    }
+    if (feat.includes('billing') || op.includes('subscription') || op.includes('checkout') || msg.includes('lemonsqueezy')) {
+      return 'billing';
+    }
+    return 'general';
+  };
+
+  // Attach category to each error entry
+  const enrichedErrors = allErrors.map(e => ({
+    ...e,
+    category: categorize(e)
+  }));
+
+  // Counts by category
+  const categoriesCount = {
+    all: enrichedErrors.length,
+    drive: enrichedErrors.filter(e => e.category === 'drive').length,
+    upload: enrichedErrors.filter(e => e.category === 'upload').length,
+    whiteboard: enrichedErrors.filter(e => e.category === 'whiteboard').length,
+    auth: enrichedErrors.filter(e => e.category === 'auth').length,
+    billing: enrichedErrors.filter(e => e.category === 'billing').length,
+    general: enrichedErrors.filter(e => e.category === 'general').length,
+  };
+
+  const filteredErrors = categoryFilter && categoryFilter !== 'all'
+    ? enrichedErrors.filter(e => e.category === categoryFilter)
+    : enrichedErrors;
+
+  res.json({
+    errors: filteredErrors,
+    count: filteredErrors.length,
+    totalErrors: allErrors.length,
+    categoriesCount
+  });
 };
 
 // ── Controller: GET /api/admin/diagnostics/activity ───────────────────────────
@@ -1106,28 +1197,51 @@ exports.getStorageAndUserAnalytics = async (req, res) => {
       ...planGroups.map(p => ({ planName: planNameMap[p.planId] || p.planId, count: Number(p._count.planId) }))
     ];
 
-    // 6. Per-user storage table (top 50 consumers, BigInt-safe)
+    // 6. Per-user storage table (top 50 consumers, BigInt-safe, checks captures + storageObjects)
     const userUsages = await prisma.user.findMany({
       select: {
         id: true, email: true, name: true, role: true, createdAt: true,
         subscription: { select: { status: true, plan: { select: { name: true } } } },
-        usage: { select: { cloudBytes: true, cloudObjectCount: true } },
-        _count: { select: { captures: true } }
+        usage: { select: { cloudBytes: true, cloudObjectCount: true, driveBytes: true } },
+        captures: {
+          select: {
+            id: true,
+            storageObject: {
+              select: { sizeBytes: true, provider: true }
+            }
+          }
+        },
+        _count: { select: { captures: true, boards: true } }
       },
       take: 50
     });
 
     const topUsers = userUsages.map(u => {
-      const bytes = Number(u.usage?.cloudBytes ?? 0);
+      // Sum actual capture sizes on disk/CDN/Drive from associated StorageObjects
+      const actualCalculatedBytes = (u.captures || []).reduce((acc, c) => {
+        return acc + Number(c.storageObject?.sizeBytes || 0);
+      }, 0);
+
+      // Best of recorded usage counter vs calculated capture sizes
+      const recordedUsageBytes = Number(u.usage?.cloudBytes || 0) + Number(u.usage?.driveBytes || 0);
+      const totalBytesUsed = Math.max(actualCalculatedBytes, recordedUsageBytes);
+
+      const captureCount = (u.captures && u.captures.length > 0)
+        ? u.captures.length
+        : (u._count?.captures || Number(u.usage?.cloudObjectCount ?? 0));
+
+      const boardCount = u._count?.boards || 0;
+
       return {
         id: u.id, email: u.email, name: u.name, role: u.role, joinedAt: u.createdAt,
         plan: u.subscription?.plan?.name || 'free',
         subStatus: u.subscription?.status || 'none',
-        captureCount: u._count?.captures || Number(u.usage?.cloudObjectCount ?? 0),
-        bytesUsed: bytes,
-        formattedUsage: bytes >= 1024 * 1024 * 1024
-          ? `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`
-          : `${(bytes / (1024 * 1024)).toFixed(2)} MB`
+        captureCount,
+        boardCount,
+        bytesUsed: totalBytesUsed,
+        formattedUsage: totalBytesUsed >= 1024 * 1024 * 1024
+          ? `${(totalBytesUsed / (1024 * 1024 * 1024)).toFixed(2)} GB`
+          : `${(totalBytesUsed / (1024 * 1024)).toFixed(2)} MB`
       };
     }).sort((a, b) => b.bytesUsed - a.bytesUsed);
 

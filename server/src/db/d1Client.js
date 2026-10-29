@@ -199,6 +199,26 @@ async function resolveIncludes(modelName, rows, includeObj) {
   return rows;
 }
 
+// ── Table Column Cache & Filtering ───────────────────────────────────────────
+const tableColumnsCache = new Map();
+
+async function getTableColumns(tableName) {
+  if (tableColumnsCache.has(tableName)) {
+    return tableColumnsCache.get(tableName);
+  }
+  try {
+    const rows = await query(`PRAGMA table_info("${tableName}")`);
+    if (Array.isArray(rows) && rows.length > 0) {
+      const colSet = new Set(rows.map(r => r.name));
+      tableColumnsCache.set(tableName, colSet);
+      return colSet;
+    }
+  } catch (err) {
+    console.warn(`[d1Client] Warning: Could not inspect table_info for "${tableName}":`, err.message);
+  }
+  return null;
+}
+
 // ── Model factory ─────────────────────────────────────────────────────────────
 function makeModel(tableName) {
   return {
@@ -303,7 +323,16 @@ function makeModel(tableName) {
       } else if (tableName === 'Capture') {
         if (fullData.status === undefined || fullData.status === null) fullData.status = 'processing';
         if (fullData.hasAudio === undefined || fullData.hasAudio === null) fullData.hasAudio = false;
-        if (fullData.shareCount === undefined || fullData.shareCount === null) fullData.shareCount = 0;
+      }
+
+      // Dynamically filter out any properties that do not exist on the target D1 table
+      const validCols = await getTableColumns(tableName);
+      if (validCols) {
+        for (const k of Object.keys(fullData)) {
+          if (!validCols.has(k)) {
+            delete fullData[k];
+          }
+        }
       }
 
       const keys = Object.keys(fullData);
@@ -330,6 +359,16 @@ function makeModel(tableName) {
       const noUpdatedAt = ['StorageOperation', 'LemonSqueezyPayment', 'LemonSqueezyEvent'];
       if (!noUpdatedAt.includes(tableName)) {
         updatedData.updatedAt = new Date().toISOString();
+      }
+
+      // Dynamically filter out any properties that do not exist on the target D1 table
+      const validCols = await getTableColumns(tableName);
+      if (validCols) {
+        for (const k of Object.keys(updatedData)) {
+          if (!validCols.has(k)) {
+            delete updatedData[k];
+          }
+        }
       }
       
       const { clause: setClause, params: setParams } = buildSet(updatedData);

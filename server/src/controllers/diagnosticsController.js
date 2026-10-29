@@ -1276,13 +1276,17 @@ exports.getStorageAndUserAnalytics = async (req, res) => {
         else if (prov === 'google_drive') userDriveBytes += b;
       }
 
-      const actualCalculatedBytes = userVidBytes + userImgBytes;
-      const recordedUsageBytes = Number(u.usage?.cloudBytes || 0) + Number(u.usage?.driveBytes || 0);
+      const actualCalculatedBytes = (Number.isFinite(userVidBytes) ? userVidBytes : 0) + (Number.isFinite(userImgBytes) ? userImgBytes : 0);
+      const rawCloudUsage = Number(u.usage?.cloudBytes);
+      const rawDriveUsage = Number(u.usage?.driveBytes);
+      const recordedUsageBytes = (Number.isFinite(rawCloudUsage) ? rawCloudUsage : 0) + (Number.isFinite(rawDriveUsage) ? rawDriveUsage : 0);
       const totalBytesUsed = Math.max(actualCalculatedBytes, recordedUsageBytes);
 
+      const rawCloudObjCount = Number(u.usage?.cloudObjectCount);
+      const fallbackCaptureCount = Number.isFinite(rawCloudObjCount) ? rawCloudObjCount : 0;
       const captureCount = (u.captures && u.captures.length > 0)
         ? u.captures.length
-        : (u._count?.captures || Number(u.usage?.cloudObjectCount ?? 0));
+        : (u._count?.captures || fallbackCaptureCount);
 
       const boardCount = (u.boards && u.boards.length > 0)
         ? u.boards.length

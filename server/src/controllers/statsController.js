@@ -35,11 +35,25 @@ exports.getStats = async (req, res) => {
       google_drive: { count: 0, bytes: 0 }
     };
 
+    // Per-type breakdown (image vs video)
+    const mediaStats = {
+      imageCount: 0,
+      imageBytes: 0,
+      videoCount: 0,
+      videoBytes: 0,
+    };
+
     for (const c of captures) {
+      // Count all active captures by type regardless of storageObject readiness
+      const isVideo = c.type === 'video' || (c.mimeType || '').includes('video');
+      if (isVideo) mediaStats.videoCount++;
+      else mediaStats.imageCount++;
+
       if (!c.storageObject || c.storageObject.status !== 'ready') continue;
       const prov = c.storageObject.provider;
       const size = Number(c.storageObject.sizeBytes || 0);
 
+      // Accumulate per-provider bytes
       if (prov === 'cloud' || prov === 'upload_thing') {
         stats.cloud.count++;
         stats.cloud.bytes += size;
@@ -50,6 +64,10 @@ exports.getStats = async (req, res) => {
         stats.google_drive.count++;
         stats.google_drive.bytes += size;
       }
+
+      // Accumulate per-type bytes
+      if (isVideo) mediaStats.videoBytes += size;
+      else mediaStats.imageBytes += size;
     }
 
     const cloudBytes = stats.cloud.bytes;
@@ -79,6 +97,7 @@ exports.getStats = async (req, res) => {
     const boardLimit = plan.boardLimit !== undefined && plan.boardLimit > 0 ? plan.boardLimit : 1000;
 
     // 5. Return unified stats for the dashboard
+    const totalBytes = cloudBytes + localBytes + appDriveBytes;
     res.json({
       // Plan Context
       planName: plan.displayName,
@@ -94,6 +113,14 @@ exports.getStats = async (req, res) => {
       cloudCount: stats.cloud.count,
       localCount: stats.local.count,
       driveCount: stats.google_drive.count,
+
+      // Media type breakdown
+      imageCount: mediaStats.imageCount,
+      videoCount: mediaStats.videoCount,
+      imageBytes: mediaStats.imageBytes,
+      imageBytesFormatted: formatBytes(mediaStats.imageBytes),
+      videoBytes: mediaStats.videoBytes,
+      videoBytesFormatted: formatBytes(mediaStats.videoBytes),
       
       // Byte Sizes
       cloudBytes: cloudBytes,
@@ -102,6 +129,8 @@ exports.getStats = async (req, res) => {
       localBytesFormatted: formatBytes(localBytes),
       appDriveBytes: appDriveBytes,
       appDriveFormatted: formatBytes(appDriveBytes),
+      totalBytes,
+      totalBytesFormatted: formatBytes(totalBytes),
       
       // Global Drive Info
       driveUsageBytes: driveUsage,

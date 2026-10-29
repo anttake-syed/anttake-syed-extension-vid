@@ -1226,31 +1226,11 @@ exports.getStorageAndUserAnalytics = async (req, res) => {
       ...planGroups.map(p => ({ planName: planNameMap[p.planId] || p.planId, count: Number(p._count.planId) }))
     ];
 
-    // 6. Per-user storage table (top 50 consumers, BigInt-safe, checks captures + storageObjects + boards)
-    const userUsages = await prisma.user.findMany({
-      select: {
-        id: true, email: true, name: true, role: true, createdAt: true,
-        subscription: { select: { status: true, plan: { select: { name: true } } } },
-        usage: { select: { cloudBytes: true, cloudObjectCount: true, driveBytes: true } },
-        captures: {
-          select: {
-            id: true,
-            type: true,
-            storageObject: {
-              select: { sizeBytes: true, provider: true }
-            }
-          }
-        },
-        boards: {
-          select: {
-            id: true,
-            _count: { select: { items: true } }
-          }
-        },
-        _count: { select: { captures: true, boards: true } }
-      },
-      take: 50
-    });
+    // 6. Per-user storage table — single SQL JOIN aggregation for accurate counts.
+    //    Previously used ORM N+1 per-user relation loading which made hundreds of
+    //    D1 HTTP API calls and could silently return partial/incomplete results,
+    //    causing capture counts to be wrong (e.g. showing 33 instead of 70+).
+    const isCloud = process.env.SERVER_MODE === 'cloud';
 
     const formatSize = (bytes) => {
       if (!bytes || bytes === 0) return '0 B';
@@ -1260,55 +1240,89 @@ exports.getStorageAndUserAnalytics = async (req, res) => {
       return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
     };
 
-    const topUsers = userUsages.map(u => {
-      let userVidBytes = 0;
-      let userImgBytes = 0;
-      let userCloudBytes = 0;
-      let userDriveBytes = 0;
+    // Single query: LEFT JOIN Capture + StorageObject + Board + BoardItem per user
+    // This gives accurate counts regardless of how many rows exist per user.
+    const perUserSql = `
+      SELECT
+        u.id,
+        u.email,
+        u.name,
+        u.role,
+        u.createdAt,
+        COUNT(DISTINCT c.id) AS captureCount,
+        COALESCE(SUM(CASE WHEN c.type = 'video' THEN CAST(COALESCE(so.sizeBytes, 0) AS INTEGER) ELSE 0 END), 0) AS videoBytes,
+        COALESCE(SUM(CASE WHEN IFNULL(c.type, '') != 'video' AND c.id IS NOT NULL THEN CAST(COALESCE(so.sizeBytes, 0) AS INTEGER) ELSE 0 END), 0) AS imageBytes,
+        COALESCE(SUM(CAST(COALESCE(so.sizeBytes, 0) AS INTEGER)), 0) AS totalBytes,
+        COUNT(DISTINCT b.id) AS boardCount,
+        COUNT(DISTINCT bi.id) AS boardItemCount
+      FROM "User" u
+      LEFT JOIN "Capture" c ON c."userId" = u.id
+      LEFT JOIN "StorageObject" so ON so."captureId" = c.id
+      LEFT JOIN "Board" b ON b."userId" = u.id
+      LEFT JOIN "BoardItem" bi ON bi."boardId" = b.id
+      GROUP BY u.id, u.email, u.name, u.role, u.createdAt
+      ORDER BY totalBytes DESC
+      LIMIT 50
+    `;
 
-      for (const c of (u.captures || [])) {
-        const b = Number(c.storageObject?.sizeBytes || 0);
-        if (c.type === 'video') userVidBytes += b;
-        else userImgBytes += b;
-
-        const prov = c.storageObject?.provider;
-        if (prov === 'cloud' || prov === 'upload_thing') userCloudBytes += b;
-        else if (prov === 'google_drive') userDriveBytes += b;
+    let perUserRows = [];
+    try {
+      if (isCloud) {
+        perUserRows = await prisma._raw(perUserSql);
+      } else {
+        perUserRows = await prisma.$queryRawUnsafe(perUserSql);
       }
+    } catch (sqlErr) {
+      logger.warn('diagnostics', 'per-user-stats-sql-failed', { error: sqlErr.message });
+      perUserRows = []; // Degrade gracefully — topUsers will be empty, not a crash
+    }
 
-      const actualCalculatedBytes = (Number.isFinite(userVidBytes) ? userVidBytes : 0) + (Number.isFinite(userImgBytes) ? userImgBytes : 0);
-      const rawCloudUsage = Number(u.usage?.cloudBytes);
-      const rawDriveUsage = Number(u.usage?.driveBytes);
-      const recordedUsageBytes = (Number.isFinite(rawCloudUsage) ? rawCloudUsage : 0) + (Number.isFinite(rawDriveUsage) ? rawDriveUsage : 0);
-      const totalBytesUsed = Math.max(actualCalculatedBytes, recordedUsageBytes);
+    // Fetch subscription plans and usage rows for the returned user IDs
+    const perUserIds = perUserRows.map(r => r.id);
+    const [subsForUsers, usagesForUsers] = await Promise.all([
+      perUserIds.length > 0
+        ? prisma.subscription.findMany({ where: { userId: { in: perUserIds } }, include: { plan: true } })
+        : Promise.resolve([]),
+      perUserIds.length > 0
+        ? prisma.usage.findMany({ where: { userId: { in: perUserIds } } })
+        : Promise.resolve([]),
+    ]);
 
-      const rawCloudObjCount = Number(u.usage?.cloudObjectCount);
-      const fallbackCaptureCount = Number.isFinite(rawCloudObjCount) ? rawCloudObjCount : 0;
-      const captureCount = (u.captures && u.captures.length > 0)
-        ? u.captures.length
-        : (u._count?.captures || fallbackCaptureCount);
+    const subByUser   = Object.fromEntries(subsForUsers.map(s => [s.userId, s]));
+    const usageByUser = Object.fromEntries(usagesForUsers.map(u => [u.userId, u]));
 
-      const boardCount = (u.boards && u.boards.length > 0)
-        ? u.boards.length
-        : (u._count?.boards || 0);
+    const topUsers = perUserRows.map(u => {
+      const sub   = subByUser[u.id];
+      const usage = usageByUser[u.id];
 
-      const boardItemCount = (u.boards || []).reduce((acc, b) => acc + (b._count?.items || 0), 0);
+      const videoBytes     = Number(u.videoBytes     || 0);
+      const imageBytes     = Number(u.imageBytes     || 0);
+      const totalFromSql   = Number(u.totalBytes     || 0);
+      const captureCount   = Number(u.captureCount   || 0);
+      const boardCount     = Number(u.boardCount     || 0);
+      const boardItemCount = Number(u.boardItemCount || 0);
+
+      // Cross-check against Usage table (may include Drive files or deleted captures)
+      const rawCloud = Number.isFinite(Number(usage?.cloudBytes)) ? Number(usage.cloudBytes) : 0;
+      const rawDrive = Number.isFinite(Number(usage?.driveBytes)) ? Number(usage.driveBytes) : 0;
+      const bytesUsed = Math.max(totalFromSql, rawCloud + rawDrive);
 
       return {
-        id: u.id, email: u.email, name: u.name, role: u.role, joinedAt: u.createdAt,
-        plan: u.subscription?.plan?.name || 'free',
-        subStatus: u.subscription?.status || 'none',
+        id: u.id, email: u.email, name: u.name, role: u.role,
+        joinedAt: u.createdAt,
+        plan:      sub?.plan?.name || 'free',
+        subStatus: sub?.status    || 'none',
         captureCount,
         boardCount,
         boardItemCount,
-        bytesUsed: totalBytesUsed,
-        videoBytes: userVidBytes,
-        imageBytes: userImgBytes,
-        cloudBytes: userCloudBytes,
-        driveBytes: userDriveBytes,
-        formattedUsage: formatSize(totalBytesUsed),
-        formattedVideo: formatSize(userVidBytes),
-        formattedImage: formatSize(userImgBytes)
+        bytesUsed,
+        videoBytes,
+        imageBytes,
+        cloudBytes: rawCloud,
+        driveBytes: rawDrive,
+        formattedUsage: formatSize(bytesUsed),
+        formattedVideo: formatSize(videoBytes),
+        formattedImage: formatSize(imageBytes),
       };
     }).sort((a, b) => b.bytesUsed - a.bytesUsed);
 

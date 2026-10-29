@@ -289,17 +289,27 @@ function MediaThumb({ item, onOpen }) {
 export default function Dashboard({ user, isAuthenticated, isLocalMode, hasCloudAccess, subscription, stats, captures, loadingCaptures, dbStats, onSignIn, onOpenMedia, onGoToLibrary, onGoToPricing, onGoToWhiteboards }) {
   const recentCaptures = captures.slice(0, 6);
 
-  // ── Whiteboard count fetch ───────────────────────────────────────────────
-  const [boardCount, setBoardCount] = useState(null);
+  // ── Whiteboard count & sync ──────────────────────────────────────────────
+  // Initialize immediately from dbStats if available so it renders synchronously with the storage bars
+  const [boardCount, setBoardCount] = useState(dbStats?.boardCount ?? null);
+
   useEffect(() => {
-    if (!isAuthenticated || !user?.jwt) { setBoardCount(null); return; }
+    if (dbStats?.boardCount !== undefined) {
+      setBoardCount(dbStats.boardCount);
+    }
+  }, [dbStats?.boardCount]);
+
+  useEffect(() => {
+    // If dbStats didn't have boardCount yet or we need fresh count on board return
+    if (!isAuthenticated || !user?.jwt) { return; }
     let cancelled = false;
     fetch(`${SERVER_URL}/boards`, { headers: { Authorization: `Bearer ${user.jwt}` } })
       .then(r => r.ok ? r.json() : null)
-      .then(data => { if (!cancelled) setBoardCount(data?.boards?.length ?? null); })
-      .catch(() => { if (!cancelled) setBoardCount(null); });
+      .then(data => { if (!cancelled && data?.boards) setBoardCount(data.boards.length); })
+      .catch(() => {});
     return () => { cancelled = true; };
   }, [isAuthenticated, user?.jwt]);
+
 
   // ── Smooth banner enter/exit animation ──────────────────────────────────────
   // showBanner drives DOM presence; isExiting triggers the exit animation.
@@ -467,8 +477,8 @@ export default function Dashboard({ user, isAuthenticated, isLocalMode, hasCloud
               ctaHref="https://one.google.com/storage"
             />
           )}
-          {/* Whiteboard Usage Bar */}
-          {boardCount !== null && (
+          {/* Whiteboard Usage Bar — only visible for cloud subscribers or self-hosted */}
+          {(hasCloudAccess || isLocalMode) && boardCount !== null && (
             <div className="storage-bar">
               <div className="storage-bar__icon">
                 <span className="material-symbols-rounded" style={{ fontSize: '20px', color: '#818cf8' }}>draw</span>
@@ -481,7 +491,7 @@ export default function Dashboard({ user, isAuthenticated, isLocalMode, hasCloud
                     </span>
                     {!isLocalMode && (
                       <span style={{ color: '#64748b', fontSize: '11px', fontWeight: 500 }}>
-                        {hasCloudAccess ? 'Cloud' : 'Free'} Plan · 1,000 board limit
+                        Cloud Plan · 1,000 board limit
                       </span>
                     )}
                     {isLocalMode && (

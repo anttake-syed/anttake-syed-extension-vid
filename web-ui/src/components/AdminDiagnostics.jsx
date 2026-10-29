@@ -1350,14 +1350,16 @@ export default function AdminDiagnostics({ user }) {
               <>
                 {/* ── Row 1: KPI Metric Cards ── */}
                 <Grid cols={4} gap="14px">
-                  {/* Storage */}
+                  {/* Total Storage Across Platform */}
                   <div style={{ background: 'var(--bg-tertiary)', padding: '20px', borderRadius: '14px', border: '1px solid #334155' }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
-                      <span style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-dim)', letterSpacing: '0.05em' }}>CDN Storage</span>
+                      <span style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-dim)', letterSpacing: '0.05em' }}>Platform Storage</span>
                       <span className="material-symbols-rounded" style={{ fontSize: '18px', color: '#6366f1' }}>cloud_sync</span>
                     </div>
-                    <div style={{ fontSize: '26px', fontWeight: 800, color: 'white', lineHeight: 1.1 }}>{uploadThing.usedFormatted || '0 GB'}</div>
-                    <div style={{ fontSize: '12px', color: 'var(--text-dim)', margin: '6px 0 10px' }}>of {uploadThing.limitFormatted || '2.00 GB'} · {uploadThing.percentUsed ?? 0}% used</div>
+                    <div style={{ fontSize: '26px', fontWeight: 800, color: 'white', lineHeight: 1.1 }}>{database.totalStorageFormatted || uploadThing.usedFormatted || '0 B'}</div>
+                    <div style={{ fontSize: '12px', color: 'var(--text-dim)', margin: '6px 0 10px' }}>
+                      {uploadThing.limitFormatted ? `CDN: ${uploadThing.usedFormatted || '0 B'} / ${uploadThing.limitFormatted}` : 'Cloud Storage'} · {uploadThing.percentUsed ?? 0}%
+                    </div>
                     <div style={{ height: '6px', background: 'rgba(255,255,255,0.06)', borderRadius: '999px', overflow: 'hidden' }}>
                       <div style={{
                         height: '100%', borderRadius: '999px',
@@ -1368,7 +1370,41 @@ export default function AdminDiagnostics({ user }) {
                     </div>
                   </div>
 
-                  {/* Total Users */}
+                  {/* Media Breakdown */}
+                  <div style={{ background: 'var(--bg-tertiary)', padding: '20px', borderRadius: '14px', border: '1px solid #334155' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+                      <span style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-dim)', letterSpacing: '0.05em' }}>Videos & Screenshots</span>
+                      <span className="material-symbols-rounded" style={{ fontSize: '18px', color: '#a78bfa' }}>perm_media</span>
+                    </div>
+                    <div style={{ fontSize: '20px', fontWeight: 800, color: 'white', lineHeight: 1.2 }}>
+                      <span style={{ color: '#a5b4fc' }}>{database.mediaBreakdown?.videoFormatted || '0 B'}</span>
+                      <span style={{ fontSize: '13px', color: 'var(--text-dim)', margin: '0 6px' }}>/</span>
+                      <span style={{ color: '#6ee7b7' }}>{database.mediaBreakdown?.imageFormatted || '0 B'}</span>
+                    </div>
+                    <div style={{ fontSize: '12px', color: 'var(--text-dim)', marginTop: '8px' }}>
+                      <span style={{ color: '#a5b4fc', fontWeight: 600 }}>{database.mediaBreakdown?.videoCount || 0}</span> videos ·{' '}
+                      <span style={{ color: '#6ee7b7', fontWeight: 600 }}>{database.mediaBreakdown?.imageCount || 0}</span> screenshots
+                    </div>
+                  </div>
+
+                  {/* Captures & Whiteboards */}
+                  <div style={{ background: 'var(--bg-tertiary)', padding: '20px', borderRadius: '14px', border: '1px solid #334155' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+                      <span style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-dim)', letterSpacing: '0.05em' }}>Captures & Boards</span>
+                      <span className="material-symbols-rounded" style={{ fontSize: '18px', color: '#10b981' }}>folder_open</span>
+                    </div>
+                    <div style={{ fontSize: '26px', fontWeight: 800, color: 'white', lineHeight: 1.1 }}>
+                      {Number(database.totalCaptures ?? 0).toLocaleString()}
+                      <span style={{ fontSize: '14px', color: 'var(--text-dim)', fontWeight: 500, marginLeft: '6px' }}>
+                        + {Number(database.totalBoards ?? 0)} boards
+                      </span>
+                    </div>
+                    <div style={{ fontSize: '12px', color: 'var(--text-dim)', marginTop: '6px' }}>
+                      <span style={{ color: '#10b981', fontWeight: 600 }}>{Number(database.activeCaptures ?? 0)}</span> active · {database.totalBoardItems ?? 0} board cards
+                    </div>
+                  </div>
+
+                  {/* Total Users & Signups */}
                   <div style={{ background: 'var(--bg-tertiary)', padding: '20px', borderRadius: '14px', border: '1px solid #334155' }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
                       <span style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-dim)', letterSpacing: '0.05em' }}>Total Users</span>
@@ -1378,31 +1414,6 @@ export default function AdminDiagnostics({ user }) {
                     <div style={{ fontSize: '12px', color: 'var(--text-dim)', marginTop: '6px' }}>
                       <span style={{ color: '#34d399', fontWeight: 600 }}>{Number(database.activeSubscribers ?? 0)}</span> paid ·{' '}
                       <span style={{ color: '#94a3b8' }}>{Number(database.freeUsers ?? 0)}</span> free
-                    </div>
-                  </div>
-
-                  {/* New Users */}
-                  <div style={{ background: 'var(--bg-tertiary)', padding: '20px', borderRadius: '14px', border: '1px solid #334155' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
-                      <span style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-dim)', letterSpacing: '0.05em' }}>New Signups</span>
-                      <span className="material-symbols-rounded" style={{ fontSize: '18px', color: '#a78bfa' }}>person_add</span>
-                    </div>
-                    <div style={{ fontSize: '26px', fontWeight: 800, color: 'white', lineHeight: 1.1 }}>{(userGrowth.newLast7d ?? 0).toLocaleString()}</div>
-                    <div style={{ fontSize: '12px', color: 'var(--text-dim)', marginTop: '6px', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                      <span><span style={{ color: '#a78bfa', fontWeight: 600 }}>{userGrowth.newLast24h ?? 0}</span> today</span>
-                      <span><span style={{ color: '#a78bfa', fontWeight: 600 }}>{userGrowth.newLast30d ?? 0}</span> last 30d</span>
-                    </div>
-                  </div>
-
-                  {/* Captures */}
-                  <div style={{ background: 'var(--bg-tertiary)', padding: '20px', borderRadius: '14px', border: '1px solid #334155' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
-                      <span style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-dim)', letterSpacing: '0.05em' }}>Captures</span>
-                      <span className="material-symbols-rounded" style={{ fontSize: '18px', color: '#10b981' }}>folder_open</span>
-                    </div>
-                    <div style={{ fontSize: '26px', fontWeight: 800, color: 'white', lineHeight: 1.1 }}>{Number(database.totalCaptures ?? database.totalFiles ?? 0).toLocaleString()}</div>
-                    <div style={{ fontSize: '12px', color: 'var(--text-dim)', marginTop: '6px' }}>
-                      <span style={{ color: '#10b981', fontWeight: 600 }}>{Number(database.activeCaptures ?? database.totalFiles ?? 0)}</span> active · {uploadThing.filesUploaded ?? 0} on CDN
                     </div>
                   </div>
                 </Grid>
@@ -1531,9 +1542,14 @@ export default function AdminDiagnostics({ user }) {
                               {Number(u.boardCount || 0).toLocaleString()}
                             </td>
                             <td style={{ padding: '11px 16px' }}>
-                              <span style={{ fontWeight: 700, color: (u.bytesUsed || 0) > 1024 * 1024 * 500 ? '#f59e0b' : '#34d399', fontSize: '12px' }}>
-                                {u.formattedUsage || '0 MB'}
+                              <span style={{ fontWeight: 700, color: (u.bytesUsed || 0) > 1024 * 1024 * 500 ? '#f59e0b' : '#34d399', fontSize: '12px', display: 'block' }}>
+                                {u.formattedUsage || '0 B'}
                               </span>
+                              {(u.videoBytes > 0 || u.imageBytes > 0) && (
+                                <span style={{ fontSize: '10px', color: 'var(--text-dim)', display: 'block', marginTop: '2px' }}>
+                                  {u.formattedVideo} vid · {u.formattedImage} img
+                                </span>
+                              )}
                             </td>
                             <td style={{ padding: '11px 16px' }}>
                               <span style={{

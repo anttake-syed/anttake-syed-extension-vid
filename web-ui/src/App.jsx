@@ -450,6 +450,29 @@ export default function App() {
       loading: statsLoading,
     }] : []),
     {
+      label: 'Screenshots',
+      value: dbStats ? dbStats.imageCount.toString() : captures.filter(c => c.type !== 'video').length.toString(),
+      icon: 'image',
+      sub: dbStats?.imageBytesFormatted ? `${dbStats.imageBytesFormatted} used` : null,
+      loading: statsLoading,
+    },
+    {
+      label: 'Videos',
+      value: dbStats ? dbStats.videoCount.toString() : captures.filter(c => c.type === 'video').length.toString(),
+      icon: 'videocam',
+      sub: dbStats?.videoBytesFormatted ? `${dbStats.videoBytesFormatted} used` : null,
+      loading: statsLoading,
+    },
+    {
+      label: 'Whiteboards',
+      value: dbStats?.boardCount !== undefined && dbStats?.boardCount !== null
+        ? dbStats.boardCount.toString()
+        : '—',
+      icon: 'draw',
+      sub: dbStats?.boardLimit ? `of ${dbStats.boardLimit} limit` : null,
+      loading: statsLoading,
+    },
+    {
       label: 'This Week',
       loading: statsLoading,
       value: captures.filter((c) => {

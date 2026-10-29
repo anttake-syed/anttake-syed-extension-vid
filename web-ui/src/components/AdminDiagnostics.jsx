@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { SERVER_URL } from '../config.js';
 import { Page, SectionHead, Grid, TableScroll } from './layout/Page.jsx';
 import '../styles/pages/diagnostics.css';
@@ -300,7 +300,18 @@ export default function AdminDiagnostics({ user }) {
   const [tab,          setTab]          = useState('health');
   const [errorCategory, setErrorCategory] = useState('all');
   const [errorCategoriesCount, setErrorCategoriesCount] = useState({});
-  
+
+  // Live auto-poll state
+  const [activityLive,       setActivityLive]       = useState(false);  // true = auto-polling
+  const [activityLastUpdate, setActivityLastUpdate] = useState(null);   // ISO timestamp of last poll
+  const [newErrorCount,      setNewErrorCount]      = useState(0);      // unseen errors since last viewed
+  const activityPollRef = useRef(null);
+  const errorPollRef    = useRef(null);
+
+  // My Stats (current user's own usage pulled from /stats)
+  const [myStats, setMyStats]           = useState(null);
+  const [myStatsLoading, setMyStatsLoading] = useState(false);
+
   // Capture Lookup state
   const [captureIdInput, setCaptureIdInput] = useState('');
   const [captureData, setCaptureData] = useState(null);
@@ -481,20 +492,89 @@ export default function AdminDiagnostics({ user }) {
   }, [user?.jwt, errorCategory]);
 
   // ── Fetch activity ─────────────────────────────────────────────────────────
-  const fetchActivity = useCallback(async () => {
-    setActLoading(true);
+  const fetchActivity = useCallback(async (silent = false) => {
+    if (!silent) setActLoading(true);
     try {
       const r = await fetch(`${SERVER_URL}/api/admin/diagnostics/activity`, { headers: authHeader });
       if (r.status === 403) { setForbidden(true); return; }
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       const data = await r.json();
       setActivity(data.activity || []);
+      setActivityLastUpdate(new Date().toISOString());
     } catch (e) {
       console.error('Activity fetch error:', e);
     } finally {
-      setActLoading(false);
+      if (!silent) setActLoading(false);
     }
   }, [user?.jwt]);
+
+  // ── My Stats (current admin's own usage) ───────────────────────────────────
+  const fetchMyStats = useCallback(async () => {
+    if (!user?.jwt) return;
+    setMyStatsLoading(true);
+    try {
+      const r = await fetch(`${SERVER_URL}/stats`, { headers: authHeader });
+      if (r.ok) setMyStats(await r.json());
+    } catch (e) {
+      console.error('My stats fetch error:', e);
+    } finally {
+      setMyStatsLoading(false);
+    }
+  }, [user?.jwt]);
+
+  // ── Auto-poll: Live Activity (every 10s when tab is active) ────────────────
+  const startActivityLive = useCallback(() => {
+    if (activityPollRef.current) return;
+    setActivityLive(true);
+    fetchActivity(true);
+    activityPollRef.current = setInterval(() => fetchActivity(true), 10000);
+  }, [fetchActivity]);
+
+  const stopActivityLive = useCallback(() => {
+    if (activityPollRef.current) {
+      clearInterval(activityPollRef.current);
+      activityPollRef.current = null;
+    }
+    setActivityLive(false);
+  }, []);
+
+  // ── Auto-poll: Errors (every 15s always, detect new errors) ───────────────
+  useEffect(() => {
+    if (!user?.jwt) return;
+    const poll = async () => {
+      try {
+        const r = await fetch(`${SERVER_URL}/api/admin/diagnostics/errors`, { headers: { Authorization: `Bearer ${user.jwt}` } });
+        if (!r.ok) return;
+        const data = await r.json();
+        const incoming = (data.errors || []).length;
+        setErrors(prev => {
+          // Detect genuinely new errors (count increased since last poll)
+          const prevLen = prev.length;
+          if (incoming > prevLen && tab !== 'errors') {
+            setNewErrorCount(n => n + (incoming - prevLen));
+          }
+          return data.errors || prev;
+        });
+        if (data.categoriesCount) setErrorCategoriesCount(data.categoriesCount);
+      } catch { /* silent */ }
+    };
+    errorPollRef.current = setInterval(poll, 15000);
+    return () => { if (errorPollRef.current) clearInterval(errorPollRef.current); };
+  }, [user?.jwt]);
+
+  // Clear new-error badge when user opens the errors tab
+  useEffect(() => {
+    if (tab === 'errors') {
+      setNewErrorCount(0);
+    }
+  }, [tab]);
+
+  // Start/stop live activity polling when tab changes
+  useEffect(() => {
+    if (tab === 'activity') startActivityLive();
+    else stopActivityLive();
+    return () => stopActivityLive();
+  }, [tab]);
 
   useEffect(() => {
     fetchHealth();
@@ -502,7 +582,8 @@ export default function AdminDiagnostics({ user }) {
     fetchActivity();
     fetchActivationData();
     fetchStorageAnalytics();
-  }, [fetchHealth, fetchErrors, fetchActivity, fetchActivationData, fetchStorageAnalytics]);
+    fetchMyStats();
+  }, [fetchHealth, fetchErrors, fetchActivity, fetchActivationData, fetchStorageAnalytics, fetchMyStats]);
 
   // ── Forbidden ──────────────────────────────────────────────────────────────
   if (forbidden) {
@@ -613,10 +694,38 @@ export default function AdminDiagnostics({ user }) {
       {/* ── Tab bar ── */}
       <div className="diag-tabs">
         {[
-          { id: 'health',   label: 'Health Checks', icon: 'check_circle' },
+          {
+            id: 'health',
+            label: 'Health Checks',
+            icon: 'check_circle',
+            badge: health ? (
+              health.overallStatus === 'PASS' || health.overallStatus === 'HEALTHY'
+                ? <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#22c55e', display: 'inline-block', marginLeft: '4px', flexShrink: 0 }} title="All checks passing" />
+                : <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#ef4444', display: 'inline-block', marginLeft: '4px', flexShrink: 0, animation: 'pulse-dot 1.2s ease-in-out infinite' }} title={`${health.fail} check(s) failing`} />
+            ) : null
+          },
           { id: 'storage',  label: 'Storage & Analytics', icon: 'pie_chart' },
-          { id: 'activity', label: 'Live Activity', icon: 'bolt' },
-          { id: 'errors',   label: `Recent Errors${errors.length ? ` (${errors.length})` : ''}`, icon: 'error' },
+          {
+            id: 'activity',
+            label: 'Live Activity',
+            icon: 'bolt',
+            badge: activityLive ? (
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', background: 'rgba(34,197,94,0.15)', border: '1px solid rgba(34,197,94,0.3)', borderRadius: '999px', padding: '1px 6px', marginLeft: '4px', fontSize: '9px', fontWeight: 700, color: '#22c55e', letterSpacing: '0.04em' }}>
+                <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: '#22c55e', display: 'inline-block', animation: 'pulse-dot 1.2s ease-in-out infinite' }} />
+                LIVE
+              </span>
+            ) : null
+          },
+          {
+            id: 'errors',
+            label: `Recent Errors${errors.length ? ` (${errors.length})` : ''}`,
+            icon: 'error',
+            badge: newErrorCount > 0 ? (
+              <span style={{ background: '#ef4444', color: 'white', borderRadius: '999px', padding: '1px 6px', fontSize: '10px', fontWeight: 700, marginLeft: '4px', animation: 'pulse-dot 1.4s ease-in-out infinite' }}>
+                +{newErrorCount}
+              </span>
+            ) : null
+          },
           { id: 'info',     label: 'System Info', icon: 'info' },
           { id: 'capture',  label: 'Capture Lookup', icon: 'search' },
           { id: 'billing',  label: 'Billing Lookup', icon: 'payments' },
@@ -629,6 +738,7 @@ export default function AdminDiagnostics({ user }) {
           >
             <span className="material-symbols-rounded" style={{ fontSize: '15px' }}>{t.icon}</span>
             {t.label}
+            {t.badge}
           </button>
         ))}
       </div>
@@ -672,15 +782,49 @@ export default function AdminDiagnostics({ user }) {
           <SectionHead
             className="diag-toolbar"
             title={
-              <div className="diag-toolbar-text">
-                {actLoading ? 'Loading…' : `${activity.length} recent events (in-memory, resets on restart)`}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                <div className="diag-toolbar-text">
+                  {actLoading ? 'Loading…' : `${activity.length} recent events (in-memory, resets on restart)`}
+                </div>
+                {activityLive && (
+                  <span style={{
+                    display: 'inline-flex', alignItems: 'center', gap: '5px',
+                    background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.25)',
+                    borderRadius: '999px', padding: '2px 8px',
+                    fontSize: '10px', fontWeight: 700, color: '#22c55e', letterSpacing: '0.05em'
+                  }}>
+                    <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#22c55e', animation: 'pulse-dot 1.2s ease-in-out infinite' }} />
+                    LIVE &bull; polling every 10s
+                  </span>
+                )}
+                {activityLastUpdate && !actLoading && (
+                  <span style={{ fontSize: '11px', color: 'var(--text-faint)' }}>
+                    Updated {timeAgo(activityLastUpdate)}
+                  </span>
+                )}
               </div>
             }
             actions={
-              <button onClick={fetchActivity} className="diag-btn-ghost">
-                <span className="material-symbols-rounded" style={{ fontSize: '14px' }}>refresh</span>
-                Refresh
-              </button>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  onClick={() => activityLive ? stopActivityLive() : startActivityLive()}
+                  className="diag-btn-ghost"
+                  style={{
+                    color: activityLive ? '#22c55e' : 'var(--text-dim)',
+                    borderColor: activityLive ? 'rgba(34,197,94,0.3)' : undefined,
+                    background: activityLive ? 'rgba(34,197,94,0.08)' : undefined
+                  }}
+                >
+                  <span className="material-symbols-rounded" style={{ fontSize: '14px' }}>
+                    {activityLive ? 'pause' : 'play_arrow'}
+                  </span>
+                  {activityLive ? 'Pause Live' : 'Go Live'}
+                </button>
+                <button onClick={() => fetchActivity()} className="diag-btn-ghost">
+                  <span className="material-symbols-rounded" style={{ fontSize: '14px' }}>refresh</span>
+                  Refresh
+                </button>
+              </div>
             }
           />
 
@@ -1308,6 +1452,97 @@ export default function AdminDiagnostics({ user }) {
             </button>
           </div>
 
+          {/* ── My Stats (current admin's own data) ── */}
+          <div style={{ background: 'linear-gradient(135deg, rgba(99,102,241,0.08) 0%, rgba(139,92,246,0.06) 100%)', border: '1px solid rgba(99,102,241,0.2)', borderRadius: '16px', padding: '20px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <span className="material-symbols-rounded" style={{ fontSize: '20px', color: '#818cf8' }}>person</span>
+                <div>
+                  <div style={{ fontSize: '14px', fontWeight: 700, color: '#f1f5f9' }}>
+                    My Storage &amp; Captures
+                  </div>
+                  <div style={{ fontSize: '11px', color: 'var(--text-dim)', marginTop: '1px' }}>
+                    {user?.name || user?.email || 'Your account'} · live from /stats
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={fetchMyStats}
+                disabled={myStatsLoading}
+                className="diag-btn-ghost"
+                style={{ padding: '5px 10px', fontSize: '11px' }}
+              >
+                <span className="material-symbols-rounded" style={{ fontSize: '13px', animation: myStatsLoading ? 'spin 1s linear infinite' : 'none' }}>refresh</span>
+                Refresh
+              </button>
+            </div>
+
+            {myStatsLoading && !myStats ? (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '10px' }}>
+                {[...Array(6)].map((_, i) => (
+                  <div key={i} className="skeleton-box" style={{ height: '72px', borderRadius: '10px' }} />
+                ))}
+              </div>
+            ) : myStats ? (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '10px' }}>
+                {[
+                  {
+                    icon: 'folder_open', color: '#6366f1',
+                    label: 'Total Captures',
+                    value: (myStats.total ?? 0).toLocaleString(),
+                    sub: null,
+                  },
+                  {
+                    icon: 'image', color: '#6ee7b7',
+                    label: 'Screenshots',
+                    value: (myStats.imageCount ?? 0).toLocaleString(),
+                    sub: myStats.imageBytesFormatted ? `${myStats.imageBytesFormatted} stored` : null,
+                  },
+                  {
+                    icon: 'videocam', color: '#a5b4fc',
+                    label: 'Videos',
+                    value: (myStats.videoCount ?? 0).toLocaleString(),
+                    sub: myStats.videoBytesFormatted ? `${myStats.videoBytesFormatted} stored` : null,
+                  },
+                  {
+                    icon: 'draw', color: '#f9a8d4',
+                    label: 'Whiteboards',
+                    value: (myStats.boardCount ?? 0).toLocaleString(),
+                    sub: myStats.boardLimit ? `of ${myStats.boardLimit} limit` : null,
+                  },
+                  {
+                    icon: 'hard_drive', color: '#34d399',
+                    label: 'Total Storage',
+                    value: myStats.totalBytesFormatted || myStats.cloudBytesFormatted || '0 B',
+                    sub: myStats.cloudLimitFormatted ? `limit: ${myStats.cloudLimitFormatted}` : null,
+                  },
+                  {
+                    icon: 'calendar_today', color: '#fbbf24',
+                    label: 'Plan',
+                    value: myStats.planName || 'Free',
+                    sub: null,
+                  },
+                ].map(({ icon, color, label, value, sub }) => (
+                  <div key={label} style={{
+                    background: 'rgba(255,255,255,0.04)', borderRadius: '10px', padding: '12px 14px',
+                    border: '1px solid rgba(255,255,255,0.06)'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
+                      <span className="material-symbols-rounded" style={{ fontSize: '15px', color }}>{icon}</span>
+                      <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</span>
+                    </div>
+                    <div style={{ fontSize: '22px', fontWeight: 800, color: '#f8fafc', lineHeight: 1.1 }}>{value}</div>
+                    {sub && <div style={{ fontSize: '10px', color: 'var(--text-dim)', marginTop: '3px' }}>{sub}</div>}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div style={{ color: 'var(--text-dim)', fontSize: '13px', textAlign: 'center', padding: '20px' }}>
+                Click <strong>Refresh</strong> to load your personal stats.
+              </div>
+            )}
+          </div>
+
           {analyticsError && (
             <div style={{ background: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)', padding: '14px 16px', borderRadius: '10px', fontSize: '13px', display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
               <span className="material-symbols-rounded" style={{ fontSize: '18px', flexShrink: 0 }}>error</span>
@@ -1610,9 +1845,13 @@ export default function AdminDiagnostics({ user }) {
       {/* ── Check Detail Modal ── */}
       <CheckDetailModal check={selectedCheck} onClose={() => setSelectedCheck(null)} />
 
-      {/* ── Spin animation ── */}
+      {/* ── Animations ── */}
       <style>{`
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        @keyframes pulse-dot {
+          0%, 100% { opacity: 1; transform: scale(1); }
+          50% { opacity: 0.5; transform: scale(0.75); }
+        }
       `}</style>
     </Page>
   );

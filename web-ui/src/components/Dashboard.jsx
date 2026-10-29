@@ -162,20 +162,69 @@ function StatCard({ icon, value, label, sub, isAuthenticated, onSignIn, isDrive,
   );
 }
 
+// Reusable fallback shown when an image URL is inaccessible (e.g. private Google Drive)
+function ImagePreviewFallback({ item, size = 'md' }) {
+  const isGoogleDrive = (item.src || '').includes('drive.google') ||
+    item.storageLocation === 'google_drive' ||
+    item.storageLocation === 'drive';
+  const iconSize  = size === 'sm' ? 20 : 28;
+  const fontSize  = size === 'sm' ? '9px' : '10px';
+
+  return (
+    <div style={{
+      width: '100%', height: '100%',
+      display: 'flex', flexDirection: 'column',
+      alignItems: 'center', justifyContent: 'center',
+      gap: '6px',
+      background: 'linear-gradient(135deg, rgba(15,23,42,0.9) 0%, rgba(30,41,59,0.7) 100%)',
+    }}>
+      {isGoogleDrive ? (
+        <>
+          <DriveLogoSVG size={iconSize} />
+          <span style={{ fontSize, color: '#64748b', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', textAlign: 'center', lineHeight: 1.4, padding: '0 8px' }}>
+            Private · View in Drive
+          </span>
+          {item.driveUrl && (
+            <a
+              href={item.driveUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={e => e.stopPropagation()}
+              style={{ fontSize: '10px', color: '#60a5fa', display: 'flex', alignItems: 'center', gap: '3px', textDecoration: 'none', marginTop: '2px' }}
+            >
+              <span className="material-symbols-rounded" style={{ fontSize: '12px' }}>open_in_new</span> Open
+            </a>
+          )}
+        </>
+      ) : (
+        <>
+          <span className="material-symbols-rounded" style={{ fontSize: iconSize + 8, color: '#475569' }}>broken_image</span>
+          <span style={{ fontSize, color: '#475569', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Preview unavailable</span>
+        </>
+      )}
+    </div>
+  );
+}
+
 function MediaThumb({ item, onOpen }) {
   const [videoHovered, setVideoHovered] = React.useState(false);
+  const [imgError, setImgError] = React.useState(false);
   return (
     <div
       onClick={() => onOpen(item)}
       className="dash-thumb"
     >
       {item.storageLocation === 'drive' ? (
-        <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-          <DriveLogoSVG size={28} />
-          <span style={{ fontSize: '10px', color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Private on Drive</span>
-        </div>
-      ) : item.type === 'image' && item.src ? (
-        <img src={item.src} alt={item.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        <ImagePreviewFallback item={item} />
+      ) : item.type === 'image' && item.src && !imgError ? (
+        <img
+          src={item.src}
+          alt={item.title}
+          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+          onError={() => setImgError(true)}
+        />
+      ) : item.type === 'image' && (imgError || !item.src) ? (
+        <ImagePreviewFallback item={item} />
       ) : item.type === 'video' && item.src ? (
         <ThumbnailVideo item={item} />
       ) : (
@@ -457,43 +506,7 @@ export default function Dashboard({ user, isAuthenticated, isLocalMode, hasCloud
                   }} />
                 </div>
               </div>
-              {onGoToWhiteboards && (
-                <button
-                  type="button"
-                  onClick={onGoToWhiteboards}
-                  style={{
-                    flexShrink: 0,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '6px',
-                    background: 'rgba(99, 102, 241, 0.12)',
-                    border: '1px solid rgba(99, 102, 241, 0.3)',
-                    color: '#a5b4fc',
-                    borderRadius: '8px',
-                    padding: '7px 14px',
-                    fontSize: '12px',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    whiteSpace: 'nowrap',
-                    transition: 'all 0.15s',
-                    fontFamily: "'Outfit', sans-serif"
-                  }}
-                  onMouseEnter={e => {
-                    e.currentTarget.style.background = 'rgba(99, 102, 241, 0.22)';
-                    e.currentTarget.style.borderColor = 'rgba(99, 102, 241, 0.5)';
-                    e.currentTarget.style.color = '#c7d2fe';
-                  }}
-                  onMouseLeave={e => {
-                    e.currentTarget.style.background = 'rgba(99, 102, 241, 0.12)';
-                    e.currentTarget.style.borderColor = 'rgba(99, 102, 241, 0.3)';
-                    e.currentTarget.style.color = '#a5b4fc';
-                  }}
-                >
-                  Open Whiteboards
-                  <span className="material-symbols-rounded" style={{ fontSize: '14px' }}>arrow_forward</span>
-                </button>
-              )}
+
             </div>
           )}
         </>

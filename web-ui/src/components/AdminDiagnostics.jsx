@@ -1269,12 +1269,30 @@ export default function AdminDiagnostics({ user }) {
             </div>
           )}
 
+          {!analyticsLoading && !storageAnalytics && !analyticsError && (
+            <div style={{
+              textAlign: 'center', padding: '60px 20px', color: 'var(--text-dim)', fontSize: '14px',
+              background: 'var(--bg-tertiary)', borderRadius: '14px', border: '1px solid #334155'
+            }}>
+              <span className="material-symbols-rounded" style={{ fontSize: '40px', display: 'block', marginBottom: '12px', color: 'var(--text-faint)' }}>pie_chart</span>
+              <div style={{ fontWeight: 600, color: '#e2e8f0', marginBottom: '6px' }}>No analytics data yet</div>
+              Click <strong>Refresh</strong> to load storage and user analytics.
+            </div>
+          )}
+
           {storageAnalytics && (() => {
-            const sa = storageAnalytics;
-            const maxPlanCount = Math.max(...(sa.planDistribution || []).map(p => p.count), 1);
-            const maxDayCount = Math.max(...(sa.userGrowth?.signupTrend || []).map(d => d.count), 1);
-            const planColors = ['#94a3b8', '#6366f1', '#10b981', '#f59e0b', '#38bdf8'];
-            return (
+            try {
+              const sa = storageAnalytics;
+              const uploadThing = sa.uploadThing || {};
+              const database = sa.database || {};
+              const userGrowth = sa.userGrowth || {};
+              const planDistribution = Array.isArray(sa.planDistribution) ? sa.planDistribution : [];
+              const signupTrend = Array.isArray(userGrowth.signupTrend) ? userGrowth.signupTrend : [];
+              const topUsers = Array.isArray(sa.topUsers) ? sa.topUsers : [];
+              const maxPlanCount = planDistribution.length > 0 ? Math.max(...planDistribution.map(p => Number(p?.count) || 0), 1) : 1;
+              const maxDayCount  = signupTrend.length  > 0 ? Math.max(...signupTrend.map(d => Number(d?.count) || 0),  1) : 1;
+              const planColors = ['#94a3b8', '#6366f1', '#10b981', '#f59e0b', '#38bdf8'];
+              return (
               <>
                 {/* ── Row 1: KPI Metric Cards ── */}
                 <Grid cols={4} gap="14px">
@@ -1284,13 +1302,13 @@ export default function AdminDiagnostics({ user }) {
                       <span style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-dim)', letterSpacing: '0.05em' }}>CDN Storage</span>
                       <span className="material-symbols-rounded" style={{ fontSize: '18px', color: '#6366f1' }}>cloud_sync</span>
                     </div>
-                    <div style={{ fontSize: '26px', fontWeight: 800, color: 'white', lineHeight: 1.1 }}>{sa.uploadThing.usedFormatted}</div>
-                    <div style={{ fontSize: '12px', color: 'var(--text-dim)', margin: '6px 0 10px' }}>of {sa.uploadThing.limitFormatted} · {sa.uploadThing.percentUsed}% used</div>
+                    <div style={{ fontSize: '26px', fontWeight: 800, color: 'white', lineHeight: 1.1 }}>{uploadThing.usedFormatted || '0 GB'}</div>
+                    <div style={{ fontSize: '12px', color: 'var(--text-dim)', margin: '6px 0 10px' }}>of {uploadThing.limitFormatted || '2.00 GB'} · {uploadThing.percentUsed ?? 0}% used</div>
                     <div style={{ height: '6px', background: 'rgba(255,255,255,0.06)', borderRadius: '999px', overflow: 'hidden' }}>
                       <div style={{
                         height: '100%', borderRadius: '999px',
-                        width: `${Math.min(100, sa.uploadThing.percentUsed)}%`,
-                        background: sa.uploadThing.percentUsed > 85 ? '#ef4444' : sa.uploadThing.percentUsed > 60 ? '#f59e0b' : '#10b981',
+                        width: `${Math.min(100, uploadThing.percentUsed ?? 0)}%`,
+                        background: (uploadThing.percentUsed ?? 0) > 85 ? '#ef4444' : (uploadThing.percentUsed ?? 0) > 60 ? '#f59e0b' : '#10b981',
                         transition: 'width 0.4s ease'
                       }} />
                     </div>
@@ -1302,10 +1320,10 @@ export default function AdminDiagnostics({ user }) {
                       <span style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-dim)', letterSpacing: '0.05em' }}>Total Users</span>
                       <span className="material-symbols-rounded" style={{ fontSize: '18px', color: '#38bdf8' }}>group</span>
                     </div>
-                    <div style={{ fontSize: '26px', fontWeight: 800, color: 'white', lineHeight: 1.1 }}>{sa.database.totalUsers.toLocaleString()}</div>
+                    <div style={{ fontSize: '26px', fontWeight: 800, color: 'white', lineHeight: 1.1 }}>{Number(database.totalUsers ?? 0).toLocaleString()}</div>
                     <div style={{ fontSize: '12px', color: 'var(--text-dim)', marginTop: '6px' }}>
-                      <span style={{ color: '#34d399', fontWeight: 600 }}>{sa.database.activeSubscribers}</span> paid ·{' '}
-                      <span style={{ color: '#94a3b8' }}>{sa.database.freeUsers}</span> free
+                      <span style={{ color: '#34d399', fontWeight: 600 }}>{Number(database.activeSubscribers ?? 0)}</span> paid ·{' '}
+                      <span style={{ color: '#94a3b8' }}>{Number(database.freeUsers ?? 0)}</span> free
                     </div>
                   </div>
 
@@ -1315,10 +1333,10 @@ export default function AdminDiagnostics({ user }) {
                       <span style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-dim)', letterSpacing: '0.05em' }}>New Signups</span>
                       <span className="material-symbols-rounded" style={{ fontSize: '18px', color: '#a78bfa' }}>person_add</span>
                     </div>
-                    <div style={{ fontSize: '26px', fontWeight: 800, color: 'white', lineHeight: 1.1 }}>{(sa.userGrowth?.newLast7d ?? 0).toLocaleString()}</div>
+                    <div style={{ fontSize: '26px', fontWeight: 800, color: 'white', lineHeight: 1.1 }}>{(userGrowth.newLast7d ?? 0).toLocaleString()}</div>
                     <div style={{ fontSize: '12px', color: 'var(--text-dim)', marginTop: '6px', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                      <span><span style={{ color: '#a78bfa', fontWeight: 600 }}>{sa.userGrowth?.newLast24h ?? 0}</span> today</span>
-                      <span><span style={{ color: '#a78bfa', fontWeight: 600 }}>{sa.userGrowth?.newLast30d ?? 0}</span> last 30d</span>
+                      <span><span style={{ color: '#a78bfa', fontWeight: 600 }}>{userGrowth.newLast24h ?? 0}</span> today</span>
+                      <span><span style={{ color: '#a78bfa', fontWeight: 600 }}>{userGrowth.newLast30d ?? 0}</span> last 30d</span>
                     </div>
                   </div>
 
@@ -1328,9 +1346,9 @@ export default function AdminDiagnostics({ user }) {
                       <span style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-dim)', letterSpacing: '0.05em' }}>Captures</span>
                       <span className="material-symbols-rounded" style={{ fontSize: '18px', color: '#10b981' }}>folder_open</span>
                     </div>
-                    <div style={{ fontSize: '26px', fontWeight: 800, color: 'white', lineHeight: 1.1 }}>{(sa.database.totalCaptures ?? sa.database.totalFiles).toLocaleString()}</div>
+                    <div style={{ fontSize: '26px', fontWeight: 800, color: 'white', lineHeight: 1.1 }}>{Number(database.totalCaptures ?? database.totalFiles ?? 0).toLocaleString()}</div>
                     <div style={{ fontSize: '12px', color: 'var(--text-dim)', marginTop: '6px' }}>
-                      <span style={{ color: '#10b981', fontWeight: 600 }}>{sa.database.activeCaptures ?? sa.database.totalFiles}</span> active · {sa.uploadThing.filesUploaded} on CDN
+                      <span style={{ color: '#10b981', fontWeight: 600 }}>{Number(database.activeCaptures ?? database.totalFiles ?? 0)}</span> active · {uploadThing.filesUploaded ?? 0} on CDN
                     </div>
                   </div>
                 </Grid>
@@ -1350,14 +1368,14 @@ export default function AdminDiagnostics({ user }) {
                       display: 'flex', alignItems: 'flex-end', gap: '3px', height: '80px',
                       borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '4px'
                     }}>
-                      {(sa.userGrowth?.signupTrend || []).map(({ date, count }) => (
+                      {signupTrend.map(({ date, count }) => (
                         <div
                           key={date}
                           title={`${date}: ${count} new user${count !== 1 ? 's' : ''}`}
                           style={{
                             flex: 1, minWidth: 0,
-                            height: `${Math.max(4, Math.round((count / maxDayCount) * 80))}px`,
-                            background: count > 0
+                            height: `${Math.max(4, Math.round(((Number(count) || 0) / maxDayCount) * 80))}px`,
+                            background: (Number(count) || 0) > 0
                               ? `linear-gradient(180deg, #a78bfa, #6366f1)`
                               : 'rgba(255,255,255,0.06)',
                             borderRadius: '3px 3px 0 0',
@@ -1386,23 +1404,23 @@ export default function AdminDiagnostics({ user }) {
                       <span className="material-symbols-rounded" style={{ fontSize: '20px', color: '#10b981' }}>pie_chart</span>
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                      {(sa.planDistribution || []).map((p, i) => (
-                        <div key={p.planName}>
+                      {planDistribution.map((p, i) => (
+                        <div key={p.planName || i}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
                             <span style={{ fontSize: '12px', fontWeight: 600, color: '#cbd5e1' }}>{p.planName}</span>
-                            <span style={{ fontSize: '12px', fontWeight: 700, color: planColors[i] || '#6366f1' }}>{p.count.toLocaleString()}</span>
+                            <span style={{ fontSize: '12px', fontWeight: 700, color: planColors[i] || '#6366f1' }}>{Number(p.count || 0).toLocaleString()}</span>
                           </div>
                           <div style={{ height: '6px', background: 'rgba(255,255,255,0.06)', borderRadius: '999px', overflow: 'hidden' }}>
                             <div style={{
                               height: '100%', borderRadius: '999px',
-                              width: `${Math.round((p.count / maxPlanCount) * 100)}%`,
+                              width: `${Math.round(((Number(p.count) || 0) / maxPlanCount) * 100)}%`,
                               background: planColors[i] || '#6366f1',
                               transition: 'width 0.5s ease'
                             }} />
                           </div>
                         </div>
                       ))}
-                      {(!sa.planDistribution || sa.planDistribution.length === 0) && (
+                      {planDistribution.length === 0 && (
                         <div style={{ color: 'var(--text-dim)', fontSize: '13px', textAlign: 'center', padding: '20px 0' }}>
                           No plan data available
                         </div>
@@ -1418,7 +1436,7 @@ export default function AdminDiagnostics({ user }) {
                       User Storage Breakdown
                     </h3>
                     <span style={{ fontSize: '12px', color: 'var(--text-dim)' }}>
-                      Top {sa.topUsers?.length || 0} storage consumers
+                      Top {topUsers.length} storage consumers
                     </span>
                   </div>
                   <TableScroll>
@@ -1431,7 +1449,7 @@ export default function AdminDiagnostics({ user }) {
                         </tr>
                       </thead>
                       <tbody>
-                        {sa.topUsers?.map(u => (
+                        {topUsers.map(u => (
                           <tr key={u.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}
                             onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.02)'}
                             onMouseLeave={e => e.currentTarget.style.background = ''}>
@@ -1453,11 +1471,11 @@ export default function AdminDiagnostics({ user }) {
                               </span>
                             </td>
                             <td style={{ padding: '11px 16px', color: '#cbd5e1', fontSize: '12px' }}>
-                              {u.captureCount.toLocaleString()}
+                              {Number(u.captureCount || 0).toLocaleString()}
                             </td>
                             <td style={{ padding: '11px 16px' }}>
-                              <span style={{ fontWeight: 700, color: u.bytesUsed > 1024 * 1024 * 500 ? '#f59e0b' : '#34d399', fontSize: '12px' }}>
-                                {u.formattedUsage}
+                              <span style={{ fontWeight: 700, color: (u.bytesUsed || 0) > 1024 * 1024 * 500 ? '#f59e0b' : '#34d399', fontSize: '12px' }}>
+                                {u.formattedUsage || '0 MB'}
                               </span>
                             </td>
                             <td style={{ padding: '11px 16px' }}>
@@ -1493,7 +1511,25 @@ export default function AdminDiagnostics({ user }) {
                   </TableScroll>
                 </div>
               </>
-            );
+              );
+            } catch (renderErr) {
+              return (
+                <div style={{
+                  background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)',
+                  borderRadius: '14px', padding: '24px', textAlign: 'center'
+                }}>
+                  <span className="material-symbols-rounded" style={{ fontSize: '36px', color: 'var(--danger)', display: 'block', marginBottom: '10px' }}>error</span>
+                  <div style={{ fontWeight: 700, color: 'var(--danger)', marginBottom: '6px' }}>Analytics render error</div>
+                  <div style={{ fontSize: '12px', color: 'var(--text-dim)', fontFamily: 'monospace' }}>{renderErr.message}</div>
+                  <button
+                    onClick={() => { setStorageAnalytics(null); fetchStorageAnalytics(); }}
+                    style={{ marginTop: '16px', padding: '8px 18px', borderRadius: '8px', background: 'var(--primary)', color: 'white', border: 'none', cursor: 'pointer', fontWeight: 600, fontSize: '13px' }}
+                  >
+                    Retry
+                  </button>
+                </div>
+              );
+            }
           })()}
         </div>
       )}

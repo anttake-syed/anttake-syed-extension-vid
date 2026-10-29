@@ -14,8 +14,54 @@ const getFullSrc = (src) => {
   return url.includes('?') ? `${url}&token=${token}` : `${url}?token=${token}`;
 };
 
+// Shown when an image URL is inaccessible (private Google Drive or broken link)
+function ImagePreviewFallback({ item, size = 'md' }) {
+  const isGoogleDrive = (item.src || '').includes('drive.google') ||
+    item.storageLocation === 'google_drive' ||
+    item.storageLocation === 'drive';
+  const iconSize = size === 'sm' ? 18 : 28;
+  const fontSize = size === 'sm' ? '9px' : '10px';
+
+  return (
+    <div style={{
+      width: '100%', height: '100%',
+      display: 'flex', flexDirection: 'column',
+      alignItems: 'center', justifyContent: 'center',
+      gap: '6px',
+      background: 'linear-gradient(135deg, rgba(15,23,42,0.9) 0%, rgba(30,41,59,0.7) 100%)',
+    }}>
+      {isGoogleDrive ? (
+        <>
+          <DriveLogoSVG size={iconSize} />
+          <span style={{ fontSize, color: '#64748b', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', textAlign: 'center', lineHeight: 1.4, padding: '0 6px' }}>
+            Private &middot; View in Drive
+          </span>
+          {item.driveUrl && (
+            <a
+              href={item.driveUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={e => e.stopPropagation()}
+              style={{ fontSize: '10px', color: '#60a5fa', display: 'flex', alignItems: 'center', gap: '3px', textDecoration: 'none', marginTop: '2px' }}
+            >
+              <span className="material-symbols-rounded" style={{ fontSize: '12px' }}>open_in_new</span> Open
+            </a>
+          )}
+        </>
+      ) : (
+        <>
+          <span className="material-symbols-rounded" style={{ fontSize: iconSize + 8, color: '#475569' }}>broken_image</span>
+          <span style={{ fontSize, color: '#475569', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Preview unavailable</span>
+        </>
+      )}
+    </div>
+  );
+}
+
+
 function MediaCard({ item, onOpen, viewMode }) {
   const [videoHovered, setVideoHovered] = useState(false);
+  const [imgError, setImgError] = useState(false);
   if (viewMode === 'list') {
     return (
       <div
@@ -24,8 +70,10 @@ function MediaCard({ item, onOpen, viewMode }) {
       >
         {/* Thumbnail */}
         <div className="lib-row__thumb" style={{ borderRadius: '8px', overflow: 'hidden', background: '#0f172a', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          {item.storageLocation === 'drive' ? <DriveLogoSVG size={20} />
-            : item.type === 'image' && item.src ? <img src={getFullSrc(item.src)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          {item.storageLocation === 'drive' ? <ImagePreviewFallback item={item} size="sm" />
+            : item.type === 'image' && item.src && !imgError
+              ? <img src={getFullSrc(item.src)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={() => setImgError(true)} />
+            : item.type === 'image' && (imgError || !item.src) ? <ImagePreviewFallback item={item} size="sm" />
             : item.type === 'video' && item.src ? <video src={`${getFullSrc(item.src)}#t=0.5`} preload="metadata" style={{ width: '100%', height: '100%', objectFit: 'cover' }} muted />
             : <span className="material-symbols-rounded" style={{ fontSize: '22px', color: '#475569' }}>{item.type === 'video' ? 'videocam' : 'image'}</span>}
         </div>
@@ -81,12 +129,11 @@ function MediaCard({ item, onOpen, viewMode }) {
       {/* Preview */}
       <div style={{ aspectRatio: '16/10', background: '#0f172a', position: 'relative', overflow: 'hidden' }}>
         {item.storageLocation === 'drive' ? (
-          <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-            <DriveLogoSVG size={28} />
-            <span style={{ fontSize: '10px', color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Private on Drive</span>
-          </div>
-        ) : item.type === 'image' && item.src ? (
-          <img src={getFullSrc(item.src)} alt={item.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          <ImagePreviewFallback item={item} />
+        ) : item.type === 'image' && item.src && !imgError ? (
+          <img src={getFullSrc(item.src)} alt={item.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={() => setImgError(true)} />
+        ) : item.type === 'image' && (imgError || !item.src) ? (
+          <ImagePreviewFallback item={item} />
         ) : item.type === 'video' && item.src ? (
           <div style={{ position: 'relative', width: '100%', height: '100%' }}
             onMouseEnter={() => setVideoHovered(true)}

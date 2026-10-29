@@ -61,6 +61,8 @@ function MediaModalContent({ item, onClose, user, onSyncSuccess, onDelete, dbSta
   const [titleValue, setTitleValue] = useState(item?.title || '');
   const [titleSaving, setTitleSaving] = useState(false);
   const [mediaLoading, setMediaLoading] = useState(true);
+  const [imgError, setImgError] = useState(false);
+
 
   useEffect(() => {
     if (item?.id && item?.title) {
@@ -349,11 +351,46 @@ function MediaModalContent({ item, onClose, user, onSyncSuccess, onDelete, dbSta
                 mimeType={item.mimeType || ''}
               />
             </div>
+          ) : imgError ? (
+            // Image failed to load — show professional fallback
+            <div className="mm-drive">
+              <DriveLogoSVG size={72} />
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ color: 'var(--text-main)', fontSize: '18px', fontWeight: '600', marginBottom: '8px' }}>
+                  Preview unavailable
+                </div>
+                <div style={{ color: 'var(--text-dim)', fontSize: '14px', maxWidth: '320px' }}>
+                  {(item.src || '').includes('drive.google') || item.storageLocation === 'google_drive'
+                    ? 'Google Drive restricts direct preview of private files. Open in Drive to view.'
+                    : 'This image could not be loaded. It may have been moved or is no longer accessible.'}
+                </div>
+              </div>
+              {item.driveUrl && (
+                <a href={item.driveUrl} target="_blank" rel="noopener noreferrer"
+                  style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 24px', background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.3)', color: '#60a5fa', borderRadius: '8px', fontWeight: '600', transition: 'all 0.2s' }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(59,130,246,0.15)'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'rgba(59,130,246,0.1)'}
+                >
+                  <span className="material-symbols-rounded" style={{ fontSize: '20px' }}>open_in_new</span>
+                  Open in Google Drive
+                </a>
+              )}
+              <div style={{ color: 'var(--text-muted)', fontSize: '13px', marginTop: '8px', display: 'flex', alignItems: 'center', gap: '6px', textAlign: 'left' }}>
+                <span className="material-symbols-rounded" style={{ fontSize: '16px', color: 'var(--primary)', flexShrink: 0 }}>lightbulb</span>
+                Tip: Click &quot;Save to Local DB&quot; above to enable native preview inside AntCapture.
+              </div>
+            </div>
           ) : (
             <div className="mm-image-wrap">
-              <img src={getFullSrc(item.src, user?.jwt)} className="mm-image" alt={item.title} />
+              <img
+                src={getFullSrc(item.src, user?.jwt)}
+                className="mm-image"
+                alt={item.title}
+                onError={() => setImgError(true)}
+              />
             </div>
           )}
+
         </div>
       </div>
     </div>

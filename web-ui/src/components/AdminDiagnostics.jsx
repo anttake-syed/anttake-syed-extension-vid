@@ -298,6 +298,8 @@ export default function AdminDiagnostics({ user }) {
   const [expandedError, setExpandedError] = useState(null);
   const [forbidden,    setForbidden]    = useState(false);
   const [tab,          setTab]          = useState('health');
+  const [errorCategory, setErrorCategory] = useState('all');
+  const [errorCategoriesCount, setErrorCategoriesCount] = useState({});
   
   // Capture Lookup state
   const [captureIdInput, setCaptureIdInput] = useState('');
@@ -458,20 +460,25 @@ export default function AdminDiagnostics({ user }) {
   }, [user?.jwt]);
 
   // ── Fetch errors ───────────────────────────────────────────────────────────
-  const fetchErrors = useCallback(async () => {
+  const fetchErrors = useCallback(async (selectedCat) => {
+    const catToFetch = selectedCat !== undefined ? selectedCat : errorCategory;
     setErrLoading(true);
     try {
-      const r = await fetch(`${SERVER_URL}/api/admin/diagnostics/errors`, { headers: authHeader });
+      const q = catToFetch && catToFetch !== 'all' ? `?category=${catToFetch}` : '';
+      const r = await fetch(`${SERVER_URL}/api/admin/diagnostics/errors${q}`, { headers: authHeader });
       if (r.status === 403) { setForbidden(true); return; }
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       const data = await r.json();
       setErrors(data.errors || []);
+      if (data.categoriesCount) {
+        setErrorCategoriesCount(data.categoriesCount);
+      }
     } catch (e) {
       console.error('Errors fetch error:', e);
     } finally {
       setErrLoading(false);
     }
-  }, [user?.jwt]);
+  }, [user?.jwt, errorCategory]);
 
   // ── Fetch activity ─────────────────────────────────────────────────────────
   const fetchActivity = useCallback(async () => {
@@ -744,13 +751,60 @@ export default function AdminDiagnostics({ user }) {
                     style={{ minHeight: '32px' }}
                   />
                 )}
-                <button onClick={fetchErrors} className="diag-btn-ghost">
+                <button onClick={() => fetchErrors(errorCategory)} className="diag-btn-ghost">
                   <span className="material-symbols-rounded" style={{ fontSize: '14px' }}>refresh</span>
                   Refresh
                 </button>
               </>
             }
           />
+
+          {/* ── Category Filter Bar ── */}
+          <div style={{
+            display: 'flex', gap: '8px', marginBottom: '16px', flexWrap: 'wrap', alignItems: 'center'
+          }}>
+            {[
+              { id: 'all', label: 'All Errors', icon: 'error' },
+              { id: 'upload', label: 'Upload & CDN', icon: 'cloud_upload' },
+              { id: 'drive', label: 'Google Drive', icon: 'add_to_drive' },
+              { id: 'whiteboard', label: 'Whiteboards', icon: 'draw' },
+              { id: 'auth', label: 'Auth & JWT', icon: 'lock' },
+              { id: 'billing', label: 'Billing', icon: 'payments' },
+            ].map(cat => {
+              const count = errorCategoriesCount[cat.id] ?? (cat.id === 'all' ? errors.length : 0);
+              const isActive = errorCategory === cat.id;
+              return (
+                <button
+                  key={cat.id}
+                  onClick={() => {
+                    setErrorCategory(cat.id);
+                    fetchErrors(cat.id);
+                  }}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '6px',
+                    padding: '6px 12px', borderRadius: '8px',
+                    fontSize: '12px', fontWeight: 600,
+                    cursor: 'pointer', transition: 'all 0.15s',
+                    background: isActive ? 'var(--primary)' : 'var(--bg-tertiary)',
+                    color: isActive ? 'white' : 'var(--text-dim)',
+                    border: `1px solid ${isActive ? 'var(--primary)' : '#334155'}`
+                  }}
+                >
+                  <span className="material-symbols-rounded" style={{ fontSize: '15px' }}>{cat.icon}</span>
+                  <span>{cat.label}</span>
+                  {count > 0 && (
+                    <span style={{
+                      fontSize: '10px',
+                      background: isActive ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.06)',
+                      padding: '1px 6px', borderRadius: '999px', fontWeight: 700
+                    }}>
+                      {count}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
 
           {errors.length === 0 ? (
             <div className="diag-empty" style={{
@@ -1443,7 +1497,7 @@ export default function AdminDiagnostics({ user }) {
                     <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
                       <thead>
                         <tr style={{ borderBottom: '1px solid #334155' }}>
-                          {['User / Email', 'Joined', 'Plan', 'Captures', 'Storage', 'Role', ''].map(h => (
+                          {['User / Email', 'Joined', 'Plan', 'Captures', 'Boards', 'Storage', 'Role', ''].map(h => (
                             <th key={h} style={{ padding: '11px 16px', fontWeight: 600, fontSize: '11px', color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.04em', whiteSpace: 'nowrap' }}>{h}</th>
                           ))}
                         </tr>
@@ -1472,6 +1526,9 @@ export default function AdminDiagnostics({ user }) {
                             </td>
                             <td style={{ padding: '11px 16px', color: '#cbd5e1', fontSize: '12px' }}>
                               {Number(u.captureCount || 0).toLocaleString()}
+                            </td>
+                            <td style={{ padding: '11px 16px', color: '#a5b4fc', fontSize: '12px', fontWeight: 600 }}>
+                              {Number(u.boardCount || 0).toLocaleString()}
                             </td>
                             <td style={{ padding: '11px 16px' }}>
                               <span style={{ fontWeight: 700, color: (u.bytesUsed || 0) > 1024 * 1024 * 500 ? '#f59e0b' : '#34d399', fontSize: '12px' }}>

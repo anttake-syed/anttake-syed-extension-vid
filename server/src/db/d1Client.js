@@ -108,13 +108,35 @@ function buildWhere(where = {}) {
 // ── Helper: build SET clause ──────────────────────────────────────────────────
 function buildSet(data = {}) {
   const keys = Object.keys(data).filter(k => data[k] !== undefined);
-  const clause = keys.map(k => `"${k}" = ?`).join(', ');
-  const params = keys.map(k => {
-    // Convert BigInt to number for D1 (D1 stores as INTEGER)
-    if (typeof data[k] === 'bigint') return Number(data[k]);
-    if (data[k] instanceof Date) return data[k].toISOString();
-    return data[k];
-  });
+  const parts = [];
+  const params = [];
+
+  for (const k of keys) {
+    const val = data[k];
+    if (val !== null && typeof val === 'object' && !(val instanceof Date)) {
+      if (val.increment !== undefined) {
+        parts.push(`"${k}" = COALESCE("${k}", 0) + ?`);
+        params.push(typeof val.increment === 'bigint' ? Number(val.increment) : Number(val.increment || 0));
+        continue;
+      }
+      if (val.decrement !== undefined) {
+        parts.push(`"${k}" = COALESCE("${k}", 0) - ?`);
+        params.push(typeof val.decrement === 'bigint' ? Number(val.decrement) : Number(val.decrement || 0));
+        continue;
+      }
+    }
+
+    parts.push(`"${k}" = ?`);
+    if (typeof val === 'bigint') {
+      params.push(Number(val));
+    } else if (val instanceof Date) {
+      params.push(val.toISOString());
+    } else {
+      params.push(val);
+    }
+  }
+
+  const clause = parts.join(', ');
   return { clause, params };
 }
 
@@ -137,7 +159,9 @@ const RELATIONS = {
     subscription: { table: 'Subscription', fkey: 'userId', type: 'one' },
     storageAccount: { table: 'StorageAccount', fkey: 'userId', type: 'one' },
     googleDriveConnection: { table: 'GoogleDriveConnection', fkey: 'userId', type: 'one' },
-    usage: { table: 'Usage', fkey: 'userId', type: 'one' }
+    usage: { table: 'Usage', fkey: 'userId', type: 'one' },
+    captures: { table: 'Capture', fkey: 'userId', type: 'many' },
+    boards: { table: 'Board', fkey: 'userId', type: 'many' }
   },
   Subscription: {
     plan: { table: 'Plan', fkey: 'id', localKey: 'planId', type: 'one' }
@@ -281,9 +305,13 @@ function makeModel(tableName) {
 
       // Strip columns not in select (if a plain-columns select was requested)
       if (wantedCols) {
+        const relationKeys = new Set(Object.keys(resolvedInclude || include || {}));
         rows = rows.map(row => {
           const out = {};
           for (const k of wantedCols) out[k] = row[k];
+          for (const k of relationKeys) {
+            if (row[k] !== undefined) out[k] = row[k];
+          }
           return out;
         });
       }

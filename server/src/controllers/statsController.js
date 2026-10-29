@@ -72,12 +72,22 @@ exports.getStats = async (req, res) => {
       }
     }
 
-    // 4. Return unified stats for the dashboard
+    // 4. Board count & limit (unified with stats so dashboard loads instantly together)
+    const boardCount = await prisma.board.count({
+      where: { userId: req.user.id }
+    }).catch(() => 0);
+    const boardLimit = plan.boardLimit !== undefined && plan.boardLimit > 0 ? plan.boardLimit : 1000;
+
+    // 5. Return unified stats for the dashboard
     res.json({
       // Plan Context
       planName: plan.displayName,
       cloudLimitBytes: Number(plan.cloudStorageBytes),
       cloudLimitFormatted: formatBytes(Number(plan.cloudStorageBytes)),
+
+      // Whiteboard Info
+      boardCount,
+      boardLimit,
       
       // Object Counts
       total: stats.cloud.count + stats.local.count + stats.google_drive.count,

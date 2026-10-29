@@ -3,7 +3,8 @@ import { uploadToServer, uploadWithProgress, getServerUrl } from '../background/
 import { notify } from '../background/notify.js';
 import { readOPFSFile, deleteOPFSFile } from '../storage/opfsStorage.js';
 import { AntCapturePlayer } from '../shared/player/AntCapturePlayer.js';
-import { isUnpackedInstall, PROD_WEB_UI_URL } from '../shared/config.js';
+import { isUnpackedInstall, PROD_WEB_UI_URL, isAdminUser } from '../shared/config.js';
+import { formatError } from '../shared/errorHandler.js';
 
 const urlParams = new URLSearchParams(window.location.search);
 const rawId  = urlParams.get('id');
@@ -31,7 +32,7 @@ chrome.storage.onChanged.addListener((changes, area) => {
         console.info('[AntCapture Auth] Successfully authenticated user in extension:', newUser.email || newUser.id);
         showToast(`Signed in as ${newUser.email || 'Google User'}!`, 'success');
 
-        const isAdmin = newUser.role === 'admin';
+        const isAdmin = isAdminUser(newUser);
         window.__antCloud = true;
         window.__antAdmin = isAdmin;
 
@@ -96,7 +97,7 @@ function updateAuthPanel(user, hintText) {
     }
   };
 
-  const isAdmin = user?.role === 'admin';
+  const isAdmin = isAdminUser(user);
   if (tourBtn) {
     tourBtn.style.display = isAdmin ? 'inline-flex' : 'none';
     tourBtn.onclick = triggerTour;
@@ -133,7 +134,7 @@ function escapeHtml(value) {
   }[c]));
 }
 
-function showToast(msg, type = 'success', durationMs = 2500) {
+function showToast(msg, type = 'success', durationMs = 2500, options = {}) {
   const container = document.getElementById('toastContainer');
   if (!container) return;
 
@@ -142,19 +143,29 @@ function showToast(msg, type = 'success', durationMs = 2500) {
 
   const toast = document.createElement('div');
   const isErr = type === 'error';
+  const isAdminAlert = options.isAdminAlert === true;
+  
   toast.title = 'Click to copy';
   toast.style.cssText = `
-    background: ${isErr ? 'rgba(239,68,68,0.9)' : 'rgba(16,185,129,0.9)'};
-    color: white; padding: 10px 16px; border-radius: 8px;
-    font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 8px;
-    box-shadow: 0 10px 25px rgba(0,0,0,0.5); backdrop-filter: blur(4px);
+    background: ${isAdminAlert ? 'linear-gradient(135deg, rgba(220, 38, 38, 0.96) 0%, rgba(147, 51, 234, 0.96) 100%)' : (isErr ? 'rgba(239,68,68,0.92)' : 'rgba(16,185,129,0.92)')};
+    color: white; padding: 12px 18px; border-radius: 10px;
+    font-size: 13px; font-weight: 500; display: flex; align-items: flex-start; gap: 10px;
+    box-shadow: 0 12px 30px rgba(0,0,0,0.55); backdrop-filter: blur(8px);
     transition: opacity 0.3s ease; user-select: text; cursor: pointer;
-    pointer-events: auto;
+    pointer-events: auto; max-width: 460px; line-height: 1.45;
+    border: 1px solid ${isAdminAlert ? 'rgba(239, 68, 68, 0.5)' : (isErr ? 'rgba(239,68,68,0.3)' : 'rgba(16,185,129,0.3)')};
   `;
+
+  const copyPayload = options.copyPayload || msg;
+  const icon = isAdminAlert ? 'terminal' : (isErr ? 'error' : 'check_circle');
+
   toast.innerHTML = `
-    <span class="material-symbols-rounded" style="font-size:16px;">${isErr ? 'error' : 'check_circle'}</span> 
-    <span style="flex:1;">${msg}</span>
-    ${isErr ? '<span class="material-symbols-rounded" style="font-size:14px; opacity:0.7; margin-left:8px;" title="Click to copy error">content_copy</span>' : ''}
+    <span class="material-symbols-rounded" style="font-size:18px; margin-top:1px; flex-shrink:0; color:${isAdminAlert ? '#fca5a5' : 'white'};">${icon}</span> 
+    <div style="flex:1; display:flex; flex-direction:column; gap:3px;">
+      ${isAdminAlert ? `<div style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:#fecaca; display:flex; align-items:center; gap:5px;"><span style="width:6px; height:6px; border-radius:50%; background:#ef4444; display:inline-block;"></span>ADMIN RAW ERROR (CONFIDENTIAL)</div>` : ''}
+      <div style="font-size:13px; word-break:break-word;">${msg}</div>
+    </div>
+    ${isErr ? '<span class="material-symbols-rounded" style="font-size:16px; opacity:0.8; margin-left:6px; flex-shrink:0;" title="Click to copy error details">content_copy</span>' : ''}
   `;
   container.appendChild(toast);
   
@@ -170,12 +181,15 @@ function showToast(msg, type = 'success', durationMs = 2500) {
   toast.addEventListener('mouseleave', startTimer);
   
   // Click to copy functionality
-  toast.addEventListener('click', async () => {
+  toast.addEventListener('click', async (e) => {
+    // Avoid re-triggering if clicking an anchor link inside the toast
+    if (e.target.tagName === 'A') return;
     try {
-      await navigator.clipboard.writeText(msg);
-      toast.innerHTML = `<span class="material-symbols-rounded" style="font-size:16px;">content_copy</span> <span>Copied to clipboard!</span>`;
+      await navigator.clipboard.writeText(typeof copyPayload === 'string' ? copyPayload : JSON.stringify(copyPayload, null, 2));
+      const origContent = toast.innerHTML;
+      toast.innerHTML = `<span class="material-symbols-rounded" style="font-size:18px; flex-shrink:0;">done_all</span> <span style="font-weight:600;">Copied diagnostic details to clipboard!</span>`;
       setTimeout(() => {
-        toast.innerHTML = `<span class="material-symbols-rounded" style="font-size:16px;">${isErr ? 'error' : 'check_circle'}</span> <span>${msg}</span>`;
+        toast.innerHTML = origContent;
       }, 1500);
     } catch (e) {
       console.error('Failed to copy', e);
@@ -439,16 +453,34 @@ async function init() {
     }
   } catch (err) {
     console.error('Failed to get media:', err);
-    mediaContainer.innerHTML = `<div style="color:#f87171; padding:28px; font-size:15px; display:flex; flex-direction:column; gap:14px; align-items:center; max-width:480px; margin:0 auto;">
-      <span class="material-symbols-rounded" style="font-size:52px;">storage</span>
-      <div style="font-weight:700; font-size:17px;">Storage Error</div>
-      <div style="color:#cbd5e1; text-align:center; line-height:1.6;">We encountered an issue while trying to load your recording from local storage.</div>
-      <div style="background:rgba(99,102,241,0.12); border:1px solid rgba(99,102,241,0.3); border-radius:8px; padding:12px 16px; color:#a5b4fc; font-size:13px; text-align:center; line-height:1.5;">
-        <span class="material-symbols-rounded" style="font-size:15px; vertical-align:middle; margin-right:4px;">lightbulb</span>Tip: ${escapeHtml(err.message || 'Try reloading the page or restarting the browser.')}
-      </div>
-      <button id="dbErrorCloseBtn" style="margin-top:8px; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15); color:#e2e8f0; padding:10px 24px; border-radius:8px; font-size:14px; font-weight:600; cursor:pointer;">Close Window</button>
-    </div>`;
-    document.getElementById('dbErrorCloseBtn')?.addEventListener('click', () => window.close());
+    chrome.storage.local.get(['user_cloud', 'user'], (res) => {
+      const activeUser = res.user_cloud || res.user || null;
+      const formatted = formatError(err, activeUser, { context: 'Load Local Media' });
+
+      if (formatted.isAdmin) {
+        // ── Admin: Raw error, stack trace, and troubleshooting diagnostic ──
+        mediaContainer.innerHTML = `<div style="color:#f87171; padding:28px; font-size:15px; display:flex; flex-direction:column; gap:14px; align-items:center; max-width:540px; margin:0 auto;">
+          <span class="material-symbols-rounded" style="font-size:52px; color:#ef4444;">terminal</span>
+          <div style="font-weight:700; font-size:17px; color:#fca5a5;">🛠️ Admin Diagnostic: Media Storage Error</div>
+          <div style="background:rgba(239,68,68,0.12); border:1px solid rgba(239,68,68,0.3); border-radius:8px; padding:12px 16px; color:#fecaca; font-size:12px; font-family:monospace; width:100%; box-sizing:border-box; word-break:break-all; max-height:160px; overflow-y:auto;">
+            ${escapeHtml(formatted.technicalDetails || formatted.rawMessage)}
+          </div>
+          <button id="dbErrorCloseBtn" style="margin-top:8px; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15); color:#e2e8f0; padding:10px 24px; border-radius:8px; font-size:14px; font-weight:600; cursor:pointer;">Close Window</button>
+        </div>`;
+      } else {
+        // ── Regular user: Diplomatic polite message ──
+        mediaContainer.innerHTML = `<div style="color:#f87171; padding:28px; font-size:15px; display:flex; flex-direction:column; gap:14px; align-items:center; max-width:480px; margin:0 auto;">
+          <span class="material-symbols-rounded" style="font-size:52px;">storage</span>
+          <div style="font-weight:700; font-size:17px;">Storage Notice</div>
+          <div style="color:#cbd5e1; text-align:center; line-height:1.6;">${escapeHtml(formatted.displayMessage)}</div>
+          <div style="background:rgba(99,102,241,0.12); border:1px solid rgba(99,102,241,0.3); border-radius:8px; padding:12px 16px; color:#a5b4fc; font-size:13px; text-align:center; line-height:1.5;">
+            <span class="material-symbols-rounded" style="font-size:15px; vertical-align:middle; margin-right:4px;">lightbulb</span>Tip: Try reloading the page or taking a new capture.
+          </div>
+          <button id="dbErrorCloseBtn" style="margin-top:8px; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15); color:#e2e8f0; padding:10px 24px; border-radius:8px; font-size:14px; font-weight:600; cursor:pointer;">Close Window</button>
+        </div>`;
+      }
+      document.getElementById('dbErrorCloseBtn')?.addEventListener('click', () => window.close());
+    });
     return;
   }
 
@@ -568,7 +600,7 @@ async function init() {
     updateAuthPanel(activeUser);
 
     // Provide user context to local tour engine & UI without requiring external web app navigation
-    const isAdmin = activeUser?.role === 'admin';
+    const isAdmin = isAdminUser(activeUser);
     const isCloudUser = Boolean(activeUser && activeUser.jwt);
     window.__antCloud = isCloudUser;
     window.__antAdmin = isAdmin;
@@ -920,24 +952,48 @@ async function processSave(mode) {
     }
     document.body.style.pointerEvents = 'auto'; // Fallback just in case
 
-    const errMsg = err?.message || String(err || 'Upload failed');
-    if (errMsg.includes('AntCapture Cloud plan')) {
-      const serverBase = getServerUrl('cloud').replace('/api', '');
-      const pricingUrl = `${serverBase}/pricing`;
-      const htmlMessage = `
-        <div style="display:flex;flex-direction:column;gap:6px;padding:4px 0;">
-          <span style="font-weight:600;font-size:14px;">☁️ Cloud plan required</span>
-          <span style="font-size:13px;opacity:0.9;line-height:1.4;">${escapeHtml(errMsg)}</span>
-          <a href="${pricingUrl}" target="_blank" style="margin-top:4px;display:inline-flex;align-items:center;gap:4px;background:white;color:#4f46e5;padding:6px 12px;border-radius:6px;font-weight:700;text-decoration:none;font-size:13px;width:fit-content;box-shadow:0 2px 5px rgba(0,0,0,0.2);">
-            Upgrade to Cloud
-          </a>
+    // Retrieve active user to determine error presentation mode
+    const userKey = mode === 'localhost' ? 'user_local' : 'user_cloud';
+    const res = await chrome.storage.local.get([userKey, 'user']);
+    const currentUser = res[userKey] || res.user || null;
+
+    const formatted = formatError(err, currentUser, { context: `Save ${mode}` });
+
+    if (formatted.isAdmin) {
+      // ── Admin: Raw unabridged error, exact technical detail, instant copy ──
+      const rawText = escapeHtml(formatted.displayMessage);
+      const stackSnippet = formatted.technicalDetails && formatted.technicalDetails !== formatted.rawMessage
+        ? `<div style="font-family:monospace;font-size:11px;opacity:0.85;margin-top:4px;white-space:pre-wrap;max-height:100px;overflow-y:auto;background:rgba(0,0,0,0.25);padding:6px;border-radius:6px;">${escapeHtml(formatted.technicalDetails)}</div>`
+        : '';
+      const adminMessage = `
+        <div style="display:flex;flex-direction:column;gap:4px;">
+          <span style="font-weight:600;font-size:13px;font-family:monospace;">${rawText}</span>
+          ${stackSnippet}
         </div>
       `;
-      showToast(htmlMessage, 'error', 12000);
-    } else if (errMsg.includes('Google Drive') || errMsg.includes('quota') || errMsg.includes('drive_full')) {
-      showToast(`Google Drive: ${escapeHtml(errMsg)}`, 'error', 8000);
+      showToast(adminMessage, 'error', 15000, {
+        isAdminAlert: true,
+        copyPayload: formatted.technicalDetails || formatted.rawMessage
+      });
     } else {
-      showToast(escapeHtml(errMsg), 'error', 6000);
+      // ── Non-admin user (Free, Paid, Cloud, Local): Diplomatic, courteous message ──
+      const errMsg = err?.message || String(err || '');
+      if (errMsg.includes('AntCapture Cloud plan') || errMsg.includes('cloud plan required')) {
+        const serverBase = getServerUrl('cloud').replace('/api', '');
+        const pricingUrl = `${serverBase}/pricing`;
+        const htmlMessage = `
+          <div style="display:flex;flex-direction:column;gap:6px;padding:4px 0;">
+            <span style="font-weight:600;font-size:14px;">☁️ Cloud plan notice</span>
+            <span style="font-size:13px;opacity:0.9;line-height:1.4;">${escapeHtml(formatted.displayMessage)}</span>
+            <a href="${pricingUrl}" target="_blank" style="margin-top:4px;display:inline-flex;align-items:center;gap:4px;background:white;color:#4f46e5;padding:6px 12px;border-radius:6px;font-weight:700;text-decoration:none;font-size:13px;width:fit-content;box-shadow:0 2px 5px rgba(0,0,0,0.2);">
+              View Plans
+            </a>
+          </div>
+        `;
+        showToast(htmlMessage, 'error', 10000);
+      } else {
+        showToast(escapeHtml(formatted.displayMessage), 'error', 7000);
+      }
     }
   }
 }
@@ -997,3 +1053,32 @@ document.getElementById('btnLogout')?.addEventListener('click', () => {
 
 // Run directly
 init();
+
+// ── Global Error Catchers: Capture any unhandled error in edit.html ─────────
+window.addEventListener('error', (event) => {
+  console.error('[AntCapture Unhandled Error]:', event.error || event.message);
+  chrome.storage.local.get(['user_cloud', 'user'], (res) => {
+    const activeUser = res.user_cloud || res.user || null;
+    const formatted = formatError(event.error || event.message, activeUser, { context: 'Client Runtime' });
+    if (formatted.isAdmin) {
+      showToast(`⚠️ [Admin Runtime Error]: ${escapeHtml(formatted.displayMessage)}`, 'error', 15000, {
+        isAdminAlert: true,
+        copyPayload: formatted.technicalDetails || formatted.rawMessage
+      });
+    }
+  });
+});
+
+window.addEventListener('unhandledrejection', (event) => {
+  console.error('[AntCapture Unhandled Rejection]:', event.reason);
+  chrome.storage.local.get(['user_cloud', 'user'], (res) => {
+    const activeUser = res.user_cloud || res.user || null;
+    const formatted = formatError(event.reason, activeUser, { context: 'Async Promise' });
+    if (formatted.isAdmin) {
+      showToast(`⚠️ [Admin Promise Error]: ${escapeHtml(formatted.displayMessage)}`, 'error', 15000, {
+        isAdminAlert: true,
+        copyPayload: formatted.technicalDetails || formatted.rawMessage
+      });
+    }
+  });
+});

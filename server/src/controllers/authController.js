@@ -136,13 +136,14 @@ exports.googleCallback = async (req, res) => {
       }
     });
 
-    // V2 JWT: embed user ID + tokens (tokens still needed for Drive access)
+    // V2 JWT: embed user ID + tokens (tokens still needed for Drive access) + role
     const jwtToken = jwt.sign(
       {
         id: user.id,
         name: userInfo.name,
         email: userInfo.email,
         picture: userInfo.picture,
+        role: user.role || 'user',
         access_token: tokens.access_token,
         refresh_token: tokens.refresh_token,
         expiry_date: tokens.expiry_date,

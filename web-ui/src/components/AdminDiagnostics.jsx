@@ -1508,13 +1508,13 @@ export default function AdminDiagnostics({ user }) {
                     icon: 'draw', color: '#f9a8d4',
                     label: 'Whiteboards',
                     value: (myStats.boardCount ?? 0).toLocaleString(),
-                    sub: myStats.boardLimit ? `of ${myStats.boardLimit} limit` : null,
+                    sub: myStats.whiteboardBytesFormatted ? `${myStats.whiteboardBytesFormatted} stored` : (myStats.boardLimit ? `of ${myStats.boardLimit} limit` : null),
                   },
                   {
                     icon: 'hard_drive', color: '#34d399',
                     label: 'Total Storage',
-                    value: myStats.totalBytesFormatted || myStats.cloudBytesFormatted || '0 B',
-                    sub: myStats.cloudLimitFormatted ? `limit: ${myStats.cloudLimitFormatted}` : null,
+                    value: myStats.combinedTotalBytesFormatted || myStats.totalBytesFormatted || myStats.cloudBytesFormatted || '0 B',
+                    sub: myStats.whiteboardBytesFormatted ? `${myStats.totalBytesFormatted || '0 B'} files + ${myStats.whiteboardBytesFormatted} boards` : (myStats.cloudLimitFormatted ? `limit: ${myStats.cloudLimitFormatted}` : null),
                   },
                   {
                     icon: 'calendar_today', color: '#fbbf24',
@@ -1636,6 +1636,11 @@ export default function AdminDiagnostics({ user }) {
                     </div>
                     <div style={{ fontSize: '12px', color: 'var(--text-dim)', marginTop: '6px' }}>
                       <span style={{ color: '#10b981', fontWeight: 600 }}>{Number(database.activeCaptures ?? 0)}</span> active · {database.totalBoardItems ?? 0} board cards
+                      {database.platformWhiteboardFormatted && (
+                        <span style={{ color: '#f9a8d4', marginLeft: '6px' }}>
+                          ({database.platformWhiteboardFormatted} in D1)
+                        </span>
+                      )}
                     </div>
                   </div>
 
@@ -1773,11 +1778,16 @@ export default function AdminDiagnostics({ user }) {
                             <td style={{ padding: '11px 16px', color: '#cbd5e1', fontSize: '12px' }}>
                               {Number(u.captureCount || 0).toLocaleString()}
                             </td>
-                            <td style={{ padding: '11px 16px', color: '#a5b4fc', fontSize: '12px', fontWeight: 600 }}>
-                              {Number(u.boardCount || 0).toLocaleString()}
+                            <td style={{ padding: '11px 16px', color: '#a5b4fc', fontSize: '12px' }}>
+                              <span style={{ fontWeight: 600 }}>{Number(u.boardCount || 0).toLocaleString()}</span>
+                              {u.whiteboardBytes > 0 && (
+                                <span style={{ fontSize: '10px', color: '#f9a8d4', display: 'block', marginTop: '2px' }}>
+                                  {u.formattedWhiteboard} in D1
+                                </span>
+                              )}
                             </td>
                             <td style={{ padding: '11px 16px' }}>
-                              <span style={{ fontWeight: 700, color: (u.bytesUsed || 0) > 1024 * 1024 * 500 ? '#f59e0b' : '#34d399', fontSize: '12px', display: 'block' }}>
+                              <span style={{ fontWeight: 700, color: (u.captureBytes || u.bytesUsed || 0) > 1024 * 1024 * 500 ? '#f59e0b' : '#34d399', fontSize: '12px', display: 'block' }}>
                                 {u.formattedUsage || '0 B'}
                               </span>
                               {(u.videoBytes > 0 || u.imageBytes > 0) && (

@@ -108,8 +108,10 @@ exports.getStats = async (req, res) => {
       boardCount,
       boardLimit,
       
-      // Object Counts
-      total: stats.cloud.count + stats.local.count + stats.google_drive.count,
+      // Object Counts — count ALL active captures regardless of storage readiness
+      // (imageCount/videoCount already track all active captures; stats.*.count only
+      //  counts those with a ready StorageObject, which causes undercounting in My Stats)
+      total: mediaStats.imageCount + mediaStats.videoCount,
       cloudCount: stats.cloud.count,
       localCount: stats.local.count,
       driveCount: stats.google_drive.count,

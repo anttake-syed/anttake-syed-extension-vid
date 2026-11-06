@@ -723,6 +723,7 @@ export default function App() {
             onSignIn={() => setShowModal(true)}
             onOpenBoard={setActiveBoard}
             hasCloudAccess={hasCloudAccess || IS_LOCAL_MODE}
+            entitlements={entitlements}
             onUpgrade={() => setActiveNav('Pricing')}
           />
         ) : activeNav === 'Pricing' ? (

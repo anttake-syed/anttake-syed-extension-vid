@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { SERVER_URL } from '../config.js';
 import CloudUpgradeBanner from './CloudUpgradeBanner';
+import WhiteboardShareModal from './whiteboard/WhiteboardShareModal.jsx';
 import '../styles/pages/whiteboards.css';
 
 function generateDefaultName() {
@@ -61,11 +62,10 @@ function IconBtn({ icon, label, onClick, danger, className }) {
 
 const CARD_H = 200;
 
-function GridCard({ board, onOpen, onRename, onDelete }) {
+function GridCard({ board, onOpen, onRename, onDelete, onShare }) {
   const [hov, setHov] = useState(false);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(board.name);
-  const [shareCopied, setShareCopied] = useState(false);
   const thumb = board.thumbnail || null;
 
   const commit = () => {
@@ -74,14 +74,9 @@ function GridCard({ board, onOpen, onRename, onDelete }) {
     if (v !== board.name) onRename(board.id, v);
   };
 
-  const copyShareLink = (e) => {
+  const handleShareClick = (e) => {
     e.stopPropagation();
-    const slug = (board.name || 'untitled').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-    const url = `${window.location.origin}/whiteboard/${board.id}/${slug}`;
-    navigator.clipboard.writeText(url).then(() => {
-      setShareCopied(true);
-      setTimeout(() => setShareCopied(false), 2200);
-    }).catch(() => {});
+    onShare(board);
   };
 
   return (
@@ -147,9 +142,9 @@ function GridCard({ board, onOpen, onRename, onDelete }) {
           <div style={{ display:'flex', gap:2 }} onClick={e => e.stopPropagation()}>
             <IconBtn icon="edit" label="Rename board" onClick={e => { e.stopPropagation(); setEditing(true); setDraft(board.name); }} />
             <IconBtn
-              icon={shareCopied ? 'check' : 'share'}
-              label={shareCopied ? 'Link copied!' : 'Copy share link'}
-              onClick={copyShareLink}
+              icon="share"
+              label="Share board"
+              onClick={handleShareClick}
             />
             <IconBtn icon="delete" label="Delete board" danger onClick={e => { e.stopPropagation(); onDelete(board.id); }} />
           </div>
@@ -159,22 +154,16 @@ function GridCard({ board, onOpen, onRename, onDelete }) {
   );
 }
 
-function ListRow({ board, onOpen, onRename, onDelete }) {
+function ListRow({ board, onOpen, onRename, onDelete, onShare }) {
   const [hov, setHov] = useState(false);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(board.name);
-  const [shareCopied, setShareCopied] = useState(false);
   const thumb = board.thumbnail || null;
   const commit = () => { const v = draft.trim() || board.name; setEditing(false); if (v !== board.name) onRename(board.id, v); };
 
-  const copyShareLink = (e) => {
+  const handleShareClick = (e) => {
     e.stopPropagation();
-    const slug = (board.name || 'untitled').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-    const url = `${window.location.origin}/whiteboard/${board.id}/${slug}`;
-    navigator.clipboard.writeText(url).then(() => {
-      setShareCopied(true);
-      setTimeout(() => setShareCopied(false), 2200);
-    }).catch(() => {});
+    onShare(board);
   };
 
   return (
@@ -229,9 +218,9 @@ function ListRow({ board, onOpen, onRename, onDelete }) {
       <div className="wb-row-actions" data-show={hov} onClick={e => e.stopPropagation()}>
         <IconBtn icon="edit" label="Rename board" onClick={e => { e.stopPropagation(); setEditing(true); setDraft(board.name); }} />
         <IconBtn
-          icon={shareCopied ? 'check' : 'share'}
-          label={shareCopied ? 'Copied!' : 'Copy share link'}
-          onClick={copyShareLink}
+          icon="share"
+          label="Share board"
+          onClick={handleShareClick}
         />
         <IconBtn icon="delete" label="Delete board" danger onClick={e => { e.stopPropagation(); onDelete(board.id); }} />
         <IconBtn icon="arrow_forward" label="Open board" className="hide-below-sm" onClick={e => { e.stopPropagation(); onOpen(board); }} />
@@ -267,13 +256,14 @@ function ViewToggle({ value, onChange }) {
   );
 }
 
-export default function Whiteboards({ user, isAuthenticated, onSignIn, onOpenBoard, hasCloudAccess, onUpgrade }) {
+export default function Whiteboards({ user, isAuthenticated, onSignIn, onOpenBoard, hasCloudAccess, entitlements, onUpgrade }) {
   const [boards, setBoards] = useState([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [search, setSearch] = useState('');
   const [view, setView] = useState('grid');
   const [sort, setSort] = useState('updated');
+  const [shareModalBoard, setShareModalBoard] = useState(null);
 
   const fetchBoards = useCallback(async () => {
     if (!isAuthenticated || !hasCloudAccess) { setLoading(false); return; }
@@ -459,12 +449,42 @@ export default function Whiteboards({ user, isAuthenticated, onSignIn, onOpenBoa
       ) : view === 'list' ? (
         <div role="list" aria-label="Whiteboards" style={{ display:'flex', flexDirection:'column', gap:6,
           background:'#080f1e', border:'1.5px solid #1a2540', borderRadius:18, overflow:'hidden', padding:10 }}>
-          {filtered.map(b => <ListRow key={b.id} board={b} onOpen={onOpenBoard} onRename={handleRename} onDelete={handleDelete}/>)}
+          {filtered.map(b => (
+            <ListRow
+              key={b.id}
+              board={b}
+              onOpen={onOpenBoard}
+              onRename={handleRename}
+              onDelete={handleDelete}
+              onShare={setShareModalBoard}
+            />
+          ))}
         </div>
       ) : (
         <div role="list" aria-label="Whiteboards" className="wb-grid">
-          {filtered.map(b => <GridCard key={b.id} board={b} onOpen={onOpenBoard} onRename={handleRename} onDelete={handleDelete}/>)}
+          {filtered.map(b => (
+            <GridCard
+              key={b.id}
+              board={b}
+              onOpen={onOpenBoard}
+              onRename={handleRename}
+              onDelete={handleDelete}
+              onShare={setShareModalBoard}
+            />
+          ))}
         </div>
+      )}
+
+      {/* Share Modal outside editor */}
+      {shareModalBoard && (
+        <WhiteboardShareModal
+          board={shareModalBoard}
+          boardName={shareModalBoard.name}
+          user={user}
+          hasCloudAccess={hasCloudAccess}
+          entitlements={entitlements}
+          onClose={() => setShareModalBoard(null)}
+        />
       )}
 
       <style>{`

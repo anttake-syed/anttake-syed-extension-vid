@@ -192,11 +192,12 @@ export default function Sidebar({ activeNav, isAuthenticated, hasCloudAccess = t
           </div>
         )}
 
-        {/* ── Codebase & Deployment Status (Branch, commit, updated time ago) ── */}
-        {typeof __GIT_COMMIT_INFO__ !== 'undefined' && (
+        {/* ── Codebase & Deployment Status (Branch, commit, updated time ago) ──
+            Security & Privacy: Only visible to authenticated admins. Hidden from public, normal users, and crawlers. */}
+        {isAdmin && typeof __GIT_COMMIT_INFO__ !== 'undefined' && (
           <div
             onClick={() => {
-              if (isAdmin) onNavClick('Diagnostics');
+              onNavClick('Diagnostics');
             }}
             style={{
               padding: '9px 12px',

@@ -1,4 +1,5 @@
 import React from 'react';
+import { detectSmartService } from './whiteboardHelpers.js';
 
 /**
  * WhiteboardEmbedCard
@@ -17,6 +18,8 @@ export default function WhiteboardEmbedCard({
   const thumbUrl = el.videoId
     ? `https://img.youtube.com/vi/${el.videoId}/hqdefault.jpg`
     : null;
+
+  const service = !isEmbed ? detectSmartService(el.url) : null;
 
   let hostname = el.url;
   if (!isEmbed) {
@@ -92,11 +95,20 @@ export default function WhiteboardEmbedCard({
           </>
         ) : (
           <>
-            <span className="wb-embed-badge wb-embed-badge--link">
-              <span className="material-symbols-rounded" style={{ fontSize: '13px' }}>link</span>
-              Link
+            <span
+              className="wb-embed-badge wb-embed-badge--link"
+              style={service ? {
+                background: service.bg,
+                borderColor: service.border,
+                color: service.color,
+              } : undefined}
+            >
+              <span className="material-symbols-rounded" style={{ fontSize: '13px' }}>
+                {service ? service.icon : 'link'}
+              </span>
+              {service ? service.name : 'Link'}
             </span>
-            <span className="wb-embed-title">{el.title || hostname}</span>
+            <span className="wb-embed-title">{el.title || (service ? `${service.name} Document` : hostname)}</span>
             <button
               type="button"
               className="wb-embed-action-btn"

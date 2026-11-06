@@ -32,7 +32,7 @@ import {
   isElementInsideFrame,
   getContainedIndices,
 } from './whiteboard/whiteboardTransform.js';
-import { extractYouTubeVideoId, parsePastedUrl } from './whiteboard/whiteboardHelpers.js';
+import { extractYouTubeVideoId, parsePastedUrl, compactElementsToBoard, areElementsOutsideBoard } from './whiteboard/whiteboardHelpers.js';
 
 // ── Main WhiteboardEditor ────────────────────────────────────
 export default function WhiteboardEditor({ board, onClose, user, hasCloudAccess, entitlements }) {
@@ -72,6 +72,7 @@ export default function WhiteboardEditor({ board, onClose, user, hasCloudAccess,
   const [infiniteCanvas, setInfiniteCanvas]       = useState(() => {
     try { return localStorage.getItem('wb_infinite_canvas') !== 'false'; } catch { return true; }
   });
+  const [showCanvasModeModal, setShowCanvasModeModal] = useState(false);
 
   const canvasRef         = useRef(null);
   const drawing           = useRef(false);
@@ -1960,6 +1961,15 @@ export default function WhiteboardEditor({ board, onClose, user, hasCloudAccess,
         onOpenShortcuts={() => setShowShortcutsModal(true)}
         infiniteCanvas={infiniteCanvas}
         onToggleInfiniteCanvas={() => {
+          if (infiniteCanvas) {
+            // Switching from Infinite Canvas -> Fixed Board
+            const hasScattered = areElementsOutsideBoard(elementsRef.current, BOUNDED_CANVAS_W, BOUNDED_CANVAS_H);
+            if (hasScattered) {
+              setShowCanvasModeModal(true);
+              return;
+            }
+          }
+          // Simple direct toggle
           const next = !infiniteCanvas;
           setInfiniteCanvas(next);
           infiniteCanvasRef.current = next;
@@ -2135,6 +2145,115 @@ export default function WhiteboardEditor({ board, onClose, user, hasCloudAccess,
         onDiscard={() => { setShowExitModal(false); onClose(); }}
         onSaveAndExit={async () => { setShowExitModal(false); await handleSave(); onClose(); }}
       />
+
+      {/* Switch to Fixed Board Warning & Auto-fit Modal */}
+      {showCanvasModeModal && (
+        <div className="wb-overlay" style={{ zIndex: 4000 }} onClick={() => setShowCanvasModeModal(false)}>
+          <div className="wb-dialog" role="dialog" aria-modal="true" style={{ maxWidth: '480px' }} onClick={(e) => e.stopPropagation()}>
+            <div style={{
+              width: '56px',
+              height: '56px',
+              borderRadius: '16px',
+              background: 'rgba(99,102,241,0.15)',
+              border: '1px solid rgba(99,102,241,0.3)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginBottom: '18px'
+            }}>
+              <span className="material-symbols-rounded" style={{ fontSize: '28px', color: '#818cf8' }}>fit_screen</span>
+            </div>
+            <h3 style={{ margin: '0 0 10px', fontSize: '19px', fontWeight: 700, color: 'var(--text-main)' }}>
+              Switch to Fixed Board Mode?
+            </h3>
+            <p style={{ margin: '0 0 16px', fontSize: '14px', color: 'var(--text-dim)', lineHeight: '1.5' }}>
+              Some of your drawings, text, or embeds are currently scattered outside the standard <strong>4000 × 3000</strong> fixed board boundary.
+            </p>
+            <div style={{
+              background: 'rgba(255, 255, 255, 0.04)',
+              border: '1px solid rgba(255, 255, 255, 0.08)',
+              borderRadius: '10px',
+              padding: '12px 14px',
+              marginBottom: '24px',
+              fontSize: '12px',
+              color: '#94a3b8',
+              lineHeight: '1.4',
+            }}>
+              💡 <strong>Auto-Fit &amp; Compact:</strong> Neatly scales and rearranges all your existing elements inside the board area so nothing is lost or out of reach.
+            </div>
+
+            <div className="dialog-actions" style={{ gap: '10px', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                onClick={() => setShowCanvasModeModal(false)}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: '#94a3b8',
+                  padding: '9px 14px',
+                  borderRadius: '8px',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowCanvasModeModal(false);
+                  setInfiniteCanvas(false);
+                  infiniteCanvasRef.current = false;
+                  try { localStorage.setItem('wb_infinite_canvas', 'false'); } catch {}
+                  redraw();
+                }}
+                style={{
+                  background: 'rgba(255,255,255,0.08)',
+                  border: '1px solid rgba(255,255,255,0.15)',
+                  color: '#e2e8f0',
+                  padding: '9px 14px',
+                  borderRadius: '8px',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                Keep Positions (May be outside)
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowCanvasModeModal(false);
+                  // Compact elements to fit inside board
+                  const compacted = compactElementsToBoard(elementsRef.current, BOUNDED_CANVAS_W, BOUNDED_CANVAS_H, 140);
+                  setElements(compacted);
+                  elementsRef.current = compacted;
+                  commitToHistory(compacted);
+                  setInfiniteCanvas(false);
+                  infiniteCanvasRef.current = false;
+                  try { localStorage.setItem('wb_infinite_canvas', 'false'); } catch {}
+                  // Reset zoom & pan to show the whole compacted board
+                  handleZoomReset();
+                  redraw();
+                }}
+                style={{
+                  background: 'linear-gradient(135deg,#6366f1,#8b5cf6)',
+                  border: 'none',
+                  color: 'white',
+                  padding: '9px 18px',
+                  borderRadius: '8px',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                Auto-Fit &amp; Switch
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Add Text Modal */}
       <WhiteboardTextPromptModal

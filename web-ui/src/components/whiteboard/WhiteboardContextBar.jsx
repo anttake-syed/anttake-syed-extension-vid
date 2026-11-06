@@ -120,7 +120,7 @@ export default function WhiteboardContextBar({
         <>
           {isSelected && <div className="wb-context-divider" />}
           <div className="wb-context-section">
-            <span className="wb-context-label">{showTextStyles ? 'Text Color' : 'Stroke'}</span>
+            <span className="wb-context-label">{showTextStyles ? 'Text Color' : 'Color'}</span>
             <div className="wb-context-colors">
               {COLORS.map(c => {
                 const isActive = currentColor === c;
@@ -141,6 +141,82 @@ export default function WhiteboardContextBar({
                 );
               })}
             </div>
+          </div>
+        </>
+      )}
+
+      {/* ── Fill Texture Mode (Outline only vs Textured semi-fill vs Hatch) ── */}
+      {showShapeStyles && ['rect', 'circle'].includes(targetType) && (
+        <>
+          <div className="wb-context-divider" />
+          <div className="wb-context-section">
+            <span className="wb-context-label">Fill</span>
+            <div style={{ display: 'flex', gap: '3px', background: 'rgba(255,255,255,0.06)', padding: '2px', borderRadius: '7px' }}>
+              <button
+                onClick={() => {
+                  if (isSelected && onUpdateSelectedElement) onUpdateSelectedElement({ fillStyle: 'none' });
+                }}
+                className={`wb-context-icon-btn ${(!selectedElement?.fillStyle || selectedElement?.fillStyle === 'none') ? 'is-active' : ''}`}
+                title="Outline only (transparent inside)"
+                style={{
+                  background: (!selectedElement?.fillStyle || selectedElement?.fillStyle === 'none') ? 'rgba(99,102,241,0.25)' : 'none',
+                  color: (!selectedElement?.fillStyle || selectedElement?.fillStyle === 'none') ? '#a5b4fc' : '#94a3b8',
+                }}
+              >
+                <span className="material-symbols-rounded" style={{ fontSize: '15px' }}>check_box_outline_blank</span>
+              </button>
+              <button
+                onClick={() => {
+                  if (isSelected && onUpdateSelectedElement) onUpdateSelectedElement({ fillStyle: 'solid' });
+                }}
+                className={`wb-context-icon-btn ${selectedElement?.fillStyle === 'solid' ? 'is-active' : ''}`}
+                title="Textured soft fill"
+                style={{
+                  background: selectedElement?.fillStyle === 'solid' ? 'rgba(99,102,241,0.25)' : 'none',
+                  color: selectedElement?.fillStyle === 'solid' ? '#a5b4fc' : '#94a3b8',
+                }}
+              >
+                <span className="material-symbols-rounded" style={{ fontSize: '15px' }}>format_color_fill</span>
+              </button>
+              <button
+                onClick={() => {
+                  if (isSelected && onUpdateSelectedElement) onUpdateSelectedElement({ fillStyle: 'hachure' });
+                }}
+                className={`wb-context-icon-btn ${selectedElement?.fillStyle === 'hachure' ? 'is-active' : ''}`}
+                title="Pencil sketch hatch fill"
+                style={{
+                  background: selectedElement?.fillStyle === 'hachure' ? 'rgba(99,102,241,0.25)' : 'none',
+                  color: selectedElement?.fillStyle === 'hachure' ? '#a5b4fc' : '#94a3b8',
+                }}
+              >
+                <span className="material-symbols-rounded" style={{ fontSize: '15px' }}>texture</span>
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* ── Corner Curvature Toggle (for Rectangles) ── */}
+      {showShapeStyles && targetType === 'rect' && (
+        <>
+          <div className="wb-context-divider" />
+          <div className="wb-context-section">
+            <span className="wb-context-label">Edges</span>
+            <button
+              onClick={() => {
+                const currentRadius = selectedElement?.radius !== undefined ? selectedElement.radius : 12;
+                const nextRadius = currentRadius === 0 ? 12 : 0;
+                if (isSelected && onUpdateSelectedElement) onUpdateSelectedElement({ radius: nextRadius });
+              }}
+              className="wb-context-btn"
+              title={selectedElement?.radius === 0 ? 'Click to enable smooth rounded corners' : 'Click to toggle sharp square corners'}
+              style={{ padding: '3px 8px', fontSize: '11px' }}
+            >
+              <span className="material-symbols-rounded" style={{ fontSize: '15px', color: '#818cf8' }}>
+                {selectedElement?.radius === 0 ? 'square' : 'rounded_corner'}
+              </span>
+              <span>{selectedElement?.radius === 0 ? 'Sharp' : 'Curved'}</span>
+            </button>
           </div>
         </>
       )}

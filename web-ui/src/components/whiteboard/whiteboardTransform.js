@@ -84,6 +84,34 @@ export function getTransformHandles(el, zoom = 1) {
   const handleSize = 8 / zoom;
   const rotDist = 26 / zoom;
 
+  // Dedicated handles for Arrows: start handle, end handle, and curve control handle
+  if (el.type === 'arrow') {
+    const startX = el.x ?? 0;
+    const startY = el.y ?? 0;
+    const endX = el.x2 ?? (startX + 100);
+    const endY = el.y2 ?? startY;
+    const midX = el.cpx !== undefined ? el.cpx : (startX + endX) / 2;
+    const midY = el.cpy !== undefined ? el.cpy : (startY + endY) / 2;
+
+    return {
+      box,
+      isArrow: true,
+      handles: [
+        { id: 'arrow-start', cursor: 'grab', x: startX, y: startY, unrotX: startX, unrotY: startY, size: handleSize },
+        { id: 'arrow-mid',   cursor: 'move', x: midX,   y: midY,   unrotX: midX,   unrotY: midY,   size: handleSize },
+        { id: 'arrow-end',   cursor: 'grab', x: endX,   y: endY,   unrotX: endX,   unrotY: endY,   size: handleSize },
+      ],
+      rotationHandle: {
+        id: 'rotate',
+        cursor: 'grab',
+        x: rotPtX(box, rotDist),
+        y: rotPtY(box, rotDist),
+        size: handleSize,
+        stemStartY: box.y,
+      },
+    };
+  }
+
   const handles = RESIZE_HANDLES.map(h => {
     const unrotX = box.x + box.w * h.xRatio;
     const unrotY = box.y + box.h * h.yRatio;
@@ -108,6 +136,7 @@ export function getTransformHandles(el, zoom = 1) {
 
   return {
     box,
+    isArrow: false,
     handles,
     rotationHandle: {
       id: 'rotate',
@@ -120,15 +149,31 @@ export function getTransformHandles(el, zoom = 1) {
   };
 }
 
+function rotPtX(box, rotDist) {
+  return rotatePoint(box.cx, box.y - rotDist, box.cx, box.cy, box.rotation).x;
+}
+function rotPtY(box, rotDist) {
+  return rotatePoint(box.cx, box.y - rotDist, box.cx, box.cy, box.rotation).y;
+}
+
 /**
  * Test if mouse/pointer pos hits a resize or rotate handle
  */
 export function hitTestHandles(el, pos, zoom = 1) {
-  const { handles, rotationHandle } = getTransformHandles(el, zoom);
-  const hitRadius = 9 / zoom;
+  const { handles, rotationHandle, isArrow } = getTransformHandles(el, zoom);
+  const hitRadius = 10 / zoom;
 
-  // Check rotation handle first
-  if (Math.hypot(pos.x - rotationHandle.x, pos.y - rotationHandle.y) <= hitRadius) {
+  // Arrow handles: check start, end, and curve control points
+  if (isArrow) {
+    for (const h of handles) {
+      if (Math.hypot(pos.x - h.x, pos.y - h.y) <= hitRadius) {
+        return { type: 'arrow-handle', handle: h };
+      }
+    }
+  }
+
+  // Check rotation handle
+  if (rotationHandle && Math.hypot(pos.x - rotationHandle.x, pos.y - rotationHandle.y) <= hitRadius) {
     return { type: 'rotate', handle: rotationHandle };
   }
 
@@ -175,10 +220,12 @@ export function hitTestElement(el, pos) {
   }
 
   if (el.type === 'arrow') {
-    const minX = Math.min(el.x, el.x2), maxX = Math.max(el.x, el.x2);
-    const minY = Math.min(el.y, el.y2), maxY = Math.max(el.y, el.y2);
-    return pos.x >= minX - 10 && pos.x <= maxX + 10 &&
-           pos.y >= minY - 10 && pos.y <= maxY + 10;
+    const minX = Math.min(el.x, el.x2, el.cpx !== undefined ? el.cpx : el.x);
+    const maxX = Math.max(el.x, el.x2, el.cpx !== undefined ? el.cpx : el.x);
+    const minY = Math.min(el.y, el.y2, el.cpy !== undefined ? el.cpy : el.y);
+    const maxY = Math.max(el.y, el.y2, el.cpy !== undefined ? el.cpy : el.y);
+    return pos.x >= minX - 14 && pos.x <= maxX + 14 &&
+           pos.y >= minY - 14 && pos.y <= maxY + 14;
   }
 
   if (el.type === 'path' && el.points?.length) {
@@ -188,4 +235,206 @@ export function hitTestElement(el, pos) {
   }
 
   return false;
+}
+
+/**
+ * Convert any HEX color to transparent rgba fill matching Excalidraw / Miro style
+ */
+export function getFillColor(hex, opacity = 0.18) {
+  if (!hex || hex === 'transparent') return 'transparent';
+  if (hex.startsWith('rgba')) return hex;
+  let clean = hex.replace('#', '');
+  if (clean.length === 3) {
+    clean = clean.split('').map(c => c + c).join('');
+  }
+  const r = parseInt(clean.substring(0, 2), 16) || 0;
+  const g = parseInt(clean.substring(2, 4), 16) || 0;
+  const b = parseInt(clean.substring(4, 6), 16) || 0;
+  return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+}
+
+/**
+ * Draw hand-drawn textured rectangle with rounded corners (Excalidraw aesthetic)
+ */
+export function drawHandDrawnRect(ctx, x, y, w, h, options = {}) {
+  const {
+    stroke = '#6366f1',
+    fill = 'transparent',
+    fillStyle = 'solid', // 'none', 'solid', 'hachure'
+    strokeWidth = 2,
+    radius = 12,
+  } = options;
+
+  const actualRadius = Math.min(Math.abs(w) / 2, Math.abs(h) / 2, radius);
+  const minX = Math.min(x, x + w);
+  const minY = Math.min(y, y + h);
+  const absW = Math.abs(w);
+  const absH = Math.abs(h);
+
+  // 1. Draw Background Fill with soft watercolor texture
+  if (fill && fill !== 'transparent' && fillStyle !== 'none') {
+    ctx.save();
+    ctx.beginPath();
+    ctx.roundRect(minX, minY, absW, absH, actualRadius);
+    ctx.fillStyle = fill;
+    ctx.fill();
+
+    // Subtle hatch lines for pencil/sketch texture if hachure or semi-transparent
+    if (fillStyle === 'hachure' || fillStyle === 'solid') {
+      ctx.clip();
+      ctx.strokeStyle = fill;
+      ctx.lineWidth = 1;
+      ctx.globalAlpha = 0.25;
+      const step = 8;
+      for (let lx = minX - absH; lx < minX + absW + absH; lx += step) {
+        ctx.beginPath();
+        ctx.moveTo(lx, minY);
+        ctx.lineTo(lx + absH, minY + absH);
+        ctx.stroke();
+      }
+    }
+    ctx.restore();
+  }
+
+  // 2. Double-pass organic hand-drawn stroke with rounded corners
+  ctx.save();
+  ctx.strokeStyle = stroke;
+  ctx.lineWidth = strokeWidth;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+
+  // Primary smooth path
+  ctx.beginPath();
+  ctx.roundRect(minX, minY, absW, absH, actualRadius);
+  ctx.stroke();
+
+  // Secondary organic pencil pass (slight subtle offset for that Excalidraw charm)
+  ctx.globalAlpha = 0.45;
+  ctx.lineWidth = Math.max(1, strokeWidth * 0.7);
+  ctx.beginPath();
+  ctx.roundRect(minX + 0.5, minY + 0.5, absW - 0.5, absH - 0.5, actualRadius);
+  ctx.stroke();
+  ctx.restore();
+}
+
+/**
+ * Draw hand-drawn textured circle / ellipse with organic feel
+ */
+export function drawHandDrawnCircle(ctx, cx, cy, rx, ry, options = {}) {
+  const {
+    stroke = '#6366f1',
+    fill = 'transparent',
+    fillStyle = 'solid',
+    strokeWidth = 2,
+  } = options;
+
+  const rX = Math.abs(rx);
+  const rY = Math.abs(ry);
+
+  // 1. Background Fill with texture
+  if (fill && fill !== 'transparent' && fillStyle !== 'none') {
+    ctx.save();
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, rX, rY, 0, 0, Math.PI * 2);
+    ctx.fillStyle = fill;
+    ctx.fill();
+
+    // Subtle hand-hatch lines
+    if (fillStyle === 'hachure' || fillStyle === 'solid') {
+      ctx.clip();
+      ctx.strokeStyle = fill;
+      ctx.lineWidth = 1;
+      ctx.globalAlpha = 0.25;
+      const step = 8;
+      for (let lx = cx - rX - rY; lx < cx + rX + rY; lx += step) {
+        ctx.beginPath();
+        ctx.moveTo(lx, cy - rY);
+        ctx.lineTo(lx + rY * 2, cy + rY);
+        ctx.stroke();
+      }
+    }
+    ctx.restore();
+  }
+
+  // 2. Double-pass hand-drawn organic stroke
+  ctx.save();
+  ctx.strokeStyle = stroke;
+  ctx.lineWidth = strokeWidth;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+
+  ctx.beginPath();
+  ctx.ellipse(cx, cy, rX, rY, 0, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // Second pass with slight pencil wobble
+  ctx.globalAlpha = 0.45;
+  ctx.lineWidth = Math.max(1, strokeWidth * 0.7);
+  ctx.beginPath();
+  ctx.ellipse(cx + 0.4, cy + 0.4, rX - 0.3, rY - 0.3, 0.01, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.restore();
+}
+
+/**
+ * Draw professional arrow with bend control and arrowhead
+ */
+export function drawHandDrawnArrow(ctx, x1, y1, x2, y2, cpx, cpy, options = {}) {
+  const {
+    stroke = '#6366f1',
+    strokeWidth = 2,
+  } = options;
+
+  const hasCp = cpx !== undefined && cpy !== undefined;
+  const midX = hasCp ? cpx : (x1 + x2) / 2;
+  const midY = hasCp ? cpy : (y1 + y2) / 2;
+
+  ctx.save();
+  ctx.strokeStyle = stroke;
+  ctx.lineWidth = strokeWidth;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+
+  // Curve / Line path
+  ctx.beginPath();
+  ctx.moveTo(x1, y1);
+  if (hasCp) {
+    ctx.quadraticCurveTo(midX, midY, x2, y2);
+  } else {
+    ctx.lineTo(x2, y2);
+  }
+  ctx.stroke();
+
+  // Secondary organic sketch pass
+  ctx.globalAlpha = 0.45;
+  ctx.lineWidth = Math.max(1, strokeWidth * 0.65);
+  ctx.beginPath();
+  ctx.moveTo(x1 + 0.4, y1 + 0.4);
+  if (hasCp) {
+    ctx.quadraticCurveTo(midX + 0.4, midY + 0.4, x2, y2);
+  } else {
+    ctx.lineTo(x2, y2);
+  }
+  ctx.stroke();
+  ctx.restore();
+
+  // Arrowhead angle at (x2, y2)
+  const angle = hasCp
+    ? Math.atan2(y2 - midY, x2 - midX)
+    : Math.atan2(y2 - y1, x2 - x1);
+
+  const hw = 10 + strokeWidth * 1.5;
+  ctx.save();
+  ctx.fillStyle = stroke;
+  ctx.strokeStyle = stroke;
+  ctx.lineWidth = strokeWidth;
+  ctx.lineJoin = 'round';
+  ctx.beginPath();
+  ctx.moveTo(x2, y2);
+  ctx.lineTo(x2 - hw * Math.cos(angle - Math.PI / 6), y2 - hw * Math.sin(angle - Math.PI / 6));
+  ctx.lineTo(x2 - hw * Math.cos(angle + Math.PI / 6), y2 - hw * Math.sin(angle + Math.PI / 6));
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  ctx.restore();
 }

@@ -58,6 +58,7 @@ export default function WhiteboardEditor({ board, onClose, user }) {
   const dragRef           = useRef(null);
   const panDragRef        = useRef(null); // for pan tool or space/middle drag
   const marqueeRef        = useRef(null);
+  const clipboardRef      = useRef(null); // { elements: [...], origin: { x, y } }
   const nameInputRef      = useRef(null);
   const boardStateItemIdRef = useRef(null);
   const needsCommitRef    = useRef(false);
@@ -1020,44 +1021,227 @@ export default function WhiteboardEditor({ board, onClose, user }) {
     }
   };
 
-  // Right-click context menu
+  // ── Clipboard & Context Actions (Cut, Copy, Paste, Duplicate, Layering) ──
+  const handleCopySelected = () => {
+    const targets = selectedIds.length > 0 ? selectedIds : (selectedId !== null ? [selectedId] : []);
+    if (targets.length === 0) return;
+    const copiedElements = targets
+      .map(i => elements[i])
+      .filter(Boolean)
+      .map(el => JSON.parse(JSON.stringify(el)));
+    clipboardRef.current = {
+      elements: copiedElements,
+      originTime: Date.now(),
+    };
+    setContextMenu(null);
+  };
+
+  const handleCutSelected = () => {
+    const targets = selectedIds.length > 0 ? selectedIds : (selectedId !== null ? [selectedId] : []);
+    if (targets.length === 0) return;
+    handleCopySelected();
+    handleDeleteSelected();
+  };
+
+  const handlePasteAt = (worldPos = null) => {
+    if (!clipboardRef.current || !clipboardRef.current.elements?.length) return;
+    const items = clipboardRef.current.elements;
+
+    // Determine offset
+    let targetX, targetY;
+    if (worldPos) {
+      targetX = worldPos.x;
+      targetY = worldPos.y;
+    }
+
+    // Find bounding box center of copied items
+    let minX = Infinity, minY = Infinity;
+    items.forEach(el => {
+      const ex = el.x ?? 0;
+      const ey = el.y ?? 0;
+      if (ex < minX) minX = ex;
+      if (ey < minY) minY = ey;
+    });
+
+    const offset = 24;
+    const pasted = [];
+    const newIndices = [];
+
+    items.forEach(item => {
+      const clone = JSON.parse(JSON.stringify(item));
+      if (worldPos && minX !== Infinity && minY !== Infinity) {
+        const relX = (clone.x ?? 0) - minX;
+        const relY = (clone.y ?? 0) - minY;
+        clone.x = targetX + relX;
+        clone.y = targetY + relY;
+        if (clone.type === 'arrow' && clone.x2 !== undefined && clone.y2 !== undefined) {
+          const dx = clone.x2 - (item.x ?? 0);
+          const dy = clone.y2 - (item.y ?? 0);
+          clone.x2 = clone.x + dx;
+          clone.y2 = clone.y + dy;
+        }
+        if (clone.type === 'path' && clone.points) {
+          clone.points = clone.points.map(p => ({
+            x: p.x - minX + targetX,
+            y: p.y - minY + targetY,
+          }));
+        }
+      } else {
+        // Standard duplicate/paste offset
+        if (clone.type === 'path' && clone.points) {
+          clone.points = clone.points.map(p => ({ x: p.x + offset, y: p.y + offset }));
+        } else if (clone.type === 'arrow') {
+          clone.x = (clone.x ?? 0) + offset;
+          clone.y = (clone.y ?? 0) + offset;
+          clone.x2 = (clone.x2 ?? 0) + offset;
+          clone.y2 = (clone.y2 ?? 0) + offset;
+        } else {
+          clone.x = (clone.x ?? 0) + offset;
+          clone.y = (clone.y ?? 0) + offset;
+        }
+      }
+      newIndices.push(elements.length + pasted.length);
+      pasted.push(clone);
+    });
+
+    if (pasted.length > 0) {
+      const next = [...elements, ...pasted];
+      setElements(next);
+      commitToHistory(next);
+      setSelectedIds(newIndices);
+      setSelectedId(newIndices[newIndices.length - 1]);
+      setTool('select');
+    }
+    setContextMenu(null);
+  };
+
+  const handleSelectAll = () => {
+    if (elements.length === 0) return;
+    const all = elements.map((_, i) => i);
+    setSelectedIds(all);
+    setSelectedId(elements.length - 1);
+    setTool('select');
+    setContextMenu(null);
+  };
+
+  // Layer Reordering Handlers (Forward, Backward, Front, Back)
+  const handleBringForward = () => {
+    const targets = selectedIds.length > 0 ? [...selectedIds] : (selectedId !== null ? [selectedId] : []);
+    if (targets.length === 0) return;
+    // Sort ascending to move higher indices first without colliding
+    const sorted = [...targets].sort((a, b) => b - a);
+    const next = [...elements];
+    const newSelected = new Set(targets);
+
+    sorted.forEach(idx => {
+      if (idx < next.length - 1 && !newSelected.has(idx + 1)) {
+        const temp = next[idx];
+        next[idx] = next[idx + 1];
+        next[idx + 1] = temp;
+        newSelected.delete(idx);
+        newSelected.add(idx + 1);
+      }
+    });
+
+    setElements(next);
+    commitToHistory(next);
+    const updatedArr = Array.from(newSelected);
+    setSelectedIds(updatedArr);
+    setSelectedId(updatedArr[updatedArr.length - 1] ?? null);
+    setContextMenu(null);
+  };
+
+  const handleSendBackward = () => {
+    const targets = selectedIds.length > 0 ? [...selectedIds] : (selectedId !== null ? [selectedId] : []);
+    if (targets.length === 0) return;
+    const sorted = [...targets].sort((a, b) => a - b);
+    const next = [...elements];
+    const newSelected = new Set(targets);
+
+    sorted.forEach(idx => {
+      if (idx > 0 && !newSelected.has(idx - 1)) {
+        const temp = next[idx];
+        next[idx] = next[idx - 1];
+        next[idx - 1] = temp;
+        newSelected.delete(idx);
+        newSelected.add(idx - 1);
+      }
+    });
+
+    setElements(next);
+    commitToHistory(next);
+    const updatedArr = Array.from(newSelected);
+    setSelectedIds(updatedArr);
+    setSelectedId(updatedArr[updatedArr.length - 1] ?? null);
+    setContextMenu(null);
+  };
+
+  const handleBringToFront = () => {
+    const targets = selectedIds.length > 0 ? selectedIds : (selectedId !== null ? [selectedId] : []);
+    if (targets.length === 0) return;
+    const moving = targets.map(i => elements[i]).filter(Boolean);
+    const remaining = elements.filter((_, i) => !targets.includes(i));
+    const next = [...remaining, ...moving];
+    setElements(next);
+    commitToHistory(next);
+    const newIndices = moving.map((_, i) => remaining.length + i);
+    setSelectedIds(newIndices);
+    setSelectedId(newIndices[newIndices.length - 1] ?? null);
+    setContextMenu(null);
+  };
+
+  const handleSendToBack = () => {
+    const targets = selectedIds.length > 0 ? selectedIds : (selectedId !== null ? [selectedId] : []);
+    if (targets.length === 0) return;
+    const moving = targets.map(i => elements[i]).filter(Boolean);
+    const remaining = elements.filter((_, i) => !targets.includes(i));
+    const next = [...moving, ...remaining];
+    setElements(next);
+    commitToHistory(next);
+    const newIndices = moving.map((_, i) => i);
+    setSelectedIds(newIndices);
+    setSelectedId(newIndices[newIndices.length - 1] ?? null);
+    setContextMenu(null);
+  };
+
+  // Right-click context menu (works anywhere on canvas and on any element)
   const onContextMenu = (e) => {
     e.preventDefault();
     const pos = screenToWorld(e.clientX, e.clientY);
     let hit = null;
+
+    // Check hit on all elements (from top to bottom)
     for (let i = elements.length - 1; i >= 0; i--) {
       const el = elements[i];
-      if (el.type === 'image') {
-        if (pos.x >= el.x && pos.x <= el.x + el.w && pos.y >= el.y && pos.y <= el.y + el.h) { hit = i; break; }
+      if (hitTestElement(el, pos)) {
+        hit = i;
+        break;
       }
     }
-    if (hit !== null) setContextMenu({ x: e.clientX, y: e.clientY, elIdx: hit });
-  };
 
-  const ctxBringFront = () => {
-    if (contextMenu === null) return;
-    const next = [...elements];
-    const [el] = next.splice(contextMenu.elIdx, 1);
-    next.push(el);
-    setElements(next); commitToHistory(next); setContextMenu(null);
-  };
-  const ctxSendBack = () => {
-    if (contextMenu === null) return;
-    const next = [...elements];
-    const [el] = next.splice(contextMenu.elIdx, 1);
-    next.unshift(el);
-    setElements(next); commitToHistory(next); setContextMenu(null);
-  };
-  const ctxDelete = () => {
-    if (contextMenu === null) return;
-    const targetIdx = contextMenu.elIdx;
-    const toDelete = selectedIds.includes(targetIdx) ? selectedIds : [targetIdx];
-    const next = elements.filter((_, i) => !toDelete.includes(i));
-    setElements(next);
-    commitToHistory(next);
-    setSelectedId(null);
-    setSelectedIds([]);
-    setContextMenu(null);
+    if (hit !== null) {
+      // If right clicked on an element not currently in selection, select it
+      if (!selectedIds.includes(hit)) {
+        setSelectedId(hit);
+        setSelectedIds([hit]);
+      }
+      setContextMenu({
+        x: e.clientX,
+        y: e.clientY,
+        worldPos: pos,
+        hasHit: true,
+        elIdx: hit,
+      });
+    } else {
+      // Right clicked on empty canvas area
+      setContextMenu({
+        x: e.clientX,
+        y: e.clientY,
+        worldPos: pos,
+        hasHit: false,
+        elIdx: null,
+      });
+    }
   };
 
   const handleDeleteSelected = () => {
@@ -1481,10 +1665,28 @@ export default function WhiteboardEditor({ board, onClose, user }) {
       // Select All: Ctrl/Cmd + A
       if (cmdOrCtrl && key === 'a') {
         e.preventDefault();
-        if (elements.length > 0) {
-          setSelectedIds(elements.map((_, i) => i));
-          setSelectedId(elements.length - 1);
-        }
+        handleSelectAll();
+        return;
+      }
+
+      // Copy: Ctrl/Cmd + C
+      if (cmdOrCtrl && key === 'c') {
+        e.preventDefault();
+        handleCopySelected();
+        return;
+      }
+
+      // Cut: Ctrl/Cmd + X
+      if (cmdOrCtrl && key === 'x') {
+        e.preventDefault();
+        handleCutSelected();
+        return;
+      }
+
+      // Paste: Ctrl/Cmd + V
+      if (cmdOrCtrl && key === 'v') {
+        e.preventDefault();
+        handlePasteAt();
         return;
       }
 
@@ -1492,6 +1694,22 @@ export default function WhiteboardEditor({ board, onClose, user }) {
       if (cmdOrCtrl && key === 'd') {
         e.preventDefault();
         handleDuplicateSelected();
+        return;
+      }
+
+      // Layer Order: Bring to Front (Ctrl+Shift+]) or Bring Forward (Ctrl+])
+      if (cmdOrCtrl && e.key === ']') {
+        e.preventDefault();
+        if (e.shiftKey) handleBringToFront();
+        else handleBringForward();
+        return;
+      }
+
+      // Layer Order: Send to Back (Ctrl+Shift+[) or Send Backward (Ctrl+[)
+      if (cmdOrCtrl && e.key === '[') {
+        e.preventDefault();
+        if (e.shiftKey) handleSendToBack();
+        else handleSendBackward();
         return;
       }
 
@@ -1776,9 +1994,18 @@ export default function WhiteboardEditor({ board, onClose, user }) {
       {/* Right-click context menu */}
       <WhiteboardContextMenu
         contextMenu={contextMenu}
-        onBringToFront={ctxBringFront}
-        onSendToBack={ctxSendBack}
-        onDelete={ctxDelete}
+        hasSelection={selectedIds.length > 0 || selectedId !== null}
+        hasClipboard={Boolean(clipboardRef.current?.elements?.length)}
+        onCut={handleCutSelected}
+        onCopy={handleCopySelected}
+        onPaste={() => handlePasteAt(contextMenu?.worldPos)}
+        onDuplicate={handleDuplicateSelected}
+        onSelectAll={handleSelectAll}
+        onBringForward={handleBringForward}
+        onSendBackward={handleSendBackward}
+        onBringToFront={handleBringToFront}
+        onSendToBack={handleSendToBack}
+        onDelete={handleDeleteSelected}
         onClose={() => setContextMenu(null)}
       />
 

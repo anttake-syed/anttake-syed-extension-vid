@@ -28,7 +28,7 @@ export default function WhiteboardContextBar({
   const isSelected = selectedElement != null;
   const targetType = isSelected ? selectedElement.type : tool;
 
-  const showShapeStyles = ['pen', 'rect', 'circle', 'arrow'].includes(targetType);
+  const showShapeStyles = ['pen', 'rect', 'circle', 'arrow', 'frame'].includes(targetType);
   const showTextStyles  = targetType === 'text';
   const showMediaStyles = targetType === 'image' || selectedElement?.isVideo;
 
@@ -73,18 +73,34 @@ export default function WhiteboardContextBar({
         <div className="wb-context-divider" />
       )}
 
-      {/* ── Selection Indicator ── */}
+      {/* ── Selection Indicator & Controls ── */}
       {isSelected && (
         <div className="wb-context-section wb-context-selected-info">
           <span className="wb-context-pill">
             <span className="material-symbols-rounded" style={{ fontSize: '14px' }}>
-              {selectedElement.isVideo ? 'videocam' : selectedElement.type === 'image' ? 'image' : selectedElement.type === 'text' ? 'title' : 'category'}
+              {selectedElement.isVideo ? 'videocam' : selectedElement.type === 'image' ? 'image' : selectedElement.type === 'text' ? 'title' : selectedElement.type === 'frame' ? 'crop_free' : 'category'}
             </span>
             <span>
-              {selectedElement.isVideo ? 'Video' : selectedElement.type === 'image' ? 'Image' : selectedElement.type === 'text' ? 'Text' : selectedElement.type.toUpperCase()}
+              {selectedElement.isVideo ? 'Video' : selectedElement.type === 'image' ? 'Image' : selectedElement.type === 'text' ? 'Text' : selectedElement.type === 'frame' ? (selectedElement.title || 'Frame') : selectedElement.type.toUpperCase()}
               {selectedCount > 1 ? ` (+${selectedCount - 1})` : ''}
             </span>
           </span>
+
+          {/* Quick Rotate 90 degrees */}
+          {['rect', 'circle', 'image', 'frame'].includes(selectedElement.type) && onUpdateSelectedElement && (
+            <button
+              onClick={() => {
+                const currentRot = selectedElement.rotation || 0;
+                const nextRot = (currentRot + Math.PI / 2) % (Math.PI * 2);
+                onUpdateSelectedElement({ rotation: nextRot });
+              }}
+              className="wb-context-icon-btn"
+              title="Rotate 90°"
+              aria-label="Rotate 90 degrees"
+            >
+              <span className="material-symbols-rounded" style={{ fontSize: '16px' }}>rotate_right</span>
+            </button>
+          )}
 
           {onDeleteSelected && (
             <button

@@ -398,25 +398,6 @@
   margin-bottom: 2px;
 }
 
-.wb-tool-shortcut-badge {
-  position: absolute;
-  top: 2px;
-  right: 2px;
-  font-size: 8px;
-  font-weight: 700;
-  line-height: 1;
-  padding: 1px 3px;
-  border-radius: 3px;
-  background: rgba(255, 255, 255, 0.08);
-  color: #64748b;
-  font-family: monospace;
-}
-
-.wb-tool-btn[data-active='true'] .wb-tool-shortcut-badge {
-  background: rgba(99, 102, 241, 0.4);
-  color: #e0e7ff;
-}
-
 .wb-tool-btn:hover:not([data-active='true']) {
   background: rgba(255, 255, 255, 0.08);
   color: #f1f5f9;

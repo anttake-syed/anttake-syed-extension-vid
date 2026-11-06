@@ -12,6 +12,13 @@ import WhiteboardExitModal from './whiteboard/WhiteboardExitModal.jsx';
 import WhiteboardTextPromptModal from './whiteboard/WhiteboardTextPromptModal.jsx';
 import WhiteboardShortcutsModal from './whiteboard/WhiteboardShortcutsModal.jsx';
 import { TOOLS, COLORS, SIZES, generateDefaultName } from './whiteboard/whiteboardConstants.js';
+import {
+  rotatePoint,
+  getElementTransformBox,
+  getTransformHandles,
+  hitTestHandles,
+  hitTestElement,
+} from './whiteboard/whiteboardTransform.js';
 
 // ── Main WhiteboardEditor ────────────────────────────────────
 export default function WhiteboardEditor({ board, onClose, user }) {
@@ -143,7 +150,33 @@ export default function WhiteboardEditor({ board, onClose, user }) {
 
     elements.forEach((el) => {
       ctx.save();
-      if (el.type === 'path') {
+      const rot = el.rotation || 0;
+      if (rot) {
+        const box = getElementTransformBox(el);
+        ctx.translate(box.cx, box.cy);
+        ctx.rotate(rot);
+        ctx.translate(-box.cx, -box.cy);
+      }
+
+      if (el.type === 'frame') {
+        // Professional Figma/Miro style Frame container
+        const fw = el.w || 360;
+        const fh = el.h || 240;
+        // Background card
+        ctx.fillStyle = 'rgba(30, 41, 59, 0.4)';
+        ctx.fillRect(el.x, el.y, fw, fh);
+        // Header banner
+        ctx.fillStyle = 'rgba(99, 102, 241, 0.15)';
+        ctx.fillRect(el.x, el.y, fw, 28);
+        // Frame outer border
+        ctx.strokeStyle = el.color || '#6366f1';
+        ctx.lineWidth = Math.max(1.5, el.size || 2);
+        ctx.strokeRect(el.x, el.y, fw, fh);
+        // Header title
+        ctx.fillStyle = '#f8fafc';
+        ctx.font = "bold 12px 'Outfit', sans-serif";
+        ctx.fillText(el.title || 'FRAME', el.x + 10, el.y + 19);
+      } else if (el.type === 'path') {
         ctx.strokeStyle = el.color;
         ctx.lineWidth   = el.size;
         ctx.lineCap     = 'round';
@@ -247,8 +280,12 @@ export default function WhiteboardEditor({ board, onClose, user }) {
       ctx.lineWidth   = Math.max(2, strokeSize * 0.75);
       ctx.lineCap     = 'round';
       ctx.setLineDash([]); // Professional solid stroke
-      if (lt === 'rect') {
+      if (lt === 'rect' || lt === 'frame') {
         ctx.strokeRect(s.x, s.y, ep.x - s.x, ep.y - s.y);
+        if (lt === 'frame') {
+          ctx.fillStyle = 'rgba(99, 102, 241, 0.12)';
+          ctx.fillRect(s.x, s.y, ep.x - s.x, ep.y - s.y);
+        }
       } else if (lt === 'circle') {
         const cx = (s.x + ep.x) / 2, cy = (s.y + ep.y) / 2;
         ctx.beginPath();
@@ -270,46 +307,53 @@ export default function WhiteboardEditor({ board, onClose, user }) {
       ctx.restore();
     }
 
-    // Selection bounding outlines + handles
+    // Selection bounding outlines + 8 resize handles + rotation stem
     const allSelected = selectedIds.length > 0 ? selectedIds : (selectedId !== null ? [selectedId] : []);
     allSelected.forEach(idx => {
       const el = elements[idx];
       if (!el) return;
-      ctx.save();
-      ctx.strokeStyle = '#6366f1';
-      ctx.lineWidth   = 1.5 / z; // keep outline thin regardless of zoom
-      ctx.setLineDash([]); // Professional solid outline
+      const { box, handles, rotationHandle } = getTransformHandles(el, z);
 
-      if (el.type === 'image') {
-        ctx.strokeRect(el.x - 2, el.y - 2, el.w + 4, el.h + 4);
-        ctx.fillStyle = '#6366f1';
-        ctx.fillRect(el.x + el.w - 4, el.y + el.h - 4, 8, 8);
-      } else if (el.type === 'rect') {
-        const minX = Math.min(el.x, el.x + el.w), maxX = Math.max(el.x, el.x + el.w);
-        const minY = Math.min(el.y, el.y + el.h), maxY = Math.max(el.y, el.y + el.h);
-        ctx.strokeRect(minX - 4, minY - 4, (maxX - minX) + 8, (maxY - minY) + 8);
-      } else if (el.type === 'circle') {
-        const cx = el.x + el.w/2, cy = el.y + el.h/2;
-        const rx = Math.abs(el.w/2), ry = Math.abs(el.h/2);
-        ctx.strokeRect(cx - rx - 4, cy - ry - 4, (rx * 2) + 8, (ry * 2) + 8);
-      } else if (el.type === 'text') {
-        ctx.font = `${el.fontSize}px 'Outfit', sans-serif`;
-        const tw = ctx.measureText(el.text).width;
-        ctx.strokeRect(el.x - 4, el.y - el.fontSize, tw + 8, el.fontSize + 8);
-      } else if (el.type === 'arrow') {
-        const minX = Math.min(el.x, el.x2), maxX = Math.max(el.x, el.x2);
-        const minY = Math.min(el.y, el.y2), maxY = Math.max(el.y, el.y2);
-        ctx.strokeRect(minX - 8, minY - 8, (maxX - minX) + 16, (maxY - minY) + 16);
-      } else if (el.type === 'path' && el.points?.length) {
-        let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-        el.points.forEach(p => {
-          if (p.x < minX) minX = p.x;
-          if (p.x > maxX) maxX = p.x;
-          if (p.y < minY) minY = p.y;
-          if (p.y > maxY) maxY = p.y;
-        });
-        ctx.strokeRect(minX - 6, minY - 6, (maxX - minX) + 12, (maxY - minY) + 12);
+      ctx.save();
+      if (box.rotation) {
+        ctx.translate(box.cx, box.cy);
+        ctx.rotate(box.rotation);
+        ctx.translate(-box.cx, -box.cy);
       }
+
+      // Solid bounding outline in signature indigo
+      ctx.strokeStyle = '#6366f1';
+      ctx.lineWidth   = 1.5 / z;
+      ctx.setLineDash([]);
+      ctx.strokeRect(box.x, box.y, box.w, box.h);
+
+      // Rotation stem line from top edge up to rotation handle
+      ctx.beginPath();
+      ctx.moveTo(box.cx, box.y);
+      ctx.lineTo(box.cx, box.y - 20 / z);
+      ctx.strokeStyle = '#818cf8';
+      ctx.lineWidth = 1 / z;
+      ctx.stroke();
+
+      // Rotation handle (top circle with indigo accent)
+      ctx.fillStyle = '#6366f1';
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 1.5 / z;
+      ctx.beginPath();
+      ctx.arc(box.cx, box.y - 20 / z, 4.5 / z, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      // 8 Resize handles around perimeter (Crisp white squares with solid indigo border)
+      const hs = 7 / z;
+      handles.forEach(h => {
+        ctx.fillStyle = '#ffffff';
+        ctx.strokeStyle = '#4f46e5';
+        ctx.lineWidth = 1.5 / z;
+        ctx.fillRect(h.unrotX - hs / 2, h.unrotY - hs / 2, hs, hs);
+        ctx.strokeRect(h.unrotX - hs / 2, h.unrotY - hs / 2, hs, hs);
+      });
+
       ctx.restore();
     });
 
@@ -511,6 +555,39 @@ export default function WhiteboardEditor({ board, onClose, user }) {
     const pos = screenToWorld(e.clientX, e.clientY);
 
     if (tool === 'select') {
+      // ── 1. Check if clicking a transform handle on a selected element ──
+      const selectedEls = selectedIds.length > 0 ? selectedIds : (selectedId !== null ? [selectedId] : []);
+      for (const selIdx of selectedEls) {
+        const el = elements[selIdx];
+        if (!el) continue;
+        const handleHit = hitTestHandles(el, pos, zoomRef.current);
+        if (handleHit) {
+          // Start a transform drag (resize or rotate)
+          const { box } = getTransformHandles(el, zoomRef.current);
+          dragRef.current = {
+            idx: selIdx,
+            isResize: false,
+            startX: pos.x,
+            startY: pos.y,
+            movingIndices: [],
+            initialSnapshots: {},
+            origX: el.x, origY: el.y,
+            origW: el.w || 0, origH: el.h || 0,
+            origX2: el.x2, origY2: el.y2,
+            origPoints: null,
+            // Transform-specific
+            handleId: handleHit.handle.id,
+            isRotating: handleHit.type === 'rotate',
+            isResizing: handleHit.type === 'resize',
+            startAngle: Math.atan2(pos.y - box.cy, pos.x - box.cx),
+            startRotation: el.rotation || 0,
+            startBox: { ...box },
+          };
+          return;
+        }
+      }
+
+      // ── 2. Normal element hit-test (all types including frame) ──
       let hit = null;
       let hitResize = false;
       for (let i = elements.length - 1; i >= 0; i--) {
@@ -535,6 +612,8 @@ export default function WhiteboardEditor({ board, onClose, user }) {
             }
             hit = i; break;
           }
+        } else if (el.type === 'frame') {
+          if (hitTestElement(el, pos)) { hit = i; break; }
         } else if (el.type === 'text') {
           const fontSize = el.fontSize || 20;
           if (pos.x >= el.x - 4 && pos.x <= el.x + 240 && pos.y >= el.y - fontSize - 4 && pos.y <= el.y + 6) { hit = i; break; }
@@ -622,7 +701,7 @@ export default function WhiteboardEditor({ board, onClose, user }) {
 
     drawing.current = true;
     currentPath.current = [pos];
-    if (['rect', 'circle', 'arrow'].includes(tool)) liveShape.current = { startPt: pos, endPt: pos, tool };
+    if (['rect', 'circle', 'arrow', 'frame'].includes(tool)) liveShape.current = { startPt: pos, endPt: pos, tool };
   };
 
   const onMouseMove = (e) => {
@@ -653,13 +732,90 @@ export default function WhiteboardEditor({ board, onClose, user }) {
     // Dragging/moving selected elements
     if (tool === 'select' && dragRef.current) {
       const pos = screenToWorld(e.clientX, e.clientY);
-      const { idx, isResize, startX, startY, origW, origH, movingIndices, initialSnapshots } = dragRef.current;
+      const {
+        idx,
+        isResize,
+        isRotating,
+        isResizing,
+        handleId,
+        startX,
+        startY,
+        origX,
+        origY,
+        origW,
+        origH,
+        startAngle,
+        startRotation,
+        startBox,
+        movingIndices,
+        initialSnapshots
+      } = dragRef.current;
       const dx = pos.x - startX, dy = pos.y - startY;
 
+      // ── Handle Rotation ──
+      if (isRotating && idx !== null && startBox) {
+        const curAngle = Math.atan2(pos.y - startBox.cy, pos.x - startBox.cx);
+        let angleDelta = curAngle - startAngle;
+        let nextRot = startRotation + angleDelta;
+        // Snap to 15 degrees if Shift is held
+        if (e.shiftKey) {
+          const snapStep = Math.PI / 12; // 15 deg
+          nextRot = Math.round(nextRot / snapStep) * snapStep;
+        }
+        setElements(prev => prev.map((el, i) => i === idx ? { ...el, rotation: nextRot } : el));
+        return;
+      }
+
+      // ── Handle 8-Directional Resizing ──
+      if (isResizing && idx !== null && startBox) {
+        // Project dx, dy into element's local unrotated coordinate space
+        const rot = startRotation || 0;
+        const cos = Math.cos(-rot);
+        const sin = Math.sin(-rot);
+        const localDx = dx * cos - dy * sin;
+        const localDy = dx * sin + dy * cos;
+
+        setElements(prev => prev.map((el, i) => {
+          if (i !== idx) return el;
+          let newX = origX, newY = origY, newW = origW, newH = origH;
+
+          // Adjust based on handle
+          if (handleId.includes('e')) newW = Math.max(20, origW + localDx);
+          if (handleId.includes('s')) newH = Math.max(20, origH + localDy);
+          if (handleId.includes('w')) {
+            const potentialW = origW - localDx;
+            if (potentialW >= 20) {
+              newW = potentialW;
+              newX = origX + localDx * Math.cos(rot);
+              newY = origY + localDx * Math.sin(rot);
+            }
+          }
+          if (handleId.includes('n')) {
+            const potentialH = origH - localDy;
+            if (potentialH >= 20) {
+              newH = potentialH;
+              newX = newX - localDy * Math.sin(rot);
+              newY = newY + localDy * Math.cos(rot);
+            }
+          }
+
+          // If circle, keep 1:1 aspect ratio
+          if (el.type === 'circle') {
+            const s = Math.max(newW, newH);
+            newW = s;
+            newH = s;
+          }
+
+          return { ...el, x: newX, y: newY, w: newW, h: newH };
+        }));
+        return;
+      }
+
+      // Legacy fallback image resize
       if (isResize && idx !== null) {
         setElements(prev => prev.map((el, i) => {
           if (i !== idx) return el;
-          const ratio = origW / origH;
+          const ratio = (origW && origH) ? origW / origH : 1;
           const newW = Math.max(20, origW + dx);
           const newH = newW / ratio;
           return { ...el, w: newW, h: newH };
@@ -709,7 +865,7 @@ export default function WhiteboardEditor({ board, onClose, user }) {
         const hits = [];
         elements.forEach((el, i) => {
           let elMinX = el.x, elMaxX = el.x, elMinY = el.y, elMaxY = el.y;
-          if (el.type === 'image' || el.type === 'rect') {
+          if (el.type === 'image' || el.type === 'rect' || el.type === 'frame') {
             elMinX = Math.min(el.x, el.x + (el.w || 0));
             elMaxX = Math.max(el.x, el.x + (el.w || 0));
             elMinY = Math.min(el.y, el.y + (el.h || 0));
@@ -766,6 +922,12 @@ export default function WhiteboardEditor({ board, onClose, user }) {
       newEl = { type: 'circle', x: startPt.x, y: startPt.y, w: endPt.x - startPt.x, h: endPt.y - startPt.y, color, size: strokeSize };
     } else if (tool === 'arrow') {
       newEl = { type: 'arrow', x: startPt.x, y: startPt.y, x2: endPt.x, y2: endPt.y, color, size: strokeSize };
+    } else if (tool === 'frame') {
+      const minX = Math.min(startPt.x, endPt.x);
+      const minY = Math.min(startPt.y, endPt.y);
+      const w = Math.abs(endPt.x - startPt.x);
+      const h = Math.abs(endPt.y - startPt.y);
+      newEl = { type: 'frame', x: minX, y: minY, w, h, color: '#6366f1', size: 2, title: 'Frame' };
     }
     if (newEl) { const next = [...elements, newEl]; setElements(next); commitToHistory(next); }
     currentPath.current = [];
@@ -1411,6 +1573,10 @@ export default function WhiteboardEditor({ board, onClose, user }) {
         setSelectedIds([]);
       } else if (key === 'a') {
         setTool('arrow');
+        setSelectedId(null);
+        setSelectedIds([]);
+      } else if (key === 'f') {
+        setTool('frame');
         setSelectedId(null);
         setSelectedIds([]);
       } else if (key === 't' || key === '4') {

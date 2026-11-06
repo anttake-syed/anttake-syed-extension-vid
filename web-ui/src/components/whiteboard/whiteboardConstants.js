@@ -5,16 +5,17 @@ export function generateDefaultName() {
 }
 
 export const TOOLS = [
-  { id: 'select',  icon: 'near_me',                label: 'Select', shortcut: 'V' },
-  { id: 'pan',     icon: 'pan_tool',               label: 'Pan',    shortcut: 'H' },
-  { id: 'pen',     icon: 'edit',                   label: 'Pen',    shortcut: 'P' },
-  { id: 'text',    icon: 'title',                  label: 'Text',   shortcut: 'T' },
-  { id: 'rect',    icon: 'crop_square',            label: 'Rect',   shortcut: 'R' },
-  { id: 'circle',  icon: 'radio_button_unchecked', label: 'Circle', shortcut: 'O' },
-  { id: 'arrow',   icon: 'arrow_right_alt',        label: 'Arrow',  shortcut: 'A' },
-  { id: 'eraser',  icon: 'ink_eraser',             label: 'Eraser', shortcut: 'E' },
-  { id: 'image',   icon: 'image',                  label: 'Image'   },
-  { id: 'video',   icon: 'videocam',               label: 'Video'   },
+  { id: 'select',  icon: 'near_me',                label: 'Select' },
+  { id: 'pan',     icon: 'pan_tool',               label: 'Pan'    },
+  { id: 'frame',   icon: 'crop_free',              label: 'Frame'  },
+  { id: 'pen',     icon: 'edit',                   label: 'Pen'    },
+  { id: 'text',    icon: 'title',                  label: 'Text'   },
+  { id: 'rect',    icon: 'crop_square',            label: 'Rect'   },
+  { id: 'circle',  icon: 'radio_button_unchecked', label: 'Circle' },
+  { id: 'arrow',   icon: 'arrow_right_alt',        label: 'Arrow'  },
+  { id: 'eraser',  icon: 'ink_eraser',             label: 'Eraser' },
+  { id: 'image',   icon: 'image',                  label: 'Image'  },
+  { id: 'video',   icon: 'videocam',               label: 'Video'  },
 ];
 
 export const COLORS = ['#f8fafc', '#f87171', '#fb923c', '#facc15', '#4ade80', '#60a5fa', '#a78bfa', '#f472b6', '#94a3b8'];

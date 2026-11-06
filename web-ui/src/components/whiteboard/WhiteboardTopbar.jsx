@@ -22,6 +22,7 @@ export default function WhiteboardTopbar({
   hasUnsavedChanges,
   handleClose,
   onOpenShare,
+  onOpenShortcuts,
 }) {
   return (
     <div className="wb-topbar">
@@ -95,6 +96,17 @@ export default function WhiteboardTopbar({
           </button>
           <button onClick={handleRedo} title="Redo" aria-label="Redo" className="wb-action-btn">
             <span className="material-symbols-rounded" style={{ fontSize: '16px' }}>redo</span>
+          </button>
+
+          {/* Keyboard Shortcuts button */}
+          <button
+            onClick={onOpenShortcuts}
+            title="Keyboard Shortcuts & Gestures (?)"
+            aria-label="Keyboard Shortcuts"
+            className="wb-action-btn"
+          >
+            <span className="material-symbols-rounded" style={{ fontSize: '16px' }}>keyboard</span>
+            <span className="hide-below-md" style={{ fontSize: '12px', fontWeight: 600 }}>Shortcuts</span>
           </button>
 
           {/* Share button */}

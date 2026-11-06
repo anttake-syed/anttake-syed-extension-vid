@@ -10,6 +10,7 @@ import WhiteboardShareModal from './whiteboard/WhiteboardShareModal.jsx';
 import WhiteboardContextMenu from './whiteboard/WhiteboardContextMenu.jsx';
 import WhiteboardExitModal from './whiteboard/WhiteboardExitModal.jsx';
 import WhiteboardTextPromptModal from './whiteboard/WhiteboardTextPromptModal.jsx';
+import WhiteboardShortcutsModal from './whiteboard/WhiteboardShortcutsModal.jsx';
 import { TOOLS, COLORS, SIZES, generateDefaultName } from './whiteboard/whiteboardConstants.js';
 
 // ── Main WhiteboardEditor ────────────────────────────────────
@@ -33,6 +34,8 @@ export default function WhiteboardEditor({ board, onClose, user }) {
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [showExitModal, setShowExitModal] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
+  const [showShortcutsModal, setShowShortcutsModal] = useState(false);
+  const [isSpacePressed, setIsSpacePressed] = useState(false);
   const [zoom, setZoom]                   = useState(1);
   const [panOffset, setPanOffset]         = useState({ x: 0, y: 0 });
   const [boardStateItemId, setBoardStateItemId] = useState(null);
@@ -46,7 +49,7 @@ export default function WhiteboardEditor({ board, onClose, user }) {
   const currentPath       = useRef([]);
   const liveShape         = useRef(null);
   const dragRef           = useRef(null);
-  const panDragRef        = useRef(null); // for pan tool
+  const panDragRef        = useRef(null); // for pan tool or space/middle drag
   const marqueeRef        = useRef(null);
   const nameInputRef      = useRef(null);
   const boardStateItemIdRef = useRef(null);
@@ -55,6 +58,10 @@ export default function WhiteboardEditor({ board, onClose, user }) {
   const nameCommittedRef  = useRef(false);
   const zoomRef           = useRef(zoom);
   const panOffsetRef      = useRef(panOffset);
+  const activePointersRef = useRef(new Map()); // id -> { clientX, clientY }
+  const pinchStartDistRef = useRef(null);
+  const pinchStartZoomRef = useRef(1);
+  const spacePressedRef   = useRef(false);
 
   // Keep refs in sync for use in event handlers
   useEffect(() => { zoomRef.current = zoom; }, [zoom]);
@@ -441,35 +448,67 @@ export default function WhiteboardEditor({ board, onClose, user }) {
     return () => obs.disconnect();
   }, [redraw]);
 
-  // Mousewheel zoom (Ctrl+wheel or pinch)
+  // Touchpad & Mouse wheel: smooth pan or zoom (Ctrl+wheel / pinch)
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const onWheel = (e) => {
+      e.preventDefault();
       if (e.ctrlKey || e.metaKey) {
-        e.preventDefault();
-        const delta = -e.deltaY * 0.001;
-        setZoom(z => Math.min(4, Math.max(0.1, z + delta * z)));
+        // Pinch-to-zoom on touchpad OR Ctrl+Scroll on mouse
+        const delta = -e.deltaY * 0.002;
+        const currentZ = zoomRef.current;
+        const newZ = Math.min(4, Math.max(0.1, currentZ + delta * currentZ));
+        
+        // Zoom towards mouse cursor position
+        const rect = canvas.getBoundingClientRect();
+        const cursorX = e.clientX - rect.left;
+        const cursorY = e.clientY - rect.top;
+        const currentPan = panOffsetRef.current;
+        
+        const scaleChange = newZ / currentZ;
+        const newPan = {
+          x: cursorX - (cursorX - currentPan.x) * scaleChange,
+          y: cursorY - (cursorY - currentPan.y) * scaleChange,
+        };
+        
+        setZoom(newZ);
+        setPanOffset(newPan);
+      } else {
+        // Two-finger scroll on trackpad OR shift-wheel panning
+        const dx = e.shiftKey ? -e.deltaY : -e.deltaX;
+        const dy = e.shiftKey ? 0 : -e.deltaY;
+        const newPan = {
+          x: panOffsetRef.current.x + dx,
+          y: panOffsetRef.current.y + dy,
+        };
+        setPanOffset(newPan);
+        panOffsetRef.current = newPan;
+        redraw();
       }
     };
     canvas.addEventListener('wheel', onWheel, { passive: false });
     return () => canvas.removeEventListener('wheel', onWheel);
-  }, []);
+  }, [redraw]);
 
-  // ── Mouse Events ─────────────────────────────────────────
+  // ── Mouse & Pointer Events ───────────────────────────────
   const onMouseDown = (e) => {
     setContextMenu(null);
-    if (e.button !== 0) return;
-    const pos = screenToWorld(e.clientX, e.clientY);
+    const isMiddle = e.button === 1;
+    const isSpacePan = spacePressedRef.current && e.button === 0;
 
-    // ── Pan tool ──
-    if (tool === 'pan') {
+    // Pan via pan tool, middle-click drag, or Spacebar+left click drag
+    if (tool === 'pan' || isMiddle || isSpacePan) {
+      if (isMiddle) e.preventDefault();
       panDragRef.current = {
         startClient: { x: e.clientX, y: e.clientY },
         startPan: { ...panOffsetRef.current },
       };
       return;
     }
+
+    if (e.button !== 0) return;
+    const pos = screenToWorld(e.clientX, e.clientY);
 
     if (tool === 'select') {
       let hit = null;
@@ -587,8 +626,8 @@ export default function WhiteboardEditor({ board, onClose, user }) {
   };
 
   const onMouseMove = (e) => {
-    // Pan tool dragging
-    if (tool === 'pan' && panDragRef.current) {
+    // Pan dragging (pan tool, space+drag, middle-click, or touch)
+    if (panDragRef.current) {
       const dx = e.clientX - panDragRef.current.startClient.x;
       const dy = e.clientY - panDragRef.current.startClient.y;
       const newPan = {
@@ -650,7 +689,7 @@ export default function WhiteboardEditor({ board, onClose, user }) {
 
   const onMouseUp = (e) => {
     // Finish pan
-    if (tool === 'pan') {
+    if (panDragRef.current) {
       panDragRef.current = null;
       return;
     }
@@ -731,6 +770,92 @@ export default function WhiteboardEditor({ board, onClose, user }) {
     if (newEl) { const next = [...elements, newEl]; setElements(next); commitToHistory(next); }
     currentPath.current = [];
     redraw();
+  };
+
+  // ── Multi-Touch Events (Touchscreen, iPad, Mobile) ────────
+  const onTouchStart = (e) => {
+    setContextMenu(null);
+    if (e.touches.length === 2) {
+      // 2-finger gesture: Pan & Pinch-to-zoom
+      if (drawing.current) {
+        drawing.current = false;
+        currentPath.current = [];
+        liveShape.current = null;
+        redraw();
+      }
+      const t1 = e.touches[0];
+      const t2 = e.touches[1];
+      const dist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+      const midX = (t1.clientX + t2.clientX) / 2;
+      const midY = (t1.clientY + t2.clientY) / 2;
+      pinchStartDistRef.current = dist;
+      pinchStartZoomRef.current = zoomRef.current;
+      panDragRef.current = {
+        startClient: { x: midX, y: midY },
+        startPan: { ...panOffsetRef.current },
+      };
+      return;
+    }
+
+    if (e.touches.length === 1) {
+      const t = e.touches[0];
+      onMouseDown({
+        clientX: t.clientX,
+        clientY: t.clientY,
+        button: 0,
+        shiftKey: false,
+        preventDefault: () => {},
+      });
+    }
+  };
+
+  const onTouchMove = (e) => {
+    if (e.touches.length === 2) {
+      const t1 = e.touches[0];
+      const t2 = e.touches[1];
+      const dist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+      const midX = (t1.clientX + t2.clientX) / 2;
+      const midY = (t1.clientY + t2.clientY) / 2;
+
+      // Handle pinch zoom
+      if (pinchStartDistRef.current && dist > 10) {
+        const factor = dist / pinchStartDistRef.current;
+        const newZ = Math.min(4, Math.max(0.1, pinchStartZoomRef.current * factor));
+        setZoom(parseFloat(newZ.toFixed(2)));
+      }
+
+      // Handle two-finger pan
+      if (panDragRef.current) {
+        const dx = midX - panDragRef.current.startClient.x;
+        const dy = midY - panDragRef.current.startClient.y;
+        const newPan = {
+          x: panDragRef.current.startPan.x + dx,
+          y: panDragRef.current.startPan.y + dy,
+        };
+        setPanOffset(newPan);
+        panOffsetRef.current = newPan;
+        redraw();
+      }
+      return;
+    }
+
+    if (e.touches.length === 1 && !pinchStartDistRef.current) {
+      const t = e.touches[0];
+      onMouseMove({
+        clientX: t.clientX,
+        clientY: t.clientY,
+      });
+    }
+  };
+
+  const onTouchEnd = (e) => {
+    if (e.touches.length < 2) {
+      pinchStartDistRef.current = null;
+    }
+    if (e.touches.length === 0) {
+      panDragRef.current = null;
+      onMouseUp(e);
+    }
   };
 
   // Right-click context menu
@@ -920,6 +1045,96 @@ export default function WhiteboardEditor({ board, onClose, user }) {
   const handleZoomOut = () => setZoom(z => Math.max(0.1, parseFloat((z - 0.25).toFixed(2))));
   const handleZoomReset = () => { setZoom(1); setPanOffset({ x: 0, y: 0 }); };
 
+  const handleDuplicateSelected = () => {
+    const targets = selectedIds.length > 0 ? selectedIds : (selectedId !== null ? [selectedId] : []);
+    if (targets.length === 0) return;
+    const offset = 24;
+    const duplicated = [];
+    const newIndices = [];
+
+    targets.forEach((idx) => {
+      const el = elements[idx];
+      if (!el) return;
+      let dup = { ...el };
+      if (dup.type === 'path' && dup.points) {
+        dup.points = dup.points.map(p => ({ x: p.x + offset, y: p.y + offset }));
+      } else if (dup.type === 'arrow') {
+        dup.x += offset; dup.y += offset;
+        dup.x2 += offset; dup.y2 += offset;
+      } else {
+        dup.x = (dup.x || 0) + offset;
+        dup.y = (dup.y || 0) + offset;
+      }
+      newIndices.push(elements.length + duplicated.length);
+      duplicated.push(dup);
+    });
+
+    if (duplicated.length > 0) {
+      const next = [...elements, ...duplicated];
+      setElements(next);
+      commitToHistory(next);
+      setSelectedIds(newIndices);
+      setSelectedId(newIndices[newIndices.length - 1]);
+    }
+  };
+
+  const handleZoomToFit = () => {
+    if (elements.length === 0) {
+      handleZoomReset();
+      return;
+    }
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    elements.forEach(el => {
+      if (el.type === 'image' || el.type === 'rect') {
+        minX = Math.min(minX, el.x); maxX = Math.max(maxX, el.x + (el.w || 0));
+        minY = Math.min(minY, el.y); maxY = Math.max(maxY, el.y + (el.h || 0));
+      } else if (el.type === 'circle') {
+        const rx = Math.abs((el.w || 0) / 2), ry = Math.abs((el.h || 0) / 2);
+        const cx = el.x + (el.w || 0) / 2, cy = el.y + (el.h || 0) / 2;
+        minX = Math.min(minX, cx - rx); maxX = Math.max(maxX, cx + rx);
+        minY = Math.min(minY, cy - ry); maxY = Math.max(maxY, cy + ry);
+      } else if (el.type === 'arrow') {
+        minX = Math.min(minX, el.x, el.x2); maxX = Math.max(maxX, el.x, el.x2);
+        minY = Math.min(minY, el.y, el.y2); maxY = Math.max(maxY, el.y, el.y2);
+      } else if (el.type === 'text') {
+        minX = Math.min(minX, el.x); maxX = Math.max(maxX, el.x + 160);
+        minY = Math.min(minY, el.y - (el.fontSize || 20)); maxY = Math.max(maxY, el.y);
+      } else if (el.type === 'path' && el.points?.length) {
+        el.points.forEach(p => {
+          minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x);
+          minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y);
+        });
+      }
+    });
+
+    if (!isFinite(minX) || !isFinite(maxX)) {
+      handleZoomReset();
+      return;
+    }
+
+    const boxW = Math.max(50, maxX - minX);
+    const boxH = Math.max(50, maxY - minY);
+    const pad = 60;
+    const availW = canvas.width - pad * 2;
+    const availH = canvas.height - pad * 2;
+
+    const newZoom = Math.min(2.5, Math.max(0.15, Math.min(availW / boxW, availH / boxH)));
+    const centerX = (minX + maxX) / 2;
+    const centerY = (minY + maxY) / 2;
+
+    const newPan = {
+      x: canvas.width / 2 - centerX * newZoom,
+      y: canvas.height / 2 - centerY * newZoom,
+    };
+
+    setZoom(parseFloat(newZoom.toFixed(2)));
+    setPanOffset(newPan);
+    panOffsetRef.current = newPan;
+  };
+
   const commitTextPrompt = () => {
     const text = textPromptValue.trim();
     if (text && textPrompt) {
@@ -1047,6 +1262,192 @@ export default function WhiteboardEditor({ board, onClose, user }) {
     return () => clearTimeout(timer);
   }, [hasUnsavedChanges, elements, board?.id, user?.jwt, handleSave]);
 
+  // ── Keyboard Shortcuts (Standard Canvas / Figma / Miro shortcuts) ──
+  useEffect(() => {
+    const onKeyDown = (e) => {
+      // Don't intercept if user is typing in an input, textarea, or contentEditable
+      const target = e.target;
+      if (
+        target &&
+        (target.tagName === 'INPUT' ||
+         target.tagName === 'TEXTAREA' ||
+         target.isContentEditable)
+      ) {
+        return;
+      }
+
+      const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+      const cmdOrCtrl = isMac ? e.metaKey : e.ctrlKey;
+      const key = e.key.toLowerCase();
+
+      // Help Modal: ?
+      if (e.key === '?' || (e.shiftKey && e.key === '/')) {
+        e.preventDefault();
+        setShowShortcutsModal(prev => !prev);
+        return;
+      }
+
+      // Spacebar hold for temporary hand / pan tool
+      if (e.code === 'Space' && !e.repeat && !spacePressedRef.current) {
+        e.preventDefault();
+        spacePressedRef.current = true;
+        setIsSpacePressed(true);
+        return;
+      }
+
+      // Undo: Ctrl/Cmd + Z (without shift)
+      if (cmdOrCtrl && key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        handleUndo();
+        return;
+      }
+
+      // Redo: Ctrl/Cmd + Y OR Ctrl/Cmd + Shift + Z
+      if ((cmdOrCtrl && key === 'y') || (cmdOrCtrl && e.shiftKey && key === 'z')) {
+        e.preventDefault();
+        handleRedo();
+        return;
+      }
+
+      // Save: Ctrl/Cmd + S
+      if (cmdOrCtrl && key === 's') {
+        e.preventDefault();
+        handleSave(false);
+        return;
+      }
+
+      // Select All: Ctrl/Cmd + A
+      if (cmdOrCtrl && key === 'a') {
+        e.preventDefault();
+        if (elements.length > 0) {
+          setSelectedIds(elements.map((_, i) => i));
+          setSelectedId(elements.length - 1);
+        }
+        return;
+      }
+
+      // Duplicate: Ctrl/Cmd + D
+      if (cmdOrCtrl && key === 'd') {
+        e.preventDefault();
+        handleDuplicateSelected();
+        return;
+      }
+
+      // Zoom In: Ctrl/Cmd + '+' or '='
+      if (cmdOrCtrl && (e.key === '+' || e.key === '=')) {
+        e.preventDefault();
+        handleZoomIn();
+        return;
+      }
+
+      // Zoom Out: Ctrl/Cmd + '-'
+      if (cmdOrCtrl && e.key === '-') {
+        e.preventDefault();
+        handleZoomOut();
+        return;
+      }
+
+      // Reset Zoom: Ctrl/Cmd + '0'
+      if (cmdOrCtrl && e.key === '0') {
+        e.preventDefault();
+        handleZoomReset();
+        return;
+      }
+
+      // Zoom to Fit: Shift + 1 or Ctrl/Cmd + 9
+      if ((e.shiftKey && e.key === '1') || (cmdOrCtrl && e.key === '9')) {
+        e.preventDefault();
+        handleZoomToFit();
+        return;
+      }
+
+      // Delete / Backspace: Delete selected
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        e.preventDefault();
+        handleDeleteSelected();
+        return;
+      }
+
+      // Escape: Deselect, close modals, or switch to select tool
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setShowShortcutsModal(false);
+        setShowTemplateModal(false);
+        setShowLibrary('none');
+        setTextPrompt(null);
+        setContextMenu(null);
+        if (selectedIds.length > 0 || selectedId !== null) {
+          setSelectedId(null);
+          setSelectedIds([]);
+        } else {
+          setTool('select');
+        }
+        return;
+      }
+
+      // Ignore single-key shortcuts if Cmd/Ctrl or Alt is held
+      if (cmdOrCtrl || e.altKey) return;
+
+      // Tool Switching Shortcuts
+      if (key === 'v' || key === '1') {
+        setTool('select');
+      } else if (key === 'h') {
+        setTool('pan');
+      } else if (key === 'p' || key === '2') {
+        setTool('pen');
+        setSelectedId(null);
+        setSelectedIds([]);
+      } else if (key === 'e') {
+        setTool('eraser');
+        setSelectedId(null);
+        setSelectedIds([]);
+      } else if (key === 'r' || key === '3') {
+        setTool('rect');
+        setSelectedId(null);
+        setSelectedIds([]);
+      } else if (key === 'o' || key === 'c') {
+        setTool('circle');
+        setSelectedId(null);
+        setSelectedIds([]);
+      } else if (key === 'a') {
+        setTool('arrow');
+        setSelectedId(null);
+        setSelectedIds([]);
+      } else if (key === 't' || key === '4') {
+        setTool('text');
+        setSelectedId(null);
+        setSelectedIds([]);
+      }
+    };
+
+    const onKeyUp = (e) => {
+      if (e.code === 'Space') {
+        spacePressedRef.current = false;
+        setIsSpacePressed(false);
+      }
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('keyup', onKeyUp);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keyup', onKeyUp);
+    };
+  }, [
+    elements,
+    selectedId,
+    selectedIds,
+    handleUndo,
+    handleRedo,
+    handleSave,
+    handleDeleteSelected,
+    handleDuplicateSelected,
+    handleZoomIn,
+    handleZoomOut,
+    handleZoomReset,
+    handleZoomToFit,
+  ]);
+
   const handleClose = async () => {
     if (hasUnsavedChanges) {
       setShowExitModal(true);
@@ -1056,7 +1457,7 @@ export default function WhiteboardEditor({ board, onClose, user }) {
   };
 
   const getCursor = () => {
-    if (tool === 'pan')    return panDragRef.current ? 'grabbing' : 'grab';
+    if (tool === 'pan' || isSpacePressed) return panDragRef.current ? 'grabbing' : 'grab';
     if (tool === 'select') return 'default';
     if (tool === 'eraser') return 'cell';
     if (tool === 'text')   return 'text';
@@ -1088,6 +1489,7 @@ export default function WhiteboardEditor({ board, onClose, user }) {
         hasUnsavedChanges={hasUnsavedChanges}
         handleClose={handleClose}
         onOpenShare={() => setShowShareModal(true)}
+        onOpenShortcuts={() => setShowShortcutsModal(true)}
       />
 
       {(loadError || saveError) && (
@@ -1130,11 +1532,15 @@ export default function WhiteboardEditor({ board, onClose, user }) {
 
           <canvas
             ref={canvasRef}
-            style={{ display: 'block', width: '100%', height: '100%', cursor: getCursor() }}
+            style={{ display: 'block', width: '100%', height: '100%', cursor: getCursor(), touchAction: 'none' }}
             onMouseDown={onMouseDown}
             onMouseMove={onMouseMove}
             onMouseUp={onMouseUp}
             onMouseLeave={onMouseUp}
+            onTouchStart={onTouchStart}
+            onTouchMove={onTouchMove}
+            onTouchEnd={onTouchEnd}
+            onTouchCancel={onTouchEnd}
             onContextMenu={onContextMenu}
           />
         </div>
@@ -1187,6 +1593,12 @@ export default function WhiteboardEditor({ board, onClose, user }) {
           onClose={() => setShowShareModal(false)}
         />
       )}
+
+      {/* Whiteboard Shortcuts & Gestures Modal */}
+      <WhiteboardShortcutsModal
+        isOpen={showShortcutsModal}
+        onClose={() => setShowShortcutsModal(false)}
+      />
 
       {/* Whiteboard Starter Templates Modal */}
       <WhiteboardTemplateModal

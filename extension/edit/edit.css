@@ -294,37 +294,109 @@ label {
   animation: spin 1.5s linear infinite;
 }
 
-/* ── Responsive layout ──────────────────────────────────────────────────────
-   Below this, the fixed 360px sidebar next to the preview no longer fits
-   comfortably side-by-side. Stack them instead of letting either clip:
-   the preview keeps a reasonable minimum height, and the sidebar becomes
-   its own scroll region sized to whatever's left, so every control
-   (including the auth panel) stays reachable regardless of window size. */
-@media (max-width: 760px), (max-height: 560px) {
+/* ── Responsive Layout & Multi-device Support (Mobile, Tablet/iPad, Desktop, Ultrawide) ── */
+
+/* Tablets, iPads, and small laptop screens (<= 1024px) */
+@media (max-width: 1024px) {
+  .sidebar {
+    width: 320px;
+    min-width: 320px;
+    padding: 18px 16px;
+    gap: 16px;
+  }
+  .main-content {
+    padding: 20px;
+  }
+}
+
+/* Vertical Stacking for Tablets in Portrait & Mobile screens (<= 840px, or height constrained) */
+@media (max-width: 840px), (max-height: 640px) {
   body {
-    flex-direction: column-reverse; /* preview stays visually first, sidebar below it */
+    flex-direction: column-reverse; /* Preview on top, controls below */
+    height: 100vh;
+    height: 100dvh; /* modern dynamic viewport height */
   }
 
   .sidebar {
     width: 100%;
     min-width: 0;
     height: auto;
-    max-height: 60vh;
+    max-height: 54vh;
+    max-height: 54dvh;
     flex-shrink: 0;
     box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.5);
     border-left: none;
-    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    padding: 16px 18px;
+    gap: 14px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
   }
 
   .main-content {
     height: auto;
     flex: 1;
-    min-height: 160px;
+    min-height: 200px;
     padding: 16px;
   }
 
   .media-container {
+    min-height: 180px;
+  }
+}
+
+/* Mobile Handheld Screens (<= 480px, iPhones, Androids) */
+@media (max-width: 480px) {
+  .sidebar {
+    padding: 14px 12px;
+    gap: 12px;
+    max-height: 58vh;
+    max-height: 58dvh;
+  }
+
+  .main-content {
+    padding: 10px;
     min-height: 160px;
+  }
+
+  .media-container {
+    min-height: 150px;
+    border-radius: 8px;
+  }
+
+  .save-btn {
+    padding: 10px 12px !important;
+    font-size: 13px !important;
+  }
+
+  .save-btn span.material-symbols-rounded {
+    font-size: 18px !important;
+  }
+
+  .sidebar-hero {
+    padding: 12px 10px !important;
+  }
+
+  .hero-title {
+    font-size: 16px !important;
+  }
+
+  .report-issue-btn {
+    padding: 7px 10px !important;
+    font-size: 11px !important;
+  }
+}
+
+/* Ultrawide & 4K screens (>= 1800px) */
+@media (min-width: 1800px) {
+  .sidebar {
+    width: 400px;
+    min-width: 400px;
+    padding: 32px 28px;
+    gap: 24px;
+  }
+  .main-content {
+    padding: 48px;
   }
 }
 

@@ -1302,10 +1302,17 @@ exports.getStorageAndUserAnalytics = async (req, res) => {
       const boardCount     = Number(u.boardCount     || 0);
       const boardItemCount = Number(u.boardItemCount || 0);
 
-      // Cross-check against Usage table (may include Drive files or deleted captures)
+      // Cross-check: Usage table values (may include deleted captures — additive
+      // counter, never decremented on delete). Use totalFromSql as the authoritative
+      // current storage figure; keep rawCloud/rawDrive as reference-only fields so
+      // the admin can spot large discrepancies but they don't inflate the display.
       const rawCloud = Number.isFinite(Number(usage?.cloudBytes)) ? Number(usage.cloudBytes) : 0;
       const rawDrive = Number.isFinite(Number(usage?.driveBytes)) ? Number(usage.driveBytes) : 0;
-      const bytesUsed = Math.max(totalFromSql, rawCloud + rawDrive);
+      // totalFromSql is accurate: it JOINs only currently-stored StorageObjects.
+      // Math.max was removed because rawCloud accumulates historically and can be
+      // far higher than actual live usage, causing the admin row to show e.g. 15 MB
+      // instead of the real 2.5 MB.
+      const bytesUsed = totalFromSql;
 
       return {
         id: u.id, email: u.email, name: u.name, role: u.role,

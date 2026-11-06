@@ -9,6 +9,7 @@ export default function WhiteboardShortcutsModal({ isOpen, onClose }) {
       items: [
         { keys: ['V', '1'], label: 'Select tool' },
         { keys: ['H', 'Space'], label: 'Hand / Pan tool' },
+        { keys: ['F'], label: 'Frame (Group Container)' },
         { keys: ['P', '2'], label: 'Pen / Draw' },
         { keys: ['E'], label: 'Eraser' },
         { keys: ['R', '3'], label: 'Rectangle' },

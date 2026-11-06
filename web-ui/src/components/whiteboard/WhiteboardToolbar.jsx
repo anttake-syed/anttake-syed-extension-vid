@@ -15,7 +15,7 @@ export default function WhiteboardToolbar({
           return (
             <button
               key={t.id}
-              title={t.shortcut ? `${t.label} (${t.shortcut})` : t.label}
+              title={t.label}
               onClick={() => onToolClick(t.id)}
               className="wb-tool-btn"
               data-active={active}
@@ -23,7 +23,6 @@ export default function WhiteboardToolbar({
             >
               <span className="material-symbols-rounded">{t.icon}</span>
               <span className="wb-tool-label">{t.label}</span>
-              {t.shortcut && <span className="wb-tool-shortcut-badge hide-below-sm">{t.shortcut}</span>}
             </button>
           );
         })}

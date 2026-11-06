@@ -694,12 +694,18 @@ export default function App() {
 
         {/* ── Page Content ── */}
         {activeBoard ? (
-          <WhiteboardEditor board={activeBoard} onClose={() => { 
-            setActiveBoard(null);
-            const targetPath = NAV_TO_PATH[activeNav] || '/';
-            window.history.pushState(null, '', targetPath);
-            setWbRefreshKey(k => k + 1); 
-          }} user={user} />
+          <WhiteboardEditor
+            board={activeBoard}
+            onClose={() => { 
+              setActiveBoard(null);
+              const targetPath = NAV_TO_PATH[activeNav] || '/';
+              window.history.pushState(null, '', targetPath);
+              setWbRefreshKey(k => k + 1); 
+            }}
+            user={user}
+            hasCloudAccess={hasCloudAccess}
+            entitlements={entitlements}
+          />
         ) : activeNav === 'Settings' && isAuthenticated ? (
           <Settings user={user} captures={captures} dbStats={dbStats} onNameUpdate={handleNameUpdate} onDeleteAllCaptures={handleDeleteAllCaptures} onDeleteAccount={handleDeleteAccount} storagePreference={storagePreference} saveStoragePreference={saveStoragePreference} savingPref={savingPref} onManageSubscription={() => setActiveNav('Subscription')} />
         ) : activeNav === 'Subscription' && isAuthenticated ? (

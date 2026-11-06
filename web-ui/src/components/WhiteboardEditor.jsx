@@ -35,7 +35,7 @@ import {
 import { extractYouTubeVideoId, parsePastedUrl } from './whiteboard/whiteboardHelpers.js';
 
 // ── Main WhiteboardEditor ────────────────────────────────────
-export default function WhiteboardEditor({ board, onClose, user }) {
+export default function WhiteboardEditor({ board, onClose, user, hasCloudAccess, entitlements }) {
   const [boardName, setBoardName]         = useState(board?.name || generateDefaultName());
   const [editingName, setEditingName]     = useState(false);
   const [nameDraft, setNameDraft]         = useState(boardName);
@@ -158,35 +158,54 @@ export default function WhiteboardEditor({ board, onClose, user }) {
     };
   }, []);
 
-  // ── Canvas draw ──────────────────────────────────────────
+  const elementsRef       = useRef(elements);
+  const selectedIdRef     = useRef(selectedId);
+  const selectedIdsRef    = useRef(selectedIds);
+  const toolRef           = useRef(tool);
+  const colorRef          = useRef(color);
+  const strokeSizeRef     = useRef(strokeSize);
+
+  useEffect(() => { elementsRef.current = elements; }, [elements]);
+  useEffect(() => { selectedIdRef.current = selectedId; }, [selectedId]);
+  useEffect(() => { selectedIdsRef.current = selectedIds; }, [selectedIds]);
+  useEffect(() => { toolRef.current = tool; }, [tool]);
+  useEffect(() => { colorRef.current = color; }, [color]);
+  useEffect(() => { strokeSizeRef.current = strokeSize; }, [strokeSize]);
+
+  // ── Canvas draw (double-buffered drawing) ──────────────────────────────────
+  const drawCanvasNow = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    renderWhiteboardCanvas(ctx, canvas, {
+      elements: elementsRef.current,
+      zoom: zoomRef.current,
+      panOffset: panOffsetRef.current,
+      tool: toolRef.current,
+      color: colorRef.current,
+      strokeSize: strokeSizeRef.current,
+      selectedId: selectedIdRef.current,
+      selectedIds: selectedIdsRef.current,
+      currentPath: currentPath.current,
+      liveShape: liveShape.current,
+      marquee: marqueeRef.current,
+      drawing: drawing.current,
+    });
+  }, []);
+
   const redraw = useCallback(() => {
-    // Cancel any pending frame — we only want the latest snapshot drawn.
-    // This batches rapid zoom/pan/scroll events into one draw per display frame.
     if (redrawRafRef.current) cancelAnimationFrame(redrawRafRef.current);
     redrawRafRef.current = requestAnimationFrame(() => {
-      const canvas = canvasRef.current;
-      if (!canvas) return;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return;
-
-      renderWhiteboardCanvas(ctx, canvas, {
-        elements,
-        zoom: zoomRef.current,
-        panOffset: panOffsetRef.current,
-        tool,
-        color,
-        strokeSize,
-        selectedId,
-        selectedIds,
-        currentPath: currentPath.current,
-        liveShape: liveShape.current,
-        marquee: marqueeRef.current,
-        drawing: drawing.current,
-      });
+      redrawRafRef.current = null;
+      drawCanvasNow();
     });
-  }, [elements, color, strokeSize, tool, selectedId, selectedIds]);
+  }, [drawCanvasNow]);
 
-  useEffect(() => { redraw(); }, [redraw]);
+  useEffect(() => {
+    drawCanvasNow();
+  }, [elements, color, strokeSize, tool, selectedId, selectedIds, drawCanvasNow]);
 
   // Video animation loop
   useEffect(() => {
@@ -2014,6 +2033,8 @@ export default function WhiteboardEditor({ board, onClose, user }) {
           board={board}
           boardName={boardName}
           user={user}
+          hasCloudAccess={hasCloudAccess}
+          entitlements={entitlements}
           onClose={() => setShowShareModal(false)}
         />
       )}

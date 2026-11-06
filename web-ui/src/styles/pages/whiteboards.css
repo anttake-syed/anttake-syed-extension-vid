@@ -383,6 +383,7 @@
 
 .wb-tool-btn {
   width: 100%;
+  position: relative;
   background: none;
   border: 1px solid transparent;
   color: #94a3b8;
@@ -395,6 +396,25 @@
   gap: 2px;
   transition: all 0.14s ease;
   margin-bottom: 2px;
+}
+
+.wb-tool-shortcut-badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  font-size: 8px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 1px 3px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #64748b;
+  font-family: monospace;
+}
+
+.wb-tool-btn[data-active='true'] .wb-tool-shortcut-badge {
+  background: rgba(99, 102, 241, 0.4);
+  color: #e0e7ff;
 }
 
 .wb-tool-btn:hover:not([data-active='true']) {
@@ -648,6 +668,9 @@
   min-height: 0;
   overflow: hidden;
   position: relative;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 /* Phones: the tool rail becomes a horizontally scrolling bar under the

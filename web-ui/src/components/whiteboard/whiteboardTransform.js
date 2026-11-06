@@ -201,7 +201,7 @@ export function hitTestElement(el, pos) {
            unrot.y >= box.y && unrot.y <= box.y + box.h;
   }
 
-  if (el.type === 'rect' || el.type === 'image') {
+  if (el.type === 'rect' || el.type === 'image' || el.type === 'embed' || el.type === 'link') {
     return unrot.x >= box.x - 4 && unrot.x <= box.x + box.w + 4 &&
            unrot.y >= box.y - 4 && unrot.y <= box.y + box.h + 4;
   }

@@ -78,13 +78,28 @@ export default function WhiteboardContextBar({
         <div className="wb-context-section wb-context-selected-info">
           <span className="wb-context-pill">
             <span className="material-symbols-rounded" style={{ fontSize: '14px' }}>
-              {selectedElement.isVideo ? 'videocam' : selectedElement.type === 'image' ? 'image' : selectedElement.type === 'text' ? 'title' : selectedElement.type === 'frame' ? 'crop_free' : 'category'}
+              {selectedElement.type === 'embed' ? 'smart_display' : selectedElement.type === 'link' ? 'link' : selectedElement.isVideo ? 'videocam' : selectedElement.type === 'image' ? 'image' : selectedElement.type === 'text' ? 'title' : selectedElement.type === 'frame' ? 'crop_free' : 'category'}
             </span>
             <span>
-              {selectedElement.isVideo ? 'Video' : selectedElement.type === 'image' ? 'Image' : selectedElement.type === 'text' ? 'Text' : selectedElement.type === 'frame' ? (selectedElement.title || 'Frame') : selectedElement.type.toUpperCase()}
+              {selectedElement.type === 'embed' ? 'YouTube' : selectedElement.type === 'link' ? 'Link' : selectedElement.isVideo ? 'Video' : selectedElement.type === 'image' ? 'Image' : selectedElement.type === 'text' ? 'Text' : selectedElement.type === 'frame' ? (selectedElement.title || 'Frame') : selectedElement.type.toUpperCase()}
               {selectedCount > 1 ? ` (+${selectedCount - 1})` : ''}
             </span>
           </span>
+
+          {/* Direct Open Link action for embed or link */}
+          {(selectedElement.url || (selectedElement.type === 'embed' && selectedElement.videoId)) && (
+            <button
+              onClick={() => {
+                const target = selectedElement.url || `https://www.youtube.com/watch?v=${selectedElement.videoId}`;
+                window.open(target, '_blank', 'noopener,noreferrer');
+              }}
+              className="wb-context-icon-btn"
+              title="Open URL in new tab"
+              aria-label="Open URL in new tab"
+            >
+              <span className="material-symbols-rounded" style={{ fontSize: '16px' }}>open_in_new</span>
+            </button>
+          )}
 
           {/* Quick Rotate 90 degrees */}
           {['rect', 'circle', 'image', 'frame'].includes(selectedElement.type) && onUpdateSelectedElement && (

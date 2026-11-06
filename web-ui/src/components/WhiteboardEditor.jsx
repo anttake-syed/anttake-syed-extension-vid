@@ -23,6 +23,7 @@ import {
   drawHandDrawnCircle,
   drawHandDrawnArrow,
 } from './whiteboard/whiteboardTransform.js';
+import { extractYouTubeVideoId, parsePastedUrl } from './whiteboard/whiteboardHelpers.js';
 
 // ── Main WhiteboardEditor ────────────────────────────────────
 export default function WhiteboardEditor({ board, onClose, user }) {
@@ -54,6 +55,7 @@ export default function WhiteboardEditor({ board, onClose, user }) {
   const [textPrompt, setTextPrompt]       = useState(null);
   const [textPromptValue, setTextPromptValue] = useState('');
   const [mediaLoadError, setMediaLoadError] = useState(null);
+  const [activeVideoEmbedId, setActiveVideoEmbedId] = useState(null);
 
   const canvasRef         = useRef(null);
   const drawing           = useRef(false);
@@ -644,6 +646,8 @@ export default function WhiteboardEditor({ board, onClose, user }) {
             }
             hit = i; break;
           }
+        } else if (el.type === 'embed' || el.type === 'link') {
+          if (hitTestElement(el, pos)) { hit = i; break; }
         } else if (el.type === 'frame') {
           if (hitTestElement(el, pos)) { hit = i; break; }
         } else if (el.type === 'text') {
@@ -918,7 +922,7 @@ export default function WhiteboardEditor({ board, onClose, user }) {
         const hits = [];
         elements.forEach((el, i) => {
           let elMinX = el.x, elMaxX = el.x, elMinY = el.y, elMaxY = el.y;
-          if (el.type === 'image' || el.type === 'rect' || el.type === 'frame') {
+          if (el.type === 'image' || el.type === 'rect' || el.type === 'frame' || el.type === 'embed' || el.type === 'link') {
             elMinX = Math.min(el.x, el.x + (el.w || 0));
             elMaxX = Math.max(el.x, el.x + (el.w || 0));
             elMinY = Math.min(el.y, el.y + (el.h || 0));
@@ -1204,75 +1208,152 @@ export default function WhiteboardEditor({ board, onClose, user }) {
     handleDeleteSelected();
   };
 
-  const handlePasteAt = (worldPos = null) => {
-    if (!clipboardRef.current || !clipboardRef.current.elements?.length) return;
-    const items = clipboardRef.current.elements;
+  const handleInsertUrl = (urlStr, worldPos = null) => {
+    if (!urlStr) return;
+    const cleanUrl = parsePastedUrl(urlStr);
+    if (!cleanUrl) return;
 
-    // Determine offset
     let targetX, targetY;
     if (worldPos) {
       targetX = worldPos.x;
       targetY = worldPos.y;
+    } else {
+      const canvas = canvasRef.current;
+      const z = zoomRef.current || 1;
+      const pan = panOffsetRef.current || { x: 0, y: 0 };
+      const cw = canvas ? canvas.width : 800;
+      const ch = canvas ? canvas.height : 600;
+      targetX = (cw / 2 - pan.x) / z - 210;
+      targetY = (ch / 2 - pan.y) / z - 130;
     }
 
-    // Find bounding box center of copied items
-    let minX = Infinity, minY = Infinity;
-    items.forEach(el => {
-      const ex = el.x ?? 0;
-      const ey = el.y ?? 0;
-      if (ex < minX) minX = ex;
-      if (ey < minY) minY = ey;
-    });
+    const ytid = extractYouTubeVideoId(cleanUrl);
+    let newElement;
 
-    const offset = 24;
-    const pasted = [];
-    const newIndices = [];
+    if (ytid) {
+      newElement = {
+        type: 'embed',
+        embedType: 'youtube',
+        videoId: ytid,
+        url: cleanUrl,
+        title: 'YouTube Video',
+        x: Math.round(targetX),
+        y: Math.round(targetY),
+        w: 420,
+        h: 260,
+        rotation: 0,
+      };
+    } else {
+      let hostname = cleanUrl;
+      try {
+        hostname = new URL(cleanUrl).hostname;
+      } catch (_) {}
 
-    items.forEach(item => {
-      const clone = JSON.parse(JSON.stringify(item));
-      if (worldPos && minX !== Infinity && minY !== Infinity) {
-        const relX = (clone.x ?? 0) - minX;
-        const relY = (clone.y ?? 0) - minY;
-        clone.x = targetX + relX;
-        clone.y = targetY + relY;
-        if (clone.type === 'arrow' && clone.x2 !== undefined && clone.y2 !== undefined) {
-          const dx = clone.x2 - (item.x ?? 0);
-          const dy = clone.y2 - (item.y ?? 0);
-          clone.x2 = clone.x + dx;
-          clone.y2 = clone.y + dy;
-        }
-        if (clone.type === 'path' && clone.points) {
-          clone.points = clone.points.map(p => ({
-            x: p.x - minX + targetX,
-            y: p.y - minY + targetY,
-          }));
-        }
-      } else {
-        // Standard duplicate/paste offset
-        if (clone.type === 'path' && clone.points) {
-          clone.points = clone.points.map(p => ({ x: p.x + offset, y: p.y + offset }));
-        } else if (clone.type === 'arrow') {
-          clone.x = (clone.x ?? 0) + offset;
-          clone.y = (clone.y ?? 0) + offset;
-          clone.x2 = (clone.x2 ?? 0) + offset;
-          clone.y2 = (clone.y2 ?? 0) + offset;
+      newElement = {
+        type: 'link',
+        url: cleanUrl,
+        title: hostname,
+        x: Math.round(targetX),
+        y: Math.round(targetY),
+        w: 360,
+        h: 150,
+        rotation: 0,
+      };
+    }
+
+    const next = [...elements, newElement];
+    setElements(next);
+    commitToHistory(next);
+    const newIdx = next.length - 1;
+    setSelectedIds([newIdx]);
+    setSelectedId(newIdx);
+    setTool('select');
+    setContextMenu(null);
+  };
+
+  const handlePasteAt = async (worldPos = null) => {
+    // 1. If internal whiteboard items are copied in clipboardRef, paste them
+    if (clipboardRef.current && clipboardRef.current.elements?.length) {
+      const items = clipboardRef.current.elements;
+
+      let targetX, targetY;
+      if (worldPos) {
+        targetX = worldPos.x;
+        targetY = worldPos.y;
+      }
+
+      let minX = Infinity, minY = Infinity;
+      items.forEach(el => {
+        const ex = el.x ?? 0;
+        const ey = el.y ?? 0;
+        if (ex < minX) minX = ex;
+        if (ey < minY) minY = ey;
+      });
+
+      const offset = 24;
+      const pasted = [];
+      const newIndices = [];
+
+      items.forEach(item => {
+        const clone = JSON.parse(JSON.stringify(item));
+        if (worldPos && minX !== Infinity && minY !== Infinity) {
+          const relX = (clone.x ?? 0) - minX;
+          const relY = (clone.y ?? 0) - minY;
+          clone.x = targetX + relX;
+          clone.y = targetY + relY;
+          if (clone.type === 'arrow' && clone.x2 !== undefined && clone.y2 !== undefined) {
+            const dx = clone.x2 - (item.x ?? 0);
+            const dy = clone.y2 - (item.y ?? 0);
+            clone.x2 = clone.x + dx;
+            clone.y2 = clone.y + dy;
+          }
+          if (clone.type === 'path' && clone.points) {
+            clone.points = clone.points.map(p => ({
+              x: p.x - minX + targetX,
+              y: p.y - minY + targetY,
+            }));
+          }
         } else {
-          clone.x = (clone.x ?? 0) + offset;
-          clone.y = (clone.y ?? 0) + offset;
+          // Standard duplicate/paste offset
+          if (clone.type === 'path' && clone.points) {
+            clone.points = clone.points.map(p => ({ x: p.x + offset, y: p.y + offset }));
+          } else if (clone.type === 'arrow') {
+            clone.x = (clone.x ?? 0) + offset;
+            clone.y = (clone.y ?? 0) + offset;
+            clone.x2 = (clone.x2 ?? 0) + offset;
+            clone.y2 = (clone.y2 ?? 0) + offset;
+          } else {
+            clone.x = (clone.x ?? 0) + offset;
+            clone.y = (clone.y ?? 0) + offset;
+          }
+        }
+        newIndices.push(elements.length + pasted.length);
+        pasted.push(clone);
+      });
+
+      if (pasted.length > 0) {
+        const next = [...elements, ...pasted];
+        setElements(next);
+        commitToHistory(next);
+        setSelectedIds(newIndices);
+        setSelectedId(newIndices[newIndices.length - 1]);
+        setTool('select');
+      }
+      setContextMenu(null);
+      return;
+    }
+
+    // 2. Otherwise try reading text from the system clipboard (external copy URL)
+    try {
+      if (navigator.clipboard?.readText) {
+        const text = await navigator.clipboard.readText();
+        if (text && parsePastedUrl(text)) {
+          handleInsertUrl(text, worldPos);
+          return;
         }
       }
-      newIndices.push(elements.length + pasted.length);
-      pasted.push(clone);
-    });
+    } catch (_) {}
 
-    if (pasted.length > 0) {
-      const next = [...elements, ...pasted];
-      setElements(next);
-      commitToHistory(next);
-      setSelectedIds(newIndices);
-      setSelectedId(newIndices[newIndices.length - 1]);
-      setTool('select');
-    }
     setContextMenu(null);
   };
 
@@ -1568,7 +1649,7 @@ export default function WhiteboardEditor({ board, onClose, user }) {
 
     let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
     elements.forEach(el => {
-      if (el.type === 'image' || el.type === 'rect') {
+      if (el.type === 'image' || el.type === 'rect' || el.type === 'frame' || el.type === 'embed' || el.type === 'link') {
         minX = Math.min(minX, el.x); maxX = Math.max(maxX, el.x + (el.w || 0));
         minY = Math.min(minY, el.y); maxY = Math.max(maxY, el.y + (el.h || 0));
       } else if (el.type === 'circle') {
@@ -1945,11 +2026,36 @@ export default function WhiteboardEditor({ board, onClose, user }) {
       }
     };
 
+    const onPaste = (e) => {
+      const target = e.target;
+      if (
+        target &&
+        (target.tagName === 'INPUT' ||
+         target.tagName === 'TEXTAREA' ||
+         target.isContentEditable)
+      ) {
+        return;
+      }
+
+      // If text/URL is in clipboardData
+      const pastedText = e.clipboardData?.getData('text');
+      if (pastedText) {
+        const clean = parsePastedUrl(pastedText);
+        if (clean) {
+          e.preventDefault();
+          handleInsertUrl(clean);
+          return;
+        }
+      }
+    };
+
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keyup', onKeyUp);
+    window.addEventListener('paste', onPaste);
     return () => {
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
+      window.removeEventListener('paste', onPaste);
     };
   }, [
     elements,
@@ -2062,6 +2168,227 @@ export default function WhiteboardEditor({ board, onClose, user }) {
             onContextMenu={onContextMenu}
             onDoubleClick={onDoubleClick}
           />
+
+          {/* Interactive HTML Overlays for Playable YouTube Embeds and Link Cards */}
+          <div className="wb-embed-container">
+            <div
+              className="wb-embed-layer"
+              style={{
+                transform: `translate(${panOffset.x}px, ${panOffset.y}px) scale(${zoom})`,
+              }}
+            >
+              {elements.map((el, idx) => {
+                if (el.type !== 'embed' && el.type !== 'link') return null;
+                const isSelected = selectedIds.includes(idx) || selectedId === idx;
+                const isPlaying = activeVideoEmbedId === idx;
+
+                if (el.type === 'embed') {
+                  const thumbUrl = el.videoId
+                    ? `https://img.youtube.com/vi/${el.videoId}/hqdefault.jpg`
+                    : null;
+
+                  return (
+                    <div
+                      key={idx}
+                      className={`wb-embed-card ${isSelected ? 'wb-embed-card--selected' : ''}`}
+                      style={{
+                        left: `${el.x}px`,
+                        top: `${el.y}px`,
+                        width: `${el.w || 420}px`,
+                        height: `${el.h || 260}px`,
+                        transform: el.rotation ? `rotate(${el.rotation}rad)` : undefined,
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <div
+                        className="wb-embed-header"
+                        onMouseDown={(e) => {
+                          e.stopPropagation();
+                          setSelectedId(idx);
+                          setSelectedIds([idx]);
+                          setTool('select');
+                          const pos = screenToWorld(e.clientX, e.clientY);
+                          const movingIndices = [idx];
+                          const initialSnapshots = {
+                            [idx]: {
+                              x: el.x, y: el.y,
+                              w: el.w, h: el.h,
+                              x2: el.x2, y2: el.y2,
+                              points: el.points ? el.points.map(p => ({ ...p })) : null,
+                            }
+                          };
+                          dragRef.current = {
+                            idx,
+                            isResize: false,
+                            startX: pos.x,
+                            startY: pos.y,
+                            movingIndices,
+                            initialSnapshots,
+                            origX: el.x, origY: el.y,
+                            origW: el.w || 0, origH: el.h || 0,
+                            origX2: el.x2, origY2: el.y2,
+                            origCpx: el.x, origCpy: el.y,
+                            origPoints: null,
+                          };
+                        }}
+                      >
+                        <span className="wb-embed-badge wb-embed-badge--youtube">
+                          <span className="material-symbols-rounded" style={{ fontSize: '13px' }}>smart_display</span>
+                          YouTube
+                        </span>
+                        <span className="wb-embed-title">{el.title || 'YouTube Video'}</span>
+                        <button
+                          type="button"
+                          className="wb-embed-action-btn"
+                          title="Open on YouTube"
+                          aria-label="Open on YouTube"
+                          onClick={() => window.open(el.url || `https://www.youtube.com/watch?v=${el.videoId}`, '_blank', 'noopener,noreferrer')}
+                        >
+                          <span className="material-symbols-rounded" style={{ fontSize: '15px' }}>open_in_new</span>
+                        </button>
+                        <button
+                          type="button"
+                          className="wb-embed-action-btn"
+                          title={isPlaying ? "Stop Video" : "Play Inline"}
+                          aria-label={isPlaying ? "Stop Video" : "Play Inline"}
+                          onClick={() => setActiveVideoEmbedId(isPlaying ? null : idx)}
+                        >
+                          <span className="material-symbols-rounded" style={{ fontSize: '16px', color: isPlaying ? '#f87171' : '#38bdf8' }}>
+                            {isPlaying ? 'stop_circle' : 'play_circle'}
+                          </span>
+                        </button>
+                      </div>
+
+                      <div className="wb-embed-body">
+                        {isPlaying ? (
+                          <iframe
+                            src={`https://www.youtube.com/embed/${el.videoId}?autoplay=1&rel=0&modestbranding=1`}
+                            title={el.title || 'YouTube Video'}
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                            allowFullScreen
+                          />
+                        ) : (
+                          <div
+                            className="wb-embed-placeholder"
+                            style={{
+                              backgroundImage: thumbUrl ? `linear-gradient(rgba(0,0,0,0.35), rgba(0,0,0,0.6)), url(${thumbUrl})` : undefined,
+                            }}
+                            onClick={() => {
+                              setSelectedId(idx);
+                              setSelectedIds([idx]);
+                              setActiveVideoEmbedId(idx);
+                            }}
+                          >
+                            <div className="wb-embed-play-btn" title="Click to play video">
+                              <span className="material-symbols-rounded" style={{ fontSize: '30px', transform: 'translateX(2px)' }}>play_arrow</span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                }
+
+                if (el.type === 'link') {
+                  let hostname = el.url;
+                  try {
+                    hostname = new URL(el.url).hostname;
+                  } catch (_) {}
+
+                  return (
+                    <div
+                      key={idx}
+                      className={`wb-embed-card ${isSelected ? 'wb-embed-card--selected' : ''}`}
+                      style={{
+                        left: `${el.x}px`,
+                        top: `${el.y}px`,
+                        width: `${el.w || 360}px`,
+                        height: `${el.h || 150}px`,
+                        transform: el.rotation ? `rotate(${el.rotation}rad)` : undefined,
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <div
+                        className="wb-embed-header"
+                        onMouseDown={(e) => {
+                          e.stopPropagation();
+                          setSelectedId(idx);
+                          setSelectedIds([idx]);
+                          setTool('select');
+                          const pos = screenToWorld(e.clientX, e.clientY);
+                          const movingIndices = [idx];
+                          const initialSnapshots = {
+                            [idx]: {
+                              x: el.x, y: el.y,
+                              w: el.w, h: el.h,
+                              x2: el.x2, y2: el.y2,
+                              points: el.points ? el.points.map(p => ({ ...p })) : null,
+                            }
+                          };
+                          dragRef.current = {
+                            idx,
+                            isResize: false,
+                            startX: pos.x,
+                            startY: pos.y,
+                            movingIndices,
+                            initialSnapshots,
+                            origX: el.x, origY: el.y,
+                            origW: el.w || 0, origH: el.h || 0,
+                            origX2: el.x2, origY2: el.y2,
+                            origCpx: el.x, origCpy: el.y,
+                            origPoints: null,
+                          };
+                        }}
+                      >
+                        <span className="wb-embed-badge wb-embed-badge--link">
+                          <span className="material-symbols-rounded" style={{ fontSize: '13px' }}>link</span>
+                          Link
+                        </span>
+                        <span className="wb-embed-title">{el.title || hostname}</span>
+                        <button
+                          type="button"
+                          className="wb-embed-action-btn"
+                          title="Open in new tab"
+                          aria-label="Open in new tab"
+                          onClick={() => window.open(el.url, '_blank', 'noopener,noreferrer')}
+                        >
+                          <span className="material-symbols-rounded" style={{ fontSize: '15px' }}>open_in_new</span>
+                        </button>
+                      </div>
+
+                      <a
+                        href={el.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="wb-link-card-body"
+                        onClick={(e) => {
+                          setSelectedId(idx);
+                          setSelectedIds([idx]);
+                        }}
+                      >
+                        <div>
+                          <div className="wb-link-host">
+                            <span className="material-symbols-rounded" style={{ fontSize: '14px' }}>language</span>
+                            <span>{hostname}</span>
+                          </div>
+                          <div className="wb-link-url" style={{ marginTop: '8px' }}>
+                            {el.url}
+                          </div>
+                        </div>
+
+                        <div className="wb-link-btn">
+                          <span>Visit Website</span>
+                          <span className="material-symbols-rounded" style={{ fontSize: '14px' }}>arrow_forward</span>
+                        </div>
+                      </a>
+                    </div>
+                  );
+                }
+
+                return null;
+              })}
+            </div>
+          </div>
         </div>
       </div>
 

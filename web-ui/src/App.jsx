@@ -711,6 +711,14 @@ export default function App() {
               setWbRefreshKey(k => k + 1); 
             }}
             user={user}
+            isAuthenticated={isAuthenticated}
+            onSignIn={() => setShowModal(true)}
+            onUpgrade={() => {
+              setActiveBoard(null);
+              setActiveNav('Pricing');
+              const targetPath = NAV_TO_PATH['Pricing'] || '/pricing';
+              window.history.pushState(null, '', targetPath);
+            }}
             hasCloudAccess={hasCloudAccess}
             entitlements={entitlements}
           />

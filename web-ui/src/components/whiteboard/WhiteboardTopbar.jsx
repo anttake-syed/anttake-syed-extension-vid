@@ -25,6 +25,11 @@ export default function WhiteboardTopbar({
   onOpenShortcuts,
   infiniteCanvas,
   onToggleInfiniteCanvas,
+  isReadOnly,
+  isSharedBoard,
+  onDuplicateToMyBoards,
+  isCopying,
+  copySuccess,
 }) {
   return (
     <div className="wb-topbar">
@@ -143,33 +148,65 @@ export default function WhiteboardTopbar({
             <span className="hide-below-sm" style={{ fontSize: '12px', fontWeight: 600 }}>Share</span>
           </button>
 
-          {/* Manual Save button */}
-          <button
-            onClick={() => handleSave(false)}
-            disabled={isSaving}
-            className="wb-save-btn"
-            style={{
-              background: saveError ? 'rgba(239,68,68,0.15)' : isSaved ? 'rgba(52,211,153,0.15)' : 'linear-gradient(135deg,#6366f1,#8b5cf6)',
-              border: 'none',
-              color: saveError ? '#f87171' : isSaved ? '#34d399' : 'white',
-              padding: '6px 16px',
-              borderRadius: '8px',
-              cursor: isSaving ? 'default' : 'pointer',
-              opacity: isSaving ? 0.7 : 1,
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              fontSize: '13px',
-              fontWeight: 600,
-              fontFamily: "'Outfit', sans-serif",
-              transition: 'all 0.2s'
-            }}
-          >
-            <span className="material-symbols-rounded" style={{ fontSize: '16px' }}>
-              {isSaving ? 'progress_activity' : saveError ? 'error' : isSaved ? 'check_circle' : 'save'}
-            </span>
-            {isSaving ? 'Saving…' : saveError ? 'Save failed' : isSaved ? 'Saved!' : 'Save'}
-          </button>
+          {/* If viewing a shared board or read-only: show "Copy to Edit" button */}
+          {isSharedBoard && (
+            <button
+              onClick={onDuplicateToMyBoards}
+              disabled={isCopying}
+              className="wb-save-btn"
+              title="Copy this whiteboard to your account to edit"
+              style={{
+                background: copySuccess ? 'rgba(52,211,153,0.2)' : 'linear-gradient(135deg, #10b981, #059669)',
+                border: copySuccess ? '1px solid #34d399' : 'none',
+                color: copySuccess ? '#34d399' : 'white',
+                padding: '6px 16px',
+                borderRadius: '8px',
+                cursor: isCopying ? 'default' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                fontSize: '13px',
+                fontWeight: 600,
+                fontFamily: "'Outfit', sans-serif",
+                transition: 'all 0.2s'
+              }}
+            >
+              <span className="material-symbols-rounded" style={{ fontSize: '16px' }}>
+                {isCopying ? 'progress_activity' : copySuccess ? 'check_circle' : 'content_copy'}
+              </span>
+              <span>{isCopying ? 'Copying…' : copySuccess ? 'Copied & Opening!' : 'Copy & Edit'}</span>
+            </button>
+          )}
+
+          {/* Manual Save button (Only for owner/editor) */}
+          {!isReadOnly && (
+            <button
+              onClick={() => handleSave(false)}
+              disabled={isSaving}
+              className="wb-save-btn"
+              style={{
+                background: saveError ? 'rgba(239,68,68,0.15)' : isSaved ? 'rgba(52,211,153,0.15)' : 'linear-gradient(135deg,#6366f1,#8b5cf6)',
+                border: 'none',
+                color: saveError ? '#f87171' : isSaved ? '#34d399' : 'white',
+                padding: '6px 16px',
+                borderRadius: '8px',
+                cursor: isSaving ? 'default' : 'pointer',
+                opacity: isSaving ? 0.7 : 1,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                fontSize: '13px',
+                fontWeight: 600,
+                fontFamily: "'Outfit', sans-serif",
+                transition: 'all 0.2s'
+              }}
+            >
+              <span className="material-symbols-rounded" style={{ fontSize: '16px' }}>
+                {isSaving ? 'progress_activity' : saveError ? 'error' : isSaved ? 'check_circle' : 'save'}
+              </span>
+              {isSaving ? 'Saving…' : saveError ? 'Save failed' : isSaved ? 'Saved!' : 'Save'}
+            </button>
+          )}
         </div>
       </div>
     </div>

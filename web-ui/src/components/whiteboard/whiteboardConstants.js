@@ -18,7 +18,18 @@ export const TOOLS = [
   { id: 'video',   icon: 'videocam',               label: 'Video'  },
 ];
 
-export const COLORS = ['#f8fafc', '#f87171', '#fb923c', '#facc15', '#4ade80', '#60a5fa', '#a78bfa', '#f472b6', '#94a3b8'];
+export const COLORS = [
+  '#f8fafc', // Clean Slate White
+  '#6366f1', // Brand Indigo
+  '#3b82f6', // Professional Ocean Blue
+  '#10b981', // Clean Emerald Green
+  '#f59e0b', // Warm Amber / Yellow
+  '#ef4444', // Crimson Coral Red
+  '#8b5cf6', // Deep Purple
+  '#ec4899', // Rose Pink
+  '#06b6d4', // Teal Cyan
+  '#64748b', // Modern Muted Slate
+];
 
 export const SIZES = [2, 4, 8, 14, 20];
 

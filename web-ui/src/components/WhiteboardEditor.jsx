@@ -522,8 +522,10 @@ export default function WhiteboardEditor({ board, onClose, user }) {
           origPoints: elements[hit].points ? [...elements[hit].points] : null
         };
       } else {
-        setSelectedId(null);
-        setSelectedIds([]);
+        // Do NOT deselect immediately here — that causes a flicker where the
+        // canvas clears then redraws while React has already nulled out the
+        // selection state, producing a ~16 ms flash of "no objects".
+        // Deselection is deferred to onMouseUp after the marquee resolves.
         marqueeRef.current = {
           active: true,
           startX: pos.x,
@@ -757,6 +759,13 @@ export default function WhiteboardEditor({ board, onClose, user }) {
         });
         setSelectedIds(hits);
         setSelectedId(hits.length === 1 ? hits[0] : (hits.length > 1 ? hits[hits.length - 1] : null));
+      } else {
+        // Pure click on blank space (no meaningful marquee drag).
+        // Deselect here — deferred from onMouseDown to avoid a flicker where the
+        // canvas clears then redraws while the React tree has already nulled out
+        // selection, producing a ~16 ms flash of "no objects".
+        setSelectedId(null);
+        setSelectedIds([]);
       }
       redraw();
       return;
@@ -2004,6 +2013,7 @@ export default function WhiteboardEditor({ board, onClose, user }) {
         <WhiteboardShareModal
           board={board}
           boardName={boardName}
+          user={user}
           onClose={() => setShowShareModal(false)}
         />
       )}

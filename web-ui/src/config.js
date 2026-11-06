@@ -8,3 +8,5 @@ export const EXTENSION_ID = import.meta.env.VITE_EXTENSION_ID || '';
 export const APP_MODE = import.meta.env.VITE_APP_MODE || 'cloud';
 export const IS_LOCAL_MODE = APP_MODE === 'local';
 
+export const GA_MEASUREMENT_ID = import.meta.env.VITE_GA_MEASUREMENT_ID || '';
+

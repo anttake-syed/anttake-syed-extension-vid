@@ -25,6 +25,7 @@ import SubscriptionWarningBanner from './components/SubscriptionWarningBanner.js
 import PurchaseSuccessToast from './components/PurchaseSuccessToast.jsx';
 import OnboardingModal from './components/OnboardingModal.jsx';
 import ShowcaseTour from './components/showcase/ShowcaseTour.jsx';
+import { trackPageView } from './utils/analytics.js';
 
 
 const NAV_TO_PATH = {
@@ -360,9 +361,16 @@ export default function App() {
   useEffect(() => {
     document.title = `${activeNav} - AntCapture`;
     
-    if (activeBoard || activeMedia) return;
+    if (activeBoard) {
+      trackPageView(`Whiteboard: ${activeBoard.title || activeBoard.id}`, `/whiteboard/${activeBoard.id}`);
+      return;
+    }
     
     const targetPath = NAV_TO_PATH[activeNav] || '/';
+    trackPageView(activeNav, targetPath);
+
+    if (activeMedia) return;
+    
     if (window.location.pathname !== targetPath) {
       window.history.pushState(null, '', targetPath);
     }

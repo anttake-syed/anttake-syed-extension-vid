@@ -23,6 +23,8 @@ export default function WhiteboardTopbar({
   handleClose,
   onOpenShare,
   onOpenShortcuts,
+  infiniteCanvas,
+  onToggleInfiniteCanvas,
 }) {
   return (
     <div className="wb-topbar">
@@ -96,6 +98,26 @@ export default function WhiteboardTopbar({
           </button>
           <button onClick={handleRedo} title="Redo" aria-label="Redo" className="wb-action-btn">
             <span className="material-symbols-rounded" style={{ fontSize: '16px' }}>redo</span>
+          </button>
+
+          {/* Infinite Canvas toggle */}
+          <button
+            onClick={onToggleInfiniteCanvas}
+            title={infiniteCanvas ? 'Infinite canvas ON — click to bound' : 'Bounded canvas — click for infinite'}
+            aria-label={infiniteCanvas ? 'Disable infinite canvas' : 'Enable infinite canvas'}
+            className="wb-action-btn"
+            style={{
+              color: infiniteCanvas ? '#a5b4fc' : 'var(--text-secondary)',
+              borderColor: infiniteCanvas ? 'rgba(99,102,241,0.3)' : 'var(--border)',
+              background: infiniteCanvas ? 'rgba(99,102,241,0.08)' : 'transparent',
+            }}
+          >
+            <span className="material-symbols-rounded" style={{ fontSize: '16px' }}>
+              {infiniteCanvas ? 'all_out' : 'crop'}
+            </span>
+            <span className="hide-below-md" style={{ fontSize: '12px', fontWeight: 600 }}>
+              {infiniteCanvas ? 'Infinite' : 'Bounded'}
+            </span>
           </button>
 
           {/* Keyboard Shortcuts button */}

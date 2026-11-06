@@ -18,7 +18,7 @@ import WhiteboardIconPickerModal from './whiteboard/WhiteboardIconPickerModal.js
 import WhiteboardCodeModal from './whiteboard/WhiteboardCodeModal.jsx';
 import { useWhiteboardShortcuts } from './whiteboard/useWhiteboardShortcuts.js';
 import { renderWhiteboardCanvas } from './whiteboard/whiteboardRenderer.js';
-import { TOOLS, COLORS, SIZES, generateDefaultName } from './whiteboard/whiteboardConstants.js';
+import { TOOLS, COLORS, SIZES, generateDefaultName, BOUNDED_CANVAS_W, BOUNDED_CANVAS_H } from './whiteboard/whiteboardConstants.js';
 import {
   rotatePoint,
   getElementTransformBox,
@@ -69,6 +69,9 @@ export default function WhiteboardEditor({ board, onClose, user, hasCloudAccess,
   const [mediaLoadError, setMediaLoadError] = useState(null);
   const [activeVideoEmbedId, setActiveVideoEmbedId] = useState(null);
   const [isDragging, setIsDragging]               = useState(false); // true while dragging embed/element
+  const [infiniteCanvas, setInfiniteCanvas]       = useState(() => {
+    try { return localStorage.getItem('wb_infinite_canvas') !== 'false'; } catch { return true; }
+  });
 
   const canvasRef         = useRef(null);
   const drawing           = useRef(false);
@@ -98,6 +101,25 @@ export default function WhiteboardEditor({ board, onClose, user, hasCloudAccess,
   // Keep refs in sync for use in event handlers
   useEffect(() => { zoomRef.current = zoom; }, [zoom]);
   useEffect(() => { panOffsetRef.current = panOffset; }, [panOffset]);
+
+  const infiniteCanvasRef = useRef(infiniteCanvas);
+  useEffect(() => { infiniteCanvasRef.current = infiniteCanvas; }, [infiniteCanvas]);
+
+  // Clamp pan so the bounded work area always stays at least partially visible
+  const clampPan = useCallback((pan, z) => {
+    if (infiniteCanvasRef.current) return pan; // infinite mode — no clamp
+    const canvas = canvasRef.current;
+    if (!canvas) return pan;
+    const vw = canvas.width;
+    const vh = canvas.height;
+    const margin = 80; // px — minimum overlap the page must keep on-screen
+    const pageW = BOUNDED_CANVAS_W * z;
+    const pageH = BOUNDED_CANVAS_H * z;
+    return {
+      x: Math.min(vw - margin, Math.max(margin - pageW, pan.x)),
+      y: Math.min(vh - margin, Math.max(margin - pageH, pan.y)),
+    };
+  }, []);
 
   const historyRef        = useRef([[]]);
   const historyStepRef    = useRef(0);
@@ -192,6 +214,7 @@ export default function WhiteboardEditor({ board, onClose, user, hasCloudAccess,
       liveShape: liveShape.current,
       marquee: marqueeRef.current,
       drawing: drawing.current,
+      infiniteCanvas: infiniteCanvasRef.current,
     });
   }, []);
 
@@ -349,22 +372,24 @@ export default function WhiteboardEditor({ board, onClose, user, hasCloudAccess,
         // Write to refs first so redraw() reads the NEW values this frame.
         // setZoom/setPanOffset are called after to sync the embed/HTML layer
         // (which is fine — CSS transform updates are imperceptible 1 frame later).
+        const clampedZoomPan = clampPan(newPan, newZ);
         zoomRef.current    = newZ;
-        panOffsetRef.current = newPan;
+        panOffsetRef.current = clampedZoomPan;
         redraw();
         setZoom(newZ);
-        setPanOffset(newPan);
+        setPanOffset(clampedZoomPan);
       } else {
         // Two-finger scroll on trackpad OR shift-wheel panning
         const dx = e.shiftKey ? -e.deltaY : -e.deltaX;
         const dy = e.shiftKey ? 0 : -e.deltaY;
-        const newPan = {
+        const rawPan = {
           x: panOffsetRef.current.x + dx,
           y: panOffsetRef.current.y + dy,
         };
-        panOffsetRef.current = newPan;
+        const clampedScrollPan = clampPan(rawPan, zoomRef.current);
+        panOffsetRef.current = clampedScrollPan;
         redraw();
-        setPanOffset(newPan);
+        setPanOffset(clampedScrollPan);
       }
     };
     canvas.addEventListener('wheel', onWheel, { passive: false });
@@ -574,12 +599,13 @@ export default function WhiteboardEditor({ board, onClose, user, hasCloudAccess,
     if (panDragRef.current) {
       const dx = e.clientX - panDragRef.current.startClient.x;
       const dy = e.clientY - panDragRef.current.startClient.y;
-      const newPan = {
+      const rawPan = {
         x: panDragRef.current.startPan.x + dx,
         y: panDragRef.current.startPan.y + dy,
       };
-      setPanOffset(newPan);
-      panOffsetRef.current = newPan;
+      const clampedDragPan = clampPan(rawPan, zoomRef.current);
+      setPanOffset(clampedDragPan);
+      panOffsetRef.current = clampedDragPan;
       redraw();
       return;
     }
@@ -996,26 +1022,28 @@ export default function WhiteboardEditor({ board, onClose, user, hasCloudAccess,
           x: cx - (cx - currentPan.x) * scaleChange,
           y: cy - (cy - currentPan.y) * scaleChange,
         };
+        const clampedPinchPan = clampPan(newPan, newZ);
 
         // Instant canvas update — refs first, then React state
         zoomRef.current      = newZ;
-        panOffsetRef.current = newPan;
+        panOffsetRef.current = clampedPinchPan;
         redraw();
         setZoom(newZ);
-        setPanOffset(newPan);
+        setPanOffset(clampedPinchPan);
       }
 
       // Handle two-finger pan (combined with zoom above when both happen)
       if (panDragRef.current) {
         const dx = midX - panDragRef.current.startClient.x;
         const dy = midY - panDragRef.current.startClient.y;
-        const newPan = {
+        const rawTouchPan = {
           x: panDragRef.current.startPan.x + dx,
           y: panDragRef.current.startPan.y + dy,
         };
-        panOffsetRef.current = newPan;
+        const clampedTouchPan = clampPan(rawTouchPan, zoomRef.current);
+        panOffsetRef.current = clampedTouchPan;
         redraw();
-        setPanOffset(newPan);
+        setPanOffset(clampedTouchPan);
       }
       return;
     }
@@ -1930,6 +1958,14 @@ export default function WhiteboardEditor({ board, onClose, user, hasCloudAccess,
         handleClose={handleClose}
         onOpenShare={() => setShowShareModal(true)}
         onOpenShortcuts={() => setShowShortcutsModal(true)}
+        infiniteCanvas={infiniteCanvas}
+        onToggleInfiniteCanvas={() => {
+          const next = !infiniteCanvas;
+          setInfiniteCanvas(next);
+          infiniteCanvasRef.current = next;
+          try { localStorage.setItem('wb_infinite_canvas', String(next)); } catch {}
+          redraw();
+        }}
       />
 
       {(loadError || saveError) && (

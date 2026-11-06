@@ -6,6 +6,8 @@ import {
   drawHandDrawnArrow,
   getFillColor,
 } from './whiteboardTransform.js';
+import { BOUNDED_CANVAS_W, BOUNDED_CANVAS_H } from './whiteboardConstants.js';
+
 
 /**
  * renderWhiteboardCanvas
@@ -28,6 +30,7 @@ export function renderWhiteboardCanvas(ctx, canvas, state) {
     liveShape = null,
     marquee = null,
     drawing = false,
+    infiniteCanvas = true,
   } = state;
 
   ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -36,6 +39,38 @@ export function renderWhiteboardCanvas(ctx, canvas, state) {
   ctx.save();
   ctx.translate(panOffset.x, panOffset.y);
   ctx.scale(zoom, zoom);
+
+  // 0. Draw bounded page background when infinite canvas is OFF
+  if (!infiniteCanvas) {
+    // Outer shadow around the page (outside the page, overlay the canvas bg)
+    ctx.save();
+    ctx.shadowColor = 'rgba(0,0,0,0.5)';
+    ctx.shadowBlur = 32 / zoom;
+    ctx.fillStyle = 'rgba(15,23,42,0.6)'; // matches --bg-primary
+    // Fill canvas outside page — approximate using 4 large rects
+    const pad = 20000;
+    ctx.fillRect(-pad, -pad, pad + 0, BOUNDED_CANVAS_H + pad * 2);                  // left strip
+    ctx.fillRect(BOUNDED_CANVAS_W, -pad, pad, BOUNDED_CANVAS_H + pad * 2);          // right strip
+    ctx.fillRect(0, -pad, BOUNDED_CANVAS_W, pad);                                    // top strip
+    ctx.fillRect(0, BOUNDED_CANVAS_H, BOUNDED_CANVAS_W, pad);                       // bottom strip
+    ctx.restore();
+
+    // Page surface (white/dark sheet)
+    ctx.save();
+    ctx.fillStyle = '#0f172a'; // dark page — matches app bg
+    ctx.fillRect(0, 0, BOUNDED_CANVAS_W, BOUNDED_CANVAS_H);
+
+    // Page border — subtle indigo glow
+    ctx.strokeStyle = 'rgba(99,102,241,0.35)';
+    ctx.lineWidth = 2 / zoom;
+    ctx.strokeRect(0, 0, BOUNDED_CANVAS_W, BOUNDED_CANVAS_H);
+
+    // Corner size labels (top-left)
+    ctx.fillStyle = 'rgba(99,102,241,0.4)';
+    ctx.font = `${11 / zoom}px 'Outfit', system-ui, sans-serif`;
+    ctx.fillText(`${BOUNDED_CANVAS_W} × ${BOUNDED_CANVAS_H}`, 10 / zoom, -6 / zoom);
+    ctx.restore();
+  }
 
   // 1. Draw elements
   elements.forEach((el) => {

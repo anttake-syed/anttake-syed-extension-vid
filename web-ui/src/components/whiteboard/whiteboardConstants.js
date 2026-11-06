@@ -54,3 +54,7 @@ export const COLORS = [
 export const SIZES = [2, 4, 8, 14, 20];
 
 export const BOARD_LIMIT_CLOUD = 1000;
+
+// Bounded canvas mode — the fixed work area size in world-space units
+export const BOUNDED_CANVAS_W = 4000;
+export const BOUNDED_CANVAS_H = 3000;

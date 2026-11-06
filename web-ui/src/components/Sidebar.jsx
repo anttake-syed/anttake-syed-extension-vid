@@ -24,6 +24,34 @@ const NAV_ICONS = {
 // Items that don't require login
 const PUBLIC_ITEMS = ['Dashboard', 'Pricing', 'Privacy', 'Terms', 'Refund Policy', 'Security', 'Documentation'];
 
+function formatTimeAgo(isoOrDateStr) {
+  if (!isoOrDateStr) return '';
+  const date = new Date(isoOrDateStr);
+  const diffMs = Date.now() - date.getTime();
+  if (isNaN(diffMs) || diffMs < 0) return 'Just now';
+
+  const seconds = Math.floor(diffMs / 1000);
+  if (seconds < 45) return 'Just now';
+  const minutes = Math.floor(seconds / 60);
+  if (minutes === 1) return '1 minute ago';
+  if (minutes < 60) return `${minutes} minutes ago`;
+
+  const hours = Math.floor(minutes / 60);
+  if (hours === 1) return '1 hour ago';
+  if (hours < 24) return `${hours} hours ago`;
+
+  const days = Math.floor(hours / 24);
+  if (days === 1) return 'Yesterday';
+  if (days < 30) return `${days} days ago`;
+
+  const months = Math.floor(days / 30);
+  if (months === 1) return '1 month ago';
+  if (months < 12) return `${months} months ago`;
+
+  const years = Math.floor(days / 365);
+  return years === 1 ? '1 year ago' : `${years} years ago`;
+}
+
 export default function Sidebar({ activeNav, isAuthenticated, hasCloudAccess = true, user, onNavClick, onSignIn, onLogout, mobileMenuOpen }) {
   const isAdmin = user?.role === 'admin';
   // Show cloud lock badges when user is signed in but hasn't subscribed
@@ -164,41 +192,89 @@ export default function Sidebar({ activeNav, isAuthenticated, hasCloudAccess = t
           </div>
         )}
 
-        {/* ── Admin-Only Codebase & Deployment Status Badge (Zero API cost, built-in) ── */}
-        {isAuthenticated && isAdmin && typeof __GIT_COMMIT_INFO__ !== 'undefined' && (
+        {/* ── Codebase & Deployment Status (Branch, commit, updated time ago) ── */}
+        {typeof __GIT_COMMIT_INFO__ !== 'undefined' && (
           <div
-            onClick={() => onNavClick('Diagnostics')}
+            onClick={() => {
+              if (isAdmin) onNavClick('Diagnostics');
+            }}
             style={{
-              padding: '8px 10px',
+              padding: '9px 12px',
               marginBottom: '10px',
-              borderRadius: '9px',
-              background: 'rgba(99, 102, 241, 0.08)',
-              border: '1px solid rgba(99, 102, 241, 0.2)',
-              cursor: 'pointer',
+              borderRadius: '10px',
+              background: 'rgba(15, 23, 42, 0.65)',
+              border: '1px solid rgba(255, 255, 255, 0.08)',
+              cursor: isAdmin ? 'pointer' : 'default',
               display: 'flex',
               flexDirection: 'column',
-              gap: '3px',
+              gap: '5px',
               fontFamily: "'Outfit', sans-serif",
               transition: 'all 0.15s ease',
             }}
             title={`Branch: ${__GIT_COMMIT_INFO__.branch}\nCommit: ${__GIT_COMMIT_INFO__.hash}\nMessage: ${__GIT_COMMIT_INFO__.message}\nUpdated: ${__GIT_COMMIT_INFO__.date}`}
           >
+            {/* Top row: Branch pill & commit hash */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                <span className="material-symbols-rounded" style={{ fontSize: '13px', color: '#818cf8' }}>
-                  commit
+              <div style={{ display: 'flex', alignItems: 'center', gap: '5px', minWidth: 0, flex: 1 }}>
+                <span className="material-symbols-rounded" style={{ fontSize: '14px', color: '#818cf8', flexShrink: 0 }}>
+                  account_tree
                 </span>
-                <span style={{ fontSize: '11px', fontWeight: 700, color: '#e0e7ff', fontFamily: 'monospace' }}>
-                  {__GIT_COMMIT_INFO__.hash}
+                <span
+                  style={{
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    color: '#e0e7ff',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                  }}
+                  title={__GIT_COMMIT_INFO__.branch}
+                >
+                  {__GIT_COMMIT_INFO__.branch}
                 </span>
               </div>
-              <span style={{ fontSize: '9px', fontWeight: 600, color: '#38bdf8', background: 'rgba(56, 189, 248, 0.15)', padding: '1px 5px', borderRadius: '4px' }}>
-                {__GIT_COMMIT_INFO__.branch}
+
+              <span
+                style={{
+                  fontSize: '10px',
+                  fontWeight: 600,
+                  color: '#94a3b8',
+                  fontFamily: 'monospace',
+                  background: 'rgba(255, 255, 255, 0.06)',
+                  padding: '2px 6px',
+                  borderRadius: '5px',
+                  flexShrink: 0,
+                }}
+              >
+                {__GIT_COMMIT_INFO__.hash}
               </span>
             </div>
-            <div style={{ fontSize: '10px', color: '#94a3b8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              {__GIT_COMMIT_INFO__.message}
+
+            {/* Middle row: Time ago in plain English */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+              <span className="material-symbols-rounded" style={{ fontSize: '13px', color: '#38bdf8', flexShrink: 0 }}>
+                schedule
+              </span>
+              <span style={{ fontSize: '11px', color: '#38bdf8', fontWeight: 500 }}>
+                Updated {formatTimeAgo(__GIT_COMMIT_INFO__.date) || 'recently'}
+              </span>
             </div>
+
+            {/* Bottom row: Commit message */}
+            {__GIT_COMMIT_INFO__.message && (
+              <div
+                style={{
+                  fontSize: '10px',
+                  color: '#64748b',
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  lineHeight: 1.3,
+                }}
+              >
+                {__GIT_COMMIT_INFO__.message}
+              </div>
+            )}
           </div>
         )}
 

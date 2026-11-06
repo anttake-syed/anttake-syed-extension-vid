@@ -469,7 +469,7 @@ export default function App() {
         ? dbStats.boardCount.toString()
         : '—',
       icon: 'draw',
-      sub: dbStats?.boardLimit ? `of ${dbStats.boardLimit} limit` : null,
+      sub: dbStats?.whiteboardBytesFormatted ? `${dbStats.whiteboardBytesFormatted} in D1` : (dbStats?.boardLimit ? `of ${dbStats.boardLimit} limit` : null),
       loading: statsLoading,
     },
     {

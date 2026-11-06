@@ -13,6 +13,9 @@ import WhiteboardTextPromptModal from './whiteboard/WhiteboardTextPromptModal.js
 import WhiteboardShortcutsModal from './whiteboard/WhiteboardShortcutsModal.jsx';
 import WhiteboardStatusBar from './whiteboard/WhiteboardStatusBar.jsx';
 import WhiteboardEmbedLayer from './whiteboard/WhiteboardEmbedLayer.jsx';
+import WhiteboardShapePickerModal from './whiteboard/WhiteboardShapePickerModal.jsx';
+import WhiteboardIconPickerModal from './whiteboard/WhiteboardIconPickerModal.jsx';
+import WhiteboardCodeModal from './whiteboard/WhiteboardCodeModal.jsx';
 import { useWhiteboardShortcuts } from './whiteboard/useWhiteboardShortcuts.js';
 import { renderWhiteboardCanvas } from './whiteboard/whiteboardRenderer.js';
 import { TOOLS, COLORS, SIZES, generateDefaultName } from './whiteboard/whiteboardConstants.js';
@@ -26,6 +29,8 @@ import {
   drawHandDrawnRect,
   drawHandDrawnCircle,
   drawHandDrawnArrow,
+  isElementInsideFrame,
+  getContainedIndices,
 } from './whiteboard/whiteboardTransform.js';
 import { extractYouTubeVideoId, parsePastedUrl } from './whiteboard/whiteboardHelpers.js';
 
@@ -39,6 +44,9 @@ export default function WhiteboardEditor({ board, onClose, user }) {
   const [strokeSize, setStrokeSize]       = useState(4);
   const [showLibrary, setShowLibrary]     = useState('none'); // 'none', 'images', 'videos'
   const [showTemplateModal, setShowTemplateModal] = useState(false);
+  const [showShapeModal, setShowShapeModal]       = useState(false);
+  const [showIconModal, setShowIconModal]         = useState(false);
+  const [showCodeModal, setShowCodeModal]         = useState(false);
   const [elements, setElements]           = useState([]);
   const [selectedId, setSelectedId]       = useState(null);
   const [selectedIds, setSelectedIds]     = useState([]);
@@ -85,6 +93,7 @@ export default function WhiteboardEditor({ board, onClose, user }) {
   const touchStartPosRef  = useRef(null);
   const isDraggingRef     = useRef(false); // true while any drag (incl. embed) is active
   const lastTapRef        = useRef({ time: 0, x: 0, y: 0 });
+  const redrawRafRef      = useRef(null);  // pending requestAnimationFrame id for redraw
 
   // Keep refs in sync for use in event handlers
   useEffect(() => { zoomRef.current = zoom; }, [zoom]);
@@ -151,24 +160,29 @@ export default function WhiteboardEditor({ board, onClose, user }) {
 
   // ── Canvas draw ──────────────────────────────────────────
   const redraw = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+    // Cancel any pending frame — we only want the latest snapshot drawn.
+    // This batches rapid zoom/pan/scroll events into one draw per display frame.
+    if (redrawRafRef.current) cancelAnimationFrame(redrawRafRef.current);
+    redrawRafRef.current = requestAnimationFrame(() => {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
 
-    renderWhiteboardCanvas(ctx, canvas, {
-      elements,
-      zoom: zoomRef.current,
-      panOffset: panOffsetRef.current,
-      tool,
-      color,
-      strokeSize,
-      selectedId,
-      selectedIds,
-      currentPath: currentPath.current,
-      liveShape: liveShape.current,
-      marquee: marqueeRef.current,
-      drawing: drawing.current,
+      renderWhiteboardCanvas(ctx, canvas, {
+        elements,
+        zoom: zoomRef.current,
+        panOffset: panOffsetRef.current,
+        tool,
+        color,
+        strokeSize,
+        selectedId,
+        selectedIds,
+        currentPath: currentPath.current,
+        liveShape: liveShape.current,
+        marquee: marqueeRef.current,
+        drawing: drawing.current,
+      });
     });
   }, [elements, color, strokeSize, tool, selectedId, selectedIds]);
 
@@ -299,19 +313,26 @@ export default function WhiteboardEditor({ board, onClose, user }) {
         const delta = -e.deltaY * 0.002;
         const currentZ = zoomRef.current;
         const newZ = Math.min(4, Math.max(0.1, currentZ + delta * currentZ));
-        
+
         // Zoom towards mouse cursor position
         const rect = canvas.getBoundingClientRect();
         const cursorX = e.clientX - rect.left;
         const cursorY = e.clientY - rect.top;
         const currentPan = panOffsetRef.current;
-        
+
         const scaleChange = newZ / currentZ;
         const newPan = {
           x: cursorX - (cursorX - currentPan.x) * scaleChange,
           y: cursorY - (cursorY - currentPan.y) * scaleChange,
         };
-        
+
+        // ── Instant canvas update ──────────────────────────────────────
+        // Write to refs first so redraw() reads the NEW values this frame.
+        // setZoom/setPanOffset are called after to sync the embed/HTML layer
+        // (which is fine — CSS transform updates are imperceptible 1 frame later).
+        zoomRef.current    = newZ;
+        panOffsetRef.current = newPan;
+        redraw();
         setZoom(newZ);
         setPanOffset(newPan);
       } else {
@@ -322,9 +343,9 @@ export default function WhiteboardEditor({ board, onClose, user }) {
           x: panOffsetRef.current.x + dx,
           y: panOffsetRef.current.y + dy,
         };
-        setPanOffset(newPan);
         panOffsetRef.current = newPan;
         redraw();
+        setPanOffset(newPan);
       }
     };
     canvas.addEventListener('wheel', onWheel, { passive: false });
@@ -418,7 +439,7 @@ export default function WhiteboardEditor({ board, onClose, user }) {
             }
             hit = i; break;
           }
-        } else if (el.type === 'embed' || el.type === 'link') {
+        } else if (el.type === 'embed' || el.type === 'link' || el.type === 'shape' || el.type === 'code' || el.type === 'icon') {
           if (hitTestElement(el, pos)) { hit = i; break; }
         } else if (el.type === 'frame') {
           if (hitTestElement(el, pos)) { hit = i; break; }
@@ -459,7 +480,22 @@ export default function WhiteboardEditor({ board, onClose, user }) {
         setSelectedId(hit);
         setSelectedIds(newSelectedIds);
 
-        const movingIndices = newSelectedIds.includes(hit) ? newSelectedIds : [hit];
+        // ── Frame Grouping & Containment Movement ──────────────────────
+        // If the dragged element or any selected element is a frame,
+        // automatically include all elements contained inside that frame!
+        let movingIndices = newSelectedIds.includes(hit) ? [...newSelectedIds] : [hit];
+        movingIndices.forEach(idx => {
+          const el = elements[idx];
+          if (el && el.type === 'frame') {
+            const children = getContainedIndices(idx, elements);
+            children.forEach(childIdx => {
+              if (!movingIndices.includes(childIdx)) {
+                movingIndices.push(childIdx);
+              }
+            });
+          }
+        });
+
         const initialSnapshots = {};
         movingIndices.forEach(idx => {
           const el = elements[idx];
@@ -915,14 +951,33 @@ export default function WhiteboardEditor({ board, onClose, user }) {
       const midX = (t1.clientX + t2.clientX) / 2;
       const midY = (t1.clientY + t2.clientY) / 2;
 
-      // Handle pinch zoom
+      // Handle pinch zoom + zoom-toward-midpoint pan in one pass
       if (pinchStartDistRef.current && dist > 10) {
         const factor = dist / pinchStartDistRef.current;
-        const newZ = Math.min(4, Math.max(0.1, pinchStartZoomRef.current * factor));
-        setZoom(parseFloat(newZ.toFixed(2)));
+        const currentZ = zoomRef.current;
+        const newZ = parseFloat(Math.min(4, Math.max(0.1, pinchStartZoomRef.current * factor)).toFixed(2));
+
+        // Zoom towards the midpoint between the two fingers
+        const canvas = canvasRef.current;
+        const rect   = canvas ? canvas.getBoundingClientRect() : { left: 0, top: 0 };
+        const cx = midX - rect.left;
+        const cy = midY - rect.top;
+        const scaleChange = newZ / currentZ;
+        const currentPan  = panOffsetRef.current;
+        const newPan = {
+          x: cx - (cx - currentPan.x) * scaleChange,
+          y: cy - (cy - currentPan.y) * scaleChange,
+        };
+
+        // Instant canvas update — refs first, then React state
+        zoomRef.current      = newZ;
+        panOffsetRef.current = newPan;
+        redraw();
+        setZoom(newZ);
+        setPanOffset(newPan);
       }
 
-      // Handle two-finger pan
+      // Handle two-finger pan (combined with zoom above when both happen)
       if (panDragRef.current) {
         const dx = midX - panDragRef.current.startClient.x;
         const dy = midY - panDragRef.current.startClient.y;
@@ -930,9 +985,9 @@ export default function WhiteboardEditor({ board, onClose, user }) {
           x: panDragRef.current.startPan.x + dx,
           y: panDragRef.current.startPan.y + dy,
         };
-        setPanOffset(newPan);
         panOffsetRef.current = newPan;
         redraw();
+        setPanOffset(newPan);
       }
       return;
     }
@@ -1347,9 +1402,110 @@ export default function WhiteboardEditor({ board, onClose, user }) {
   const handleToolClick = (t) => {
     if (t === 'image') { setShowLibrary('images'); return; }
     if (t === 'video') { setShowLibrary('videos'); return; }
+    if (t === 'shapes') { setShowShapeModal(true); return; }
+    if (t === 'icon') { setShowIconModal(true); return; }
+    if (t === 'code') { setShowCodeModal(true); return; }
     setTool(t);
     setSelectedId(null);
     setSelectedIds([]);
+  };
+
+  const handleInsertShape = (shapeConfig) => {
+    const canvas = canvasRef.current;
+    const cw = canvas ? canvas.width / 2 : 400;
+    const ch = canvas ? canvas.height / 2 : 300;
+    const center = screenToWorld(cw, ch);
+    const newEl = {
+      type: 'shape',
+      shapeType: shapeConfig.id,
+      x: Math.round(center.x - shapeConfig.w / 2),
+      y: Math.round(center.y - shapeConfig.h / 2),
+      w: shapeConfig.w,
+      h: shapeConfig.h,
+      color,
+      size: strokeSize,
+      fillStyle: 'solid',
+    };
+    const next = [...elements, newEl];
+    setElements(next);
+    commitToHistory(next);
+    setSelectedId(next.length - 1);
+    setSelectedIds([next.length - 1]);
+    setTool('select');
+  };
+
+  const handleInsertDeviceFrame = (deviceConfig) => {
+    const canvas = canvasRef.current;
+    const cw = canvas ? canvas.width / 2 : 500;
+    const ch = canvas ? canvas.height / 2 : 400;
+    const center = screenToWorld(cw, ch);
+    const newEl = {
+      type: 'frame',
+      frameType: deviceConfig.id,
+      title: deviceConfig.label,
+      x: Math.round(center.x - deviceConfig.w / 2),
+      y: Math.round(center.y - deviceConfig.h / 2),
+      w: deviceConfig.w,
+      h: deviceConfig.h,
+      color: deviceConfig.id === 'browser' ? '#3b82f6' : deviceConfig.id === 'phone' ? '#6366f1' : deviceConfig.id === 'tablet' ? '#8b5cf6' : '#06b6d4',
+      size: strokeSize,
+    };
+    const next = [...elements, newEl];
+    setElements(next);
+    commitToHistory(next);
+    setSelectedId(next.length - 1);
+    setSelectedIds([next.length - 1]);
+    setTool('select');
+  };
+
+  const handleInsertIcon = (iconName) => {
+    const canvas = canvasRef.current;
+    const cw = canvas ? canvas.width / 2 : 400;
+    const ch = canvas ? canvas.height / 2 : 300;
+    const center = screenToWorld(cw, ch);
+    const sz = 56;
+    const newEl = {
+      type: 'icon',
+      icon: iconName,
+      x: Math.round(center.x - sz / 2),
+      y: Math.round(center.y - sz / 2),
+      w: sz,
+      h: sz,
+      size: sz,
+      color,
+    };
+    const next = [...elements, newEl];
+    setElements(next);
+    commitToHistory(next);
+    setSelectedId(next.length - 1);
+    setSelectedIds([next.length - 1]);
+    setTool('select');
+  };
+
+  const handleInsertCode = ({ code: codeText, language }) => {
+    const canvas = canvasRef.current;
+    const cw = canvas ? canvas.width / 2 : 400;
+    const ch = canvas ? canvas.height / 2 : 300;
+    const center = screenToWorld(cw, ch);
+    const w = 400;
+    const h = 240;
+    const newEl = {
+      type: 'code',
+      code: codeText,
+      language: language || 'javascript',
+      x: Math.round(center.x - w / 2),
+      y: Math.round(center.y - h / 2),
+      w,
+      h,
+      color: '#334155',
+      size: 2,
+    };
+    const next = [...elements, newEl];
+    setElements(next);
+    commitToHistory(next);
+    setSelectedId(next.length - 1);
+    setSelectedIds([next.length - 1]);
+    setTool('select');
   };
 
   // ── Smooth embed drag (beats iframe pointer-capture problem) ──
@@ -1429,9 +1585,25 @@ export default function WhiteboardEditor({ board, onClose, user }) {
     }
   };
 
-  const handleZoomIn  = () => setZoom(z => Math.min(4, parseFloat((z + 0.25).toFixed(2))));
-  const handleZoomOut = () => setZoom(z => Math.max(0.1, parseFloat((z - 0.25).toFixed(2))));
-  const handleZoomReset = () => { setZoom(1); setPanOffset({ x: 0, y: 0 }); };
+  const handleZoomIn = () => {
+    const newZ = Math.min(4, parseFloat((zoomRef.current + 0.25).toFixed(2)));
+    zoomRef.current = newZ;
+    redraw();
+    setZoom(newZ);
+  };
+  const handleZoomOut = () => {
+    const newZ = Math.max(0.1, parseFloat((zoomRef.current - 0.25).toFixed(2)));
+    zoomRef.current = newZ;
+    redraw();
+    setZoom(newZ);
+  };
+  const handleZoomReset = () => {
+    zoomRef.current = 1;
+    panOffsetRef.current = { x: 0, y: 0 };
+    redraw();
+    setZoom(1);
+    setPanOffset({ x: 0, y: 0 });
+  };
 
   const handleDuplicateSelected = () => {
     const targets = selectedIds.length > 0 ? selectedIds : (selectedId !== null ? [selectedId] : []);
@@ -1518,9 +1690,12 @@ export default function WhiteboardEditor({ board, onClose, user }) {
       y: canvas.height / 2 - centerY * newZoom,
     };
 
-    setZoom(parseFloat(newZoom.toFixed(2)));
-    setPanOffset(newPan);
+    const z = parseFloat(newZoom.toFixed(2));
+    zoomRef.current = z;
     panOffsetRef.current = newPan;
+    redraw();
+    setZoom(z);
+    setPanOffset(newPan);
   };
 
   const commitTextPrompt = () => {
@@ -1844,6 +2019,28 @@ export default function WhiteboardEditor({ board, onClose, user }) {
         isOpen={showTemplateModal}
         onClose={() => setShowTemplateModal(false)}
         onSelectTemplate={handleApplyTemplate}
+      />
+
+      {/* Prebuilt Shapes & Device Frames Modal */}
+      <WhiteboardShapePickerModal
+        isOpen={showShapeModal}
+        onClose={() => setShowShapeModal(false)}
+        onSelectShape={handleInsertShape}
+        onSelectDeviceFrame={handleInsertDeviceFrame}
+      />
+
+      {/* Icon Library Modal */}
+      <WhiteboardIconPickerModal
+        isOpen={showIconModal}
+        onClose={() => setShowIconModal(false)}
+        onSelectIcon={handleInsertIcon}
+      />
+
+      {/* Code Snippet Modal */}
+      <WhiteboardCodeModal
+        isOpen={showCodeModal}
+        onClose={() => setShowCodeModal(false)}
+        onCommit={handleInsertCode}
       />
 
       {/* Right-click context menu */}

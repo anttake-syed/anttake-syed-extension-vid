@@ -48,6 +48,13 @@ export function getElementTransformBox(el) {
     h = el.h || (el.fontSize ? el.fontSize * 1.3 : 26);
     // for text, baseline y is adjusted to top-left
     y = el.y - (el.fontSize || 20);
+  } else if (el.type === 'icon') {
+    const s = el.size || el.w || 48;
+    w = s;
+    h = s;
+  } else if (el.type === 'code') {
+    w = el.w || 380;
+    h = el.h || 220;
   } else if (el.type === 'arrow') {
     const minX = Math.min(el.x, el.x2);
     const maxX = Math.max(el.x, el.x2);
@@ -201,7 +208,7 @@ export function hitTestElement(el, pos) {
            unrot.y >= box.y && unrot.y <= box.y + box.h;
   }
 
-  if (el.type === 'rect' || el.type === 'image' || el.type === 'embed' || el.type === 'link') {
+  if (el.type === 'rect' || el.type === 'image' || el.type === 'embed' || el.type === 'link' || el.type === 'shape' || el.type === 'code' || el.type === 'icon') {
     return unrot.x >= box.x - 4 && unrot.x <= box.x + box.w + 4 &&
            unrot.y >= box.y - 4 && unrot.y <= box.y + box.h + 4;
   }
@@ -235,6 +242,39 @@ export function hitTestElement(el, pos) {
   }
 
   return false;
+}
+
+/**
+ * Check whether an element's center point is contained inside a frame's boundary
+ */
+export function isElementInsideFrame(el, frame) {
+  if (!el || !frame || el === frame) return false;
+  const elBox = getElementTransformBox(el);
+  const frBox = getElementTransformBox(frame);
+
+  // If frame has rotation, check in frame's unrotated coordinate system
+  const unrot = rotatePoint(elBox.cx, elBox.cy, frBox.cx, frBox.cy, -frBox.rotation);
+  return (
+    unrot.x >= frBox.x &&
+    unrot.x <= frBox.x + frBox.w &&
+    unrot.y >= frBox.y &&
+    unrot.y <= frBox.y + frBox.h
+  );
+}
+
+/**
+ * Returns all indices of elements currently inside the specified frame
+ */
+export function getContainedIndices(frameIdx, elements) {
+  const frame = elements[frameIdx];
+  if (!frame || frame.type !== 'frame') return [];
+  const contained = [];
+  elements.forEach((el, i) => {
+    if (i !== frameIdx && el.type !== 'frame' && isElementInsideFrame(el, frame)) {
+      contained.push(i);
+    }
+  });
+  return contained;
 }
 
 /**

@@ -52,16 +52,298 @@ export function renderWhiteboardCanvas(ctx, canvas, state) {
       if (el.type === 'frame') {
         const fw = el.w || 360;
         const fh = el.h || 240;
-        ctx.fillStyle = 'rgba(30, 41, 59, 0.4)';
-        ctx.fillRect(el.x, el.y, fw, fh);
-        ctx.fillStyle = 'rgba(99, 102, 241, 0.15)';
-        ctx.fillRect(el.x, el.y, fw, 28);
-        ctx.strokeStyle = el.color || '#6366f1';
+        const ft = el.frameType || 'normal';
+
+        if (ft === 'browser') {
+          // macOS-style browser window frame
+          ctx.fillStyle = 'rgba(15, 23, 42, 0.7)';
+          ctx.beginPath();
+          ctx.roundRect(el.x, el.y, fw, fh, 12);
+          ctx.fill();
+
+          // Header titlebar
+          ctx.fillStyle = 'rgba(30, 41, 59, 0.9)';
+          ctx.beginPath();
+          ctx.roundRect(el.x, el.y, fw, 38, [12, 12, 0, 0]);
+          ctx.fill();
+
+          // Traffic light dots
+          ctx.fillStyle = '#ef4444'; ctx.beginPath(); ctx.arc(el.x + 18, el.y + 19, 5, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = '#f59e0b'; ctx.beginPath(); ctx.arc(el.x + 34, el.y + 19, 5, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = '#10b981'; ctx.beginPath(); ctx.arc(el.x + 50, el.y + 19, 5, 0, Math.PI * 2); ctx.fill();
+
+          // Address bar
+          const searchW = Math.max(120, fw - 160);
+          ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
+          ctx.beginPath();
+          ctx.roundRect(el.x + 72, el.y + 9, searchW, 20, 6);
+          ctx.fill();
+
+          // URL / title text
+          ctx.fillStyle = '#94a3b8';
+          ctx.font = "11px 'Outfit', sans-serif";
+          ctx.fillText(el.title || 'https://my-app.dev', el.x + 82, el.y + 23);
+
+          // Frame outline
+          ctx.strokeStyle = el.color || '#3b82f6';
+          ctx.lineWidth = Math.max(1.5, el.size || 2);
+          ctx.beginPath();
+          ctx.roundRect(el.x, el.y, fw, fh, 12);
+          ctx.stroke();
+
+        } else if (ft === 'phone') {
+          // Mobile Phone chassis
+          ctx.fillStyle = 'rgba(15, 23, 42, 0.75)';
+          ctx.beginPath();
+          ctx.roundRect(el.x, el.y, fw, fh, 32);
+          ctx.fill();
+
+          // Dynamic Island / speaker pill at top center
+          const pillW = Math.min(90, fw * 0.35);
+          ctx.fillStyle = '#020617';
+          ctx.beginPath();
+          ctx.roundRect(el.x + (fw - pillW) / 2, el.y + 10, pillW, 14, 7);
+          ctx.fill();
+
+          // Bottom home indicator bar
+          const homeW = Math.min(100, fw * 0.35);
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+          ctx.beginPath();
+          ctx.roundRect(el.x + (fw - homeW) / 2, el.y + fh - 12, homeW, 4, 2);
+          ctx.fill();
+
+          // Header label
+          ctx.fillStyle = '#64748b';
+          ctx.font = "10px 'Outfit', sans-serif";
+          ctx.fillText(el.title || 'Mobile Phone', el.x + 18, el.y + 22);
+
+          // Outer border
+          ctx.strokeStyle = el.color || '#6366f1';
+          ctx.lineWidth = Math.max(2, el.size || 3);
+          ctx.beginPath();
+          ctx.roundRect(el.x, el.y, fw, fh, 32);
+          ctx.stroke();
+
+        } else if (ft === 'tablet') {
+          // Modern Tablet bezel
+          ctx.fillStyle = 'rgba(15, 23, 42, 0.75)';
+          ctx.beginPath();
+          ctx.roundRect(el.x, el.y, fw, fh, 22);
+          ctx.fill();
+
+          // Tablet front camera dot
+          ctx.fillStyle = '#020617';
+          ctx.beginPath();
+          ctx.arc(el.x + fw / 2, el.y + 10, 4, 0, Math.PI * 2);
+          ctx.fill();
+
+          // Header label
+          ctx.fillStyle = '#64748b';
+          ctx.font = "11px 'Outfit', sans-serif";
+          ctx.fillText(el.title || 'Tablet', el.x + 18, el.y + 22);
+
+          // Outer border
+          ctx.strokeStyle = el.color || '#8b5cf6';
+          ctx.lineWidth = Math.max(2, el.size || 3);
+          ctx.beginPath();
+          ctx.roundRect(el.x, el.y, fw, fh, 22);
+          ctx.stroke();
+
+        } else if (ft === 'desktop') {
+          // Desktop Monitor Frame
+          const screenH = fh - 32;
+          ctx.fillStyle = 'rgba(15, 23, 42, 0.75)';
+          ctx.beginPath();
+          ctx.roundRect(el.x, el.y, fw, screenH, 10);
+          ctx.fill();
+
+          // Stand neck
+          const standNeckW = Math.max(24, fw * 0.12);
+          ctx.fillStyle = '#334155';
+          ctx.fillRect(el.x + (fw - standNeckW) / 2, el.y + screenH, standNeckW, 24);
+
+          // Stand base plate
+          const standBaseW = Math.max(80, fw * 0.35);
+          ctx.fillStyle = '#475569';
+          ctx.beginPath();
+          ctx.roundRect(el.x + (fw - standBaseW) / 2, el.y + screenH + 20, standBaseW, 10, 4);
+          ctx.fill();
+
+          // Header label
+          ctx.fillStyle = '#64748b';
+          ctx.font = "11px 'Outfit', sans-serif";
+          ctx.fillText(el.title || 'Desktop Display', el.x + 14, el.y + 20);
+
+          // Monitor screen border
+          ctx.strokeStyle = el.color || '#06b6d4';
+          ctx.lineWidth = Math.max(2, el.size || 2.5);
+          ctx.beginPath();
+          ctx.roundRect(el.x, el.y, fw, screenH, 10);
+          ctx.stroke();
+
+        } else {
+          // Standard Canvas Frame / Container
+          ctx.fillStyle = 'rgba(30, 41, 59, 0.4)';
+          ctx.fillRect(el.x, el.y, fw, fh);
+          ctx.fillStyle = 'rgba(99, 102, 241, 0.15)';
+          ctx.fillRect(el.x, el.y, fw, 28);
+          ctx.strokeStyle = el.color || '#6366f1';
+          ctx.lineWidth = Math.max(1.5, el.size || 2);
+          ctx.strokeRect(el.x, el.y, fw, fh);
+          ctx.fillStyle = '#f8fafc';
+          ctx.font = "bold 12px 'Outfit', sans-serif";
+          ctx.fillText(el.title || 'FRAME', el.x + 10, el.y + 19);
+        }
+      } else if (el.type === 'shape') {
+        const sw = el.w || 100;
+        const sh = el.h || 100;
+        const stroke = el.color || '#6366f1';
+        const fill = el.fillStyle === 'none' ? 'transparent' : (el.fill || getFillColor(stroke, 0.2));
+        ctx.strokeStyle = stroke;
+        ctx.fillStyle = fill;
+        ctx.lineWidth = el.size || 2;
+        ctx.lineJoin = 'round';
+        ctx.lineCap = 'round';
+
+        const st = el.shapeType || 'triangle';
+        if (st === 'triangle') {
+          ctx.beginPath();
+          ctx.moveTo(el.x + sw / 2, el.y);
+          ctx.lineTo(el.x + sw, el.y + sh);
+          ctx.lineTo(el.x, el.y + sh);
+          ctx.closePath();
+          ctx.fill();
+          ctx.stroke();
+        } else if (st === 'diamond') {
+          ctx.beginPath();
+          ctx.moveTo(el.x + sw / 2, el.y);
+          ctx.lineTo(el.x + sw, el.y + sh / 2);
+          ctx.lineTo(el.x + sw / 2, el.y + sh);
+          ctx.lineTo(el.x, el.y + sh / 2);
+          ctx.closePath();
+          ctx.fill();
+          ctx.stroke();
+        } else if (st === 'star') {
+          const cx = el.x + sw / 2;
+          const cy = el.y + sh / 2;
+          const outerR = Math.min(sw, sh) / 2;
+          const innerR = outerR * 0.45;
+          ctx.beginPath();
+          for (let p = 0; p < 10; p++) {
+            const r = p % 2 === 0 ? outerR : innerR;
+            const angle = (p * Math.PI) / 5 - Math.PI / 2;
+            const px = cx + r * Math.cos(angle);
+            const py = cy + r * Math.sin(angle);
+            p === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+          }
+          ctx.closePath();
+          ctx.fill();
+          ctx.stroke();
+        } else if (st === 'hexagon') {
+          ctx.beginPath();
+          ctx.moveTo(el.x + sw * 0.25, el.y);
+          ctx.lineTo(el.x + sw * 0.75, el.y);
+          ctx.lineTo(el.x + sw, el.y + sh / 2);
+          ctx.lineTo(el.x + sw * 0.75, el.y + sh);
+          ctx.lineTo(el.x + sw * 0.25, el.y + sh);
+          ctx.lineTo(el.x, el.y + sh / 2);
+          ctx.closePath();
+          ctx.fill();
+          ctx.stroke();
+        } else if (st === 'cylinder') {
+          const ry = Math.min(18, sh * 0.16);
+          ctx.beginPath();
+          ctx.moveTo(el.x, el.y + ry);
+          ctx.lineTo(el.x, el.y + sh - ry);
+          ctx.ellipse(el.x + sw / 2, el.y + sh - ry, sw / 2, ry, 0, 0, Math.PI);
+          ctx.lineTo(el.x + sw, el.y + ry);
+          ctx.ellipse(el.x + sw / 2, el.y + ry, sw / 2, ry, 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+        } else if (st === 'cloud') {
+          ctx.beginPath();
+          const r = Math.min(sw, sh) * 0.25;
+          ctx.arc(el.x + sw * 0.3, el.y + sh * 0.45, r, Math.PI * 0.7, Math.PI * 1.8);
+          ctx.arc(el.x + sw * 0.55, el.y + sh * 0.3, r * 1.1, Math.PI * 1.1, Math.PI * 2.1);
+          ctx.arc(el.x + sw * 0.78, el.y + sh * 0.5, r * 0.85, Math.PI * 1.5, Math.PI * 0.5);
+          ctx.arc(el.x + sw * 0.5, el.y + sh * 0.75, r * 0.9, 0, Math.PI);
+          ctx.closePath();
+          ctx.fill();
+          ctx.stroke();
+        } else if (st === 'callout') {
+          ctx.beginPath();
+          const tailW = Math.min(30, sw * 0.2);
+          ctx.roundRect(el.x, el.y, sw, sh - 18, 12);
+          ctx.fill();
+          ctx.stroke();
+          // tail pointer
+          ctx.beginPath();
+          ctx.moveTo(el.x + 24, el.y + sh - 18);
+          ctx.lineTo(el.x + 14, el.y + sh);
+          ctx.lineTo(el.x + 24 + tailW, el.y + sh - 18);
+          ctx.fill();
+          ctx.stroke();
+        }
+      } else if (el.type === 'icon') {
+        const sz = el.size || el.w || 48;
+        ctx.fillStyle = el.color || '#38bdf8';
+        ctx.font = `${sz}px 'Material Symbols Rounded', sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(el.icon || 'star', el.x + sz / 2, el.y + sz / 2);
+        // Reset text alignments
+        ctx.textAlign = 'start';
+        ctx.textBaseline = 'alphabetic';
+      } else if (el.type === 'code') {
+        const cw = el.w || 380;
+        const ch = el.h || 220;
+
+        // Container background
+        ctx.fillStyle = '#0f172a';
+        ctx.beginPath();
+        ctx.roundRect(el.x, el.y, cw, ch, 10);
+        ctx.fill();
+
+        // Header
+        ctx.fillStyle = '#1e293b';
+        ctx.beginPath();
+        ctx.roundRect(el.x, el.y, cw, 32, [10, 10, 0, 0]);
+        ctx.fill();
+
+        // macOS Traffic lights
+        ctx.fillStyle = '#ef4444'; ctx.beginPath(); ctx.arc(el.x + 16, el.y + 16, 4.5, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#f59e0b'; ctx.beginPath(); ctx.arc(el.x + 30, el.y + 16, 4.5, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#10b981'; ctx.beginPath(); ctx.arc(el.x + 44, el.y + 16, 4.5, 0, Math.PI * 2); ctx.fill();
+
+        // Language tag
+        ctx.fillStyle = '#818cf8';
+        ctx.font = "bold 11px monospace";
+        ctx.fillText((el.language || 'JAVASCRIPT').toUpperCase(), el.x + cw - 80, el.y + 20);
+
+        // Code content line by line
+        const lines = (el.code || '// Write code here\nfunction example() {\n  return "AntCapture";\n}').split('\n');
+        ctx.font = "12px 'Fira Code', monospace, sans-serif";
+        const maxLines = Math.floor((ch - 46) / 20);
+
+        lines.slice(0, maxLines).forEach((line, idx) => {
+          const ly = el.y + 52 + idx * 20;
+
+          // Line numbers
+          ctx.fillStyle = '#475569';
+          ctx.fillText(String(idx + 1).padStart(2, ' '), el.x + 14, ly);
+
+          // Code text
+          ctx.fillStyle = '#e2e8f0';
+          ctx.fillText(line, el.x + 44, ly);
+        });
+
+        // Border outline
+        ctx.strokeStyle = el.color || '#334155';
         ctx.lineWidth = Math.max(1.5, el.size || 2);
-        ctx.strokeRect(el.x, el.y, fw, fh);
-        ctx.fillStyle = '#f8fafc';
-        ctx.font = "bold 12px 'Outfit', sans-serif";
-        ctx.fillText(el.title || 'FRAME', el.x + 10, el.y + 19);
+        ctx.beginPath();
+        ctx.roundRect(el.x, el.y, cw, ch, 10);
+        ctx.stroke();
+
       } else if (el.type === 'path') {
         if (el.points && el.points.length > 0) {
           ctx.strokeStyle = el.color || '#f8fafc';

@@ -28,7 +28,7 @@ export default function WhiteboardContextBar({
   const isSelected = selectedElement != null;
   const targetType = isSelected ? selectedElement.type : tool;
 
-  const showShapeStyles = ['pen', 'rect', 'circle', 'arrow', 'frame'].includes(targetType);
+  const showShapeStyles = ['pen', 'rect', 'circle', 'arrow', 'frame', 'shape', 'icon', 'code'].includes(targetType);
   const showTextStyles  = targetType === 'text';
   const showMediaStyles = targetType === 'image' || selectedElement?.isVideo;
 
@@ -78,10 +78,10 @@ export default function WhiteboardContextBar({
         <div className="wb-context-section wb-context-selected-info">
           <span className="wb-context-pill">
             <span className="material-symbols-rounded" style={{ fontSize: '14px' }}>
-              {selectedElement.type === 'embed' ? 'smart_display' : selectedElement.type === 'link' ? 'link' : selectedElement.isVideo ? 'videocam' : selectedElement.type === 'image' ? 'image' : selectedElement.type === 'text' ? 'title' : selectedElement.type === 'frame' ? 'crop_free' : 'category'}
+              {selectedElement.type === 'embed' ? 'smart_display' : selectedElement.type === 'link' ? 'link' : selectedElement.isVideo ? 'videocam' : selectedElement.type === 'image' ? 'image' : selectedElement.type === 'text' ? 'title' : selectedElement.type === 'icon' ? 'sentiment_satisfied' : selectedElement.type === 'code' ? 'code' : selectedElement.type === 'shape' ? 'shapes' : selectedElement.type === 'frame' ? 'crop_free' : 'category'}
             </span>
             <span>
-              {selectedElement.type === 'embed' ? 'YouTube' : selectedElement.type === 'link' ? 'Link' : selectedElement.isVideo ? 'Video' : selectedElement.type === 'image' ? 'Image' : selectedElement.type === 'text' ? 'Text' : selectedElement.type === 'frame' ? (selectedElement.title || 'Frame') : selectedElement.type.toUpperCase()}
+              {selectedElement.type === 'embed' ? 'YouTube' : selectedElement.type === 'link' ? 'Link' : selectedElement.isVideo ? 'Video' : selectedElement.type === 'image' ? 'Image' : selectedElement.type === 'text' ? 'Text' : selectedElement.type === 'icon' ? `Icon (${selectedElement.icon})` : selectedElement.type === 'code' ? `Code (${(selectedElement.language || 'JS').toUpperCase()})` : selectedElement.type === 'shape' ? (selectedElement.shapeType?.toUpperCase() || 'SHAPE') : selectedElement.type === 'frame' ? (selectedElement.title || 'Frame') : selectedElement.type.toUpperCase()}
               {selectedCount > 1 ? ` (+${selectedCount - 1})` : ''}
             </span>
           </span>
@@ -102,7 +102,7 @@ export default function WhiteboardContextBar({
           )}
 
           {/* Quick Rotate 90 degrees */}
-          {['rect', 'circle', 'image', 'frame'].includes(selectedElement.type) && onUpdateSelectedElement && (
+          {['rect', 'circle', 'image', 'frame', 'shape', 'icon', 'code'].includes(selectedElement.type) && onUpdateSelectedElement && (
             <button
               onClick={() => {
                 const currentRot = selectedElement.rotation || 0;

@@ -265,11 +265,11 @@ export function drawHandDrawnRect(ctx, x, y, w, h, options = {}) {
     radius = 12,
   } = options;
 
-  const actualRadius = Math.min(Math.abs(w) / 2, Math.abs(h) / 2, radius);
-  const minX = Math.min(x, x + w);
-  const minY = Math.min(y, y + h);
-  const absW = Math.abs(w);
-  const absH = Math.abs(h);
+  const absW = Math.max(0.1, Math.abs(w || 0));
+  const absH = Math.max(0.1, Math.abs(h || 0));
+  const actualRadius = Math.max(0, Math.min(absW / 2, absH / 2, radius));
+  const minX = Math.min(x, x + (w || 0));
+  const minY = Math.min(y, y + (h || 0));
 
   // 1. Draw Background Fill with soft watercolor texture
   if (fill && fill !== 'transparent' && fillStyle !== 'none') {
@@ -309,11 +309,14 @@ export function drawHandDrawnRect(ctx, x, y, w, h, options = {}) {
   ctx.stroke();
 
   // Secondary organic pencil pass (slight subtle offset for that Excalidraw charm)
-  ctx.globalAlpha = 0.45;
-  ctx.lineWidth = Math.max(1, strokeWidth * 0.7);
-  ctx.beginPath();
-  ctx.roundRect(minX + 0.5, minY + 0.5, absW - 0.5, absH - 0.5, actualRadius);
-  ctx.stroke();
+  if (absW > 1 && absH > 1) {
+    ctx.globalAlpha = 0.45;
+    ctx.lineWidth = Math.max(1, strokeWidth * 0.7);
+    ctx.beginPath();
+    const secondR = Math.max(0, Math.min((absW - 0.5) / 2, (absH - 0.5) / 2, actualRadius));
+    ctx.roundRect(minX + 0.5, minY + 0.5, Math.max(0.1, absW - 0.5), Math.max(0.1, absH - 0.5), secondR);
+    ctx.stroke();
+  }
   ctx.restore();
 }
 
@@ -328,8 +331,8 @@ export function drawHandDrawnCircle(ctx, cx, cy, rx, ry, options = {}) {
     strokeWidth = 2,
   } = options;
 
-  const rX = Math.abs(rx);
-  const rY = Math.abs(ry);
+  const rX = Math.max(0.1, Math.abs(rx || 0));
+  const rY = Math.max(0.1, Math.abs(ry || 0));
 
   // 1. Background Fill with texture
   if (fill && fill !== 'transparent' && fillStyle !== 'none') {
@@ -367,12 +370,14 @@ export function drawHandDrawnCircle(ctx, cx, cy, rx, ry, options = {}) {
   ctx.ellipse(cx, cy, rX, rY, 0, 0, Math.PI * 2);
   ctx.stroke();
 
-  // Second pass with slight pencil wobble
-  ctx.globalAlpha = 0.45;
-  ctx.lineWidth = Math.max(1, strokeWidth * 0.7);
-  ctx.beginPath();
-  ctx.ellipse(cx + 0.4, cy + 0.4, rX - 0.3, rY - 0.3, 0.01, 0, Math.PI * 2);
-  ctx.stroke();
+  // Second pass with slight pencil wobble (strictly guarding radius > 0.5 to prevent DOMException)
+  if (rX > 0.5 && rY > 0.5) {
+    ctx.globalAlpha = 0.45;
+    ctx.lineWidth = Math.max(1, strokeWidth * 0.7);
+    ctx.beginPath();
+    ctx.ellipse(cx + 0.4, cy + 0.4, Math.max(0.1, rX - 0.3), Math.max(0.1, rY - 0.3), 0.01, 0, Math.PI * 2);
+    ctx.stroke();
+  }
   ctx.restore();
 }
 

@@ -53,3 +53,38 @@ export function generateThumbnailFromCanvas(canvas) {
     return null;
   }
 }
+
+/**
+ * Extract YouTube Video ID from various URL formats
+ * (youtube.com/watch?v=..., youtu.be/..., youtube.com/embed/..., youtube.com/shorts/...)
+ */
+export function extractYouTubeVideoId(url) {
+  if (!url || typeof url !== 'string') return null;
+  const trimmed = url.trim();
+  const match = trimmed.match(
+    /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:watch\?(?:.*&)?v=|embed\/|v\/|shorts\/)|youtu\.be\/)([\w-]{11})/i
+  );
+  return match ? match[1] : null;
+}
+
+/**
+ * Validate and clean a pasted string into a full HTTP/HTTPS URL
+ */
+export function parsePastedUrl(text) {
+  if (!text || typeof text !== 'string') return null;
+  const trimmed = text.trim();
+  // Quick test: starts with http://, https://, or common domain pattern like www. or something.com
+  const urlRegex = /^(https?:\/\/[^\s]+|www\.[^\s]+|[a-zA-Z0-9-]+\.[a-zA-Z]{2,}(?:\/[^\s]*)?)$/i;
+  if (!urlRegex.test(trimmed)) return null;
+
+  try {
+    const candidate = trimmed.startsWith('http://') || trimmed.startsWith('https://')
+      ? trimmed
+      : `https://${trimmed}`;
+    const parsed = new URL(candidate);
+    if (!parsed.hostname || !parsed.hostname.includes('.')) return null;
+    return parsed.href;
+  } catch (_) {
+    return null;
+  }
+}

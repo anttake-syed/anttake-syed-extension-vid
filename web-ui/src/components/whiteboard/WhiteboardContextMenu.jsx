@@ -117,7 +117,6 @@ export default function WhiteboardContextMenu({
             icon="content_paste"
             label="Paste"
             shortcut="Ctrl+V"
-            disabled={!hasClipboard}
             onClick={onPaste}
           />
           <MenuItem icon="content_copy" label="Duplicate" shortcut="Ctrl+D" onClick={onDuplicate} />
@@ -168,7 +167,6 @@ export default function WhiteboardContextMenu({
             icon="content_paste"
             label="Paste"
             shortcut="Ctrl+V"
-            disabled={!hasClipboard}
             onClick={onPaste}
           />
           <MenuItem icon="select_all" label="Select All" shortcut="Ctrl+A" onClick={onSelectAll} />

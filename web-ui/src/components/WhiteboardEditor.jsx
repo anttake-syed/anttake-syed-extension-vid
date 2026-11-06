@@ -11,6 +11,10 @@ import WhiteboardContextMenu from './whiteboard/WhiteboardContextMenu.jsx';
 import WhiteboardExitModal from './whiteboard/WhiteboardExitModal.jsx';
 import WhiteboardTextPromptModal from './whiteboard/WhiteboardTextPromptModal.jsx';
 import WhiteboardShortcutsModal from './whiteboard/WhiteboardShortcutsModal.jsx';
+import WhiteboardStatusBar from './whiteboard/WhiteboardStatusBar.jsx';
+import WhiteboardEmbedLayer from './whiteboard/WhiteboardEmbedLayer.jsx';
+import { useWhiteboardShortcuts } from './whiteboard/useWhiteboardShortcuts.js';
+import { renderWhiteboardCanvas } from './whiteboard/whiteboardRenderer.js';
 import { TOOLS, COLORS, SIZES, generateDefaultName } from './whiteboard/whiteboardConstants.js';
 import {
   rotatePoint,
@@ -56,6 +60,7 @@ export default function WhiteboardEditor({ board, onClose, user }) {
   const [textPromptValue, setTextPromptValue] = useState('');
   const [mediaLoadError, setMediaLoadError] = useState(null);
   const [activeVideoEmbedId, setActiveVideoEmbedId] = useState(null);
+  const [isDragging, setIsDragging]               = useState(false); // true while dragging embed/element
 
   const canvasRef         = useRef(null);
   const drawing           = useRef(false);
@@ -78,6 +83,7 @@ export default function WhiteboardEditor({ board, onClose, user }) {
   const spacePressedRef   = useRef(false);
   const longPressTimerRef = useRef(null);
   const touchStartPosRef  = useRef(null);
+  const isDraggingRef     = useRef(false); // true while any drag (incl. embed) is active
   const lastTapRef        = useRef({ time: 0, x: 0, y: 0 });
 
   // Keep refs in sync for use in event handlers
@@ -147,270 +153,23 @@ export default function WhiteboardEditor({ board, onClose, user }) {
   const redraw = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    if (canvas.width === 0 || canvas.height === 0) return;
     const ctx = canvas.getContext('2d');
-    const z = zoomRef.current;
-    const pan = panOffsetRef.current;
+    if (!ctx) return;
 
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    // Apply zoom + pan transform
-    ctx.save();
-    ctx.translate(pan.x, pan.y);
-    ctx.scale(z, z);
-
-    elements.forEach((el) => {
-      ctx.save();
-      try {
-        const rot = el.rotation || 0;
-        if (rot) {
-          const box = getElementTransformBox(el);
-          ctx.translate(box.cx, box.cy);
-          ctx.rotate(rot);
-          ctx.translate(-box.cx, -box.cy);
-        }
-
-        if (el.type === 'frame') {
-          // Professional Figma/Miro style Frame container
-          const fw = el.w || 360;
-          const fh = el.h || 240;
-          // Background card
-          ctx.fillStyle = 'rgba(30, 41, 59, 0.4)';
-          ctx.fillRect(el.x, el.y, fw, fh);
-          // Header banner
-          ctx.fillStyle = 'rgba(99, 102, 241, 0.15)';
-          ctx.fillRect(el.x, el.y, fw, 28);
-          // Frame outer border
-          ctx.strokeStyle = el.color || '#6366f1';
-          ctx.lineWidth = Math.max(1.5, el.size || 2);
-          ctx.strokeRect(el.x, el.y, fw, fh);
-          // Header title
-          ctx.fillStyle = '#f8fafc';
-          ctx.font = "bold 12px 'Outfit', sans-serif";
-          ctx.fillText(el.title || 'FRAME', el.x + 10, el.y + 19);
-        } else if (el.type === 'path') {
-          if (el.points && el.points.length > 0) {
-            ctx.strokeStyle = el.color || '#f8fafc';
-            ctx.lineWidth   = el.size || 2;
-            ctx.lineCap     = 'round';
-            ctx.lineJoin    = 'round';
-            ctx.beginPath();
-            el.points.forEach((p, i) => i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y));
-            ctx.stroke();
-          }
-        } else if (el.type === 'rect') {
-          const fill = el.fillStyle === 'none' ? 'transparent' : (el.fill || getFillColor(el.color, 0.16));
-          drawHandDrawnRect(ctx, el.x, el.y, el.w, el.h, {
-            stroke: el.color || '#6366f1',
-            fill,
-            fillStyle: el.fillStyle || 'solid',
-            strokeWidth: el.size || 2,
-            radius: el.radius !== undefined ? el.radius : 12,
-          });
-        } else if (el.type === 'circle') {
-          const fill = el.fillStyle === 'none' ? 'transparent' : (el.fill || getFillColor(el.color, 0.16));
-          const w = el.w || 0;
-          const h = el.h || 0;
-          const cx = el.x + w / 2;
-          const cy = el.y + h / 2;
-          const rx = w / 2;
-          const ry = h / 2;
-          drawHandDrawnCircle(ctx, cx, cy, rx, ry, {
-            stroke: el.color || '#6366f1',
-            fill,
-            fillStyle: el.fillStyle || 'solid',
-            strokeWidth: el.size || 2,
-          });
-        } else if (el.type === 'arrow') {
-          drawHandDrawnArrow(ctx, el.x || 0, el.y || 0, el.x2 || 0, el.y2 || 0, el.cpx, el.cpy, {
-            stroke: el.color || '#6366f1',
-            strokeWidth: el.size || 2,
-          });
-        } else if (el.type === 'text') {
-          ctx.fillStyle  = el.color || '#f8fafc';
-          ctx.font       = `${el.fontSize || 14}px 'Outfit', sans-serif`;
-          ctx.fillText(el.text || '', el.x || 0, el.y || 0);
-        } else if (el.type === 'image') {
-          if (el.img) {
-            try {
-              ctx.drawImage(el.img, el.x, el.y, el.w, el.h);
-            } catch (e) {
-              console.warn('Canvas drawImage error for element:', e);
-            }
-          } else {
-            // Fallback placeholder card if image is loading or failed
-            ctx.fillStyle = '#0f172a';
-            ctx.fillRect(el.x, el.y, el.w || 300, el.h || 200);
-            ctx.strokeStyle = '#334155';
-            ctx.lineWidth = 1;
-            ctx.strokeRect(el.x, el.y, el.w || 300, el.h || 200);
-
-            ctx.fillStyle = '#94a3b8';
-            ctx.font = "14px 'Outfit', sans-serif";
-            ctx.fillText(el.title || (el.isVideo ? 'Video Preview' : 'Image Preview'), el.x + 16, el.y + (el.h ? el.h / 2 : 100));
-          }
-
-          if (el.title) {
-            ctx.font = "14px 'Outfit', sans-serif";
-            const tw = ctx.measureText(el.title).width;
-            ctx.fillStyle = "rgba(0,0,0,0.6)";
-            ctx.fillRect(el.x, el.y - 24, tw + 12, 24);
-            ctx.fillStyle = "white";
-            ctx.fillText(el.title, el.x + 6, el.y - 8);
-          }
-
-          if (el.isVideo && !el.isPlaying) {
-            ctx.fillStyle = "rgba(0,0,0,0.5)";
-            ctx.beginPath();
-            ctx.arc(el.x + el.w/2, el.y + el.h/2, 24, 0, Math.PI*2);
-            ctx.fill();
-            ctx.fillStyle = "white";
-            ctx.beginPath();
-            ctx.moveTo(el.x + el.w/2 - 8, el.y + el.h/2 - 10);
-            ctx.lineTo(el.x + el.w/2 + 12, el.y + el.h/2);
-            ctx.lineTo(el.x + el.w/2 - 8, el.y + el.h/2 + 10);
-            ctx.fill();
-          }
-        }
-      } catch (drawErr) {
-        console.warn('Error drawing whiteboard element:', el, drawErr);
-      } finally {
-        ctx.restore();
-      }
+    renderWhiteboardCanvas(ctx, canvas, {
+      elements,
+      zoom: zoomRef.current,
+      panOffset: panOffsetRef.current,
+      tool,
+      color,
+      strokeSize,
+      selectedId,
+      selectedIds,
+      currentPath: currentPath.current,
+      liveShape: liveShape.current,
+      marquee: marqueeRef.current,
+      drawing: drawing.current,
     });
-
-    // live path (pen/eraser)
-    if (drawing.current && currentPath.current.length > 1 && (tool === 'pen' || tool === 'eraser')) {
-      ctx.save();
-      ctx.strokeStyle = tool === 'eraser' ? '#020617' : color;
-      ctx.lineWidth   = tool === 'eraser' ? strokeSize * 5 : strokeSize;
-      ctx.lineCap     = 'round';
-      ctx.lineJoin    = 'round';
-      ctx.beginPath();
-      currentPath.current.forEach((p, i) => i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y));
-      ctx.stroke();
-      ctx.restore();
-    }
-
-    // Live shape preview
-    if (drawing.current && liveShape.current) {
-      const { startPt: s, endPt: ep, tool: lt } = liveShape.current;
-      ctx.save();
-      ctx.strokeStyle = '#818cf8';
-      ctx.lineWidth   = Math.max(2, strokeSize * 0.75);
-      ctx.lineCap     = 'round';
-      ctx.setLineDash([]); // Professional solid stroke
-      if (lt === 'rect' || lt === 'frame') {
-        ctx.strokeRect(s.x, s.y, ep.x - s.x, ep.y - s.y);
-        if (lt === 'frame') {
-          ctx.fillStyle = 'rgba(99, 102, 241, 0.12)';
-          ctx.fillRect(s.x, s.y, ep.x - s.x, ep.y - s.y);
-        }
-      } else if (lt === 'circle') {
-        const cx = (s.x + ep.x) / 2, cy = (s.y + ep.y) / 2;
-        const rx = Math.max(0.1, Math.abs((ep.x - s.x) / 2));
-        const ry = Math.max(0.1, Math.abs((ep.y - s.y) / 2));
-        ctx.beginPath();
-        ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
-        ctx.stroke();
-      } else if (lt === 'arrow') {
-        ctx.beginPath(); ctx.moveTo(s.x, s.y); ctx.lineTo(ep.x, ep.y); ctx.stroke();
-        const angle = Math.atan2(ep.y - s.y, ep.x - s.x);
-        const hw = 10 + strokeSize;
-        ctx.setLineDash([]);
-        ctx.beginPath();
-        ctx.moveTo(ep.x, ep.y);
-        ctx.lineTo(ep.x - hw * Math.cos(angle - Math.PI/6), ep.y - hw * Math.sin(angle - Math.PI/6));
-        ctx.lineTo(ep.x - hw * Math.cos(angle + Math.PI/6), ep.y - hw * Math.sin(angle + Math.PI/6));
-        ctx.closePath();
-        ctx.fillStyle = '#818cf8';
-        ctx.fill();
-      }
-      ctx.restore();
-    }
-
-    // Selection bounding outlines + 8 resize handles + rotation stem
-    const allSelected = selectedIds.length > 0 ? selectedIds : (selectedId !== null ? [selectedId] : []);
-    allSelected.forEach(idx => {
-      const el = elements[idx];
-      if (!el) return;
-      const { box, handles, rotationHandle } = getTransformHandles(el, z);
-
-      ctx.save();
-      if (box.rotation) {
-        ctx.translate(box.cx, box.cy);
-        ctx.rotate(box.rotation);
-        ctx.translate(-box.cx, -box.cy);
-      }
-
-      if (el.type === 'arrow') {
-        // Arrow-specific interactive points (Start, Curve Midpoint, End)
-        handles.forEach(h => {
-          const isMid = h.id === 'arrow-mid';
-          ctx.beginPath();
-          ctx.arc(h.x, h.y, isMid ? 5 / z : 6 / z, 0, Math.PI * 2);
-          ctx.fillStyle = isMid ? '#a855f7' : '#ffffff';
-          ctx.strokeStyle = '#4f46e5';
-          ctx.lineWidth = 1.5 / z;
-          ctx.fill();
-          ctx.stroke();
-        });
-      } else {
-        // Solid bounding outline in signature indigo
-        ctx.strokeStyle = '#6366f1';
-        ctx.lineWidth   = 1.5 / z;
-        ctx.setLineDash([]);
-        ctx.strokeRect(box.x, box.y, box.w, box.h);
-
-        // Rotation stem line from top edge up to rotation handle
-        ctx.beginPath();
-        ctx.moveTo(box.cx, box.y);
-        ctx.lineTo(box.cx, box.y - 20 / z);
-        ctx.strokeStyle = '#818cf8';
-        ctx.lineWidth = 1 / z;
-        ctx.stroke();
-
-        // Rotation handle (top circle with indigo accent)
-        ctx.fillStyle = '#6366f1';
-        ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 1.5 / z;
-        ctx.beginPath();
-        ctx.arc(box.cx, box.y - 20 / z, 4.5 / z, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
-
-        // 8 Resize handles around perimeter (Crisp white squares with solid indigo border)
-        const hs = 7 / z;
-        handles.forEach(h => {
-          ctx.fillStyle = '#ffffff';
-          ctx.strokeStyle = '#4f46e5';
-          ctx.lineWidth = 1.5 / z;
-          ctx.fillRect(h.unrotX - hs / 2, h.unrotY - hs / 2, hs, hs);
-          ctx.strokeRect(h.unrotX - hs / 2, h.unrotY - hs / 2, hs, hs);
-        });
-      }
-
-      ctx.restore();
-    });
-
-    // Marquee selection box
-    const m = marqueeRef.current;
-    if (m && m.active) {
-      const rx = Math.min(m.startX, m.currentX);
-      const ry = Math.min(m.startY, m.currentY);
-      const rw = Math.abs(m.currentX - m.startX);
-      const rh = Math.abs(m.currentY - m.startY);
-      ctx.save();
-      ctx.fillStyle = 'rgba(99, 102, 241, 0.12)';
-      ctx.fillRect(rx, ry, rw, rh);
-      ctx.strokeStyle = '#6366f1';
-      ctx.lineWidth = 1.5 / z;
-      ctx.setLineDash([]); // Professional solid line
-      ctx.strokeRect(rx, ry, rw, rh);
-      ctx.restore();
-    }
-
-    ctx.restore(); // restore zoom+pan transform
   }, [elements, color, strokeSize, tool, selectedId, selectedIds]);
 
   useEffect(() => { redraw(); }, [redraw]);
@@ -971,6 +730,8 @@ export default function WhiteboardEditor({ board, onClose, user }) {
       dragRef.current = null;
       needsCommitRef.current = true;
       setElements(prev => [...prev]);
+      setIsDragging(false);
+      isDraggingRef.current = false;
     }
     if (!drawing.current) return;
     drawing.current = false;
@@ -1591,6 +1352,59 @@ export default function WhiteboardEditor({ board, onClose, user }) {
     setSelectedIds([]);
   };
 
+  // ── Smooth embed drag (beats iframe pointer-capture problem) ──
+  const handleStartEmbedDrag = (e, idx) => {
+    e.stopPropagation();
+    setSelectedId(idx);
+    setSelectedIds([idx]);
+    setTool('select');
+    setIsDragging(true);
+    isDraggingRef.current = true;
+    const pos = screenToWorld(e.clientX, e.clientY);
+    const el = elements[idx];
+    if (!el) return;
+    dragRef.current = {
+      idx,
+      isResize: false,
+      startX: pos.x,
+      startY: pos.y,
+      movingIndices: [idx],
+      initialSnapshots: {
+        [idx]: {
+          x: el.x, y: el.y,
+          w: el.w, h: el.h,
+          x2: el.x2, y2: el.y2,
+          points: el.points ? el.points.map(p => ({ ...p })) : null,
+        },
+      },
+      origX: el.x, origY: el.y,
+      origW: el.w || 0, origH: el.h || 0,
+      origX2: el.x2, origY2: el.y2,
+      origCpx: el.x, origCpy: el.y,
+      origPoints: null,
+    };
+  };
+
+  // Global pointer listeners so drag continues even over iframes
+  useEffect(() => {
+    const handleWindowPointerMove = (e) => {
+      if (dragRef.current) onMouseMove(e);
+    };
+    const handleWindowPointerUp = (e) => {
+      if (dragRef.current) {
+        onMouseUp(e);
+        setIsDragging(false);
+        isDraggingRef.current = false;
+      }
+    };
+    window.addEventListener('pointermove', handleWindowPointerMove);
+    window.addEventListener('pointerup', handleWindowPointerUp);
+    return () => {
+      window.removeEventListener('pointermove', handleWindowPointerMove);
+      window.removeEventListener('pointerup', handleWindowPointerUp);
+    };
+  }, [onMouseMove, onMouseUp]);
+
   const handleUndo = () => {
     if (historyStepRef.current > 0) {
       historyStepRef.current -= 1;
@@ -1837,253 +1651,39 @@ export default function WhiteboardEditor({ board, onClose, user }) {
   }, [hasUnsavedChanges, elements, board?.id, user?.jwt, handleSave]);
 
   // ── Keyboard Shortcuts (Standard Canvas / Figma / Miro shortcuts) ──
-  useEffect(() => {
-    const onKeyDown = (e) => {
-      // Don't intercept if user is typing in an input, textarea, or contentEditable
-      const target = e.target;
-      if (
-        target &&
-        (target.tagName === 'INPUT' ||
-         target.tagName === 'TEXTAREA' ||
-         target.isContentEditable)
-      ) {
-        return;
-      }
-
-      const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
-      const cmdOrCtrl = isMac ? e.metaKey : e.ctrlKey;
-      const key = e.key.toLowerCase();
-
-      // Help Modal: ?
-      if (e.key === '?' || (e.shiftKey && e.key === '/')) {
-        e.preventDefault();
-        setShowShortcutsModal(prev => !prev);
-        return;
-      }
-
-      // Spacebar hold for temporary hand / pan tool
-      if (e.code === 'Space' && !e.repeat && !spacePressedRef.current) {
-        e.preventDefault();
-        spacePressedRef.current = true;
-        setIsSpacePressed(true);
-        return;
-      }
-
-      // Undo: Ctrl/Cmd + Z (without shift)
-      if (cmdOrCtrl && key === 'z' && !e.shiftKey) {
-        e.preventDefault();
-        handleUndo();
-        return;
-      }
-
-      // Redo: Ctrl/Cmd + Y OR Ctrl/Cmd + Shift + Z
-      if ((cmdOrCtrl && key === 'y') || (cmdOrCtrl && e.shiftKey && key === 'z')) {
-        e.preventDefault();
-        handleRedo();
-        return;
-      }
-
-      // Save: Ctrl/Cmd + S
-      if (cmdOrCtrl && key === 's') {
-        e.preventDefault();
-        handleSave(false);
-        return;
-      }
-
-      // Select All: Ctrl/Cmd + A
-      if (cmdOrCtrl && key === 'a') {
-        e.preventDefault();
-        handleSelectAll();
-        return;
-      }
-
-      // Copy: Ctrl/Cmd + C
-      if (cmdOrCtrl && key === 'c') {
-        e.preventDefault();
-        handleCopySelected();
-        return;
-      }
-
-      // Cut: Ctrl/Cmd + X
-      if (cmdOrCtrl && key === 'x') {
-        e.preventDefault();
-        handleCutSelected();
-        return;
-      }
-
-      // Paste: Ctrl/Cmd + V
-      if (cmdOrCtrl && key === 'v') {
-        e.preventDefault();
-        handlePasteAt();
-        return;
-      }
-
-      // Duplicate: Ctrl/Cmd + D
-      if (cmdOrCtrl && key === 'd') {
-        e.preventDefault();
-        handleDuplicateSelected();
-        return;
-      }
-
-      // Layer Order: Bring to Front (Ctrl+Shift+]) or Bring Forward (Ctrl+])
-      if (cmdOrCtrl && e.key === ']') {
-        e.preventDefault();
-        if (e.shiftKey) handleBringToFront();
-        else handleBringForward();
-        return;
-      }
-
-      // Layer Order: Send to Back (Ctrl+Shift+[) or Send Backward (Ctrl+[)
-      if (cmdOrCtrl && e.key === '[') {
-        e.preventDefault();
-        if (e.shiftKey) handleSendToBack();
-        else handleSendBackward();
-        return;
-      }
-
-      // Zoom In: Ctrl/Cmd + '+' or '='
-      if (cmdOrCtrl && (e.key === '+' || e.key === '=')) {
-        e.preventDefault();
-        handleZoomIn();
-        return;
-      }
-
-      // Zoom Out: Ctrl/Cmd + '-'
-      if (cmdOrCtrl && e.key === '-') {
-        e.preventDefault();
-        handleZoomOut();
-        return;
-      }
-
-      // Reset Zoom: Ctrl/Cmd + '0'
-      if (cmdOrCtrl && e.key === '0') {
-        e.preventDefault();
-        handleZoomReset();
-        return;
-      }
-
-      // Zoom to Fit: Shift + 1 or Ctrl/Cmd + 9
-      if ((e.shiftKey && e.key === '1') || (cmdOrCtrl && e.key === '9')) {
-        e.preventDefault();
-        handleZoomToFit();
-        return;
-      }
-
-      // Delete / Backspace: Delete selected
-      if (e.key === 'Delete' || e.key === 'Backspace') {
-        e.preventDefault();
-        handleDeleteSelected();
-        return;
-      }
-
-      // Escape: Deselect, close modals, or switch to select tool
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        setShowShortcutsModal(false);
-        setShowTemplateModal(false);
-        setShowLibrary('none');
-        setTextPrompt(null);
-        setContextMenu(null);
-        if (selectedIds.length > 0 || selectedId !== null) {
-          setSelectedId(null);
-          setSelectedIds([]);
-        } else {
-          setTool('select');
-        }
-        return;
-      }
-
-      // Ignore single-key shortcuts if Cmd/Ctrl or Alt is held
-      if (cmdOrCtrl || e.altKey) return;
-
-      // Tool Switching Shortcuts
-      if (key === 'v' || key === '1') {
-        setTool('select');
-      } else if (key === 'h') {
-        setTool('pan');
-      } else if (key === 'p' || key === '2') {
-        setTool('pen');
-        setSelectedId(null);
-        setSelectedIds([]);
-      } else if (key === 'e') {
-        setTool('eraser');
-        setSelectedId(null);
-        setSelectedIds([]);
-      } else if (key === 'r' || key === '3') {
-        setTool('rect');
-        setSelectedId(null);
-        setSelectedIds([]);
-      } else if (key === 'o' || key === 'c') {
-        setTool('circle');
-        setSelectedId(null);
-        setSelectedIds([]);
-      } else if (key === 'a') {
-        setTool('arrow');
-        setSelectedId(null);
-        setSelectedIds([]);
-      } else if (key === 'f') {
-        setTool('frame');
-        setSelectedId(null);
-        setSelectedIds([]);
-      } else if (key === 't' || key === '4') {
-        setTool('text');
-        setSelectedId(null);
-        setSelectedIds([]);
-      }
-    };
-
-    const onKeyUp = (e) => {
-      if (e.code === 'Space') {
-        spacePressedRef.current = false;
-        setIsSpacePressed(false);
-      }
-    };
-
-    const onPaste = (e) => {
-      const target = e.target;
-      if (
-        target &&
-        (target.tagName === 'INPUT' ||
-         target.tagName === 'TEXTAREA' ||
-         target.isContentEditable)
-      ) {
-        return;
-      }
-
-      // If text/URL is in clipboardData
-      const pastedText = e.clipboardData?.getData('text');
-      if (pastedText) {
-        const clean = parsePastedUrl(pastedText);
-        if (clean) {
-          e.preventDefault();
-          handleInsertUrl(clean);
-          return;
-        }
-      }
-    };
-
-    window.addEventListener('keydown', onKeyDown);
-    window.addEventListener('keyup', onKeyUp);
-    window.addEventListener('paste', onPaste);
-    return () => {
-      window.removeEventListener('keydown', onKeyDown);
-      window.removeEventListener('keyup', onKeyUp);
-      window.removeEventListener('paste', onPaste);
-    };
-  }, [
+  useWhiteboardShortcuts({
     elements,
     selectedId,
     selectedIds,
+    setTool,
+    setSelectedId,
+    setSelectedIds,
+    setIsSpacePressed,
+    spacePressedRef,
+    setShowShortcutsModal,
+    setShowTemplateModal,
+    setShowLibrary,
+    setTextPrompt,
+    setContextMenu,
     handleUndo,
     handleRedo,
     handleSave,
     handleDeleteSelected,
     handleDuplicateSelected,
+    handleSelectAll,
+    handleCopySelected,
+    handleCutSelected,
+    handlePasteAt,
+    handleInsertUrl,
+    handleBringForward,
+    handleSendBackward,
+    handleBringToFront,
+    handleSendToBack,
     handleZoomIn,
     handleZoomOut,
     handleZoomReset,
     handleZoomToFit,
-  ]);
+  });
 
   const handleClose = async () => {
     if (hasUnsavedChanges) {
@@ -2182,257 +1782,37 @@ export default function WhiteboardEditor({ board, onClose, user }) {
             onDoubleClick={onDoubleClick}
           />
 
-          {/* Interactive HTML Overlays for Playable YouTube Embeds and Link Cards */}
-          <div className="wb-embed-container">
-            <div
-              className="wb-embed-layer"
-              style={{
-                transform: `translate(${panOffset.x}px, ${panOffset.y}px) scale(${zoom})`,
-              }}
-            >
-              {elements.map((el, idx) => {
-                if (el.type !== 'embed' && el.type !== 'link') return null;
-                const isSelected = selectedIds.includes(idx) || selectedId === idx;
-                const isPlaying = activeVideoEmbedId === idx;
 
-                if (el.type === 'embed') {
-                  const thumbUrl = el.videoId
-                    ? `https://img.youtube.com/vi/${el.videoId}/hqdefault.jpg`
-                    : null;
-
-                  return (
-                    <div
-                      key={idx}
-                      className={`wb-embed-card ${isSelected ? 'wb-embed-card--selected' : ''}`}
-                      style={{
-                        left: `${el.x}px`,
-                        top: `${el.y}px`,
-                        width: `${el.w || 420}px`,
-                        height: `${el.h || 260}px`,
-                        transform: el.rotation ? `rotate(${el.rotation}rad)` : undefined,
-                      }}
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <div
-                        className="wb-embed-header"
-                        onMouseDown={(e) => {
-                          e.stopPropagation();
-                          setSelectedId(idx);
-                          setSelectedIds([idx]);
-                          setTool('select');
-                          const pos = screenToWorld(e.clientX, e.clientY);
-                          const movingIndices = [idx];
-                          const initialSnapshots = {
-                            [idx]: {
-                              x: el.x, y: el.y,
-                              w: el.w, h: el.h,
-                              x2: el.x2, y2: el.y2,
-                              points: el.points ? el.points.map(p => ({ ...p })) : null,
-                            }
-                          };
-                          dragRef.current = {
-                            idx,
-                            isResize: false,
-                            startX: pos.x,
-                            startY: pos.y,
-                            movingIndices,
-                            initialSnapshots,
-                            origX: el.x, origY: el.y,
-                            origW: el.w || 0, origH: el.h || 0,
-                            origX2: el.x2, origY2: el.y2,
-                            origCpx: el.x, origCpy: el.y,
-                            origPoints: null,
-                          };
-                        }}
-                      >
-                        <span className="wb-embed-badge wb-embed-badge--youtube">
-                          <span className="material-symbols-rounded" style={{ fontSize: '13px' }}>smart_display</span>
-                          YouTube
-                        </span>
-                        <span className="wb-embed-title">{el.title || 'YouTube Video'}</span>
-                        <button
-                          type="button"
-                          className="wb-embed-action-btn"
-                          title="Open on YouTube"
-                          aria-label="Open on YouTube"
-                          onClick={() => window.open(el.url || `https://www.youtube.com/watch?v=${el.videoId}`, '_blank', 'noopener,noreferrer')}
-                        >
-                          <span className="material-symbols-rounded" style={{ fontSize: '15px' }}>open_in_new</span>
-                        </button>
-                        <button
-                          type="button"
-                          className="wb-embed-action-btn"
-                          title={isPlaying ? "Stop Video" : "Play Inline"}
-                          aria-label={isPlaying ? "Stop Video" : "Play Inline"}
-                          onClick={() => setActiveVideoEmbedId(isPlaying ? null : idx)}
-                        >
-                          <span className="material-symbols-rounded" style={{ fontSize: '16px', color: isPlaying ? '#f87171' : '#38bdf8' }}>
-                            {isPlaying ? 'stop_circle' : 'play_circle'}
-                          </span>
-                        </button>
-                      </div>
-
-                      <div className="wb-embed-body">
-                        {isPlaying ? (
-                          <iframe
-                            src={`https://www.youtube.com/embed/${el.videoId}?autoplay=1&rel=0&modestbranding=1`}
-                            title={el.title || 'YouTube Video'}
-                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                            allowFullScreen
-                          />
-                        ) : (
-                          <div
-                            className="wb-embed-placeholder"
-                            style={{
-                              backgroundImage: thumbUrl ? `linear-gradient(rgba(0,0,0,0.35), rgba(0,0,0,0.6)), url(${thumbUrl})` : undefined,
-                            }}
-                            onClick={() => {
-                              setSelectedId(idx);
-                              setSelectedIds([idx]);
-                              setActiveVideoEmbedId(idx);
-                            }}
-                          >
-                            <div className="wb-embed-play-btn" title="Click to play video">
-                              <span className="material-symbols-rounded" style={{ fontSize: '30px', transform: 'translateX(2px)' }}>play_arrow</span>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  );
-                }
-
-                if (el.type === 'link') {
-                  let hostname = el.url;
-                  try {
-                    hostname = new URL(el.url).hostname;
-                  } catch (_) {}
-
-                  return (
-                    <div
-                      key={idx}
-                      className={`wb-embed-card ${isSelected ? 'wb-embed-card--selected' : ''}`}
-                      style={{
-                        left: `${el.x}px`,
-                        top: `${el.y}px`,
-                        width: `${el.w || 360}px`,
-                        height: `${el.h || 150}px`,
-                        transform: el.rotation ? `rotate(${el.rotation}rad)` : undefined,
-                      }}
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <div
-                        className="wb-embed-header"
-                        onMouseDown={(e) => {
-                          e.stopPropagation();
-                          setSelectedId(idx);
-                          setSelectedIds([idx]);
-                          setTool('select');
-                          const pos = screenToWorld(e.clientX, e.clientY);
-                          const movingIndices = [idx];
-                          const initialSnapshots = {
-                            [idx]: {
-                              x: el.x, y: el.y,
-                              w: el.w, h: el.h,
-                              x2: el.x2, y2: el.y2,
-                              points: el.points ? el.points.map(p => ({ ...p })) : null,
-                            }
-                          };
-                          dragRef.current = {
-                            idx,
-                            isResize: false,
-                            startX: pos.x,
-                            startY: pos.y,
-                            movingIndices,
-                            initialSnapshots,
-                            origX: el.x, origY: el.y,
-                            origW: el.w || 0, origH: el.h || 0,
-                            origX2: el.x2, origY2: el.y2,
-                            origCpx: el.x, origCpy: el.y,
-                            origPoints: null,
-                          };
-                        }}
-                      >
-                        <span className="wb-embed-badge wb-embed-badge--link">
-                          <span className="material-symbols-rounded" style={{ fontSize: '13px' }}>link</span>
-                          Link
-                        </span>
-                        <span className="wb-embed-title">{el.title || hostname}</span>
-                        <button
-                          type="button"
-                          className="wb-embed-action-btn"
-                          title="Open in new tab"
-                          aria-label="Open in new tab"
-                          onClick={() => window.open(el.url, '_blank', 'noopener,noreferrer')}
-                        >
-                          <span className="material-symbols-rounded" style={{ fontSize: '15px' }}>open_in_new</span>
-                        </button>
-                      </div>
-
-                      <a
-                        href={el.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="wb-link-card-body"
-                        onClick={(e) => {
-                          setSelectedId(idx);
-                          setSelectedIds([idx]);
-                        }}
-                      >
-                        <div>
-                          <div className="wb-link-host">
-                            <span className="material-symbols-rounded" style={{ fontSize: '14px' }}>language</span>
-                            <span>{hostname}</span>
-                          </div>
-                          <div className="wb-link-url" style={{ marginTop: '8px' }}>
-                            {el.url}
-                          </div>
-                        </div>
-
-                        <div className="wb-link-btn">
-                          <span>Visit Website</span>
-                          <span className="material-symbols-rounded" style={{ fontSize: '14px' }}>arrow_forward</span>
-                        </div>
-                      </a>
-                    </div>
-                  );
-                }
-
-                return null;
-              })}
-            </div>
-          </div>
+          {/* Interactive HTML Overlays — handled by WhiteboardEmbedLayer */}
+          <WhiteboardEmbedLayer
+            elements={elements}
+            panOffset={panOffset}
+            zoom={zoom}
+            selectedId={selectedId}
+            selectedIds={selectedIds}
+            activeVideoEmbedId={activeVideoEmbedId}
+            isDragging={isDragging}
+            onStartDrag={handleStartEmbedDrag}
+            onTogglePlay={(idx) => setActiveVideoEmbedId(prev => prev === idx ? null : idx)}
+            onSelect={(idx, e) => {
+              if (e.shiftKey) {
+                setSelectedIds(prev => prev.includes(idx) ? prev.filter(i => i !== idx) : [...prev, idx]);
+              } else {
+                setSelectedId(idx);
+                setSelectedIds([idx]);
+              }
+            }}
+          />
         </div>
       </div>
+
 
       {/* ── Status Bar ── */}
-      <div className="wb-statusbar">
-        <div className="wb-status-left">
-          <span className="hide-below-sm" style={{ fontSize: '11px', color: '#334155', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', whiteSpace: 'nowrap' }}>AntCapture Whiteboard</span>
-          <span className="hide-below-sm" style={{ fontSize: '11px', color: '#334155' }}>·</span>
-          <span className="material-symbols-rounded" style={{ fontSize: '13px', color: 'var(--text-faint)', flexShrink: 0 }}>
-            {TOOLS.find(t => t.id === tool)?.icon || 'near_me'}
-          </span>
-          <span className="truncate" style={{ fontSize: '11px', color: 'var(--text-faint)' }}>
-            {tool === 'pen'    && 'Click and drag to draw freely'}
-            {tool === 'eraser' && 'Drag over strokes to erase'}
-            {tool === 'text'   && 'Click anywhere to add text'}
-            {tool === 'rect'   && 'Drag to draw a rectangle'}
-            {tool === 'circle' && 'Drag to draw an ellipse'}
-            {tool === 'arrow'  && 'Drag to draw an arrow'}
-            {tool === 'select' && 'Click to select · Shift-click for multi-select · Drag to marquee'}
-            {tool === 'pan'    && 'Drag to pan the canvas · Use Ctrl+Scroll to zoom'}
-            {tool === 'image'  && 'Pick an image from your library'}
-            {tool === 'video'  && 'Pick a video from your library'}
-          </span>
-        </div>
-        <div className="hide-below-md" style={{ display: 'flex', alignItems: 'center', gap: '16px', flexShrink: 0 }}>
-          <span style={{ fontSize: '11px', color: '#475569' }}>
-            {Math.round(zoom * 100)}% · {elements.length} element{elements.length !== 1 ? 's' : ''}
-          </span>
-        </div>
-        <span className="wb-status-hint show-below-sm">Best on a larger screen</span>
-      </div>
+      <WhiteboardStatusBar
+        tool={tool}
+        zoom={zoom}
+        elementsCount={elements.length}
+      />
 
       {/* Library Picker */}
       {showLibrary !== 'none' && (

@@ -995,6 +995,74 @@ export default function AdminDiagnostics({ user }) {
       {/* ── System Info Tab ── */}
       {tab === 'info' && (
         <div>
+          {/* ── Latest Git Changes & Build Info Card ── */}
+          {typeof __GIT_COMMIT_INFO__ !== 'undefined' && (
+            <div style={{
+              background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.08) 0%, rgba(168, 85, 247, 0.06) 100%)',
+              border: '1px solid rgba(99, 102, 241, 0.25)',
+              borderRadius: '14px',
+              padding: '16px 20px',
+              marginBottom: '20px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '10px',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span className="material-symbols-rounded" style={{ fontSize: '20px', color: '#818cf8' }}>commit</span>
+                  <span style={{ fontSize: '15px', fontWeight: 700, color: '#f8fafc' }}>
+                    Latest Codebase Commit
+                  </span>
+                  <span style={{
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    color: '#38bdf8',
+                    background: 'rgba(56, 189, 248, 0.15)',
+                    padding: '2px 8px',
+                    borderRadius: '6px',
+                    fontFamily: 'monospace',
+                  }}>
+                    {__GIT_COMMIT_INFO__.branch}
+                  </span>
+                </div>
+                <div style={{ fontSize: '12px', color: '#94a3b8' }}>
+                  Deployed: <span style={{ color: '#cbd5e1', fontWeight: 600 }}>{timeAgo(__GIT_COMMIT_INFO__.date)}</span> ({__GIT_COMMIT_INFO__.date})
+                </div>
+              </div>
+
+              <div style={{
+                background: 'rgba(15, 23, 42, 0.6)',
+                border: '1px solid rgba(255, 255, 255, 0.08)',
+                borderRadius: '8px',
+                padding: '10px 14px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '12px',
+                flexWrap: 'wrap',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+                  <code style={{
+                    color: '#818cf8',
+                    fontWeight: 700,
+                    fontSize: '13px',
+                    background: 'rgba(99, 102, 241, 0.15)',
+                    padding: '2px 6px',
+                    borderRadius: '4px',
+                  }}>
+                    {__GIT_COMMIT_INFO__.hash}
+                  </code>
+                  <span style={{ fontSize: '13px', color: '#e2e8f0', fontWeight: 500 }} className="truncate">
+                    {__GIT_COMMIT_INFO__.message}
+                  </span>
+                </div>
+                <span style={{ fontSize: '11px', color: '#64748b' }}>
+                  Build: {new Date(__GIT_COMMIT_INFO__.buildTime).toLocaleTimeString()}
+                </span>
+              </div>
+            </div>
+          )}
+
           {sysInfo ? (
             <Grid cols={2} gap="14px">
               {[

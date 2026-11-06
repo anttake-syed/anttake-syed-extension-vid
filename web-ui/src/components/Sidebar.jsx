@@ -164,6 +164,44 @@ export default function Sidebar({ activeNav, isAuthenticated, hasCloudAccess = t
           </div>
         )}
 
+        {/* ── Admin-Only Codebase & Deployment Status Badge (Zero API cost, built-in) ── */}
+        {isAuthenticated && isAdmin && typeof __GIT_COMMIT_INFO__ !== 'undefined' && (
+          <div
+            onClick={() => onNavClick('Diagnostics')}
+            style={{
+              padding: '8px 10px',
+              marginBottom: '10px',
+              borderRadius: '9px',
+              background: 'rgba(99, 102, 241, 0.08)',
+              border: '1px solid rgba(99, 102, 241, 0.2)',
+              cursor: 'pointer',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '3px',
+              fontFamily: "'Outfit', sans-serif",
+              transition: 'all 0.15s ease',
+            }}
+            title={`Branch: ${__GIT_COMMIT_INFO__.branch}\nCommit: ${__GIT_COMMIT_INFO__.hash}\nMessage: ${__GIT_COMMIT_INFO__.message}\nUpdated: ${__GIT_COMMIT_INFO__.date}`}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                <span className="material-symbols-rounded" style={{ fontSize: '13px', color: '#818cf8' }}>
+                  commit
+                </span>
+                <span style={{ fontSize: '11px', fontWeight: 700, color: '#e0e7ff', fontFamily: 'monospace' }}>
+                  {__GIT_COMMIT_INFO__.hash}
+                </span>
+              </div>
+              <span style={{ fontSize: '9px', fontWeight: 600, color: '#38bdf8', background: 'rgba(56, 189, 248, 0.15)', padding: '1px 5px', borderRadius: '4px' }}>
+                {__GIT_COMMIT_INFO__.branch}
+              </span>
+            </div>
+            <div style={{ fontSize: '10px', color: '#94a3b8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {__GIT_COMMIT_INFO__.message}
+            </div>
+          </div>
+        )}
+
         {isAuthenticated ? (
           <button className="btn-logout" onClick={onLogout} title="Sign out">
             <span className="material-symbols-rounded" style={{ fontSize: '18px' }}>logout</span>

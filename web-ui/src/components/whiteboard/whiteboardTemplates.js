@@ -1,14 +1,27 @@
 /**
  * Professional Whiteboard Templates
  * Industry-standard starter canvases for brainstorming, planning, and design.
+ * Styled with AntCapture's cohesive Indigo / Purple brand theme.
  */
+
+// AntCapture Brand Theme Palette
+const THEME = {
+  primary: '#6366f1',     // AntCapture signature Indigo
+  primarySoft: '#818cf8', // Soft Indigo
+  purple: '#a855f7',      // Secondary Brand Purple
+  accentGlow: '#c084fc',  // Light Accent Purple
+  cardBorder: '#334155',  // Elegant Slate Border
+  cardText: '#f8fafc',    // Pure Heading/Text
+  cardTextDim: '#94a3b8', // Secondary Text
+  success: '#34d399',     // Refined Emerald Success
+};
 
 export const WHITEBOARD_TEMPLATES = [
   {
     id: 'kanban',
     title: 'Kanban Task Board',
     category: 'Agile & Workflow',
-    description: '3-column agile workflow board (To Do, In Progress, Done) with colored story cards.',
+    description: '3-column agile workflow board (To Do, In Progress, Done) with brand-themed story cards.',
     icon: 'view_kanban',
     badge: 'Popular',
     createElements: () => {
@@ -18,9 +31,9 @@ export const WHITEBOARD_TEMPLATES = [
       const startY = 70;
 
       const columns = [
-        { title: 'TO DO', color: '#60a5fa', count: 3, cards: ['Research competitor flows', 'Draft UI mockups', 'Define API specs'] },
-        { title: 'IN PROGRESS', color: '#facc15', count: 2, cards: ['Build canvas templates', 'Implement contextual bar'] },
-        { title: 'DONE', color: '#4ade80', count: 2, cards: ['Setup database schema', 'Cloud sync integration'] },
+        { title: 'TO DO', color: THEME.primary, count: 3, cards: ['Research competitor flows', 'Draft UI mockups', 'Define API specs'] },
+        { title: 'IN PROGRESS', color: THEME.purple, count: 2, cards: ['Build canvas templates', 'Implement contextual bar'] },
+        { title: 'DONE', color: THEME.success, count: 2, cards: ['Setup database schema', 'Cloud sync integration'] },
       ];
 
       const els = [];
@@ -67,7 +80,7 @@ export const WHITEBOARD_TEMPLATES = [
           y: cy + 44,
           w: colWidth - 24,
           h: 1,
-          color: 'rgba(255,255,255,0.15)',
+          color: 'rgba(255,255,255,0.12)',
           size: 1,
         });
 
@@ -80,7 +93,7 @@ export const WHITEBOARD_TEMPLATES = [
             y: cardY,
             w: colWidth - 28,
             h: 64,
-            color: '#94a3b8',
+            color: THEME.cardBorder,
             size: 2,
           });
           els.push({
@@ -116,7 +129,7 @@ export const WHITEBOARD_TEMPLATES = [
         y: centerY - 40,
         w: 200,
         h: 80,
-        color: '#a78bfa',
+        color: THEME.primary,
         size: 3,
       });
       els.push({
@@ -130,10 +143,10 @@ export const WHITEBOARD_TEMPLATES = [
 
       // Nodes radiating outwards
       const nodes = [
-        { label: 'Cloud Architecture', x: 140, y: 140, color: '#60a5fa' },
-        { label: 'Security & Auth',    x: 740, y: 140, color: '#f87171' },
-        { label: 'UX & Interaction',   x: 140, y: 500, color: '#4ade80' },
-        { label: 'Growth & Sharing',   x: 740, y: 500, color: '#fb923c' },
+        { label: 'Cloud Architecture', x: 140, y: 140, color: THEME.primarySoft },
+        { label: 'Security & Auth',    x: 740, y: 140, color: THEME.purple },
+        { label: 'UX & Interaction',   x: 140, y: 500, color: THEME.accentGlow },
+        { label: 'Growth & Sharing',   x: 740, y: 500, color: THEME.primary },
       ];
 
       nodes.forEach(n => {
@@ -191,9 +204,9 @@ export const WHITEBOARD_TEMPLATES = [
       const startY = 80;
 
       const columns = [
-        { title: '🟢 What Went Well', color: '#4ade80', notes: ['High test coverage', 'Smooth deployments', 'Great team pairing'] },
-        { title: '🔴 What Could Improve', color: '#f87171', notes: ['Spec ambiguity in PRD', 'Long build pipeline times'] },
-        { title: '⚡ Action Items', color: '#facc15', notes: ['Cache npm dependencies', 'Schedule weekly grooming'] },
+        { title: '✨ What Went Well', color: THEME.primarySoft, notes: ['High test coverage', 'Smooth deployments', 'Great team pairing'] },
+        { title: '💡 What Could Improve', color: THEME.purple, notes: ['Spec ambiguity in PRD', 'Long build pipeline times'] },
+        { title: '⚡ Action Items', color: THEME.accentGlow, notes: ['Cache npm dependencies', 'Schedule weekly grooming'] },
       ];
 
       els.push({
@@ -236,7 +249,7 @@ export const WHITEBOARD_TEMPLATES = [
             y: cardY,
             w: colWidth - 24,
             h: 56,
-            color: '#64748b',
+            color: THEME.cardBorder,
             size: 2,
           });
           els.push({
@@ -279,7 +292,7 @@ export const WHITEBOARD_TEMPLATES = [
         y: 80,
         w: 160,
         h: 70,
-        color: '#4ade80',
+        color: THEME.primary,
         size: 2,
       });
       els.push({
@@ -298,7 +311,7 @@ export const WHITEBOARD_TEMPLATES = [
         y: 115,
         x2: 360,
         y2: 115,
-        color: '#94a3b8',
+        color: THEME.cardBorder,
         size: 2,
       });
 
@@ -309,7 +322,7 @@ export const WHITEBOARD_TEMPLATES = [
         y: 75,
         w: 170,
         h: 80,
-        color: '#facc15',
+        color: THEME.purple,
         size: 2,
       });
       els.push({
@@ -328,7 +341,7 @@ export const WHITEBOARD_TEMPLATES = [
         y: 115,
         x2: 660,
         y2: 115,
-        color: '#4ade80',
+        color: THEME.primarySoft,
         size: 2,
       });
       els.push({
@@ -336,7 +349,7 @@ export const WHITEBOARD_TEMPLATES = [
         text: 'YES',
         x: 575,
         y: 105,
-        color: '#4ade80',
+        color: THEME.primarySoft,
         fontSize: 12,
       });
 
@@ -346,7 +359,7 @@ export const WHITEBOARD_TEMPLATES = [
         y: 80,
         w: 170,
         h: 70,
-        color: '#60a5fa',
+        color: THEME.primary,
         size: 2,
       });
       els.push({
@@ -365,7 +378,7 @@ export const WHITEBOARD_TEMPLATES = [
         y: 155,
         x2: 445,
         y2: 260,
-        color: '#f87171',
+        color: THEME.accentGlow,
         size: 2,
       });
       els.push({
@@ -373,7 +386,7 @@ export const WHITEBOARD_TEMPLATES = [
         text: 'NO',
         x: 455,
         y: 205,
-        color: '#f87171',
+        color: THEME.accentGlow,
         fontSize: 12,
       });
 
@@ -383,7 +396,7 @@ export const WHITEBOARD_TEMPLATES = [
         y: 260,
         w: 170,
         h: 70,
-        color: '#f87171',
+        color: THEME.purple,
         size: 2,
       });
       els.push({
@@ -420,10 +433,10 @@ export const WHITEBOARD_TEMPLATES = [
       });
 
       const steps = [
-        { activity: '1. Discover', color: '#60a5fa', stories: ['Landing page preview', 'Read feature specs'] },
-        { activity: '2. Capture Screen', color: '#a78bfa', stories: ['Select monitor/window', 'Draw shapes while recording'] },
-        { activity: '3. Edit & Annotate', color: '#f472b6', stories: ['Insert into Whiteboard', 'Add arrows & notes'] },
-        { activity: '4. Share Link', color: '#4ade80', stories: ['Generate public link', 'Export canvas as PNG'] },
+        { activity: '1. Discover', color: THEME.primary, stories: ['Landing page preview', 'Read feature specs'] },
+        { activity: '2. Capture Screen', color: THEME.primarySoft, stories: ['Select monitor/window', 'Draw shapes while recording'] },
+        { activity: '3. Edit & Annotate', color: THEME.purple, stories: ['Insert into Whiteboard', 'Add arrows & notes'] },
+        { activity: '4. Share Link', color: THEME.accentGlow, stories: ['Generate public link', 'Export canvas as PNG'] },
       ];
 
       steps.forEach((step, idx) => {
@@ -456,7 +469,7 @@ export const WHITEBOARD_TEMPLATES = [
             y: sy,
             w: 190,
             h: 56,
-            color: '#64748b',
+            color: THEME.cardBorder,
             size: 2,
           });
           els.push({

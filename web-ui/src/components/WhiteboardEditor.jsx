@@ -239,7 +239,7 @@ export default function WhiteboardEditor({ board, onClose, user }) {
       ctx.strokeStyle = '#818cf8';
       ctx.lineWidth   = Math.max(2, strokeSize * 0.75);
       ctx.lineCap     = 'round';
-      ctx.setLineDash([6, 4]);
+      ctx.setLineDash([]); // Professional solid stroke
       if (lt === 'rect') {
         ctx.strokeRect(s.x, s.y, ep.x - s.x, ep.y - s.y);
       } else if (lt === 'circle') {
@@ -271,11 +271,10 @@ export default function WhiteboardEditor({ board, onClose, user }) {
       ctx.save();
       ctx.strokeStyle = '#6366f1';
       ctx.lineWidth   = 1.5 / z; // keep outline thin regardless of zoom
-      ctx.setLineDash([5 / z, 4 / z]);
+      ctx.setLineDash([]); // Professional solid outline
 
       if (el.type === 'image') {
         ctx.strokeRect(el.x - 2, el.y - 2, el.w + 4, el.h + 4);
-        ctx.setLineDash([]);
         ctx.fillStyle = '#6366f1';
         ctx.fillRect(el.x + el.w - 4, el.y + el.h - 4, 8, 8);
       } else if (el.type === 'rect') {
@@ -319,7 +318,7 @@ export default function WhiteboardEditor({ board, onClose, user }) {
       ctx.fillRect(rx, ry, rw, rh);
       ctx.strokeStyle = '#6366f1';
       ctx.lineWidth = 1.5 / z;
-      ctx.setLineDash([6 / z, 4 / z]);
+      ctx.setLineDash([]); // Professional solid line
       ctx.strokeRect(rx, ry, rw, rh);
       ctx.restore();
     }

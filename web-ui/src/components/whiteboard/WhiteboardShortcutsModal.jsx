@@ -50,6 +50,9 @@ export default function WhiteboardShortcutsModal({ isOpen, onClose }) {
       items: [
         { keys: ['Touchpad 2-finger drag'], label: 'Pan canvas smoothly' },
         { keys: ['Touchpad pinch / Ctrl+Scroll'], label: 'Zoom smoothly' },
+        { keys: ['Touchpad 2-finger tap / Right-click'], label: 'Open menu (Cut, Copy, Paste, Layers)' },
+        { keys: ['Touchscreen Long-press / Double-tap'], label: 'Open menu (Cut, Copy, Paste, Layers)' },
+        { keys: ['Double-click canvas or element'], label: 'Open actions menu anywhere' },
         { keys: ['Middle-click + drag'], label: 'Pan canvas' },
         { keys: ['Touchscreen 2-finger drag'], label: 'Pan canvas' },
         { keys: ['Touchscreen pinch'], label: 'Pinch to zoom in / out' },

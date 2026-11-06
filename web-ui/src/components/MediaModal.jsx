@@ -3,6 +3,7 @@ import { SERVER_URL, IS_LOCAL_MODE } from '../config';
 import ConfirmDeleteModal from './ConfirmDeleteModal';
 import VideoViewer from './video/VideoViewer.jsx';
 import { DriveLogoSVG, AntCaptureCloudLogoSVG } from './icons/StorageIcons.jsx';
+import { trackEvent } from '../utils/analytics.js';
 import '../styles/pages/media-modal.css';
 
 const getFullSrc = (src, jwt) => {
@@ -162,6 +163,12 @@ function MediaModalContent({ item, onClose, user, onSyncSuccess, onDelete, dbSta
       a.click();
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
+
+      trackEvent('save_to_computer', {
+        media_type: item.type || (item.src && item.src.endsWith('.webm') ? 'video' : 'screenshot'),
+        media_title: item.title,
+        storage_location: item.storageLocation || 'local'
+      });
     } catch (err) {
       setSyncError('Failed to save to computer: ' + err.message);
     }

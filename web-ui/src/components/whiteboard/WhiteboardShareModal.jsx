@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { SERVER_URL, IS_LOCAL_MODE } from '../../config.js';
 
 /**
  * WhiteboardShareModal
@@ -7,20 +8,66 @@ import React, { useState } from 'react';
  *  - View Only  : anyone with the link can view (pan/zoom) the board.
  *  - Edit Access: recipients who also hold an active Cloud plan can edit.
  *
- * The Edit tab is accessible only when the OWNER has a Cloud plan.
+ * The Edit tab is accessible only when the OWNER has an active Cloud plan.
  * Free users see the Edit tab locked with an upgrade prompt.
+ * Performs live verification via /subscription if needed.
  */
-export default function WhiteboardShareModal({ board, boardName, user, onClose }) {
+export default function WhiteboardShareModal({
+  board,
+  boardName,
+  user,
+  hasCloudAccess: propHasCloudAccess,
+  entitlements: propEntitlements,
+  onClose,
+}) {
   const [shareMode, setShareMode] = useState('view'); // 'view' | 'edit'
   const [copied, setCopied]       = useState(false);
+  const [verifiedPaid, setVerifiedPaid] = useState(() => {
+    // Check initial cached / passed values
+    if (IS_LOCAL_MODE) return true;
+    if (propHasCloudAccess === true) return true;
+    if (propEntitlements?.cloud === true) return true;
+    if (user?.plan && user.plan !== 'free') return true;
+    if (user?.hasCloudAccess === true) return true;
+    if (user?.entitlements?.cloud === true) return true;
 
-  // Determine whether the current owner has Cloud access.
-  // We check a few possible shapes of the user object.
-  const ownerIsPaid = Boolean(
-    (user?.plan && user.plan !== 'free') ||
-    user?.hasCloudAccess ||
-    user?.entitlements?.hasCloudAccess
-  );
+    // Check localStorage cached entitlements
+    try {
+      const cached = localStorage.getItem('antcapture_ents');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed?.data?.cloud === true) return true;
+      }
+    } catch (_) {}
+
+    return false;
+  });
+
+  // Live check with /subscription to ensure latest paid plan status from LemonSqueezy/database
+  useEffect(() => {
+    if (verifiedPaid || IS_LOCAL_MODE) return;
+    const jwt = user?.jwt;
+    if (!jwt || jwt === 'local-mode') return;
+
+    let mounted = true;
+    async function checkSubscription() {
+      try {
+        const res = await fetch(`${SERVER_URL}/subscription`, {
+          headers: { Authorization: `Bearer ${jwt}` },
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        const isCloud = data?.entitlements?.cloud === true || (data?.subscription?.status === 'active' && data?.subscription?.plan !== 'free');
+        if (mounted && isCloud) {
+          setVerifiedPaid(true);
+        }
+      } catch (_) {}
+    }
+    checkSubscription();
+    return () => { mounted = false; };
+  }, [user?.jwt, verifiedPaid]);
+
+  const ownerIsPaid = verifiedPaid;
 
   const slug = (boardName || 'untitled')
     .toLowerCase()

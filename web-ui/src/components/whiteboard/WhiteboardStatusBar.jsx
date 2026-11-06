@@ -39,11 +39,14 @@ export default function WhiteboardStatusBar({
           {tool === 'rect'   && 'Drag to draw a rectangle'}
           {tool === 'circle' && 'Drag to draw an ellipse'}
           {tool === 'arrow'  && 'Drag to draw an arrow'}
+          {tool === 'shapes' && 'Pick a prebuilt shape or device frame'}
+          {tool === 'icon'   && 'Choose an icon to insert'}
+          {tool === 'code'   && 'Add a styled code block'}
           {tool === 'select' && 'Click to select · Shift-click for multi-select · Drag to marquee'}
           {tool === 'pan'    && 'Drag to pan the canvas · Use Ctrl+Scroll to zoom'}
           {tool === 'image'  && 'Pick an image from your library'}
           {tool === 'video'  && 'Pick a video from your library'}
-          {tool === 'frame'  && 'Drag to create a grouped frame container'}
+          {tool === 'frame'  && 'Drag to create a grouped frame container (holds objects)'}
         </span>
       </div>
 

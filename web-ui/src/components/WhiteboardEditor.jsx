@@ -13,6 +13,9 @@ import WhiteboardTextPromptModal from './whiteboard/WhiteboardTextPromptModal.js
 import WhiteboardShortcutsModal from './whiteboard/WhiteboardShortcutsModal.jsx';
 import WhiteboardStatusBar from './whiteboard/WhiteboardStatusBar.jsx';
 import WhiteboardEmbedLayer from './whiteboard/WhiteboardEmbedLayer.jsx';
+import WhiteboardShapePickerModal from './whiteboard/WhiteboardShapePickerModal.jsx';
+import WhiteboardIconPickerModal from './whiteboard/WhiteboardIconPickerModal.jsx';
+import WhiteboardCodeModal from './whiteboard/WhiteboardCodeModal.jsx';
 import { useWhiteboardShortcuts } from './whiteboard/useWhiteboardShortcuts.js';
 import { renderWhiteboardCanvas } from './whiteboard/whiteboardRenderer.js';
 import { TOOLS, COLORS, SIZES, generateDefaultName } from './whiteboard/whiteboardConstants.js';
@@ -26,6 +29,8 @@ import {
   drawHandDrawnRect,
   drawHandDrawnCircle,
   drawHandDrawnArrow,
+  isElementInsideFrame,
+  getContainedIndices,
 } from './whiteboard/whiteboardTransform.js';
 import { extractYouTubeVideoId, parsePastedUrl } from './whiteboard/whiteboardHelpers.js';
 
@@ -39,6 +44,9 @@ export default function WhiteboardEditor({ board, onClose, user }) {
   const [strokeSize, setStrokeSize]       = useState(4);
   const [showLibrary, setShowLibrary]     = useState('none'); // 'none', 'images', 'videos'
   const [showTemplateModal, setShowTemplateModal] = useState(false);
+  const [showShapeModal, setShowShapeModal]       = useState(false);
+  const [showIconModal, setShowIconModal]         = useState(false);
+  const [showCodeModal, setShowCodeModal]         = useState(false);
   const [elements, setElements]           = useState([]);
   const [selectedId, setSelectedId]       = useState(null);
   const [selectedIds, setSelectedIds]     = useState([]);
@@ -431,7 +439,7 @@ export default function WhiteboardEditor({ board, onClose, user }) {
             }
             hit = i; break;
           }
-        } else if (el.type === 'embed' || el.type === 'link') {
+        } else if (el.type === 'embed' || el.type === 'link' || el.type === 'shape' || el.type === 'code' || el.type === 'icon') {
           if (hitTestElement(el, pos)) { hit = i; break; }
         } else if (el.type === 'frame') {
           if (hitTestElement(el, pos)) { hit = i; break; }
@@ -472,7 +480,22 @@ export default function WhiteboardEditor({ board, onClose, user }) {
         setSelectedId(hit);
         setSelectedIds(newSelectedIds);
 
-        const movingIndices = newSelectedIds.includes(hit) ? newSelectedIds : [hit];
+        // ── Frame Grouping & Containment Movement ──────────────────────
+        // If the dragged element or any selected element is a frame,
+        // automatically include all elements contained inside that frame!
+        let movingIndices = newSelectedIds.includes(hit) ? [...newSelectedIds] : [hit];
+        movingIndices.forEach(idx => {
+          const el = elements[idx];
+          if (el && el.type === 'frame') {
+            const children = getContainedIndices(idx, elements);
+            children.forEach(childIdx => {
+              if (!movingIndices.includes(childIdx)) {
+                movingIndices.push(childIdx);
+              }
+            });
+          }
+        });
+
         const initialSnapshots = {};
         movingIndices.forEach(idx => {
           const el = elements[idx];
@@ -1379,9 +1402,110 @@ export default function WhiteboardEditor({ board, onClose, user }) {
   const handleToolClick = (t) => {
     if (t === 'image') { setShowLibrary('images'); return; }
     if (t === 'video') { setShowLibrary('videos'); return; }
+    if (t === 'shapes') { setShowShapeModal(true); return; }
+    if (t === 'icon') { setShowIconModal(true); return; }
+    if (t === 'code') { setShowCodeModal(true); return; }
     setTool(t);
     setSelectedId(null);
     setSelectedIds([]);
+  };
+
+  const handleInsertShape = (shapeConfig) => {
+    const canvas = canvasRef.current;
+    const cw = canvas ? canvas.width / 2 : 400;
+    const ch = canvas ? canvas.height / 2 : 300;
+    const center = screenToWorld(cw, ch);
+    const newEl = {
+      type: 'shape',
+      shapeType: shapeConfig.id,
+      x: Math.round(center.x - shapeConfig.w / 2),
+      y: Math.round(center.y - shapeConfig.h / 2),
+      w: shapeConfig.w,
+      h: shapeConfig.h,
+      color,
+      size: strokeSize,
+      fillStyle: 'solid',
+    };
+    const next = [...elements, newEl];
+    setElements(next);
+    commitToHistory(next);
+    setSelectedId(next.length - 1);
+    setSelectedIds([next.length - 1]);
+    setTool('select');
+  };
+
+  const handleInsertDeviceFrame = (deviceConfig) => {
+    const canvas = canvasRef.current;
+    const cw = canvas ? canvas.width / 2 : 500;
+    const ch = canvas ? canvas.height / 2 : 400;
+    const center = screenToWorld(cw, ch);
+    const newEl = {
+      type: 'frame',
+      frameType: deviceConfig.id,
+      title: deviceConfig.label,
+      x: Math.round(center.x - deviceConfig.w / 2),
+      y: Math.round(center.y - deviceConfig.h / 2),
+      w: deviceConfig.w,
+      h: deviceConfig.h,
+      color: deviceConfig.id === 'browser' ? '#3b82f6' : deviceConfig.id === 'phone' ? '#6366f1' : deviceConfig.id === 'tablet' ? '#8b5cf6' : '#06b6d4',
+      size: strokeSize,
+    };
+    const next = [...elements, newEl];
+    setElements(next);
+    commitToHistory(next);
+    setSelectedId(next.length - 1);
+    setSelectedIds([next.length - 1]);
+    setTool('select');
+  };
+
+  const handleInsertIcon = (iconName) => {
+    const canvas = canvasRef.current;
+    const cw = canvas ? canvas.width / 2 : 400;
+    const ch = canvas ? canvas.height / 2 : 300;
+    const center = screenToWorld(cw, ch);
+    const sz = 56;
+    const newEl = {
+      type: 'icon',
+      icon: iconName,
+      x: Math.round(center.x - sz / 2),
+      y: Math.round(center.y - sz / 2),
+      w: sz,
+      h: sz,
+      size: sz,
+      color,
+    };
+    const next = [...elements, newEl];
+    setElements(next);
+    commitToHistory(next);
+    setSelectedId(next.length - 1);
+    setSelectedIds([next.length - 1]);
+    setTool('select');
+  };
+
+  const handleInsertCode = ({ code: codeText, language }) => {
+    const canvas = canvasRef.current;
+    const cw = canvas ? canvas.width / 2 : 400;
+    const ch = canvas ? canvas.height / 2 : 300;
+    const center = screenToWorld(cw, ch);
+    const w = 400;
+    const h = 240;
+    const newEl = {
+      type: 'code',
+      code: codeText,
+      language: language || 'javascript',
+      x: Math.round(center.x - w / 2),
+      y: Math.round(center.y - h / 2),
+      w,
+      h,
+      color: '#334155',
+      size: 2,
+    };
+    const next = [...elements, newEl];
+    setElements(next);
+    commitToHistory(next);
+    setSelectedId(next.length - 1);
+    setSelectedIds([next.length - 1]);
+    setTool('select');
   };
 
   // ── Smooth embed drag (beats iframe pointer-capture problem) ──
@@ -1895,6 +2019,28 @@ export default function WhiteboardEditor({ board, onClose, user }) {
         isOpen={showTemplateModal}
         onClose={() => setShowTemplateModal(false)}
         onSelectTemplate={handleApplyTemplate}
+      />
+
+      {/* Prebuilt Shapes & Device Frames Modal */}
+      <WhiteboardShapePickerModal
+        isOpen={showShapeModal}
+        onClose={() => setShowShapeModal(false)}
+        onSelectShape={handleInsertShape}
+        onSelectDeviceFrame={handleInsertDeviceFrame}
+      />
+
+      {/* Icon Library Modal */}
+      <WhiteboardIconPickerModal
+        isOpen={showIconModal}
+        onClose={() => setShowIconModal(false)}
+        onSelectIcon={handleInsertIcon}
+      />
+
+      {/* Code Snippet Modal */}
+      <WhiteboardCodeModal
+        isOpen={showCodeModal}
+        onClose={() => setShowCodeModal(false)}
+        onCommit={handleInsertCode}
       />
 
       {/* Right-click context menu */}

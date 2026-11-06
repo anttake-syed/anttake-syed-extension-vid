@@ -85,6 +85,7 @@ export default function WhiteboardEditor({ board, onClose, user }) {
   const touchStartPosRef  = useRef(null);
   const isDraggingRef     = useRef(false); // true while any drag (incl. embed) is active
   const lastTapRef        = useRef({ time: 0, x: 0, y: 0 });
+  const redrawRafRef      = useRef(null);  // pending requestAnimationFrame id for redraw
 
   // Keep refs in sync for use in event handlers
   useEffect(() => { zoomRef.current = zoom; }, [zoom]);
@@ -151,24 +152,29 @@ export default function WhiteboardEditor({ board, onClose, user }) {
 
   // ── Canvas draw ──────────────────────────────────────────
   const redraw = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+    // Cancel any pending frame — we only want the latest snapshot drawn.
+    // This batches rapid zoom/pan/scroll events into one draw per display frame.
+    if (redrawRafRef.current) cancelAnimationFrame(redrawRafRef.current);
+    redrawRafRef.current = requestAnimationFrame(() => {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
 
-    renderWhiteboardCanvas(ctx, canvas, {
-      elements,
-      zoom: zoomRef.current,
-      panOffset: panOffsetRef.current,
-      tool,
-      color,
-      strokeSize,
-      selectedId,
-      selectedIds,
-      currentPath: currentPath.current,
-      liveShape: liveShape.current,
-      marquee: marqueeRef.current,
-      drawing: drawing.current,
+      renderWhiteboardCanvas(ctx, canvas, {
+        elements,
+        zoom: zoomRef.current,
+        panOffset: panOffsetRef.current,
+        tool,
+        color,
+        strokeSize,
+        selectedId,
+        selectedIds,
+        currentPath: currentPath.current,
+        liveShape: liveShape.current,
+        marquee: marqueeRef.current,
+        drawing: drawing.current,
+      });
     });
   }, [elements, color, strokeSize, tool, selectedId, selectedIds]);
 
@@ -299,19 +305,26 @@ export default function WhiteboardEditor({ board, onClose, user }) {
         const delta = -e.deltaY * 0.002;
         const currentZ = zoomRef.current;
         const newZ = Math.min(4, Math.max(0.1, currentZ + delta * currentZ));
-        
+
         // Zoom towards mouse cursor position
         const rect = canvas.getBoundingClientRect();
         const cursorX = e.clientX - rect.left;
         const cursorY = e.clientY - rect.top;
         const currentPan = panOffsetRef.current;
-        
+
         const scaleChange = newZ / currentZ;
         const newPan = {
           x: cursorX - (cursorX - currentPan.x) * scaleChange,
           y: cursorY - (cursorY - currentPan.y) * scaleChange,
         };
-        
+
+        // ── Instant canvas update ──────────────────────────────────────
+        // Write to refs first so redraw() reads the NEW values this frame.
+        // setZoom/setPanOffset are called after to sync the embed/HTML layer
+        // (which is fine — CSS transform updates are imperceptible 1 frame later).
+        zoomRef.current    = newZ;
+        panOffsetRef.current = newPan;
+        redraw();
         setZoom(newZ);
         setPanOffset(newPan);
       } else {
@@ -322,9 +335,9 @@ export default function WhiteboardEditor({ board, onClose, user }) {
           x: panOffsetRef.current.x + dx,
           y: panOffsetRef.current.y + dy,
         };
-        setPanOffset(newPan);
         panOffsetRef.current = newPan;
         redraw();
+        setPanOffset(newPan);
       }
     };
     canvas.addEventListener('wheel', onWheel, { passive: false });
@@ -915,14 +928,33 @@ export default function WhiteboardEditor({ board, onClose, user }) {
       const midX = (t1.clientX + t2.clientX) / 2;
       const midY = (t1.clientY + t2.clientY) / 2;
 
-      // Handle pinch zoom
+      // Handle pinch zoom + zoom-toward-midpoint pan in one pass
       if (pinchStartDistRef.current && dist > 10) {
         const factor = dist / pinchStartDistRef.current;
-        const newZ = Math.min(4, Math.max(0.1, pinchStartZoomRef.current * factor));
-        setZoom(parseFloat(newZ.toFixed(2)));
+        const currentZ = zoomRef.current;
+        const newZ = parseFloat(Math.min(4, Math.max(0.1, pinchStartZoomRef.current * factor)).toFixed(2));
+
+        // Zoom towards the midpoint between the two fingers
+        const canvas = canvasRef.current;
+        const rect   = canvas ? canvas.getBoundingClientRect() : { left: 0, top: 0 };
+        const cx = midX - rect.left;
+        const cy = midY - rect.top;
+        const scaleChange = newZ / currentZ;
+        const currentPan  = panOffsetRef.current;
+        const newPan = {
+          x: cx - (cx - currentPan.x) * scaleChange,
+          y: cy - (cy - currentPan.y) * scaleChange,
+        };
+
+        // Instant canvas update — refs first, then React state
+        zoomRef.current      = newZ;
+        panOffsetRef.current = newPan;
+        redraw();
+        setZoom(newZ);
+        setPanOffset(newPan);
       }
 
-      // Handle two-finger pan
+      // Handle two-finger pan (combined with zoom above when both happen)
       if (panDragRef.current) {
         const dx = midX - panDragRef.current.startClient.x;
         const dy = midY - panDragRef.current.startClient.y;
@@ -930,9 +962,9 @@ export default function WhiteboardEditor({ board, onClose, user }) {
           x: panDragRef.current.startPan.x + dx,
           y: panDragRef.current.startPan.y + dy,
         };
-        setPanOffset(newPan);
         panOffsetRef.current = newPan;
         redraw();
+        setPanOffset(newPan);
       }
       return;
     }
@@ -1429,9 +1461,25 @@ export default function WhiteboardEditor({ board, onClose, user }) {
     }
   };
 
-  const handleZoomIn  = () => setZoom(z => Math.min(4, parseFloat((z + 0.25).toFixed(2))));
-  const handleZoomOut = () => setZoom(z => Math.max(0.1, parseFloat((z - 0.25).toFixed(2))));
-  const handleZoomReset = () => { setZoom(1); setPanOffset({ x: 0, y: 0 }); };
+  const handleZoomIn = () => {
+    const newZ = Math.min(4, parseFloat((zoomRef.current + 0.25).toFixed(2)));
+    zoomRef.current = newZ;
+    redraw();
+    setZoom(newZ);
+  };
+  const handleZoomOut = () => {
+    const newZ = Math.max(0.1, parseFloat((zoomRef.current - 0.25).toFixed(2)));
+    zoomRef.current = newZ;
+    redraw();
+    setZoom(newZ);
+  };
+  const handleZoomReset = () => {
+    zoomRef.current = 1;
+    panOffsetRef.current = { x: 0, y: 0 };
+    redraw();
+    setZoom(1);
+    setPanOffset({ x: 0, y: 0 });
+  };
 
   const handleDuplicateSelected = () => {
     const targets = selectedIds.length > 0 ? selectedIds : (selectedId !== null ? [selectedId] : []);
@@ -1518,9 +1566,12 @@ export default function WhiteboardEditor({ board, onClose, user }) {
       y: canvas.height / 2 - centerY * newZoom,
     };
 
-    setZoom(parseFloat(newZoom.toFixed(2)));
-    setPanOffset(newPan);
+    const z = parseFloat(newZoom.toFixed(2));
+    zoomRef.current = z;
     panOffsetRef.current = newPan;
+    redraw();
+    setZoom(z);
+    setPanOffset(newPan);
   };
 
   const commitTextPrompt = () => {

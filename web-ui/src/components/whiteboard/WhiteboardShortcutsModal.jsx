@@ -23,11 +23,16 @@ export default function WhiteboardShortcutsModal({ isOpen, onClose }) {
       items: [
         { keys: ['Ctrl', 'Z'], label: 'Undo' },
         { keys: ['Ctrl', 'Y'], label: 'Redo (or Ctrl+Shift+Z)' },
-        { keys: ['Ctrl', 'S'], label: 'Save board' },
-        { keys: ['Ctrl', 'A'], label: 'Select all elements' },
+        { keys: ['Ctrl', 'C'], label: 'Copy selected' },
+        { keys: ['Ctrl', 'X'], label: 'Cut selected' },
+        { keys: ['Ctrl', 'V'], label: 'Paste elements' },
         { keys: ['Ctrl', 'D'], label: 'Duplicate selected' },
+        { keys: ['Ctrl', 'A'], label: 'Select all elements' },
+        { keys: ['Ctrl', ']'], label: 'Bring forward (Shift+] to front)' },
+        { keys: ['Ctrl', '['], label: 'Send backward (Shift+[ to back)' },
         { keys: ['Delete'], label: 'Delete selected (or Backspace)' },
         { keys: ['Esc'], label: 'Deselect / Cancel active tool' },
+        { keys: ['Ctrl', 'S'], label: 'Save board' },
       ],
     },
     {

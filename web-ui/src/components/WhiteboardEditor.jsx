@@ -147,6 +147,7 @@ export default function WhiteboardEditor({ board, onClose, user }) {
   const redraw = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
+    if (canvas.width === 0 || canvas.height === 0) return;
     const ctx = canvas.getContext('2d');
     const z = zoomRef.current;
     const pan = panOffsetRef.current;
@@ -513,6 +514,7 @@ export default function WhiteboardEditor({ board, onClose, user }) {
 
     const obs = new ResizeObserver(resize);
     obs.observe(canvas.parentElement);
+    resize(); // initialize canvas dimensions immediately on mount
     return () => obs.disconnect();
   }, [redraw]);
 

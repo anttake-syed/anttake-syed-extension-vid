@@ -70,6 +70,9 @@ export default function WhiteboardEditor({ board, onClose, user }) {
   const pinchStartDistRef = useRef(null);
   const pinchStartZoomRef = useRef(1);
   const spacePressedRef   = useRef(false);
+  const longPressTimerRef = useRef(null);
+  const touchStartPosRef  = useRef(null);
+  const lastTapRef        = useRef({ time: 0, x: 0, y: 0 });
 
   // Keep refs in sync for use in event handlers
   useEffect(() => { zoomRef.current = zoom; }, [zoom]);
@@ -552,6 +555,13 @@ export default function WhiteboardEditor({ board, onClose, user }) {
       return;
     }
 
+    // Right-click or Mac Ctrl+left click: open context menu
+    if (e.button === 2 || (e.button === 0 && e.ctrlKey)) {
+      e.preventDefault();
+      openContextMenuAt(e.clientX, e.clientY);
+      return;
+    }
+
     if (e.button !== 0) return;
     const pos = screenToWorld(e.clientX, e.clientY);
 
@@ -936,8 +946,49 @@ export default function WhiteboardEditor({ board, onClose, user }) {
   };
 
   // ── Multi-Touch Events (Touchscreen, iPad, Mobile) ────────
+  const openContextMenuAt = (clientX, clientY) => {
+    const pos = screenToWorld(clientX, clientY);
+    let hit = null;
+
+    // Check hit on all elements (from top to bottom)
+    for (let i = elements.length - 1; i >= 0; i--) {
+      const el = elements[i];
+      if (hitTestElement(el, pos)) {
+        hit = i;
+        break;
+      }
+    }
+
+    if (hit !== null) {
+      if (!selectedIds.includes(hit)) {
+        setSelectedId(hit);
+        setSelectedIds([hit]);
+      }
+      setContextMenu({
+        x: clientX,
+        y: clientY,
+        worldPos: pos,
+        hasHit: true,
+        elIdx: hit,
+      });
+    } else {
+      setContextMenu({
+        x: clientX,
+        y: clientY,
+        worldPos: pos,
+        hasHit: false,
+        elIdx: null,
+      });
+    }
+  };
+
   const onTouchStart = (e) => {
-    setContextMenu(null);
+    // Clear any previous long-press timer
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+
     if (e.touches.length === 2) {
       // 2-finger gesture: Pan & Pinch-to-zoom
       if (drawing.current) {
@@ -962,6 +1013,27 @@ export default function WhiteboardEditor({ board, onClose, user }) {
 
     if (e.touches.length === 1) {
       const t = e.touches[0];
+      const now = Date.now();
+      const lastTap = lastTapRef.current;
+      const timeDiff = now - lastTap.time;
+      const distDiff = Math.hypot(t.clientX - lastTap.x, t.clientY - lastTap.y);
+
+      // Check for Double-Tap: two taps within 320ms and within 25px
+      if (timeDiff < 320 && distDiff < 25) {
+        // Double-tap detected -> trigger context menu
+        lastTapRef.current = { time: 0, x: 0, y: 0 };
+        openContextMenuAt(t.clientX, t.clientY);
+        return;
+      }
+      lastTapRef.current = { time: now, x: t.clientX, y: t.clientY };
+      touchStartPosRef.current = { x: t.clientX, y: t.clientY };
+
+      // Set Long-Press timer: hold finger in place for 450ms -> triggers context menu
+      longPressTimerRef.current = setTimeout(() => {
+        openContextMenuAt(t.clientX, t.clientY);
+        longPressTimerRef.current = null;
+      }, 450);
+
       onMouseDown({
         clientX: t.clientX,
         clientY: t.clientY,
@@ -973,6 +1045,16 @@ export default function WhiteboardEditor({ board, onClose, user }) {
   };
 
   const onTouchMove = (e) => {
+    // If finger moves more than 8px, cancel the long press
+    if (longPressTimerRef.current && touchStartPosRef.current && e.touches.length === 1) {
+      const t = e.touches[0];
+      const dist = Math.hypot(t.clientX - touchStartPosRef.current.x, t.clientY - touchStartPosRef.current.y);
+      if (dist > 8) {
+        clearTimeout(longPressTimerRef.current);
+        longPressTimerRef.current = null;
+      }
+    }
+
     if (e.touches.length === 2) {
       const t1 = e.touches[0];
       const t2 = e.touches[1];
@@ -1012,6 +1094,10 @@ export default function WhiteboardEditor({ board, onClose, user }) {
   };
 
   const onTouchEnd = (e) => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
     if (e.touches.length < 2) {
       pinchStartDistRef.current = null;
     }
@@ -1204,43 +1290,16 @@ export default function WhiteboardEditor({ board, onClose, user }) {
     setContextMenu(null);
   };
 
-  // Right-click context menu (works anywhere on canvas and on any element)
+  // Right-click / two-finger tap context menu (works anywhere on canvas and on any element)
   const onContextMenu = (e) => {
     e.preventDefault();
-    const pos = screenToWorld(e.clientX, e.clientY);
-    let hit = null;
+    openContextMenuAt(e.clientX, e.clientY);
+  };
 
-    // Check hit on all elements (from top to bottom)
-    for (let i = elements.length - 1; i >= 0; i--) {
-      const el = elements[i];
-      if (hitTestElement(el, pos)) {
-        hit = i;
-        break;
-      }
-    }
-
-    if (hit !== null) {
-      // If right clicked on an element not currently in selection, select it
-      if (!selectedIds.includes(hit)) {
-        setSelectedId(hit);
-        setSelectedIds([hit]);
-      }
-      setContextMenu({
-        x: e.clientX,
-        y: e.clientY,
-        worldPos: pos,
-        hasHit: true,
-        elIdx: hit,
-      });
-    } else {
-      // Right clicked on empty canvas area
-      setContextMenu({
-        x: e.clientX,
-        y: e.clientY,
-        worldPos: pos,
-        hasHit: false,
-        elIdx: null,
-      });
+  // Double click (or double tap on touchpad) to trigger context menu on canvas/elements
+  const onDoubleClick = (e) => {
+    if (e.button === 0) {
+      openContextMenuAt(e.clientX, e.clientY);
     }
   };
 
@@ -1926,6 +1985,7 @@ export default function WhiteboardEditor({ board, onClose, user }) {
             onTouchEnd={onTouchEnd}
             onTouchCancel={onTouchEnd}
             onContextMenu={onContextMenu}
+            onDoubleClick={onDoubleClick}
           />
         </div>
       </div>

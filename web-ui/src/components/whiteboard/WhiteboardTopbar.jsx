@@ -120,15 +120,15 @@ export default function WhiteboardTopbar({
             </span>
           </button>
 
-          {/* Keyboard Shortcuts button */}
+          {/* Features & Shortcuts button */}
           <button
             onClick={onOpenShortcuts}
-            title="Keyboard Shortcuts & Gestures (?)"
-            aria-label="Keyboard Shortcuts"
+            title="Features, Smart Integrations & Keyboard Shortcuts (?)"
+            aria-label="Features and Shortcuts"
             className="wb-action-btn"
           >
-            <span className="material-symbols-rounded" style={{ fontSize: '16px' }}>keyboard</span>
-            <span className="hide-below-md" style={{ fontSize: '12px', fontWeight: 600 }}>Shortcuts</span>
+            <span className="material-symbols-rounded" style={{ fontSize: '16px', color: '#a5b4fc' }}>integration_instructions</span>
+            <span className="hide-below-md" style={{ fontSize: '12px', fontWeight: 600 }}>Features & Shortcuts</span>
           </button>
 
           {/* Share button */}

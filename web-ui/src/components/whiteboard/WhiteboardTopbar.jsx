@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 
 export default function WhiteboardTopbar({
   boardName,
@@ -31,6 +31,21 @@ export default function WhiteboardTopbar({
   isCopying,
   copySuccess,
 }) {
+  const [showCanvasMenu, setShowCanvasMenu] = useState(false);
+  const canvasMenuRef = useRef(null);
+
+  useEffect(() => {
+    const handleOutsideClick = (e) => {
+      if (canvasMenuRef.current && !canvasMenuRef.current.contains(e.target)) {
+        setShowCanvasMenu(false);
+      }
+    };
+    if (showCanvasMenu) {
+      window.addEventListener('pointerdown', handleOutsideClick);
+    }
+    return () => window.removeEventListener('pointerdown', handleOutsideClick);
+  }, [showCanvasMenu]);
+
   return (
     <div className="wb-topbar">
       {/* Left */}
@@ -105,25 +120,124 @@ export default function WhiteboardTopbar({
             <span className="material-symbols-rounded" style={{ fontSize: '16px' }}>redo</span>
           </button>
 
-          {/* Infinite Canvas toggle */}
-          <button
-            onClick={onToggleInfiniteCanvas}
-            title={infiniteCanvas ? 'Infinite canvas ON — click to bound' : 'Bounded canvas — click for infinite'}
-            aria-label={infiniteCanvas ? 'Disable infinite canvas' : 'Enable infinite canvas'}
-            className="wb-action-btn"
-            style={{
-              color: infiniteCanvas ? '#a5b4fc' : 'var(--text-secondary)',
-              borderColor: infiniteCanvas ? 'rgba(99,102,241,0.3)' : 'var(--border)',
-              background: infiniteCanvas ? 'rgba(99,102,241,0.08)' : 'transparent',
-            }}
-          >
-            <span className="material-symbols-rounded" style={{ fontSize: '16px' }}>
-              {infiniteCanvas ? 'all_out' : 'crop'}
-            </span>
-            <span className="hide-below-md" style={{ fontSize: '12px', fontWeight: 600 }}>
-              {infiniteCanvas ? 'Infinite' : 'Bounded'}
-            </span>
-          </button>
+          {/* Canvas Mode Dropdown */}
+          <div style={{ position: 'relative' }} ref={canvasMenuRef}>
+            <button
+              onClick={() => setShowCanvasMenu(prev => !prev)}
+              title="Canvas Mode: Infinite Canvas or Fixed Board"
+              aria-label="Canvas Mode Options"
+              className="wb-action-btn"
+              style={{
+                color: infiniteCanvas ? '#a5b4fc' : '#38bdf8',
+                borderColor: infiniteCanvas ? 'rgba(99,102,241,0.3)' : 'rgba(56,189,248,0.3)',
+                background: infiniteCanvas ? 'rgba(99,102,241,0.08)' : 'rgba(56,189,248,0.08)',
+                gap: '5px',
+              }}
+            >
+              <span className="material-symbols-rounded" style={{ fontSize: '16px' }}>
+                {infiniteCanvas ? 'all_out' : 'fit_screen'}
+              </span>
+              <span className="hide-below-md" style={{ fontSize: '12px', fontWeight: 600 }}>
+                {infiniteCanvas ? 'Infinite Canvas' : 'Fixed Board'}
+              </span>
+              <span className="material-symbols-rounded" style={{ fontSize: '14px', marginLeft: '-2px', color: '#94a3b8' }}>
+                arrow_drop_down
+              </span>
+            </button>
+
+            {/* Dropdown Menu */}
+            {showCanvasMenu && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: 'calc(100% + 6px)',
+                  right: 0,
+                  width: '240px',
+                  background: 'linear-gradient(180deg, #1e293b 0%, #0f172a 100%)',
+                  border: '1px solid rgba(255, 255, 255, 0.12)',
+                  borderRadius: '12px',
+                  padding: '6px',
+                  boxShadow: '0 20px 40px -10px rgba(0,0,0,0.7)',
+                  zIndex: 2500,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '4px',
+                }}
+              >
+                <div style={{ padding: '6px 10px', fontSize: '11px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Canvas Layout Mode
+                </div>
+
+                {/* Option 1: Infinite Canvas */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowCanvasMenu(false);
+                    if (!infiniteCanvas) onToggleInfiniteCanvas(true);
+                  }}
+                  style={{
+                    background: infiniteCanvas ? 'rgba(99, 102, 241, 0.2)' : 'transparent',
+                    border: 'none',
+                    borderRadius: '8px',
+                    padding: '8px 10px',
+                    color: '#f8fafc',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    fontFamily: "'Outfit', sans-serif",
+                    transition: 'all 0.15s',
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.06)'}
+                  onMouseLeave={e => e.currentTarget.style.background = infiniteCanvas ? 'rgba(99, 102, 241, 0.2)' : 'transparent'}
+                >
+                  <span className="material-symbols-rounded" style={{ fontSize: '18px', color: '#818cf8' }}>all_out</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: '13px', fontWeight: 600 }}>Infinite Canvas</div>
+                    <div style={{ fontSize: '11px', color: '#94a3b8' }}>Free pan & zoom anywhere</div>
+                  </div>
+                  {infiniteCanvas && (
+                    <span className="material-symbols-rounded" style={{ fontSize: '16px', color: '#818cf8' }}>check</span>
+                  )}
+                </button>
+
+                {/* Option 2: Fixed Board */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowCanvasMenu(false);
+                    if (infiniteCanvas) onToggleInfiniteCanvas(false);
+                  }}
+                  style={{
+                    background: !infiniteCanvas ? 'rgba(56, 189, 248, 0.2)' : 'transparent',
+                    border: 'none',
+                    borderRadius: '8px',
+                    padding: '8px 10px',
+                    color: '#f8fafc',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    fontFamily: "'Outfit', sans-serif",
+                    transition: 'all 0.15s',
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.06)'}
+                  onMouseLeave={e => e.currentTarget.style.background = !infiniteCanvas ? 'rgba(56, 189, 248, 0.2)' : 'transparent'}
+                >
+                  <span className="material-symbols-rounded" style={{ fontSize: '18px', color: '#38bdf8' }}>fit_screen</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: '13px', fontWeight: 600 }}>Fixed Board</div>
+                    <div style={{ fontSize: '11px', color: '#94a3b8' }}>Strict 4000 × 3000 screen fit</div>
+                  </div>
+                  {!infiniteCanvas && (
+                    <span className="material-symbols-rounded" style={{ fontSize: '16px', color: '#38bdf8' }}>check</span>
+                  )}
+                </button>
+              </div>
+            )}
+          </div>
 
           {/* Features & Shortcuts button */}
           <button

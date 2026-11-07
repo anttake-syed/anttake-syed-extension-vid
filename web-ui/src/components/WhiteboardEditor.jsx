@@ -180,20 +180,34 @@ export default function WhiteboardEditor({
     }
   };
 
-  // Clamp pan so the bounded work area always stays at least partially visible
+  // Strictly clamp pan so the fixed board fits within the screen viewport and cannot be scrolled into empty space
   const clampPan = useCallback((pan, z) => {
-    if (infiniteCanvasRef.current) return pan; // infinite mode — no clamp
+    if (infiniteCanvasRef.current) return pan; // infinite mode — free pan
     const canvas = canvasRef.current;
     if (!canvas) return pan;
     const vw = canvas.width;
     const vh = canvas.height;
-    const margin = 80; // px — minimum overlap the page must keep on-screen
-    const pageW = BOUNDED_CANVAS_W * z;
-    const pageH = BOUNDED_CANVAS_H * z;
-    return {
-      x: Math.min(vw - margin, Math.max(margin - pageW, pan.x)),
-      y: Math.min(vh - margin, Math.max(margin - pageH, pan.y)),
-    };
+    const boardW = BOUNDED_CANVAS_W * z;
+    const boardH = BOUNDED_CANVAS_H * z;
+
+    let clampedX, clampedY;
+    if (boardW <= vw) {
+      // Board is smaller than or equal to viewport width — keep centered
+      clampedX = Math.round((vw - boardW) / 2);
+    } else {
+      // Board is wider than viewport — clamp so board edges stay glued to screen
+      clampedX = Math.min(0, Math.max(vw - boardW, pan.x));
+    }
+
+    if (boardH <= vh) {
+      // Board is smaller than or equal to viewport height — keep centered
+      clampedY = Math.round((vh - boardH) / 2);
+    } else {
+      // Board is taller than viewport — clamp so board edges stay glued to screen
+      clampedY = Math.min(0, Math.max(vh - boardH, pan.y));
+    }
+
+    return { x: clampedX, y: clampedY };
   }, []);
 
   const historyRef        = useRef([[]]);
@@ -2065,20 +2079,20 @@ export default function WhiteboardEditor({
         onOpenShare={() => setShowShareModal(true)}
         onOpenShortcuts={() => setShowShortcutsModal(true)}
         infiniteCanvas={infiniteCanvas}
-        onToggleInfiniteCanvas={() => {
-          if (infiniteCanvas) {
-            // Switching from Infinite Canvas -> Fixed Board
-            const hasScattered = areElementsOutsideBoard(elementsRef.current, BOUNDED_CANVAS_W, BOUNDED_CANVAS_H);
-            if (hasScattered) {
-              setShowCanvasModeModal(true);
-              return;
-            }
+        onToggleInfiniteCanvas={(targetMode = null) => {
+          const next = targetMode !== null ? targetMode : !infiniteCanvas;
+          if (next === infiniteCanvas) return;
+
+          if (!next) {
+            // Switching to Fixed Board — always open confirmation dialog
+            setShowCanvasModeModal(true);
+            return;
           }
-          // Simple direct toggle
-          const next = !infiniteCanvas;
-          setInfiniteCanvas(next);
-          infiniteCanvasRef.current = next;
-          try { localStorage.setItem('wb_infinite_canvas', String(next)); } catch {}
+
+          // Switching to Infinite Canvas
+          setInfiniteCanvas(true);
+          infiniteCanvasRef.current = true;
+          try { localStorage.setItem('wb_infinite_canvas', 'true'); } catch {}
           redraw();
         }}
         isReadOnly={isReadOnly}
@@ -2406,43 +2420,43 @@ export default function WhiteboardEditor({
         onSaveAndExit={async () => { setShowExitModal(false); await handleSave(); onClose(); }}
       />
 
-      {/* Switch to Fixed Board Warning & Auto-fit Modal */}
+      {/* Switch Canvas Layout Mode Warning Modal */}
       {showCanvasModeModal && (
         <div className="wb-overlay" style={{ zIndex: 4000 }} onClick={() => setShowCanvasModeModal(false)}>
-          <div className="wb-dialog" role="dialog" aria-modal="true" style={{ maxWidth: '480px' }} onClick={(e) => e.stopPropagation()}>
+          <div className="wb-dialog" role="dialog" aria-modal="true" style={{ maxWidth: '440px' }} onClick={(e) => e.stopPropagation()}>
             <div style={{
-              width: '56px',
-              height: '56px',
-              borderRadius: '16px',
-              background: 'rgba(99,102,241,0.15)',
-              border: '1px solid rgba(99,102,241,0.3)',
+              width: '52px',
+              height: '52px',
+              borderRadius: '14px',
+              background: 'rgba(56,189,248,0.15)',
+              border: '1px solid rgba(56,189,248,0.3)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              marginBottom: '18px'
+              marginBottom: '16px'
             }}>
-              <span className="material-symbols-rounded" style={{ fontSize: '28px', color: '#818cf8' }}>fit_screen</span>
+              <span className="material-symbols-rounded" style={{ fontSize: '26px', color: '#38bdf8' }}>fit_screen</span>
             </div>
-            <h3 style={{ margin: '0 0 10px', fontSize: '19px', fontWeight: 700, color: 'var(--text-main)' }}>
+            <h3 style={{ margin: '0 0 8px', fontSize: '18px', fontWeight: 700, color: 'var(--text-main)' }}>
               Switch to Fixed Board Mode?
             </h3>
-            <p style={{ margin: '0 0 16px', fontSize: '14px', color: 'var(--text-dim)', lineHeight: '1.5' }}>
-              Some of your drawings, text, or embeds are currently scattered outside the standard <strong>4000 × 3000</strong> fixed board boundary.
+            <p style={{ margin: '0 0 14px', fontSize: '13px', color: 'var(--text-dim)', lineHeight: '1.5' }}>
+              In <strong>Fixed Board</strong> mode, the canvas is strictly constrained to <strong>4000 × 3000</strong> without infinite scrolling.
             </p>
             <div style={{
               background: 'rgba(255, 255, 255, 0.04)',
               border: '1px solid rgba(255, 255, 255, 0.08)',
               borderRadius: '10px',
-              padding: '12px 14px',
-              marginBottom: '24px',
+              padding: '10px 12px',
+              marginBottom: '20px',
               fontSize: '12px',
               color: '#94a3b8',
               lineHeight: '1.4',
             }}>
-              💡 <strong>Auto-Fit &amp; Compact:</strong> Neatly scales and rearranges all your existing elements inside the board area so nothing is lost or out of reach.
+              ✨ <strong>Fit Elements:</strong> Safely moves any scattered elements inside the board boundaries without altering their sizes or proportions.
             </div>
 
-            <div className="dialog-actions" style={{ gap: '10px', flexWrap: 'wrap' }}>
+            <div className="dialog-actions" style={{ gap: '8px', flexWrap: 'wrap' }}>
               <button
                 type="button"
                 onClick={() => setShowCanvasModeModal(false)}
@@ -2450,7 +2464,7 @@ export default function WhiteboardEditor({
                   background: 'transparent',
                   border: 'none',
                   color: '#94a3b8',
-                  padding: '9px 14px',
+                  padding: '8px 12px',
                   borderRadius: '8px',
                   fontSize: '13px',
                   fontWeight: 600,
@@ -2466,49 +2480,53 @@ export default function WhiteboardEditor({
                   setInfiniteCanvas(false);
                   infiniteCanvasRef.current = false;
                   try { localStorage.setItem('wb_infinite_canvas', 'false'); } catch {}
+                  const clamped = clampPan(panOffsetRef.current, zoomRef.current);
+                  panOffsetRef.current = clamped;
+                  setPanOffset(clamped);
                   redraw();
                 }}
                 style={{
-                  background: 'rgba(255,255,255,0.08)',
-                  border: '1px solid rgba(255,255,255,0.15)',
+                  background: 'rgba(255,255,255,0.06)',
+                  border: '1px solid rgba(255,255,255,0.12)',
                   color: '#e2e8f0',
-                  padding: '9px 14px',
+                  padding: '8px 12px',
                   borderRadius: '8px',
                   fontSize: '13px',
                   fontWeight: 600,
                   cursor: 'pointer'
                 }}
               >
-                Keep Positions (May be outside)
+                Keep Positions
               </button>
               <button
                 type="button"
                 onClick={() => {
                   setShowCanvasModeModal(false);
-                  // Compact elements to fit inside board
-                  const compacted = compactElementsToBoard(elementsRef.current, BOUNDED_CANVAS_W, BOUNDED_CANVAS_H, 140);
+                  // Shift elements into board without resizing them
+                  const compacted = compactElementsToBoard(elementsRef.current, BOUNDED_CANVAS_W, BOUNDED_CANVAS_H, 120);
                   setElements(compacted);
                   elementsRef.current = compacted;
                   commitToHistory(compacted);
                   setInfiniteCanvas(false);
                   infiniteCanvasRef.current = false;
                   try { localStorage.setItem('wb_infinite_canvas', 'false'); } catch {}
-                  // Reset zoom & pan to show the whole compacted board
-                  handleZoomReset();
+                  const clamped = clampPan(panOffsetRef.current, zoomRef.current);
+                  panOffsetRef.current = clamped;
+                  setPanOffset(clamped);
                   redraw();
                 }}
                 style={{
-                  background: 'linear-gradient(135deg,#6366f1,#8b5cf6)',
+                  background: 'linear-gradient(135deg, #0284c7, #6366f1)',
                   border: 'none',
                   color: 'white',
-                  padding: '9px 18px',
+                  padding: '8px 16px',
                   borderRadius: '8px',
                   fontSize: '13px',
                   fontWeight: 600,
                   cursor: 'pointer'
                 }}
               >
-                Auto-Fit &amp; Switch
+                Fit &amp; Switch
               </button>
             </div>
           </div>

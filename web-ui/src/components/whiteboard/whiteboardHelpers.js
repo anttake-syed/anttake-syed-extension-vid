@@ -48,7 +48,7 @@ export function areElementsOutsideBoard(elements, targetW = 4000, targetH = 3000
 }
 
 /**
- * Scales and translates scattered elements so that they all fit neatly inside the bounded board
+ * Moves scattered elements so they sit inside the board area without changing their dimensions
  */
 export function compactElementsToBoard(elements, targetW = 4000, targetH = 3000, padding = 120) {
   if (!elements || elements.length === 0) return elements;
@@ -66,37 +66,38 @@ export function compactElementsToBoard(elements, targetW = 4000, targetH = 3000,
     return elements;
   }
 
-  const currentW = Math.max(50, maxX - minX);
-  const currentH = Math.max(50, maxY - minY);
+  // Calculate shift offset so elements cluster neatly starting at (padding, padding)
+  // or centered if they easily fit. Never change element size!
+  const currentW = maxX - minX;
+  const currentH = maxY - minY;
 
-  const availW = targetW - padding * 2;
-  const availH = targetH - padding * 2;
+  let offsetX = 0;
+  let offsetY = 0;
 
-  // Scale down if elements exceed the board size
-  const scale = Math.min(1, Math.min(availW / currentW, availH / currentH));
+  if (currentW <= targetW - padding * 2) {
+    offsetX = Math.round((targetW - currentW) / 2 - minX);
+  } else {
+    offsetX = Math.round(padding - minX);
+  }
 
-  const scaledW = currentW * scale;
-  const scaledH = currentH * scale;
-
-  // Center inside the target board [0, 0, targetW, targetH]
-  const offsetX = (targetW - scaledW) / 2 - minX * scale;
-  const offsetY = (targetH - scaledH) / 2 - minY * scale;
+  if (currentH <= targetH - padding * 2) {
+    offsetY = Math.round((targetH - currentH) / 2 - minY);
+  } else {
+    offsetY = Math.round(padding - minY);
+  }
 
   return elements.map(el => {
     const next = { ...el };
-    if (next.x !== undefined) next.x = Math.round(next.x * scale + offsetX);
-    if (next.y !== undefined) next.y = Math.round(next.y * scale + offsetY);
-    if (next.w !== undefined) next.w = Math.round(next.w * scale);
-    if (next.h !== undefined) next.h = Math.round(next.h * scale);
-    if (next.x2 !== undefined) next.x2 = Math.round(next.x2 * scale + offsetX);
-    if (next.y2 !== undefined) next.y2 = Math.round(next.y2 * scale + offsetY);
-    if (next.cpx !== undefined) next.cpx = Math.round(next.cpx * scale + offsetX);
-    if (next.cpy !== undefined) next.cpy = Math.round(next.cpy * scale + offsetY);
-    if (next.fontSize !== undefined) next.fontSize = Math.max(12, Math.round(next.fontSize * scale));
+    if (next.x !== undefined) next.x = Math.round(next.x + offsetX);
+    if (next.y !== undefined) next.y = Math.round(next.y + offsetY);
+    if (next.x2 !== undefined) next.x2 = Math.round(next.x2 + offsetX);
+    if (next.y2 !== undefined) next.y2 = Math.round(next.y2 + offsetY);
+    if (next.cpx !== undefined) next.cpx = Math.round(next.cpx + offsetX);
+    if (next.cpy !== undefined) next.cpy = Math.round(next.cpy + offsetY);
     if (next.points && Array.isArray(next.points)) {
       next.points = next.points.map(p => ({
-        x: Math.round(p.x * scale + offsetX),
-        y: Math.round(p.y * scale + offsetY),
+        x: Math.round(p.x + offsetX),
+        y: Math.round(p.y + offsetY),
       }));
     }
     return next;

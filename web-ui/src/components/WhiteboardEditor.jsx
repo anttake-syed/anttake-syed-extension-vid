@@ -180,6 +180,16 @@ export default function WhiteboardEditor({
     }
   };
 
+  // Minimum zoom level in Fixed Board mode so the board always covers or fills the viewport
+  const getMinBoardZoom = useCallback(() => {
+    if (infiniteCanvasRef.current) return 0.1;
+    const canvas = canvasRef.current;
+    if (!canvas || !canvas.width || !canvas.height) return 0.1;
+    // Bounded board should fit nicely in the viewport, never showing endless void
+    const fitScale = Math.min(canvas.width / BOUNDED_CANVAS_W, canvas.height / BOUNDED_CANVAS_H);
+    return Math.max(0.05, Math.min(fitScale, 1));
+  }, []);
+
   // Strictly clamp pan so the fixed board fits within the screen viewport and cannot be scrolled into empty space
   const clampPan = useCallback((pan, z) => {
     if (infiniteCanvasRef.current) return pan; // infinite mode — free pan
@@ -427,6 +437,11 @@ export default function WhiteboardEditor({
       if (rect.width > 0 && rect.height > 0) {
         canvas.width  = rect.width;
         canvas.height = rect.height;
+        if (!infiniteCanvasRef.current) {
+          const clamped = clampPan(panOffsetRef.current, zoomRef.current);
+          panOffsetRef.current = clamped;
+          setPanOffset(clamped);
+        }
         redraw();
       }
     };
@@ -435,7 +450,7 @@ export default function WhiteboardEditor({
     obs.observe(canvas.parentElement);
     resize(); // initialize canvas dimensions immediately on mount
     return () => obs.disconnect();
-  }, [redraw]);
+  }, [redraw, clampPan]);
 
   // Touchpad & Mouse wheel: smooth pan or zoom (Ctrl+wheel / pinch)
   useEffect(() => {
@@ -447,7 +462,8 @@ export default function WhiteboardEditor({
         // Pinch-to-zoom on touchpad OR Ctrl+Scroll on mouse
         const delta = -e.deltaY * 0.002;
         const currentZ = zoomRef.current;
-        const newZ = Math.min(4, Math.max(0.1, currentZ + delta * currentZ));
+        const minZ = getMinBoardZoom();
+        const newZ = Math.min(4, Math.max(minZ, currentZ + delta * currentZ));
 
         // Zoom towards mouse cursor position
         const rect = canvas.getBoundingClientRect();
@@ -1102,7 +1118,8 @@ export default function WhiteboardEditor({
       if (pinchStartDistRef.current && dist > 10) {
         const factor = dist / pinchStartDistRef.current;
         const currentZ = zoomRef.current;
-        const newZ = parseFloat(Math.min(4, Math.max(0.1, pinchStartZoomRef.current * factor)).toFixed(2));
+        const minZ = getMinBoardZoom();
+        const newZ = parseFloat(Math.min(4, Math.max(minZ, pinchStartZoomRef.current * factor)).toFixed(2));
 
         // Zoom towards the midpoint between the two fingers
         const canvas = canvasRef.current;
@@ -1768,12 +1785,36 @@ export default function WhiteboardEditor({
     setZoom(newZ);
   };
   const handleZoomOut = () => {
-    const newZ = Math.max(0.1, parseFloat((zoomRef.current - 0.25).toFixed(2)));
+    const minZ = getMinBoardZoom();
+    const newZ = Math.max(minZ, parseFloat((zoomRef.current - 0.25).toFixed(2)));
+    const clampedPan = clampPan(panOffsetRef.current, newZ);
     zoomRef.current = newZ;
+    panOffsetRef.current = clampedPan;
     redraw();
     setZoom(newZ);
+    setPanOffset(clampedPan);
   };
   const handleZoomReset = () => {
+    if (!infiniteCanvasRef.current) {
+      const canvas = canvasRef.current;
+      if (canvas && canvas.width > 0 && canvas.height > 0) {
+        const pad = 40;
+        const availW = Math.max(100, canvas.width - pad * 2);
+        const availH = Math.max(100, canvas.height - pad * 2);
+        const fitScale = Math.min(availW / BOUNDED_CANVAS_W, availH / BOUNDED_CANVAS_H, 1);
+        const z = parseFloat(Math.max(0.1, fitScale).toFixed(2));
+        const fitPan = {
+          x: Math.round((canvas.width - BOUNDED_CANVAS_W * z) / 2),
+          y: Math.round((canvas.height - BOUNDED_CANVAS_H * z) / 2)
+        };
+        zoomRef.current = z;
+        panOffsetRef.current = fitPan;
+        redraw();
+        setZoom(z);
+        setPanOffset(fitPan);
+        return;
+      }
+    }
     zoomRef.current = 1;
     panOffsetRef.current = { x: 0, y: 0 };
     redraw();
@@ -2161,6 +2202,7 @@ export default function WhiteboardEditor({
             elements={elements}
             panOffset={panOffset}
             zoom={zoom}
+            infiniteCanvas={infiniteCanvas}
             selectedId={selectedId}
             selectedIds={selectedIds}
             activeVideoEmbedId={activeVideoEmbedId}
@@ -2464,7 +2506,7 @@ export default function WhiteboardEditor({
                   background: 'transparent',
                   border: 'none',
                   color: '#94a3b8',
-                  padding: '8px 12px',
+                  padding: '8px 14px',
                   borderRadius: '8px',
                   fontSize: '13px',
                   fontWeight: 600,
@@ -2472,31 +2514,6 @@ export default function WhiteboardEditor({
                 }}
               >
                 Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowCanvasModeModal(false);
-                  setInfiniteCanvas(false);
-                  infiniteCanvasRef.current = false;
-                  try { localStorage.setItem('wb_infinite_canvas', 'false'); } catch {}
-                  const clamped = clampPan(panOffsetRef.current, zoomRef.current);
-                  panOffsetRef.current = clamped;
-                  setPanOffset(clamped);
-                  redraw();
-                }}
-                style={{
-                  background: 'rgba(255,255,255,0.06)',
-                  border: '1px solid rgba(255,255,255,0.12)',
-                  color: '#e2e8f0',
-                  padding: '8px 12px',
-                  borderRadius: '8px',
-                  fontSize: '13px',
-                  fontWeight: 600,
-                  cursor: 'pointer'
-                }}
-              >
-                Keep Positions
               </button>
               <button
                 type="button"
@@ -2510,20 +2527,40 @@ export default function WhiteboardEditor({
                   setInfiniteCanvas(false);
                   infiniteCanvasRef.current = false;
                   try { localStorage.setItem('wb_infinite_canvas', 'false'); } catch {}
-                  const clamped = clampPan(panOffsetRef.current, zoomRef.current);
-                  panOffsetRef.current = clamped;
-                  setPanOffset(clamped);
+
+                  // Calculate optimal fit zoom & pan to display the fixed board
+                  const canvas = canvasRef.current;
+                  if (canvas && canvas.width > 0 && canvas.height > 0) {
+                    const pad = 40;
+                    const availW = Math.max(100, canvas.width - pad * 2);
+                    const availH = Math.max(100, canvas.height - pad * 2);
+                    const fitZoom = Math.min(availW / BOUNDED_CANVAS_W, availH / BOUNDED_CANVAS_H, 1);
+                    const z = parseFloat(Math.max(0.1, fitZoom).toFixed(2));
+                    const fitPan = {
+                      x: Math.round((canvas.width - BOUNDED_CANVAS_W * z) / 2),
+                      y: Math.round((canvas.height - BOUNDED_CANVAS_H * z) / 2)
+                    };
+                    zoomRef.current = z;
+                    panOffsetRef.current = fitPan;
+                    setZoom(z);
+                    setPanOffset(fitPan);
+                  } else {
+                    const clamped = clampPan(panOffsetRef.current, zoomRef.current);
+                    panOffsetRef.current = clamped;
+                    setPanOffset(clamped);
+                  }
                   redraw();
                 }}
                 style={{
                   background: 'linear-gradient(135deg, #0284c7, #6366f1)',
                   border: 'none',
                   color: 'white',
-                  padding: '8px 16px',
+                  padding: '8px 18px',
                   borderRadius: '8px',
                   fontSize: '13px',
                   fontWeight: 600,
-                  cursor: 'pointer'
+                  cursor: 'pointer',
+                  boxShadow: '0 4px 12px rgba(99, 102, 241, 0.35)'
                 }}
               >
                 Fit &amp; Switch

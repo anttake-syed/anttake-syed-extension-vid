@@ -40,52 +40,23 @@ export function renderWhiteboardCanvas(ctx, canvas, state) {
   ctx.translate(panOffset.x, panOffset.y);
   ctx.scale(zoom, zoom);
 
-  // 0. Draw bounded page background when infinite canvas is OFF
+  // 0. Bounded page setup when infinite canvas is OFF
   if (!infiniteCanvas) {
-    // Subtle outer border with rounded appearance
+    // Fill board background
     ctx.save();
-    ctx.strokeStyle = 'rgba(99, 102, 241, 0.4)';
+    ctx.fillStyle = '#0f172a';
+    ctx.fillRect(0, 0, BOUNDED_CANVAS_W, BOUNDED_CANVAS_H);
+
+    // Clean subtle inner border
+    ctx.strokeStyle = 'rgba(99, 102, 241, 0.45)';
     ctx.lineWidth = Math.max(1, 2 / zoom);
     ctx.strokeRect(0, 0, BOUNDED_CANVAS_W, BOUNDED_CANVAS_H);
-
-    // Subtle corner accents to show clear framing
-    const cornerSize = Math.max(10, 40 / zoom);
-    ctx.strokeStyle = '#818cf8';
-    ctx.lineWidth = Math.max(2, 3 / zoom);
-
-    // Top-left corner
-    ctx.beginPath();
-    ctx.moveTo(0, cornerSize);
-    ctx.lineTo(0, 0);
-    ctx.lineTo(cornerSize, 0);
-    ctx.stroke();
-
-    // Top-right corner
-    ctx.beginPath();
-    ctx.moveTo(BOUNDED_CANVAS_W - cornerSize, 0);
-    ctx.lineTo(BOUNDED_CANVAS_W, 0);
-    ctx.lineTo(BOUNDED_CANVAS_W, cornerSize);
-    ctx.stroke();
-
-    // Bottom-left corner
-    ctx.beginPath();
-    ctx.moveTo(0, BOUNDED_CANVAS_H - cornerSize);
-    ctx.lineTo(0, BOUNDED_CANVAS_H);
-    ctx.lineTo(cornerSize, BOUNDED_CANVAS_H);
-    ctx.stroke();
-
-    // Bottom-right corner
-    ctx.beginPath();
-    ctx.moveTo(BOUNDED_CANVAS_W - cornerSize, BOUNDED_CANVAS_H);
-    ctx.lineTo(BOUNDED_CANVAS_W, BOUNDED_CANVAS_H);
-    ctx.lineTo(BOUNDED_CANVAS_W, BOUNDED_CANVAS_H - cornerSize);
-    ctx.stroke();
-
-    // Small clean board badge at top-left
-    ctx.fillStyle = 'rgba(129, 140, 248, 0.85)';
-    ctx.font = `600 ${Math.max(12, 14 / zoom)}px 'Outfit', system-ui, sans-serif`;
-    ctx.fillText(`Fixed Board Area (${BOUNDED_CANVAS_W} × ${BOUNDED_CANVAS_H})`, 12 / zoom, -12 / zoom);
     ctx.restore();
+
+    // Clip all subsequent drawing operations strictly inside the board
+    ctx.beginPath();
+    ctx.rect(0, 0, BOUNDED_CANVAS_W, BOUNDED_CANVAS_H);
+    ctx.clip();
   }
 
   // 1. Draw elements

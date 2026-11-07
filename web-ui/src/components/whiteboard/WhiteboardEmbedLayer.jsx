@@ -14,6 +14,7 @@ export default function WhiteboardEmbedLayer({
   selectedIds,
   activeVideoEmbedId,
   isDragging,
+  infiniteCanvas = true,
   onStartDrag,
   onTogglePlay,
   onSelect,
@@ -32,6 +33,11 @@ export default function WhiteboardEmbedLayer({
         className="wb-embed-layer"
         style={{
           transform: `translate(${panOffset.x}px, ${panOffset.y}px) scale(${zoom})`,
+          ...(!infiniteCanvas ? {
+            width: '4000px',
+            height: '3000px',
+            clipPath: 'polygon(0 0, 4000px 0, 4000px 3000px, 0 3000px)',
+          } : {})
         }}
       >
         {elements.map((el, idx) => {

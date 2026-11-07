@@ -42,18 +42,24 @@ export function renderWhiteboardCanvas(ctx, canvas, state) {
 
   // 0. Bounded page setup when infinite canvas is OFF
   if (!infiniteCanvas) {
-    // Fill board background
+    // Elegant page card in canvas space with subtle shadow and border
     ctx.save();
-    ctx.fillStyle = '#0f172a';
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.45)';
+    ctx.shadowBlur = 40 / zoom;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 16 / zoom;
+    ctx.fillStyle = '#0b1120';
     ctx.fillRect(0, 0, BOUNDED_CANVAS_W, BOUNDED_CANVAS_H);
+    ctx.restore();
 
-    // Clean subtle inner border
-    ctx.strokeStyle = 'rgba(99, 102, 241, 0.45)';
+    // Subtle indigo framing border around the page
+    ctx.save();
+    ctx.strokeStyle = 'rgba(99, 102, 241, 0.35)';
     ctx.lineWidth = Math.max(1, 2 / zoom);
     ctx.strokeRect(0, 0, BOUNDED_CANVAS_W, BOUNDED_CANVAS_H);
     ctx.restore();
 
-    // Clip all subsequent drawing operations strictly inside the board
+    // Clip all subsequent elements & drawings strictly inside the page bounds
     ctx.beginPath();
     ctx.rect(0, 0, BOUNDED_CANVAS_W, BOUNDED_CANVAS_H);
     ctx.clip();

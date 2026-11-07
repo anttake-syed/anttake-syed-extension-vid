@@ -42,33 +42,49 @@ export function renderWhiteboardCanvas(ctx, canvas, state) {
 
   // 0. Draw bounded page background when infinite canvas is OFF
   if (!infiniteCanvas) {
-    // Outer shadow around the page (outside the page, overlay the canvas bg)
+    // Subtle outer border with rounded appearance
     ctx.save();
-    ctx.shadowColor = 'rgba(0,0,0,0.5)';
-    ctx.shadowBlur = 32 / zoom;
-    ctx.fillStyle = 'rgba(15,23,42,0.6)'; // matches --bg-primary
-    // Fill canvas outside page — approximate using 4 large rects
-    const pad = 20000;
-    ctx.fillRect(-pad, -pad, pad + 0, BOUNDED_CANVAS_H + pad * 2);                  // left strip
-    ctx.fillRect(BOUNDED_CANVAS_W, -pad, pad, BOUNDED_CANVAS_H + pad * 2);          // right strip
-    ctx.fillRect(0, -pad, BOUNDED_CANVAS_W, pad);                                    // top strip
-    ctx.fillRect(0, BOUNDED_CANVAS_H, BOUNDED_CANVAS_W, pad);                       // bottom strip
-    ctx.restore();
-
-    // Page surface (white/dark sheet)
-    ctx.save();
-    ctx.fillStyle = '#0f172a'; // dark page — matches app bg
-    ctx.fillRect(0, 0, BOUNDED_CANVAS_W, BOUNDED_CANVAS_H);
-
-    // Page border — subtle indigo glow
-    ctx.strokeStyle = 'rgba(99,102,241,0.35)';
-    ctx.lineWidth = 2 / zoom;
+    ctx.strokeStyle = 'rgba(99, 102, 241, 0.4)';
+    ctx.lineWidth = Math.max(1, 2 / zoom);
     ctx.strokeRect(0, 0, BOUNDED_CANVAS_W, BOUNDED_CANVAS_H);
 
-    // Corner size labels (top-left)
-    ctx.fillStyle = 'rgba(99,102,241,0.4)';
-    ctx.font = `${11 / zoom}px 'Outfit', system-ui, sans-serif`;
-    ctx.fillText(`${BOUNDED_CANVAS_W} × ${BOUNDED_CANVAS_H}`, 10 / zoom, -6 / zoom);
+    // Subtle corner accents to show clear framing
+    const cornerSize = Math.max(10, 40 / zoom);
+    ctx.strokeStyle = '#818cf8';
+    ctx.lineWidth = Math.max(2, 3 / zoom);
+
+    // Top-left corner
+    ctx.beginPath();
+    ctx.moveTo(0, cornerSize);
+    ctx.lineTo(0, 0);
+    ctx.lineTo(cornerSize, 0);
+    ctx.stroke();
+
+    // Top-right corner
+    ctx.beginPath();
+    ctx.moveTo(BOUNDED_CANVAS_W - cornerSize, 0);
+    ctx.lineTo(BOUNDED_CANVAS_W, 0);
+    ctx.lineTo(BOUNDED_CANVAS_W, cornerSize);
+    ctx.stroke();
+
+    // Bottom-left corner
+    ctx.beginPath();
+    ctx.moveTo(0, BOUNDED_CANVAS_H - cornerSize);
+    ctx.lineTo(0, BOUNDED_CANVAS_H);
+    ctx.lineTo(cornerSize, BOUNDED_CANVAS_H);
+    ctx.stroke();
+
+    // Bottom-right corner
+    ctx.beginPath();
+    ctx.moveTo(BOUNDED_CANVAS_W - cornerSize, BOUNDED_CANVAS_H);
+    ctx.lineTo(BOUNDED_CANVAS_W, BOUNDED_CANVAS_H);
+    ctx.lineTo(BOUNDED_CANVAS_W, BOUNDED_CANVAS_H - cornerSize);
+    ctx.stroke();
+
+    // Small clean board badge at top-left
+    ctx.fillStyle = 'rgba(129, 140, 248, 0.85)';
+    ctx.font = `600 ${Math.max(12, 14 / zoom)}px 'Outfit', system-ui, sans-serif`;
+    ctx.fillText(`Fixed Board Area (${BOUNDED_CANVAS_W} × ${BOUNDED_CANVAS_H})`, 12 / zoom, -12 / zoom);
     ctx.restore();
   }
 

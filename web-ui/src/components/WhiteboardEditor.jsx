@@ -32,10 +32,24 @@ import {
   isElementInsideFrame,
   getContainedIndices,
 } from './whiteboard/whiteboardTransform.js';
-import { extractYouTubeVideoId, parsePastedUrl } from './whiteboard/whiteboardHelpers.js';
+import { extractYouTubeVideoId, parsePastedUrl, compactElementsToBoard, areElementsOutsideBoard } from './whiteboard/whiteboardHelpers.js';
 
 // ── Main WhiteboardEditor ────────────────────────────────────
-export default function WhiteboardEditor({ board, onClose, user, hasCloudAccess, entitlements }) {
+export default function WhiteboardEditor({
+  board,
+  onClose,
+  user,
+  isAuthenticated,
+  onSignIn,
+  onUpgrade,
+  hasCloudAccess,
+  entitlements,
+}) {
+  const [boardOwnerId, setBoardOwnerId]   = useState(board?.userId || null);
+  const [isCopying, setIsCopying]         = useState(false);
+  const [copySuccess, setCopySuccess]     = useState(false);
+  const [showUpgradeGate, setShowUpgradeGate] = useState(false);
+
   const [boardName, setBoardName]         = useState(board?.name || generateDefaultName());
   const [editingName, setEditingName]     = useState(false);
   const [nameDraft, setNameDraft]         = useState(boardName);
@@ -72,6 +86,7 @@ export default function WhiteboardEditor({ board, onClose, user, hasCloudAccess,
   const [infiniteCanvas, setInfiniteCanvas]       = useState(() => {
     try { return localStorage.getItem('wb_infinite_canvas') !== 'false'; } catch { return true; }
   });
+  const [showCanvasModeModal, setShowCanvasModeModal] = useState(false);
 
   const canvasRef         = useRef(null);
   const drawing           = useRef(false);
@@ -104,6 +119,66 @@ export default function WhiteboardEditor({ board, onClose, user, hasCloudAccess,
 
   const infiniteCanvasRef = useRef(infiniteCanvas);
   useEffect(() => { infiniteCanvasRef.current = infiniteCanvas; }, [infiniteCanvas]);
+
+  // Determine permission & ownership
+  const isOwner = Boolean(user?.id && boardOwnerId && user.id === boardOwnerId);
+  const isSharedBoard = Boolean(boardOwnerId && user?.id && user.id !== boardOwnerId) || (!boardOwnerId && !isAuthenticated);
+  const isReadOnly = !isOwner && (!isAuthenticated || !hasCloudAccess);
+
+  // Duplicate board into the user's own account so they can edit it
+  const handleDuplicateToMyBoards = async () => {
+    if (!isAuthenticated) {
+      if (onSignIn) onSignIn();
+      return;
+    }
+    if (!hasCloudAccess) {
+      setShowUpgradeGate(true);
+      return;
+    }
+    if (isCopying) return;
+
+    try {
+      setIsCopying(true);
+      const newTitle = `${boardName} (Copy)`;
+      const res = await fetch(`${SERVER_URL}/boards`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${user?.jwt}` },
+        body: JSON.stringify({ title: newTitle }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to create copy');
+
+      const newBoard = data.board;
+
+      // Save all existing elements into the newly created board
+      const elementsToSave = elements.map(el => {
+        if (el.type === 'image') {
+          const { img, ...rest } = el;
+          return rest;
+        }
+        return el;
+      });
+
+      const stateContent = JSON.stringify({ elements: elementsToSave });
+      await fetch(`${SERVER_URL}/boards/${newBoard.id}/items`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${user?.jwt}` },
+        body: JSON.stringify({ type: 'board_state', content: stateContent }),
+      });
+
+      setCopySuccess(true);
+      setTimeout(() => {
+        setCopySuccess(false);
+        // Navigate directly to the new board URL
+        window.location.href = `/whiteboard/${newBoard.id}`;
+      }, 1500);
+    } catch (err) {
+      console.error('Failed to duplicate board:', err);
+      alert(err.message || 'Failed to copy board to your account');
+    } finally {
+      setIsCopying(false);
+    }
+  };
 
   // Clamp pan so the bounded work area always stays at least partially visible
   const clampPan = useCallback((pan, z) => {
@@ -245,14 +320,18 @@ export default function WhiteboardEditor({ board, onClose, user, hasCloudAccess,
   useEffect(() => {
     async function loadBoardState() {
       try {
-        const res = await fetch(`${SERVER_URL}/boards/${board.id}`, {
-          headers: { Authorization: `Bearer ${user?.jwt}` },
-        });
+        const headers = user?.jwt ? { Authorization: `Bearer ${user.jwt}` } : {};
+        const res = await fetch(`${SERVER_URL}/boards/${board.id}`, { headers });
         const data = await res.json();
 
-        if (data.board?.name) {
-          setBoardName(data.board.name);
-          setNameDraft(data.board.name);
+        if (data.board?.userId) {
+          setBoardOwnerId(data.board.userId);
+        }
+
+        if (data.board?.name || data.board?.title) {
+          const title = data.board.name || data.board.title;
+          setBoardName(title);
+          setNameDraft(title);
         }
 
         const items = data.board?.items || [];
@@ -321,7 +400,7 @@ export default function WhiteboardEditor({ board, onClose, user, hasCloudAccess,
         setLoadError('Could not load this whiteboard\'s saved content. Your last save is still on the server — try refreshing.');
       }
     }
-    if (board?.id && user?.jwt) loadBoardState();
+    if (board?.id) loadBoardState();
   }, [board?.id, user?.jwt]);
 
   // Canvas resize observer
@@ -1960,12 +2039,26 @@ export default function WhiteboardEditor({ board, onClose, user, hasCloudAccess,
         onOpenShortcuts={() => setShowShortcutsModal(true)}
         infiniteCanvas={infiniteCanvas}
         onToggleInfiniteCanvas={() => {
+          if (infiniteCanvas) {
+            // Switching from Infinite Canvas -> Fixed Board
+            const hasScattered = areElementsOutsideBoard(elementsRef.current, BOUNDED_CANVAS_W, BOUNDED_CANVAS_H);
+            if (hasScattered) {
+              setShowCanvasModeModal(true);
+              return;
+            }
+          }
+          // Simple direct toggle
           const next = !infiniteCanvas;
           setInfiniteCanvas(next);
           infiniteCanvasRef.current = next;
           try { localStorage.setItem('wb_infinite_canvas', String(next)); } catch {}
           redraw();
         }}
+        isReadOnly={isReadOnly}
+        isSharedBoard={isSharedBoard}
+        onDuplicateToMyBoards={handleDuplicateToMyBoards}
+        isCopying={isCopying}
+        copySuccess={copySuccess}
       />
 
       {(loadError || saveError) && (
@@ -2042,6 +2135,156 @@ export default function WhiteboardEditor({ board, onClose, user, hasCloudAccess,
               }
             }}
           />
+
+          {/* ── Unauthenticated Viewer Blurred Gate Overlay ── */}
+          {!isAuthenticated && (
+            <div
+              style={{
+                position: 'absolute',
+                inset: 0,
+                zIndex: 1500,
+                backgroundColor: 'rgba(2, 6, 23, 0.65)',
+                backdropFilter: 'blur(12px)',
+                WebkitBackdropFilter: 'blur(12px)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '20px',
+              }}
+            >
+              <div
+                style={{
+                  background: 'linear-gradient(180deg, #1e293b 0%, #0f172a 100%)',
+                  border: '1px solid rgba(255, 255, 255, 0.12)',
+                  borderRadius: '20px',
+                  padding: '36px 32px',
+                  maxWidth: '440px',
+                  width: '100%',
+                  textAlign: 'center',
+                  boxShadow: '0 25px 60px -15px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(99, 102, 241, 0.2)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: '16px',
+                }}
+              >
+                <div
+                  style={{
+                    width: '60px',
+                    height: '60px',
+                    borderRadius: '16px',
+                    background: 'rgba(99, 102, 241, 0.15)',
+                    border: '1px solid rgba(99, 102, 241, 0.3)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#818cf8',
+                  }}
+                >
+                  <span className="material-symbols-rounded" style={{ fontSize: '32px' }}>lock</span>
+                </div>
+
+                <div>
+                  <h3 style={{ margin: '0 0 8px', fontSize: '22px', fontWeight: 700, color: '#f8fafc' }}>
+                    Sign in to View Whiteboard
+                  </h3>
+                  <p style={{ margin: 0, fontSize: '14px', color: '#94a3b8', lineHeight: 1.5 }}>
+                    You have been invited to view <strong>"{boardName}"</strong>. Please sign in with your account to unlock and view the whiteboard content.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={onSignIn}
+                  style={{
+                    width: '100%',
+                    background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                    border: 'none',
+                    borderRadius: '12px',
+                    padding: '12px 24px',
+                    color: '#ffffff',
+                    fontSize: '15px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '10px',
+                    boxShadow: '0 8px 20px -4px rgba(99, 102, 241, 0.5)',
+                    fontFamily: "'Outfit', sans-serif",
+                    marginTop: '8px',
+                  }}
+                >
+                  <span className="material-symbols-rounded" style={{ fontSize: '20px' }}>login</span>
+                  <span>Sign in to Unlock</span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ── View-Only / Cloud Upgrade Gate Modal ── */}
+          {showUpgradeGate && (
+            <div className="wb-overlay" style={{ zIndex: 4500 }} onClick={() => setShowUpgradeGate(false)}>
+              <div className="wb-dialog" role="dialog" aria-modal="true" style={{ maxWidth: '460px' }} onClick={(e) => e.stopPropagation()}>
+                <div style={{
+                  width: '56px',
+                  height: '56px',
+                  borderRadius: '16px',
+                  background: 'rgba(236, 72, 153, 0.15)',
+                  border: '1px solid rgba(236, 72, 153, 0.3)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  marginBottom: '18px'
+                }}>
+                  <span className="material-symbols-rounded" style={{ fontSize: '28px', color: '#ec4899' }}>workspace_premium</span>
+                </div>
+                <h3 style={{ margin: '0 0 10px', fontSize: '20px', fontWeight: 700, color: 'var(--text-main)' }}>
+                  Cloud Plan Required to Edit
+                </h3>
+                <p style={{ margin: '0 0 20px', fontSize: '14px', color: 'var(--text-dim)', lineHeight: '1.5' }}>
+                  You are currently in <strong>View-Only</strong> mode. To duplicate and edit this whiteboard in your account, an active Cloud plan is required.
+                </p>
+                <div className="dialog-actions" style={{ gap: '10px' }}>
+                  <button
+                    type="button"
+                    onClick={() => setShowUpgradeGate(false)}
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      color: '#94a3b8',
+                      padding: '10px 16px',
+                      borderRadius: '8px',
+                      fontSize: '13px',
+                      fontWeight: 600,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Continue Viewing
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowUpgradeGate(false);
+                      if (onUpgrade) onUpgrade();
+                    }}
+                    style={{
+                      background: 'linear-gradient(135deg,#ec4899,#8b5cf6)',
+                      border: 'none',
+                      color: 'white',
+                      padding: '10px 20px',
+                      borderRadius: '8px',
+                      fontSize: '13px',
+                      fontWeight: 600,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Upgrade to Edit
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -2135,6 +2378,115 @@ export default function WhiteboardEditor({ board, onClose, user, hasCloudAccess,
         onDiscard={() => { setShowExitModal(false); onClose(); }}
         onSaveAndExit={async () => { setShowExitModal(false); await handleSave(); onClose(); }}
       />
+
+      {/* Switch to Fixed Board Warning & Auto-fit Modal */}
+      {showCanvasModeModal && (
+        <div className="wb-overlay" style={{ zIndex: 4000 }} onClick={() => setShowCanvasModeModal(false)}>
+          <div className="wb-dialog" role="dialog" aria-modal="true" style={{ maxWidth: '480px' }} onClick={(e) => e.stopPropagation()}>
+            <div style={{
+              width: '56px',
+              height: '56px',
+              borderRadius: '16px',
+              background: 'rgba(99,102,241,0.15)',
+              border: '1px solid rgba(99,102,241,0.3)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginBottom: '18px'
+            }}>
+              <span className="material-symbols-rounded" style={{ fontSize: '28px', color: '#818cf8' }}>fit_screen</span>
+            </div>
+            <h3 style={{ margin: '0 0 10px', fontSize: '19px', fontWeight: 700, color: 'var(--text-main)' }}>
+              Switch to Fixed Board Mode?
+            </h3>
+            <p style={{ margin: '0 0 16px', fontSize: '14px', color: 'var(--text-dim)', lineHeight: '1.5' }}>
+              Some of your drawings, text, or embeds are currently scattered outside the standard <strong>4000 × 3000</strong> fixed board boundary.
+            </p>
+            <div style={{
+              background: 'rgba(255, 255, 255, 0.04)',
+              border: '1px solid rgba(255, 255, 255, 0.08)',
+              borderRadius: '10px',
+              padding: '12px 14px',
+              marginBottom: '24px',
+              fontSize: '12px',
+              color: '#94a3b8',
+              lineHeight: '1.4',
+            }}>
+              💡 <strong>Auto-Fit &amp; Compact:</strong> Neatly scales and rearranges all your existing elements inside the board area so nothing is lost or out of reach.
+            </div>
+
+            <div className="dialog-actions" style={{ gap: '10px', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                onClick={() => setShowCanvasModeModal(false)}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: '#94a3b8',
+                  padding: '9px 14px',
+                  borderRadius: '8px',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowCanvasModeModal(false);
+                  setInfiniteCanvas(false);
+                  infiniteCanvasRef.current = false;
+                  try { localStorage.setItem('wb_infinite_canvas', 'false'); } catch {}
+                  redraw();
+                }}
+                style={{
+                  background: 'rgba(255,255,255,0.08)',
+                  border: '1px solid rgba(255,255,255,0.15)',
+                  color: '#e2e8f0',
+                  padding: '9px 14px',
+                  borderRadius: '8px',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                Keep Positions (May be outside)
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowCanvasModeModal(false);
+                  // Compact elements to fit inside board
+                  const compacted = compactElementsToBoard(elementsRef.current, BOUNDED_CANVAS_W, BOUNDED_CANVAS_H, 140);
+                  setElements(compacted);
+                  elementsRef.current = compacted;
+                  commitToHistory(compacted);
+                  setInfiniteCanvas(false);
+                  infiniteCanvasRef.current = false;
+                  try { localStorage.setItem('wb_infinite_canvas', 'false'); } catch {}
+                  // Reset zoom & pan to show the whole compacted board
+                  handleZoomReset();
+                  redraw();
+                }}
+                style={{
+                  background: 'linear-gradient(135deg,#6366f1,#8b5cf6)',
+                  border: 'none',
+                  color: 'white',
+                  padding: '9px 18px',
+                  borderRadius: '8px',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                Auto-Fit &amp; Switch
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Add Text Modal */}
       <WhiteboardTextPromptModal

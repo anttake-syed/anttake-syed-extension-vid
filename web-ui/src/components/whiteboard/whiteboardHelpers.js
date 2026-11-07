@@ -9,11 +9,13 @@ export const getFullSrc = (src, jwt) => {
 
 export function getElementBounds(el) {
   let minX = el.x, maxX = el.x, minY = el.y, maxY = el.y;
-  if (el.type === 'image' || el.type === 'rect') {
-    minX = Math.min(el.x, el.x + (el.w || 0));
-    maxX = Math.max(el.x, el.x + (el.w || 0));
-    minY = Math.min(el.y, el.y + (el.h || 0));
-    maxY = Math.max(el.y, el.y + (el.h || 0));
+  if (el.type === 'image' || el.type === 'rect' || el.type === 'frame' || el.type === 'embed' || el.type === 'link') {
+    const w = el.w || (el.type === 'embed' ? 420 : el.type === 'link' ? 360 : 200);
+    const h = el.h || (el.type === 'embed' ? 260 : el.type === 'link' ? 150 : 200);
+    minX = Math.min(el.x, el.x + w);
+    maxX = Math.max(el.x, el.x + w);
+    minY = Math.min(el.y, el.y + h);
+    maxY = Math.max(el.y, el.y + h);
   } else if (el.type === 'circle') {
     const rx = Math.abs((el.w || 0) / 2), ry = Math.abs((el.h || 0) / 2);
     const cx = el.x + (el.w || 0) / 2, cy = el.y + (el.h || 0) / 2;
@@ -23,7 +25,7 @@ export function getElementBounds(el) {
     minX = Math.min(el.x, el.x2); maxX = Math.max(el.x, el.x2);
     minY = Math.min(el.y, el.y2); maxY = Math.max(el.y, el.y2);
   } else if (el.type === 'text') {
-    minX = el.x; maxX = el.x + 140;
+    minX = el.x; maxX = el.x + 160;
     minY = el.y - (el.fontSize || 20); maxY = el.y;
   } else if (el.type === 'path' && el.points?.length) {
     minX = Math.min(...el.points.map(p => p.x));
@@ -32,6 +34,73 @@ export function getElementBounds(el) {
     maxY = Math.max(...el.points.map(p => p.y));
   }
   return { minX, maxX, minY, maxY };
+}
+
+/**
+ * Checks if any element is outside the target board bounds [0, 0, targetW, targetH]
+ */
+export function areElementsOutsideBoard(elements, targetW = 4000, targetH = 3000) {
+  if (!elements || elements.length === 0) return false;
+  return elements.some(el => {
+    const b = getElementBounds(el);
+    return b.minX < 0 || b.minY < 0 || b.maxX > targetW || b.maxY > targetH;
+  });
+}
+
+/**
+ * Scales and translates scattered elements so that they all fit neatly inside the bounded board
+ */
+export function compactElementsToBoard(elements, targetW = 4000, targetH = 3000, padding = 120) {
+  if (!elements || elements.length === 0) return elements;
+
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  elements.forEach(el => {
+    const b = getElementBounds(el);
+    minX = Math.min(minX, b.minX);
+    maxX = Math.max(maxX, b.maxX);
+    minY = Math.min(minY, b.minY);
+    maxY = Math.max(maxY, b.maxY);
+  });
+
+  if (!isFinite(minX) || !isFinite(maxX) || !isFinite(minY) || !isFinite(maxY)) {
+    return elements;
+  }
+
+  const currentW = Math.max(50, maxX - minX);
+  const currentH = Math.max(50, maxY - minY);
+
+  const availW = targetW - padding * 2;
+  const availH = targetH - padding * 2;
+
+  // Scale down if elements exceed the board size
+  const scale = Math.min(1, Math.min(availW / currentW, availH / currentH));
+
+  const scaledW = currentW * scale;
+  const scaledH = currentH * scale;
+
+  // Center inside the target board [0, 0, targetW, targetH]
+  const offsetX = (targetW - scaledW) / 2 - minX * scale;
+  const offsetY = (targetH - scaledH) / 2 - minY * scale;
+
+  return elements.map(el => {
+    const next = { ...el };
+    if (next.x !== undefined) next.x = Math.round(next.x * scale + offsetX);
+    if (next.y !== undefined) next.y = Math.round(next.y * scale + offsetY);
+    if (next.w !== undefined) next.w = Math.round(next.w * scale);
+    if (next.h !== undefined) next.h = Math.round(next.h * scale);
+    if (next.x2 !== undefined) next.x2 = Math.round(next.x2 * scale + offsetX);
+    if (next.y2 !== undefined) next.y2 = Math.round(next.y2 * scale + offsetY);
+    if (next.cpx !== undefined) next.cpx = Math.round(next.cpx * scale + offsetX);
+    if (next.cpy !== undefined) next.cpy = Math.round(next.cpy * scale + offsetY);
+    if (next.fontSize !== undefined) next.fontSize = Math.max(12, Math.round(next.fontSize * scale));
+    if (next.points && Array.isArray(next.points)) {
+      next.points = next.points.map(p => ({
+        x: Math.round(p.x * scale + offsetX),
+        y: Math.round(p.y * scale + offsetY),
+      }));
+    }
+    return next;
+  });
 }
 
 export function generateThumbnailFromCanvas(canvas) {

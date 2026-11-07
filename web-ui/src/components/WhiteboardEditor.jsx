@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { SERVER_URL } from '../config.js';
+import { SERVER_URL, GOOGLE_CLIENT_ID, IS_LOCAL_MODE } from '../config.js';
 import '../styles/pages/whiteboards.css';
+import SharedWhiteboardTopbar from './whiteboard/SharedWhiteboardTopbar.jsx';
 import WhiteboardTopbar from './whiteboard/WhiteboardTopbar.jsx';
 import WhiteboardToolbar from './whiteboard/WhiteboardToolbar.jsx';
 import WhiteboardContextBar from './whiteboard/WhiteboardContextBar.jsx';
@@ -132,6 +133,102 @@ export default function WhiteboardEditor({
   const isOwner = Boolean(user?.id && boardOwnerId && user.id === boardOwnerId);
   const isSharedBoard = Boolean(boardOwnerId && user?.id && user.id !== boardOwnerId) || (!boardOwnerId && !isAuthenticated);
   const isReadOnly = !isOwner && (!isAuthenticated || !hasCloudAccess);
+
+  // ── Google One-Tap for unauthenticated shared board visitors ──────────────
+  // Loads the Google Identity Services script and initialises the One-Tap
+  // floating prompt. Only runs when:
+  //  • the board is in shared/view-only mode (isSharedBoard)
+  //  • the visitor is not logged in (!isAuthenticated)
+  //  • we have a Google client ID configured (GOOGLE_CLIENT_ID)
+  //  • we're not in local self-hosted mode (IS_LOCAL_MODE)
+  useEffect(() => {
+    if (!isSharedBoard || isAuthenticated || !GOOGLE_CLIENT_ID || IS_LOCAL_MODE) return;
+
+    // Load the Google Identity Services library if not already present
+    const existing = document.getElementById('google-gsi-script');
+    if (existing) return; // already loaded
+
+    const script = document.createElement('script');
+    script.id = 'google-gsi-script';
+    script.src = 'https://accounts.google.com/gsi/client';
+    script.async = true;
+    script.defer = true;
+    script.onload = () => {
+      if (!window.google?.accounts?.id) return;
+      window.google.accounts.id.initialize({
+        client_id: GOOGLE_CLIENT_ID,
+        // On success, exchange the credential for an AntCapture JWT via the
+        // existing popup postMessage auth flow: open the Google auth popup which
+        // will post AUTH_SUCCESS to window, and useAuth's handleMessage picks it up.
+        // For One-Tap we receive a credential (id_token) — post it as a fake
+        // AUTH_SUCCESS so useAuth's login() can hydrate state from it. However,
+        // our server expects a full OAuth code flow, not a bare id_token, so
+        // instead we just trigger the standard login popup on credential receipt,
+        // which the user has implicitly consented to by clicking Continue in One-Tap.
+        callback: () => {
+          if (onSignIn) onSignIn();
+        },
+        auto_select: true,
+        cancel_on_tap_outside: true,
+        context: 'signin',
+      });
+      window.google.accounts.id.prompt();
+    };
+    document.head.appendChild(script);
+
+    return () => {
+      // Clean up One-Tap prompt when this board unmounts
+      if (window.google?.accounts?.id) {
+        try { window.google.accounts.id.cancel(); } catch (_) {}
+      }
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSharedBoard, isAuthenticated]);
+
+  // ── robots noindex meta tag: injected while viewing a shared board ─────────
+  // Ensures the <meta name="robots" content="noindex"> is present even on
+  // client-side navigation (supplement to the vercel.json X-Robots-Tag header).
+  useEffect(() => {
+    if (!isSharedBoard) return;
+    let meta = document.querySelector('meta[name="robots"]');
+    if (!meta) {
+      meta = document.createElement('meta');
+      meta.name = 'robots';
+      document.head.appendChild(meta);
+    }
+    const prev = meta.getAttribute('content');
+    meta.setAttribute('content', 'noindex, nofollow');
+    return () => {
+      // Restore previous value (or remove) when leaving the shared view
+      if (prev) {
+        meta.setAttribute('content', prev);
+      } else {
+        meta.parentNode?.removeChild(meta);
+      }
+    };
+  }, [isSharedBoard]);
+
+  // ── Handle "Edit" click from the SharedWhiteboardTopbar ───────────────────
+  // Routing logic:
+  //   • Not logged in         → open the login modal
+  //   • Logged in + owner     → navigate to full editor (reload without ?access=view)
+  //   • Logged in + non-owner → trigger Copy & Edit flow (duplicate to own account)
+  const handleEditClick = useCallback(() => {
+    if (!isAuthenticated) {
+      if (onSignIn) onSignIn();
+      return;
+    }
+    if (isOwner) {
+      // Owner: strip the ?access=view param and reload as full editor
+      const url = new URL(window.location.href);
+      url.searchParams.delete('access');
+      window.location.href = url.toString();
+      return;
+    }
+    // Non-owner: trigger the existing Copy & Edit flow
+    handleDuplicateToMyBoards();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated, isOwner, onSignIn]);
 
   // Duplicate board into the user's own account so they can edit it
   const handleDuplicateToMyBoards = async () => {
@@ -547,7 +644,16 @@ export default function WhiteboardEditor({
       return;
     }
 
-    if (e.button !== 0) return;
+    // If in read-only / shared view mode, left click pans the canvas (viewers can pan & zoom without editing)
+    if (isReadOnly && e.button === 0) {
+      panDragRef.current = {
+        startClient: { x: e.clientX, y: e.clientY },
+        startPan: { ...panOffsetRef.current },
+      };
+      return;
+    }
+
+    if (e.button !== 0 || isReadOnly) return;
     const pos = screenToWorld(e.clientX, e.clientY);
 
     if (tool === 'select') {
@@ -2112,6 +2218,7 @@ export default function WhiteboardEditor({
   };
 
   const getCursor = () => {
+    if (isReadOnly) return panDragRef.current ? 'grabbing' : 'grab';
     if (tool === 'pan' || isSpacePressed) return panDragRef.current ? 'grabbing' : 'grab';
     if (tool === 'select') return 'default';
     if (tool === 'eraser') return 'cell';
@@ -2122,56 +2229,73 @@ export default function WhiteboardEditor({
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'var(--bg-primary)', display: 'flex', flexDirection: 'column', fontFamily: "'Outfit', sans-serif" }}>
       {/* ── Top Bar ── */}
-      <WhiteboardTopbar
-        boardName={boardName}
-        editingName={editingName}
-        nameDraft={nameDraft}
-        nameInputRef={nameInputRef}
-        setNameDraft={setNameDraft}
-        setEditingName={setEditingName}
-        handleNameCommit={handleNameCommit}
-        nameCommittedRef={nameCommittedRef}
-        zoom={zoom}
-        onZoomIn={handleZoomIn}
-        onZoomOut={handleZoomOut}
-        onZoomReset={handleZoomReset}
-        handleUndo={handleUndo}
-        handleRedo={handleRedo}
-        handleSave={handleSave}
-        isSaving={isSaving}
-        isSaved={isSaved}
-        saveError={saveError}
-        hasUnsavedChanges={hasUnsavedChanges}
-        handleClose={handleClose}
-        onOpenShare={() => setShowShareModal(true)}
-        onOpenShortcuts={() => setShowShortcutsModal(true)}
-        infiniteCanvas={infiniteCanvas}
-        onToggleInfiniteCanvas={(targetMode = null) => {
-          const next = targetMode !== null ? targetMode : !infiniteCanvas;
-          if (next === infiniteCanvas) return;
+      {isSharedBoard ? (
+        <SharedWhiteboardTopbar
+          boardName={boardName}
+          zoom={zoom}
+          onZoomIn={handleZoomIn}
+          onZoomOut={handleZoomOut}
+          onZoomReset={handleZoomReset}
+          isAuthenticated={isAuthenticated}
+          user={user}
+          hasCloudAccess={hasCloudAccess}
+          isOwner={isOwner}
+          onSignIn={onSignIn}
+          onEdit={handleEditClick}
+          onUpgrade={onUpgrade}
+        />
+      ) : (
+        <WhiteboardTopbar
+          boardName={boardName}
+          editingName={editingName}
+          nameDraft={nameDraft}
+          nameInputRef={nameInputRef}
+          setNameDraft={setNameDraft}
+          setEditingName={setEditingName}
+          handleNameCommit={handleNameCommit}
+          nameCommittedRef={nameCommittedRef}
+          zoom={zoom}
+          onZoomIn={handleZoomIn}
+          onZoomOut={handleZoomOut}
+          onZoomReset={handleZoomReset}
+          handleUndo={handleUndo}
+          handleRedo={handleRedo}
+          handleSave={handleSave}
+          isSaving={isSaving}
+          isSaved={isSaved}
+          saveError={saveError}
+          hasUnsavedChanges={hasUnsavedChanges}
+          handleClose={handleClose}
+          onOpenShare={() => setShowShareModal(true)}
+          onOpenShortcuts={() => setShowShortcutsModal(true)}
+          infiniteCanvas={infiniteCanvas}
+          onToggleInfiniteCanvas={(targetMode = null) => {
+            const next = targetMode !== null ? targetMode : !infiniteCanvas;
+            if (next === infiniteCanvas) return;
 
-          if (!next) {
-            // Switching to Fixed Board — always open confirmation dialog
-            setShowCanvasModeModal(true);
-            return;
-          }
+            if (!next) {
+              // Switching to Fixed Board — always open confirmation dialog
+              setShowCanvasModeModal(true);
+              return;
+            }
 
-          // Switching to Infinite Canvas
-          setInfiniteCanvas(true);
-          infiniteCanvasRef.current = true;
-          try {
-            if (board?.id) localStorage.setItem(`wb_infinite_canvas_${board.id}`, 'true');
-            localStorage.setItem('wb_infinite_canvas', 'true');
-          } catch {}
-          setHasUnsavedChanges(true);
-          redraw();
-        }}
-        isReadOnly={isReadOnly}
-        isSharedBoard={isSharedBoard}
-        onDuplicateToMyBoards={handleDuplicateToMyBoards}
-        isCopying={isCopying}
-        copySuccess={copySuccess}
-      />
+            // Switching to Infinite Canvas
+            setInfiniteCanvas(true);
+            infiniteCanvasRef.current = true;
+            try {
+              if (board?.id) localStorage.setItem(`wb_infinite_canvas_${board.id}`, 'true');
+              localStorage.setItem('wb_infinite_canvas', 'true');
+            } catch {}
+            setHasUnsavedChanges(true);
+            redraw();
+          }}
+          isReadOnly={isReadOnly}
+          isSharedBoard={isSharedBoard}
+          onDuplicateToMyBoards={handleDuplicateToMyBoards}
+          isCopying={isCopying}
+          copySuccess={copySuccess}
+        />
+      )}
 
       {(loadError || saveError) && (
         <div style={{ background: 'rgba(239,68,68,0.1)', borderBottom: '1px solid rgba(239,68,68,0.3)', color: '#f87171', fontSize: '12px', padding: '8px 20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -2182,11 +2306,13 @@ export default function WhiteboardEditor({
 
       {/* ── Content Row ── */}
       <div className="wb-body">
-        {/* Left Toolbar */}
-        <WhiteboardToolbar
-          tool={tool}
-          onToolClick={handleToolClick}
-        />
+        {/* Left Toolbar — hidden in view-only / shared mode */}
+        {!isReadOnly && (
+          <WhiteboardToolbar
+            tool={tool}
+            onToolClick={handleToolClick}
+          />
+        )}
 
         {/* Canvas Area */}
         <div
@@ -2199,19 +2325,21 @@ export default function WhiteboardEditor({
             backgroundColor: infiniteCanvas ? 'var(--bg-primary)' : '#020617',
           }}
         >
-          {/* Floating Contextual Tool Properties Bar */}
-          <WhiteboardContextBar
-            tool={tool}
-            selectedElement={selectedId !== null ? elements[selectedId] : null}
-            selectedCount={selectedIds.length > 0 ? selectedIds.length : (selectedId !== null ? 1 : 0)}
-            color={color}
-            strokeSize={strokeSize}
-            setColor={setColor}
-            setStrokeSize={setStrokeSize}
-            onOpenTemplates={() => setShowTemplateModal(true)}
-            onUpdateSelectedElement={handleUpdateSelectedElement}
-            onDeleteSelected={handleDeleteSelected}
-          />
+          {/* Floating Contextual Tool Properties Bar — hidden in view-only mode */}
+          {!isReadOnly && (
+            <WhiteboardContextBar
+              tool={tool}
+              selectedElement={selectedId !== null ? elements[selectedId] : null}
+              selectedCount={selectedIds.length > 0 ? selectedIds.length : (selectedId !== null ? 1 : 0)}
+              color={color}
+              strokeSize={strokeSize}
+              setColor={setColor}
+              setStrokeSize={setStrokeSize}
+              onOpenTemplates={() => setShowTemplateModal(true)}
+              onUpdateSelectedElement={handleUpdateSelectedElement}
+              onDeleteSelected={handleDeleteSelected}
+            />
+          )}
 
           <canvas
             ref={canvasRef}
@@ -2251,8 +2379,8 @@ export default function WhiteboardEditor({
             }}
           />
 
-          {/* ── Unauthenticated Viewer Blurred Gate Overlay ── */}
-          {!isAuthenticated && (
+          {/* ── Unauthenticated Viewer Blurred Gate Overlay (only if not a shared link) ── */}
+          {!isAuthenticated && !isSharedBoard && (
             <div
               style={{
                 position: 'absolute',

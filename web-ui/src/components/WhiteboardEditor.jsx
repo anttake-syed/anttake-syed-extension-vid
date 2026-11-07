@@ -131,59 +131,12 @@ export default function WhiteboardEditor({
 
   // Determine permission & ownership
   const isOwner = Boolean(user?.id && boardOwnerId && user.id === boardOwnerId);
-  const isSharedBoard = Boolean(boardOwnerId && user?.id && user.id !== boardOwnerId) || (!boardOwnerId && !isAuthenticated);
+  const isSharedBoard = Boolean(
+    (boardOwnerId && user?.id && user.id !== boardOwnerId) ||
+    !isAuthenticated ||
+    window.location.search.includes('access=view')
+  );
   const isReadOnly = !isOwner && (!isAuthenticated || !hasCloudAccess);
-
-  // ── Google One-Tap for unauthenticated shared board visitors ──────────────
-  // Loads the Google Identity Services script and initialises the One-Tap
-  // floating prompt. Only runs when:
-  //  • the board is in shared/view-only mode (isSharedBoard)
-  //  • the visitor is not logged in (!isAuthenticated)
-  //  • we have a Google client ID configured (GOOGLE_CLIENT_ID)
-  //  • we're not in local self-hosted mode (IS_LOCAL_MODE)
-  useEffect(() => {
-    if (!isSharedBoard || isAuthenticated || !GOOGLE_CLIENT_ID || IS_LOCAL_MODE) return;
-
-    // Load the Google Identity Services library if not already present
-    const existing = document.getElementById('google-gsi-script');
-    if (existing) return; // already loaded
-
-    const script = document.createElement('script');
-    script.id = 'google-gsi-script';
-    script.src = 'https://accounts.google.com/gsi/client';
-    script.async = true;
-    script.defer = true;
-    script.onload = () => {
-      if (!window.google?.accounts?.id) return;
-      window.google.accounts.id.initialize({
-        client_id: GOOGLE_CLIENT_ID,
-        // On success, exchange the credential for an AntCapture JWT via the
-        // existing popup postMessage auth flow: open the Google auth popup which
-        // will post AUTH_SUCCESS to window, and useAuth's handleMessage picks it up.
-        // For One-Tap we receive a credential (id_token) — post it as a fake
-        // AUTH_SUCCESS so useAuth's login() can hydrate state from it. However,
-        // our server expects a full OAuth code flow, not a bare id_token, so
-        // instead we just trigger the standard login popup on credential receipt,
-        // which the user has implicitly consented to by clicking Continue in One-Tap.
-        callback: () => {
-          if (onSignIn) onSignIn();
-        },
-        auto_select: true,
-        cancel_on_tap_outside: true,
-        context: 'signin',
-      });
-      window.google.accounts.id.prompt();
-    };
-    document.head.appendChild(script);
-
-    return () => {
-      // Clean up One-Tap prompt when this board unmounts
-      if (window.google?.accounts?.id) {
-        try { window.google.accounts.id.cancel(); } catch (_) {}
-      }
-    };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isSharedBoard, isAuthenticated]);
 
   // ── robots noindex meta tag: injected while viewing a shared board ─────────
   // Ensures the <meta name="robots" content="noindex"> is present even on
@@ -2379,102 +2332,7 @@ export default function WhiteboardEditor({
             }}
           />
 
-          {/* ── Unauthenticated Viewer Blurred Gate Overlay (only if not a shared link) ── */}
-          {!isAuthenticated && !isSharedBoard && (
-            <div
-              style={{
-                position: 'absolute',
-                inset: 0,
-                zIndex: 1500,
-                backgroundColor: 'rgba(2, 6, 23, 0.65)',
-                backdropFilter: 'blur(12px)',
-                WebkitBackdropFilter: 'blur(12px)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                padding: '20px',
-              }}
-            >
-              <div
-                style={{
-                  background: 'linear-gradient(180deg, #1e293b 0%, #0f172a 100%)',
-                  border: '1px solid rgba(255, 255, 255, 0.12)',
-                  borderRadius: '20px',
-                  padding: '36px 32px',
-                  maxWidth: '440px',
-                  width: '100%',
-                  textAlign: 'center',
-                  boxShadow: '0 25px 60px -15px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(99, 102, 241, 0.2)',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  gap: '16px',
-                }}
-              >
-                <div
-                  style={{
-                    width: '60px',
-                    height: '60px',
-                    borderRadius: '16px',
-                    background: 'rgba(99, 102, 241, 0.15)',
-                    border: '1px solid rgba(99, 102, 241, 0.3)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: '#818cf8',
-                  }}
-                >
-                  <span className="material-symbols-rounded" style={{ fontSize: '32px' }}>lock</span>
-                </div>
 
-                <div>
-                  <h3 style={{ margin: '0 0 8px', fontSize: '22px', fontWeight: 700, color: '#f8fafc' }}>
-                    Sign in to View Whiteboard
-                  </h3>
-                  <p style={{ margin: 0, fontSize: '14px', color: '#94a3b8', lineHeight: 1.5 }}>
-                    You have been invited to view <strong>"{boardName}"</strong>. Please sign in with your account to unlock and view the whiteboard content.
-                  </p>
-                </div>
-
-                <button
-                  id="whiteboard-google-signin-btn"
-                  type="button"
-                  onClick={() => {
-                    if (onSignIn) {
-                      onSignIn();
-                    } else {
-                      const width = 500, height = 600;
-                      const left = window.screenX + (window.outerWidth - width) / 2;
-                      const top = window.screenY + (window.outerHeight - height) / 2;
-                      const origin = window.location.origin;
-                      window.open(
-                        `${SERVER_URL}/auth/google?source=web&mode=popup&origin=${encodeURIComponent(origin)}`,
-                        'Google Login',
-                        `width=${width},height=${height},left=${left},top=${top}`
-                      );
-                    }
-                  }}
-                  className="google-btn"
-                  style={{
-                    width: '100%',
-                    justifyContent: 'center',
-                    marginTop: '8px',
-                    fontFamily: "'Outfit', sans-serif",
-                    fontWeight: 600,
-                    cursor: 'pointer'
-                  }}
-                >
-                  <svg className="google-icon" viewBox="0 0 24 24" style={{ width: '18px', height: '18px', marginRight: '8px' }}>
-                    <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
-                    <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
-                    <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05" />
-                    <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
-                  </svg>
-                  <span>Continue with Google</span>
-                </button>
-              </div>
-            </div>
-          )}
 
           {/* ── View-Only / Cloud Upgrade Gate Modal ── */}
           {showUpgradeGate && (

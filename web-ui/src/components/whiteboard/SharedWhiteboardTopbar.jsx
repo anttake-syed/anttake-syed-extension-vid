@@ -104,13 +104,6 @@ export default function SharedWhiteboardTopbar({
         </div>
 
         <div className="wb-group">
-          {/* Google One-Tap mount point — script init happens in WhiteboardEditor */}
-          <div
-            id="g_id_onload"
-            data-auto_prompt="true"
-            style={{ position: 'absolute', top: 0, right: 0, zIndex: 9999 }}
-          />
-
           {/* "Get Cloud" chip — only shown to logged-in free users */}
           {isAuthenticated && !hasCloudAccess && !IS_LOCAL_MODE && (
             <button

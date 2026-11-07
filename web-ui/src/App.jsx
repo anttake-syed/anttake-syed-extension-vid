@@ -25,6 +25,7 @@ import SubscriptionWarningBanner from './components/SubscriptionWarningBanner.js
 import PurchaseSuccessToast from './components/PurchaseSuccessToast.jsx';
 import OnboardingModal from './components/OnboardingModal.jsx';
 import ShowcaseTour from './components/showcase/ShowcaseTour.jsx';
+import { isTourAllowed } from './components/showcase/tourPolicy.js';
 import { trackPageView } from './utils/analytics.js';
 
 
@@ -307,6 +308,9 @@ export default function App() {
     const proTourKey = `hasSeenProTour:${userId}`;
     const freeTourSessionKey = `shownFreeTour:${userId}`;
 
+    // Never trigger tours when visiting whiteboards or media players
+    if (!isTourAllowed({ activeBoard, activeMedia })) return;
+
     if (hasCloudAccess) {
       // ── Paid user ─────────────────────────────────────────────────────────
       const alreadySeenProTour = localStorage.getItem(proTourKey);
@@ -314,7 +318,11 @@ export default function App() {
         // First time as a paid user — show pro tour once
         localStorage.setItem(proTourKey, 'true');
         // Small delay so dashboard renders first
-        setTimeout(() => setShowShowcaseTour(true), 600);
+        setTimeout(() => {
+          if (isTourAllowed({ activeBoard, activeMedia })) {
+            setShowShowcaseTour(true);
+          }
+        }, 600);
       }
       // If they've seen it — do nothing automatically
     } else {
@@ -323,14 +331,28 @@ export default function App() {
       const alreadyShownThisSession = sessionStorage.getItem(freeTourSessionKey);
       if (!alreadyShownThisSession) {
         sessionStorage.setItem(freeTourSessionKey, 'true');
-        setTimeout(() => setShowShowcaseTour(true), 600);
+        setTimeout(() => {
+          if (isTourAllowed({ activeBoard, activeMedia })) {
+            setShowShowcaseTour(true);
+          }
+        }, 600);
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isReady, isAuthenticated, user?.id, hasCloudAccess]);
+  }, [isReady, isAuthenticated, user?.id, hasCloudAccess, activeBoard, activeMedia]);
+
+  // If user opens a whiteboard or media player while tour is open, close it immediately
+  useEffect(() => {
+    if (activeBoard || activeMedia) {
+      setShowShowcaseTour(false);
+    }
+  }, [activeBoard, activeMedia]);
 
   useEffect(() => {
     const handleTriggerOnboarding = (e) => {
+      // Only allow manual tour trigger if permitted by current view
+      if (!isTourAllowed({ activeBoard, activeMedia })) return;
+
       if (e?.detail?.variant) {
         setTourVariantOverride(e.detail.variant);
       } else {
@@ -340,7 +362,7 @@ export default function App() {
     };
     window.addEventListener('trigger-onboarding', handleTriggerOnboarding);
     return () => window.removeEventListener('trigger-onboarding', handleTriggerOnboarding);
-  }, []);
+  }, [activeBoard, activeMedia]);
 
   useEffect(() => {
     if (pendingCaptureId && captures.length > 0 && !activeMedia) {

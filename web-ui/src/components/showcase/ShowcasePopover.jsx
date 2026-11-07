@@ -32,11 +32,9 @@ export default function ShowcasePopover({
           </span>
           {step.badge}
         </span>
-        {!isStandard && (
-          <button className="showcase-close-btn" onClick={onSkip} aria-label="Dismiss tour">
-            <span className="material-symbols-rounded" style={{ fontSize: '18px' }}>close</span>
-          </button>
-        )}
+        <button className="showcase-close-btn" onClick={onSkip} aria-label="Dismiss tour" title="Dismiss tour">
+          <span className="material-symbols-rounded" style={{ fontSize: '18px' }}>close</span>
+        </button>
       </div>
 
       {/* Content */}

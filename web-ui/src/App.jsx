@@ -357,10 +357,23 @@ export default function App() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showBillingToast, setShowBillingToast] = useState(false);
 
-  // Sync state to URL and Document Title
+  // Sync state to URL and Document Title + robots meta tag for unlisted whiteboards
   useEffect(() => {
     document.title = `${activeNav} - AntCapture`;
     
+    // Manage robots noindex for unlisted whiteboards
+    let robotsMeta = document.querySelector('meta[name="robots"]');
+    if (activeBoard || window.location.pathname.startsWith('/whiteboard/')) {
+      if (!robotsMeta) {
+        robotsMeta = document.createElement('meta');
+        robotsMeta.name = 'robots';
+        document.head.appendChild(robotsMeta);
+      }
+      robotsMeta.content = 'noindex, nofollow';
+    } else if (robotsMeta) {
+      robotsMeta.remove();
+    }
+
     if (activeBoard) {
       trackPageView(`Whiteboard: ${activeBoard.title || activeBoard.id}`, `/whiteboard/${activeBoard.id}`);
       return;

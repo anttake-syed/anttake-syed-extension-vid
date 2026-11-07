@@ -10,3 +10,6 @@ export const IS_LOCAL_MODE = APP_MODE === 'local';
 
 export const GA_MEASUREMENT_ID = import.meta.env.VITE_GA_MEASUREMENT_ID || '';
 
+// Google OAuth client ID — public value, used for Google One-Tap on shared views.
+// Must match the GOOGLE_CLIENT_ID env var on the server.
+export const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';

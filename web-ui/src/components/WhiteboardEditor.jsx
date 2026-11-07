@@ -180,17 +180,12 @@ export default function WhiteboardEditor({
     }
   };
 
-  // Minimum zoom level in Fixed Board mode so the board always covers or fills the viewport
+  // Minimum zoom level in Fixed Board mode — allows zooming out down to 10% (0.10)
   const getMinBoardZoom = useCallback(() => {
-    if (infiniteCanvasRef.current) return 0.1;
-    const canvas = canvasRef.current;
-    if (!canvas || !canvas.width || !canvas.height) return 0.1;
-    // Bounded board should fit nicely in the viewport, never showing endless void
-    const fitScale = Math.min(canvas.width / BOUNDED_CANVAS_W, canvas.height / BOUNDED_CANVAS_H);
-    return Math.max(0.05, Math.min(fitScale, 1));
+    return 0.10;
   }, []);
 
-  // Strictly clamp pan so the fixed board fits within the screen viewport and cannot be scrolled into empty space
+  // Clamp pan in Fixed Board mode so the board remains centered when smaller than viewport, or bounds within margins
   const clampPan = useCallback((pan, z) => {
     if (infiniteCanvasRef.current) return pan; // infinite mode — free pan
     const canvas = canvasRef.current;
@@ -202,19 +197,21 @@ export default function WhiteboardEditor({
 
     let clampedX, clampedY;
     if (boardW <= vw) {
-      // Board is smaller than or equal to viewport width — keep centered
+      // Board is smaller than or equal to viewport width — keep centered with breathing room
       clampedX = Math.round((vw - boardW) / 2);
     } else {
-      // Board is wider than viewport — clamp so board edges stay glued to screen
-      clampedX = Math.min(0, Math.max(vw - boardW, pan.x));
+      // Board is wider than viewport — allow panning across the full board with 40px margin
+      const margin = 40;
+      clampedX = Math.min(margin, Math.max(vw - boardW - margin, pan.x));
     }
 
     if (boardH <= vh) {
-      // Board is smaller than or equal to viewport height — keep centered
+      // Board is smaller than or equal to viewport height — keep centered with breathing room
       clampedY = Math.round((vh - boardH) / 2);
     } else {
-      // Board is taller than viewport — clamp so board edges stay glued to screen
-      clampedY = Math.min(0, Math.max(vh - boardH, pan.y));
+      // Board is taller than viewport — allow panning across the full board with 40px margin
+      const margin = 40;
+      clampedY = Math.min(margin, Math.max(vh - boardH - margin, pan.y));
     }
 
     return { x: clampedX, y: clampedY };
@@ -2162,9 +2159,11 @@ export default function WhiteboardEditor({
         <div
           className="wb-canvas-area"
           style={{
-            background: 'radial-gradient(circle, #1e293b 1px, transparent 1px)',
-            backgroundSize: '24px 24px',
-            backgroundColor: 'var(--bg-primary)'
+            background: infiniteCanvas
+              ? 'radial-gradient(circle, #1e293b 1px, transparent 1px)'
+              : '#020617',
+            backgroundSize: infiniteCanvas ? '24px 24px' : 'auto',
+            backgroundColor: infiniteCanvas ? 'var(--bg-primary)' : '#020617',
           }}
         >
           {/* Floating Contextual Tool Properties Bar */}

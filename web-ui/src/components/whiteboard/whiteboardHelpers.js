@@ -168,8 +168,11 @@ export function detectSmartService(url) {
     const host = u.hostname.toLowerCase();
     const pathname = u.pathname.toLowerCase();
 
-    // Google Docs
+    // Google Docs, Sheets, Slides, Drawings, Forms
     if (host.includes('docs.google.com')) {
+      if (pathname.includes('/drawings')) {
+        return { type: 'google-drawings', name: 'Google Drawings', icon: 'polyline', color: '#ef4444', bg: 'rgba(239, 68, 68, 0.15)', border: 'rgba(239, 68, 68, 0.35)' };
+      }
       if (pathname.includes('/spreadsheets')) {
         return { type: 'google-sheets', name: 'Google Sheets', icon: 'table_chart', color: '#10b981', bg: 'rgba(16, 185, 129, 0.15)', border: 'rgba(16, 185, 129, 0.35)' };
       }
@@ -197,17 +200,15 @@ export function detectSmartService(url) {
       return { type: 'github', name: 'GitHub', icon: 'code', color: '#e2e8f0', bg: 'rgba(255, 255, 255, 0.12)', border: 'rgba(255, 255, 255, 0.25)' };
     }
 
-    // Figma
-    if (host.includes('figma.com')) {
-      return { type: 'figma', name: 'Figma', icon: 'draw', color: '#ec4899', bg: 'rgba(236, 72, 153, 0.15)', border: 'rgba(236, 72, 153, 0.35)' };
-    }
-
-    // Loom
-    if (host.includes('loom.com')) {
-      return { type: 'loom', name: 'Loom Video', icon: 'videocam', color: '#6366f1', bg: 'rgba(99, 102, 241, 0.15)', border: 'rgba(99, 102, 241, 0.35)' };
-    }
-
-    return null;
+    // Default Web Frame / Website Embed
+    return {
+      type: 'web-frame',
+      name: host.replace(/^www\./, ''),
+      icon: 'web',
+      color: '#38bdf8',
+      bg: 'rgba(56, 189, 248, 0.12)',
+      border: 'rgba(56, 189, 248, 0.28)',
+    };
   } catch (_) {
     return null;
   }

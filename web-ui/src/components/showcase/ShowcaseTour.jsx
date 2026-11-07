@@ -3,6 +3,7 @@ import './showcaseStyles.css';
 import { SHOWCASE_STEPS } from './showcaseSteps.js';
 import { useShowcaseTour } from './useShowcaseTour.js';
 import ShowcasePopover from './ShowcasePopover.jsx';
+import { isTourAllowed } from './tourPolicy.js';
 
 export default function ShowcaseTour({
   isOpen,
@@ -70,8 +71,9 @@ export default function ShowcaseTour({
     };
   }, [targetRect, currentStep, isOpen]);
 
-  // Don't render at all when not open
+  // Don't render at all when not open or when on an excluded view (e.g. Whiteboard, capture viewer)
   if (!isOpen) return null;
+  if (!isTourAllowed()) return null;
   // If steps haven't resolved yet, show centered popover with loading
   if (!currentStep) return null;
 

@@ -129,14 +129,30 @@ export default function WhiteboardEditor({
   const infiniteCanvasRef = useRef(infiniteCanvas);
   useEffect(() => { infiniteCanvasRef.current = infiniteCanvas; }, [infiniteCanvas]);
 
+  // ── Capture access param once on mount (before slug rewrite strips it) ────
+  const accessParamRef = useRef(
+    new URLSearchParams(window.location.search).get('access')
+  );
+  const accessParam   = accessParamRef.current;   // 'view' | 'edit' | null
+  const isViewLink    = accessParam === 'view';
+  const isEditLink    = accessParam === 'edit';
+  const isSharedLink  = isViewLink || isEditLink;  // opened via ?access=…
+
   // Determine permission & ownership
   const isOwner = Boolean(user?.id && boardOwnerId && user.id === boardOwnerId);
-  const isSharedBoard = Boolean(
-    (boardOwnerId && user?.id && user.id !== boardOwnerId) ||
-    !isAuthenticated ||
-    window.location.search.includes('access=view')
-  );
-  const isReadOnly = !isOwner && (!isAuthenticated || !hasCloudAccess);
+
+  // Show the shared topbar only when this URL is a share-link AND the visitor
+  // is NOT the board owner (owners bypass to the full editor).
+  const isSharedBoard = isSharedLink && !isOwner;
+
+  // Canvas is read-only when:
+  //   • it's a view-only link  (always read-only regardless of auth)
+  //   • it's an edit link but user isn't authenticated or doesn't have Cloud
+  //   • the user is not the owner on a normal (non-share) URL
+  const isReadOnly =
+    isViewLink ||
+    (isEditLink && (!isAuthenticated || !hasCloudAccess)) ||
+    (!isSharedLink && !isOwner && (!isAuthenticated || !hasCloudAccess));
 
   // ── robots noindex meta tag: injected while viewing a shared board ─────────
   // Ensures the <meta name="robots" content="noindex"> is present even on
@@ -297,9 +313,13 @@ export default function WhiteboardEditor({
   useEffect(() => {
     if (board?.id && boardName) {
       const slug = boardName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'untitled';
-      const targetUrl = `/whiteboard/${board.id}/${slug}`;
+      // Preserve ?access= so isSharedBoard / isReadOnly keep working after mount
+      const accessQ = accessParam ? `?access=${accessParam}` : '';
+      const targetUrl = `/whiteboard/${board.id}/${slug}${accessQ}`;
       const currentPath = window.location.pathname;
-      if (currentPath !== targetUrl) {
+      const currentSearch = window.location.search;
+      const currentFull = currentPath + currentSearch;
+      if (currentFull !== targetUrl) {
         if (currentPath.startsWith(`/whiteboard/${board.id}`)) {
           window.history.replaceState(null, '', targetUrl);
         } else {
@@ -307,7 +327,7 @@ export default function WhiteboardEditor({
         }
       }
     }
-  }, [board?.id, boardName]);
+  }, [board?.id, boardName, accessParam]);
 
   useEffect(() => {
     const onBeforeUnload = (e) => {
@@ -2193,6 +2213,7 @@ export default function WhiteboardEditor({
           user={user}
           hasCloudAccess={hasCloudAccess}
           isOwner={isOwner}
+          isEditLink={isEditLink}
           onSignIn={onSignIn}
           onEdit={handleEditClick}
           onUpgrade={onUpgrade}

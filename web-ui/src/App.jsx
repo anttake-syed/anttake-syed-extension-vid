@@ -748,6 +748,7 @@ export default function App() {
             user={user}
             isAuthenticated={isAuthenticated}
             onSignIn={() => setShowModal(true)}
+            onLogout={logout}
             onUpgrade={() => {
               setActiveBoard(null);
               setActiveNav('Pricing');

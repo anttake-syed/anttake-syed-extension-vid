@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import WhiteboardUserMenu from './WhiteboardUserMenu.jsx';
 
 export default function WhiteboardTopbar({
   boardName,
@@ -30,6 +31,9 @@ export default function WhiteboardTopbar({
   onDuplicateToMyBoards,
   isCopying,
   copySuccess,
+  user,
+  onLogout,
+  onSignIn,
 }) {
   const [showCanvasMenu, setShowCanvasMenu] = useState(false);
   const canvasMenuRef = useRef(null);
@@ -320,6 +324,15 @@ export default function WhiteboardTopbar({
               </span>
               {isSaving ? 'Saving…' : saveError ? 'Save failed' : isSaved ? 'Saved!' : 'Save'}
             </button>
+          )}
+
+          {/* User Profile / Switch Account / Sign Out menu */}
+          {user && (
+            <WhiteboardUserMenu
+              user={user}
+              onLogout={onLogout}
+              onSwitch={onSignIn}
+            />
           )}
         </div>
       </div>

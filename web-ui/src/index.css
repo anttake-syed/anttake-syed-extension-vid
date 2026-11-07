@@ -1002,7 +1002,7 @@ body {
 .modal-overlay {
   position: fixed;
   inset: 0;
-  z-index: 1000;
+  z-index: 9999;
   background: rgba(2, 6, 23, 0.75);
   backdrop-filter: blur(10px);
   display: flex;

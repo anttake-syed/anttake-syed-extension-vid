@@ -16,6 +16,7 @@ export const TOOLS = [
   { id: 'shapes',  icon: 'shapes',                 label: 'Shapes' },
   { id: 'icon',    icon: 'sentiment_satisfied',    label: 'Icons'  },
   { id: 'code',    icon: 'code',                   label: 'Code'   },
+  { id: 'embed-frame', icon: 'iframe',             label: 'Embed Frame' },
   { id: 'eraser',  icon: 'ink_eraser',             label: 'Eraser' },
   { id: 'image',   icon: 'image',                  label: 'Image'  },
   { id: 'video',   icon: 'videocam',               label: 'Video'  },

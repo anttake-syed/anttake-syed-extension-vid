@@ -107,17 +107,20 @@ export function compactElementsToBoard(elements, targetW = 4000, targetH = 3000,
 export function generateThumbnailFromCanvas(canvas) {
   try {
     if (!canvas || canvas.width === 0 || canvas.height === 0) return null;
-    const THUMB_W = 320, THUMB_H = 180;
+    // High-res preview (640x360) for sharp thumbnail cards
+    const THUMB_W = 640, THUMB_H = 360;
     const tc = document.createElement('canvas');
     tc.width = THUMB_W;
     tc.height = THUMB_H;
     const ctx = tc.getContext('2d');
     ctx.fillStyle = '#0a0f1c';
     ctx.fillRect(0, 0, THUMB_W, THUMB_H);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
     const scale = Math.min(THUMB_W / canvas.width, THUMB_H / canvas.height);
     const dw = canvas.width * scale, dh = canvas.height * scale;
     ctx.drawImage(canvas, (THUMB_W - dw) / 2, (THUMB_H - dh) / 2, dw, dh);
-    return tc.toDataURL('image/jpeg', 0.45);
+    return tc.toDataURL('image/jpeg', 0.85);
   } catch (e) {
     console.error('Failed to generate thumbnail:', e);
     return null;

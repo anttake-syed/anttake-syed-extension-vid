@@ -84,9 +84,17 @@ export default function WhiteboardEditor({
   const [activeVideoEmbedId, setActiveVideoEmbedId] = useState(null);
   const [isDragging, setIsDragging]               = useState(false); // true while dragging embed/element
   const [infiniteCanvas, setInfiniteCanvas]       = useState(() => {
-    try { return localStorage.getItem('wb_infinite_canvas') !== 'false'; } catch { return true; }
+    try {
+      const perBoard = board?.id ? localStorage.getItem(`wb_infinite_canvas_${board.id}`) : null;
+      if (perBoard !== null) return perBoard !== 'false';
+      return localStorage.getItem('wb_infinite_canvas') !== 'false';
+    } catch {
+      return true;
+    }
   });
   const [showCanvasModeModal, setShowCanvasModeModal] = useState(false);
+  const [showEmbedFrameModal, setShowEmbedFrameModal] = useState(false);
+  const [embedFrameUrlInput, setEmbedFrameUrlInput]   = useState('');
 
   const canvasRef         = useRef(null);
   const drawing           = useRef(false);
@@ -361,6 +369,20 @@ export default function WhiteboardEditor({
           setBoardStateItemId(stateItem.id);
           boardStateItemIdRef.current = stateItem.id;
           const state = JSON.parse(stateItem.content);
+          if (typeof state.infiniteCanvas === 'boolean') {
+            setInfiniteCanvas(state.infiniteCanvas);
+            infiniteCanvasRef.current = state.infiniteCanvas;
+            try { localStorage.setItem(`wb_infinite_canvas_${board.id}`, String(state.infiniteCanvas)); } catch {}
+          } else {
+            try {
+              const localMode = localStorage.getItem(`wb_infinite_canvas_${board.id}`);
+              if (localMode !== null) {
+                const modeBool = localMode !== 'false';
+                setInfiniteCanvas(modeBool);
+                infiniteCanvasRef.current = modeBool;
+              }
+            } catch {}
+          }
           if (state.elements) {
             const restored = await Promise.all(
               state.elements.map(el => {
@@ -1595,6 +1617,7 @@ export default function WhiteboardEditor({
     if (t === 'shapes') { setShowShapeModal(true); return; }
     if (t === 'icon') { setShowIconModal(true); return; }
     if (t === 'code') { setShowCodeModal(true); return; }
+    if (t === 'embed-frame') { setShowEmbedFrameModal(true); return; }
     setTool(t);
     setSelectedId(null);
     setSelectedIds([]);
@@ -1935,22 +1958,25 @@ export default function WhiteboardEditor({
     }).catch(console.error);
   };
 
-  // Generate thumbnail
+  // Generate high-quality whiteboard preview thumbnail
   const generateThumbnail = () => {
     try {
       const src = canvasRef.current;
       if (!src) return null;
       if (src.width === 0 || src.height === 0) return null;
-      const THUMB_W = 320, THUMB_H = 180;
+      // High-res preview (640x360) for crisp card displays on retina/high-DPI screens
+      const THUMB_W = 640, THUMB_H = 360;
       const tc = document.createElement('canvas');
       tc.width = THUMB_W; tc.height = THUMB_H;
       const ctx = tc.getContext('2d');
       ctx.fillStyle = '#0a0f1c';
       ctx.fillRect(0, 0, THUMB_W, THUMB_H);
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
       const scale = Math.min(THUMB_W / src.width, THUMB_H / src.height);
       const dw = src.width * scale, dh = src.height * scale;
       ctx.drawImage(src, (THUMB_W - dw) / 2, (THUMB_H - dh) / 2, dw, dh);
-      return tc.toDataURL('image/jpeg', 0.45);
+      return tc.toDataURL('image/jpeg', 0.85);
     } catch (e) {
       console.error('Failed to generate thumbnail:', e);
       return null;
@@ -1973,7 +1999,10 @@ export default function WhiteboardEditor({
     });
 
     try {
-      const stateContent = JSON.stringify({ elements: elementsToSave });
+      const stateContent = JSON.stringify({
+        elements: elementsToSave,
+        infiniteCanvas: infiniteCanvasRef.current,
+      });
       const currentItemId = boardStateItemIdRef.current || boardStateItemId;
       if (currentItemId) {
         const res = await fetch(`${SERVER_URL}/boards/${board.id}/items/${currentItemId}`, {
@@ -2130,7 +2159,11 @@ export default function WhiteboardEditor({
           // Switching to Infinite Canvas
           setInfiniteCanvas(true);
           infiniteCanvasRef.current = true;
-          try { localStorage.setItem('wb_infinite_canvas', 'true'); } catch {}
+          try {
+            if (board?.id) localStorage.setItem(`wb_infinite_canvas_${board.id}`, 'true');
+            localStorage.setItem('wb_infinite_canvas', 'true');
+          } catch {}
+          setHasUnsavedChanges(true);
           redraw();
         }}
         isReadOnly={isReadOnly}
@@ -2276,29 +2309,40 @@ export default function WhiteboardEditor({
                 </div>
 
                 <button
+                  id="whiteboard-google-signin-btn"
                   type="button"
-                  onClick={onSignIn}
+                  onClick={() => {
+                    if (onSignIn) {
+                      onSignIn();
+                    } else {
+                      const width = 500, height = 600;
+                      const left = window.screenX + (window.outerWidth - width) / 2;
+                      const top = window.screenY + (window.outerHeight - height) / 2;
+                      const origin = window.location.origin;
+                      window.open(
+                        `${SERVER_URL}/auth/google?source=web&mode=popup&origin=${encodeURIComponent(origin)}`,
+                        'Google Login',
+                        `width=${width},height=${height},left=${left},top=${top}`
+                      );
+                    }
+                  }}
+                  className="google-btn"
                   style={{
                     width: '100%',
-                    background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-                    border: 'none',
-                    borderRadius: '12px',
-                    padding: '12px 24px',
-                    color: '#ffffff',
-                    fontSize: '15px',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
                     justifyContent: 'center',
-                    gap: '10px',
-                    boxShadow: '0 8px 20px -4px rgba(99, 102, 241, 0.5)',
-                    fontFamily: "'Outfit', sans-serif",
                     marginTop: '8px',
+                    fontFamily: "'Outfit', sans-serif",
+                    fontWeight: 600,
+                    cursor: 'pointer'
                   }}
                 >
-                  <span className="material-symbols-rounded" style={{ fontSize: '20px' }}>login</span>
-                  <span>Sign in to Unlock</span>
+                  <svg className="google-icon" viewBox="0 0 24 24" style={{ width: '18px', height: '18px', marginRight: '8px' }}>
+                    <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
+                    <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
+                    <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05" />
+                    <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
+                  </svg>
+                  <span>Continue with Google</span>
                 </button>
               </div>
             </div>
@@ -2525,7 +2569,11 @@ export default function WhiteboardEditor({
                   commitToHistory(compacted);
                   setInfiniteCanvas(false);
                   infiniteCanvasRef.current = false;
-                  try { localStorage.setItem('wb_infinite_canvas', 'false'); } catch {}
+                  try {
+                    if (board?.id) localStorage.setItem(`wb_infinite_canvas_${board.id}`, 'false');
+                    localStorage.setItem('wb_infinite_canvas', 'false');
+                  } catch {}
+                  setHasUnsavedChanges(true);
 
                   // Calculate optimal fit zoom & pan to display the fixed board
                   const canvas = canvasRef.current;
@@ -2577,6 +2625,104 @@ export default function WhiteboardEditor({
         onCommit={commitTextPrompt}
         onClose={() => setTextPrompt(null)}
       />
+
+      {/* Embed Frame URL Prompt Modal */}
+      {showEmbedFrameModal && (
+        <div className="wb-overlay" style={{ zIndex: 4000 }} onClick={() => setShowEmbedFrameModal(false)}>
+          <div className="wb-dialog" role="dialog" aria-modal="true" style={{ maxWidth: '460px' }} onClick={(e) => e.stopPropagation()}>
+            <div style={{
+              width: '52px',
+              height: '52px',
+              borderRadius: '14px',
+              background: 'rgba(99, 102, 241, 0.15)',
+              border: '1px solid rgba(99, 102, 241, 0.3)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginBottom: '16px',
+              color: '#818cf8',
+            }}>
+              <span className="material-symbols-rounded" style={{ fontSize: '28px' }}>iframe</span>
+            </div>
+            <h3 style={{ margin: '0 0 8px', fontSize: '18px', fontWeight: 700, color: 'var(--text-main)' }}>
+              Embed Website Frame
+            </h3>
+            <p style={{ margin: '0 0 16px', fontSize: '13px', color: 'var(--text-dim)', lineHeight: '1.5' }}>
+              Paste any website, YouTube, Google Docs, Sheets, Slides, Drawings, or GitHub URL to embed it as an interactive card.
+            </p>
+
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              const url = embedFrameUrlInput.trim();
+              if (url) {
+                handleInsertUrl(url);
+                setEmbedFrameUrlInput('');
+                setShowEmbedFrameModal(false);
+              }
+            }}>
+              <input
+                type="text"
+                autoFocus
+                placeholder="https://example.com or paste link..."
+                value={embedFrameUrlInput}
+                onChange={(e) => setEmbedFrameUrlInput(e.target.value)}
+                style={{
+                  width: '100%',
+                  background: 'rgba(255, 255, 255, 0.05)',
+                  border: '1.5px solid rgba(99, 102, 241, 0.35)',
+                  borderRadius: '10px',
+                  padding: '12px 14px',
+                  color: '#ffffff',
+                  fontSize: '14px',
+                  outline: 'none',
+                  boxSizing: 'border-box',
+                  marginBottom: '20px',
+                  fontFamily: "'Outfit', sans-serif",
+                }}
+              />
+
+              <div className="dialog-actions" style={{ gap: '8px', justifyContent: 'flex-end' }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowEmbedFrameModal(false);
+                    setEmbedFrameUrlInput('');
+                  }}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    color: '#94a3b8',
+                    padding: '8px 14px',
+                    borderRadius: '8px',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    cursor: 'pointer'
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={!embedFrameUrlInput.trim()}
+                  style={{
+                    background: embedFrameUrlInput.trim() ? 'linear-gradient(135deg, #6366f1, #8b5cf6)' : 'rgba(255,255,255,0.08)',
+                    border: 'none',
+                    color: embedFrameUrlInput.trim() ? '#ffffff' : '#64748b',
+                    padding: '8px 20px',
+                    borderRadius: '8px',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    cursor: embedFrameUrlInput.trim() ? 'pointer' : 'not-allowed',
+                    boxShadow: embedFrameUrlInput.trim() ? '0 4px 14px rgba(99, 102, 241, 0.4)' : 'none',
+                  }}
+                >
+                  Embed Frame
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Media load failure toast */}
       {mediaLoadError && (

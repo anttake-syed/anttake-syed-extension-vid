@@ -42,6 +42,7 @@ export default function WhiteboardEditor({
   user,
   isAuthenticated,
   onSignIn,
+  onLogout,
   onUpgrade,
   hasCloudAccess,
   entitlements,
@@ -2215,6 +2216,7 @@ export default function WhiteboardEditor({
           isOwner={isOwner}
           isEditLink={isEditLink}
           onSignIn={onSignIn}
+          onLogout={onLogout}
           onEdit={handleEditClick}
           onUpgrade={onUpgrade}
         />
@@ -2268,6 +2270,9 @@ export default function WhiteboardEditor({
           onDuplicateToMyBoards={handleDuplicateToMyBoards}
           isCopying={isCopying}
           copySuccess={copySuccess}
+          user={user}
+          onLogout={onLogout}
+          onSignIn={onSignIn}
         />
       )}
 
@@ -2491,6 +2496,7 @@ export default function WhiteboardEditor({
         contextMenu={contextMenu}
         hasSelection={selectedIds.length > 0 || selectedId !== null}
         hasClipboard={Boolean(clipboardRef.current?.elements?.length)}
+        isReadOnly={isReadOnly}
         onCut={handleCutSelected}
         onCopy={handleCopySelected}
         onPaste={() => handlePasteAt(contextMenu?.worldPos)}

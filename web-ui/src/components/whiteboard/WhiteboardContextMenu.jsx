@@ -4,6 +4,7 @@ export default function WhiteboardContextMenu({
   contextMenu,
   hasSelection,
   hasClipboard,
+  isReadOnly = false,
   onCut,
   onCopy,
   onPaste,
@@ -108,8 +109,16 @@ export default function WhiteboardContextMenu({
       onMouseLeave={onClose}
       onClick={(e) => e.stopPropagation()}
     >
-      {/* ── ELEMENT SELECTED MENU ── */}
-      {isElementMenu ? (
+      {/* ── READ-ONLY MODE MENU ── */}
+      {isReadOnly ? (
+        <>
+          {isElementMenu && (
+            <MenuItem icon="content_copy" label="Copy" shortcut="Ctrl+C" onClick={onCopy} />
+          )}
+          <MenuItem icon="select_all" label="Select All" shortcut="Ctrl+A" onClick={onSelectAll} />
+        </>
+      ) : isElementMenu ? (
+        /* ── ELEMENT SELECTED MENU ── */
         <>
           <MenuItem icon="content_cut" label="Cut" shortcut="Ctrl+X" onClick={onCut} />
           <MenuItem icon="content_copy" label="Copy" shortcut="Ctrl+C" onClick={onCopy} />

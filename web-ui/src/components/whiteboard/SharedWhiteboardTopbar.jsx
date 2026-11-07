@@ -1,5 +1,6 @@
 import React from 'react';
 import { IS_LOCAL_MODE } from '../../config.js';
+import WhiteboardUserMenu from './WhiteboardUserMenu.jsx';
 
 /**
  * SharedWhiteboardTopbar
@@ -18,6 +19,7 @@ import { IS_LOCAL_MODE } from '../../config.js';
  *   isOwner           — bool, whether the signed-in user is the board owner
  *   isEditLink        — bool, whether the URL has ?access=edit
  *   onSignIn          — fn, open the login modal
+ *   onLogout          — fn, sign out of the current account
  *   onEdit            — fn, called when the Edit button is clicked
  *   onUpgrade         — fn, navigate to the pricing page
  */
@@ -33,6 +35,7 @@ export default function SharedWhiteboardTopbar({
   isOwner,
   isEditLink,
   onSignIn,
+  onLogout,
   onEdit,
   onUpgrade,
 }) {
@@ -204,20 +207,12 @@ export default function SharedWhiteboardTopbar({
               </button>
             )}
 
-            {/* Avatar chip for authenticated users */}
-            {isAuthenticated && user?.picture && (
-              <img
-                src={user.picture}
-                alt={user.name || 'You'}
-                title={user.name || user.email || ''}
-                style={{
-                  width: '28px',
-                  height: '28px',
-                  borderRadius: '50%',
-                  border: '2px solid rgba(99,102,241,0.4)',
-                  flexShrink: 0,
-                  objectFit: 'cover',
-                }}
+            {/* User Account Menu with Switch Account & Sign Out */}
+            {isAuthenticated && user && (
+              <WhiteboardUserMenu
+                user={user}
+                onLogout={onLogout}
+                onSwitch={onSignIn}
               />
             )}
 

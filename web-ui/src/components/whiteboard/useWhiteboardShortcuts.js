@@ -37,6 +37,7 @@ export function useWhiteboardShortcuts({
   handleZoomOut,
   handleZoomReset,
   handleZoomToFit,
+  isReadOnly = false,
 }) {
   useEffect(() => {
     const onKeyDown = (e) => {
@@ -73,21 +74,21 @@ export function useWhiteboardShortcuts({
       // Undo: Ctrl/Cmd + Z (without shift)
       if (cmdOrCtrl && key === 'z' && !e.shiftKey) {
         e.preventDefault();
-        handleUndo();
+        if (!isReadOnly) handleUndo();
         return;
       }
 
       // Redo: Ctrl/Cmd + Y OR Ctrl/Cmd + Shift + Z
       if ((cmdOrCtrl && key === 'y') || (cmdOrCtrl && e.shiftKey && key === 'z')) {
         e.preventDefault();
-        handleRedo();
+        if (!isReadOnly) handleRedo();
         return;
       }
 
       // Save: Ctrl/Cmd + S
       if (cmdOrCtrl && key === 's') {
         e.preventDefault();
-        handleSave(false);
+        if (!isReadOnly) handleSave(false);
         return;
       }
 
@@ -108,37 +109,41 @@ export function useWhiteboardShortcuts({
       // Cut: Ctrl/Cmd + X
       if (cmdOrCtrl && key === 'x') {
         e.preventDefault();
-        handleCutSelected();
+        if (!isReadOnly) handleCutSelected();
         return;
       }
 
       // Paste: Ctrl/Cmd + V
       if (cmdOrCtrl && key === 'v') {
         e.preventDefault();
-        handlePasteAt();
+        if (!isReadOnly) handlePasteAt();
         return;
       }
 
       // Duplicate: Ctrl/Cmd + D
       if (cmdOrCtrl && key === 'd') {
         e.preventDefault();
-        handleDuplicateSelected();
+        if (!isReadOnly) handleDuplicateSelected();
         return;
       }
 
       // Layer Order: Bring to Front (Ctrl+Shift+]) or Bring Forward (Ctrl+])
       if (cmdOrCtrl && e.key === ']') {
         e.preventDefault();
-        if (e.shiftKey) handleBringToFront();
-        else handleBringForward();
+        if (!isReadOnly) {
+          if (e.shiftKey) handleBringToFront();
+          else handleBringForward();
+        }
         return;
       }
 
       // Layer Order: Send to Back (Ctrl+Shift+[) or Send Backward (Ctrl+[)
       if (cmdOrCtrl && e.key === '[') {
         e.preventDefault();
-        if (e.shiftKey) handleSendToBack();
-        else handleSendBackward();
+        if (!isReadOnly) {
+          if (e.shiftKey) handleSendToBack();
+          else handleSendBackward();
+        }
         return;
       }
 
@@ -173,7 +178,7 @@ export function useWhiteboardShortcuts({
       // Delete / Backspace: Delete selected
       if (e.key === 'Delete' || e.key === 'Backspace') {
         e.preventDefault();
-        handleDeleteSelected();
+        if (!isReadOnly) handleDeleteSelected();
         return;
       }
 
@@ -194,8 +199,8 @@ export function useWhiteboardShortcuts({
         return;
       }
 
-      // Tool Switching Hotkeys (Single Keys without modifiers)
-      if (cmdOrCtrl || e.altKey) return;
+      // Tool Switching Hotkeys (Single Keys without modifiers) — only allowed for editors
+      if (cmdOrCtrl || e.altKey || isReadOnly) return;
 
       if (key === 'v' || key === '1') {
         setTool('select');
@@ -240,6 +245,7 @@ export function useWhiteboardShortcuts({
     };
 
     const onPaste = (e) => {
+      if (isReadOnly) return;
       const target = e.target;
       if (
         target &&
@@ -300,5 +306,6 @@ export function useWhiteboardShortcuts({
     handleZoomOut,
     handleZoomReset,
     handleZoomToFit,
+    isReadOnly,
   ]);
 }

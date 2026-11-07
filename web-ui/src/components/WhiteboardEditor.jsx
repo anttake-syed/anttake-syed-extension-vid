@@ -142,18 +142,16 @@ export default function WhiteboardEditor({
   // Determine permission & ownership
   const isOwner = Boolean(user?.id && boardOwnerId && user.id === boardOwnerId);
 
-  // Show the shared topbar only when this URL is a share-link AND the visitor
-  // is NOT the board owner (owners bypass to the full editor).
-  const isSharedBoard = isSharedLink && !isOwner;
+  // The ONLY persona entitled to the full editor (with save/undo/canvas modes)
+  // is the verified board owner with an active Cloud plan on a non-view link.
+  const canEditBoard = Boolean(isOwner && hasCloudAccess && !isViewLink);
 
-  // Canvas is read-only when:
-  //   • it's a view-only link  (always read-only regardless of auth)
-  //   • it's an edit link but user isn't authenticated or doesn't have Cloud
-  //   • the user is not the owner on a normal (non-share) URL
-  const isReadOnly =
-    isViewLink ||
-    (isEditLink && (!isAuthenticated || !hasCloudAccess)) ||
-    (!isSharedLink && !isOwner && (!isAuthenticated || !hasCloudAccess));
+  // Everyone else (non-owners, free users, logged-out visitors, or anyone removing ?access=)
+  // is ALWAYS routed to the clean SharedWhiteboardTopbar view.
+  const isSharedBoard = !canEditBoard;
+
+  // The canvas is strictly read-only for anyone who cannot edit the board.
+  const isReadOnly = !canEditBoard;
 
   // ── robots noindex meta tag: injected while viewing a shared board ─────────
   // Ensures the <meta name="robots" content="noindex"> is present even on
@@ -2181,6 +2179,7 @@ export default function WhiteboardEditor({
     handleZoomOut,
     handleZoomReset,
     handleZoomToFit,
+    isReadOnly,
   });
 
   const handleClose = async () => {

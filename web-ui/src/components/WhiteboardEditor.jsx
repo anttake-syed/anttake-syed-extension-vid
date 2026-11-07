@@ -1458,6 +1458,15 @@ export default function WhiteboardEditor({
     setShowLibrary('none');
     if (!src) return;
 
+    // Calculate center of current viewport in world coordinates
+    const canvas = canvasRef.current;
+    const z = zoomRef.current || 1;
+    const pan = panOffsetRef.current || { x: 0, y: 0 };
+    const cw = canvas ? canvas.width : 800;
+    const ch = canvas ? canvas.height : 600;
+    const centerX = Math.round((cw / 2 - pan.x) / z);
+    const centerY = Math.round((ch / 2 - pan.y) / z);
+
     if (isVideo) {
       const video = document.createElement('video');
       video.muted = true;
@@ -1473,24 +1482,33 @@ export default function WhiteboardEditor({
         const vw = video.videoWidth || 320;
         const vh = video.videoHeight || 240;
         const ratio = Math.min(1, Math.min(maxW / vw, maxH / vh));
-        const next = [...elements, {
+        const finalW = Math.round(vw * ratio);
+        const finalH = Math.round(vh * ratio);
+
+        const newEl = {
           type: 'image',
           img: video,
           isVideo: true,
           title: title || 'Video',
           isPlaying: false,
           src,
-          x: 60, y: 60,
-          w: Math.round(vw * ratio),
-          h: Math.round(vh * ratio)
-        }];
+          x: Math.round(centerX - finalW / 2),
+          y: Math.round(centerY - finalH / 2),
+          w: finalW,
+          h: finalH,
+        };
+
+        const currentEls = elementsRef.current || [];
+        const next = [...currentEls, newEl];
         setElements(next);
+        elementsRef.current = next;
         commitToHistory(next);
+        redraw();
       };
 
       video.onloadeddata = () => { try { video.currentTime = 0.1; } catch (_) {} };
       video.onseeked = onReady;
-      video.oncanplay = () => { setTimeout(onReady, 300); };
+      video.oncanplay = () => { setTimeout(onReady, 200); };
       video.onerror = () => {
         if (video.crossOrigin) {
           video.crossOrigin = null;
@@ -1510,17 +1528,26 @@ export default function WhiteboardEditor({
         const iw = img.naturalWidth || img.width || 320;
         const ih = img.naturalHeight || img.height || 240;
         const ratio = Math.min(1, Math.min(maxW / iw, maxH / ih));
-        const next = [...elements, {
+        const finalW = Math.round(iw * ratio);
+        const finalH = Math.round(ih * ratio);
+
+        const newEl = {
           type: 'image',
           img,
           title: title || 'Image',
           src,
-          x: 60, y: 60,
-          w: Math.round(iw * ratio),
-          h: Math.round(ih * ratio)
-        }];
+          x: Math.round(centerX - finalW / 2),
+          y: Math.round(centerY - finalH / 2),
+          w: finalW,
+          h: finalH,
+        };
+
+        const currentEls = elementsRef.current || [];
+        const next = [...currentEls, newEl];
         setElements(next);
+        elementsRef.current = next;
         commitToHistory(next);
+        redraw();
       };
       img.onerror = () => {
         if (img.crossOrigin) {

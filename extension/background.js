@@ -280,7 +280,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           // executeScript is safe to call again — it's a no-op if already present.
           try {
             await chrome.scripting.executeScript({ target: { tabId }, files: ['content.js'] });
-          } catch (_) { /* Already injected or restricted page — fine */ }
+          } catch { /* Already injected or restricted page — fine */ }
 
           // 600ms: clears residual focus-change from the screen-share picker and
           // gives content.js modules time to fully boot on slow machines / Brave.

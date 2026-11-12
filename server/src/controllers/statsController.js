@@ -12,11 +12,20 @@ exports.getStats = async (req, res) => {
       }
     });
 
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
+    // Find active session to guarantee access_token & refresh_token for Google Drive quota
+    const session = await prisma.session.findFirst({
+      where: { userId: user.id },
+      orderBy: { updatedAt: 'desc' }
+    });
 
-    const stats = await analyticsService.calculateUserStats(user, req);
+    const userWithTokens = {
+      ...user,
+      access_token: req.user?.access_token || session?.accessToken || null,
+      refresh_token: req.user?.refresh_token || session?.refreshToken || null,
+      expiry_date: req.user?.expiry_date ? Number(req.user.expiry_date) : (session?.expiryDate ? Number(session.expiryDate) : null),
+    };
+
+    const stats = await analyticsService.calculateUserStats(userWithTokens, req);
     res.json(stats);
   } catch (err) {
     logger.error('stats', 'get-stats-failed', { requestId: req.requestId, userId: req.user.id, error: err });

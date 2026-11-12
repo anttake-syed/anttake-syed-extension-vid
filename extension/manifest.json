@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "AntCapture: Record & Sync to Google Drive",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Record your screen, capture screenshots, and automatically sync media to Google Drive via your personal web dashboard.",
   "permissions": [
     "activeTab",

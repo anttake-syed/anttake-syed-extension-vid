@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>AntCapture v1.1 — Screenshot 5: Chrome Extension Popup</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=block" rel="stylesheet">
+  <link rel="stylesheet" href="shared.css">
+</head>
+<body>
+  <div class="canvas sz-1280x800">
+    <div class="mkt-bg"></div>
+    <div class="version-pill">v1.1 · Extension Ready</div>
+
+    <div class="mkt-content">
+      <!-- Left: headline -->
+      <div class="text-col">
+        <span class="eyebrow">Chrome Toolbar Extension</span>
+        <h1>Capture in One Click</h1>
+        <p>Record your tab or capture full page screenshots directly from Chrome toolbar, with seamless sync to your dashboard.</p>
+        <div class="badge">
+          <span class="material-symbols-rounded" style="font-size:16px;">bolt</span>
+          Ultra-low latency · 60fps HD recording
+        </div>
+      </div>
+
+      <!-- Right: extension popup mockup -->
+      <div class="ui-col">
+        <!-- Floating Popup UI -->
+        <div style="width:340px;background:#0f172a;border:1px solid rgba(255,255,255,0.12);border-radius:18px;padding:24px;box-shadow:0 30px 70px rgba(0,0,0,0.7);display:flex;flex-direction:column;gap:18px;position:relative;">
+          
+          <!-- Header -->
+          <div style="display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(255,255,255,0.08);padding-bottom:16px;">
+            <div style="display:flex;align-items:center;gap:10px;">
+              <svg viewBox="0 0 40 40" width="24" height="24" fill="none">
+                <circle cx="20" cy="20" r="20" fill="url(#g5)"/>
+                <path d="M14 20a6 6 0 1 1 12 0 6 6 0 0 1-12 0z" fill="white" opacity="0.9"/>
+                <defs><linearGradient id="g5" x1="0" y1="0" x2="40" y2="40" gradientUnits="userSpaceOnUse">
+                  <stop stop-color="#6366f1"/><stop offset="1" stop-color="#a855f7"/>
+                </linearGradient></defs>
+              </svg>
+              <div style="font-weight:700;font-size:16px;color:#f8fafc;">Ant<span style="color:#94a3b8;font-weight:500;">Capture</span></div>
+            </div>
+            <span style="font-size:11px;background:rgba(99,102,241,0.18);color:#a5b4fc;padding:3px 8px;border-radius:6px;font-weight:700;">v1.1.0</span>
+          </div>
+
+          <!-- Capture Mode Switcher -->
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+            <div style="background:rgba(99,102,241,0.15);border:1px solid rgba(99,102,241,0.4);border-radius:12px;padding:14px;display:flex;flex-direction:column;align-items:center;gap:6px;color:#a5b4fc;cursor:pointer;">
+              <span class="material-symbols-rounded" style="font-size:26px;">videocam</span>
+              <span style="font-size:13px;font-weight:600;color:#f8fafc;">Record Screen</span>
+              <span style="font-size:10px;color:#818cf8;">60fps · Mic Audio</span>
+            </div>
+            <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:14px;display:flex;flex-direction:column;align-items:center;gap:6px;color:#94a3b8;cursor:pointer;">
+              <span class="material-symbols-rounded" style="font-size:26px;">photo_camera</span>
+              <span style="font-size:13px;font-weight:600;color:#cbd5e1;">Screenshot</span>
+              <span style="font-size:10px;color:#64748b;">Full page or area</span>
+            </div>
+          </div>
+
+          <!-- Destination Settings -->
+          <div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:10px;">
+            <div style="font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.06em;">Save Destination</div>
+            <div style="display:flex;align-items:center;justify-content:space-between;">
+              <div style="display:flex;align-items:center;gap:8px;">
+                <svg viewBox="0 0 87.3 78" width="16" height="16" xmlns="http://www.w3.org/2000/svg">
+                  <path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8H.97c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/>
+                  <path d="M43.65 25 29.9 1.2C28.55 2 27.4 3.1 26.6 4.5L1.2 48.4C.4 49.8 0 51.35 0 52.9h27.45z" fill="#00ac47"/>
+                  <path d="M73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5H59.85l5.65 9.5z" fill="#ea4335"/>
+                  <path d="M43.65 25 57.4 1.2C56.05.4 54.5 0 52.9 0H34.4c-1.55 0-3.1.45-4.5 1.2z" fill="#00832d"/>
+                  <path d="M59.85 52.9h27.45c0-1.55-.4-3.1-1.2-4.5L60.7 4.5C59.9 3.1 58.75 2 57.4 1.2L43.65 25 59.85 52.9z" fill="#2684fc"/>
+                  <path d="M27.45 52.9H0l13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2L59.85 52.9z" fill="#ffba00"/>
+                </svg>
+                <span style="font-size:12px;color:#f8fafc;font-weight:500;">Google Drive Sync</span>
+              </div>
+              <span style="font-size:11px;color:#4ade80;font-weight:600;">Active</span>
+            </div>
+          </div>
+
+          <!-- Big Action Button -->
+          <div style="background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;border-radius:12px;padding:12px;display:flex;align-items:center;justify-content:center;gap:8px;font-weight:600;font-size:14px;box-shadow:0 4px 18px rgba(99,102,241,0.4);cursor:pointer;">
+            <span class="material-symbols-rounded" style="font-size:18px;">fiber_manual_record</span>
+            Start Recording
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

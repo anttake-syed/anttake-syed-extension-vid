@@ -5,8 +5,12 @@ skills/
 # Built extension packages — never commit these
 *.zip
 
-# Marketing screenshots — local only, never commit
-marketing/
+# Marketing screenshots — ignore raw assets & top-level files, but track versioned releases
+marketing/assets/
+marketing/prompts/
+marketing/screenshots/
+marketing/*.png
+marketing/*.jpg
 
 # Local build planning & architecture notes — never commit
 _build-info/

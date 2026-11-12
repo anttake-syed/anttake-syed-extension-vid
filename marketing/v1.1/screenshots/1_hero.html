@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>AntCapture v1.1 — Screenshot 1: Hero Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=block" rel="stylesheet">
+  <link rel="stylesheet" href="shared.css">
+</head>
+<body>
+  <div class="canvas sz-1280x800">
+    <div class="mkt-bg"></div>
+    <div class="version-pill">v1.1</div>
+
+    <div class="mkt-content">
+      <!-- Left: headline -->
+      <div class="text-col">
+        <span class="eyebrow">AntCapture v1.1</span>
+        <h1>Record.<br>Screenshot.<br>Sync.</h1>
+        <p>Capture your screen and back it up instantly to Google Drive — with real-time storage monitoring.</p>
+        <div class="badge">
+          <span class="material-symbols-rounded" style="font-size:16px;">fiber_new</span>
+          Drive quota bar now live
+        </div>
+      </div>
+
+      <!-- Right: browser mockup -->
+      <div class="ui-col">
+        <div class="browser-window" style="width:115%;height:84%;position:absolute;left:0;">
+          <div class="browser-bar">
+            <div class="dot r"></div><div class="dot y"></div><div class="dot g"></div>
+            <div style="margin-left:12px;background:rgba(255,255,255,0.05);border-radius:6px;padding:3px 14px;font-size:11px;color:#475569;flex:1;max-width:260px;">app.antcapture.com</div>
+          </div>
+          <div class="browser-body">
+            <!-- Sidebar -->
+            <div class="app-sidebar">
+              <div class="logo">
+                <svg viewBox="0 0 40 40" width="22" height="22" fill="none">
+                  <circle cx="20" cy="20" r="20" fill="url(#g1)"/>
+                  <path d="M14 20a6 6 0 1 1 12 0 6 6 0 0 1-12 0z" fill="white" opacity="0.9"/>
+                  <defs><linearGradient id="g1" x1="0" y1="0" x2="40" y2="40" gradientUnits="userSpaceOnUse">
+                    <stop stop-color="#6366f1"/><stop offset="1" stop-color="#a855f7"/>
+                  </linearGradient></defs>
+                </svg>
+                <span class="logo-text">Ant<span>Capture</span></span>
+              </div>
+              <div class="nav-item-mock active">
+                <span class="ico material-symbols-rounded">dashboard</span>Dashboard
+              </div>
+              <div class="nav-item-mock">
+                <span class="ico material-symbols-rounded">photo_library</span>My Library
+              </div>
+              <div class="nav-item-mock">
+                <span class="ico material-symbols-rounded">draw</span>Whiteboards
+              </div>
+              <div class="nav-item-mock">
+                <span class="ico material-symbols-rounded">settings</span>Settings
+              </div>
+              <div class="nav-item-mock">
+                <span class="ico material-symbols-rounded">chat_bubble</span>Feedback
+              </div>
+            </div>
+
+            <!-- Main Content: Dashboard -->
+            <div class="app-main">
+              <!-- Welcome banner -->
+              <div style="background:linear-gradient(135deg,rgba(99,102,241,0.1),rgba(168,85,247,0.08));border:1px solid rgba(99,102,241,0.18);border-radius:14px;padding:22px 26px;display:flex;align-items:center;justify-content:space-between;">
+                <div>
+                  <div style="font-size:11px;font-weight:700;color:#818cf8;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:4px;">Command Center</div>
+                  <div style="font-size:22px;font-weight:700;color:#f8fafc;">Good afternoon &#x1F44B;</div>
+                  <div style="font-size:13px;color:#94a3b8;margin-top:4px;">You have <strong style="color:#f8fafc;">142</strong> captures in your library.</div>
+                </div>
+                <div style="display:flex;gap:10px;">
+                  <div style="display:flex;align-items:center;gap:7px;background:rgba(99,102,241,0.15);border:1px solid rgba(99,102,241,0.3);color:#a5b4fc;border-radius:9px;padding:9px 16px;font-size:12px;font-weight:600;">
+                    <span class="material-symbols-rounded" style="font-size:16px;">photo_library</span>View Library
+                  </div>
+                </div>
+              </div>
+
+              <!-- Stats row -->
+              <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;">
+                <div class="card card-sm" style="display:flex;align-items:center;gap:12px;">
+                  <span class="material-symbols-rounded" style="font-size:24px;color:#818cf8;">photo_camera</span>
+                  <div>
+                    <div style="font-size:22px;font-weight:700;color:#f8fafc;">98</div>
+                    <div style="font-size:11px;color:#64748b;">Screenshots</div>
+                  </div>
+                </div>
+                <div class="card card-sm" style="display:flex;align-items:center;gap:12px;">
+                  <span class="material-symbols-rounded" style="font-size:24px;color:#a5b4fc;">videocam</span>
+                  <div>
+                    <div style="font-size:22px;font-weight:700;color:#f8fafc;">44</div>
+                    <div style="font-size:11px;color:#64748b;">Recordings</div>
+                  </div>
+                </div>
+                <div class="card card-sm" style="display:flex;align-items:center;gap:12px;">
+                  <span class="material-symbols-rounded" style="font-size:24px;color:#34d399;">draw</span>
+                  <div>
+                    <div style="font-size:22px;font-weight:700;color:#f8fafc;">7</div>
+                    <div style="font-size:11px;color:#64748b;">Whiteboards</div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Storage bars: AntCapture Cloud -->
+              <div class="card" style="display:flex;align-items:center;gap:14px;">
+                <svg viewBox="0 0 32 32" width="20" height="20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <circle cx="16" cy="16" r="16" fill="url(#cl)"/>
+                  <path d="M10 16a6 6 0 1 1 12 0 6 6 0 0 1-12 0z" fill="white" opacity="0.85"/>
+                  <defs><linearGradient id="cl" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
+                    <stop stop-color="#6366f1"/><stop offset="1" stop-color="#a855f7"/>
+                  </linearGradient></defs>
+                </svg>
+                <div style="flex:1;">
+                  <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:6px;">
+                    <span style="color:#f8fafc;font-weight:600;">AntCapture Cloud Storage</span>
+                    <span style="color:#94a3b8;"><strong style="color:#f8fafc;">1.2 GB</strong> / 5.0 GB</span>
+                  </div>
+                  <div class="prog-track">
+                    <div class="prog-fill" style="width:24%;background:linear-gradient(90deg,#6366f1,#a855f7);"></div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Storage bar: Google Drive (NEW in v1.1) -->
+              <div class="card" style="display:flex;align-items:center;gap:14px;border-color:rgba(99,102,241,0.2);background:rgba(99,102,241,0.04);">
+                <svg class="drive-icon" viewBox="0 0 87.3 78" xmlns="http://www.w3.org/2000/svg">
+                  <path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8H.97c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/>
+                  <path d="M43.65 25 29.9 1.2C28.55 2 27.4 3.1 26.6 4.5L1.2 48.4C.4 49.8 0 51.35 0 52.9h27.45z" fill="#00ac47"/>
+                  <path d="M73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5H59.85l5.65 9.5z" fill="#ea4335"/>
+                  <path d="M43.65 25 57.4 1.2C56.05.4 54.5 0 52.9 0H34.4c-1.55 0-3.1.45-4.5 1.2z" fill="#00832d"/>
+                  <path d="M59.85 52.9h27.45c0-1.55-.4-3.1-1.2-4.5L60.7 4.5C59.9 3.1 58.75 2 57.4 1.2L43.65 25 59.85 52.9z" fill="#2684fc"/>
+                  <path d="M27.45 52.9H0l13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2L59.85 52.9z" fill="#ffba00"/>
+                </svg>
+                <div style="flex:1;">
+                  <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:6px;align-items:center;">
+                    <div>
+                      <span style="color:#f8fafc;font-weight:600;">Google Drive Used</span>
+                      <span style="margin-left:8px;font-size:10px;font-weight:700;color:#818cf8;background:rgba(99,102,241,0.15);padding:2px 8px;border-radius:999px;">NEW in v1.1</span>
+                    </div>
+                    <span style="color:#94a3b8;"><strong style="color:#f8fafc;">3.1 GB</strong> / 15.0 GB</span>
+                  </div>
+                  <div class="prog-track">
+                    <div class="prog-fill" style="width:21%;background:linear-gradient(90deg,#4ade80,#22d3ee);"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

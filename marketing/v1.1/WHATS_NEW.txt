@@ -1,0 +1,27 @@
+AntCapture v1.1 — What's New
+==============================
+
+BUG FIXES & IMPROVEMENTS
+
+📊 Google Drive Quota Bar (Command Center)
+   The Google Drive storage progress bar was not showing in the dashboard for
+   connected accounts due to OAuth tokens not being forwarded to the analytics
+   service. This is now fixed — the Drive quota (used / total) appears correctly
+   alongside your AntCapture Cloud and Whiteboard usage bars.
+
+🧭 Stable Sidebar on Page Reload
+   The sidebar navigation items (Dashboard, Whiteboards, My Library, etc.) were
+   flickering and jumping to incorrect positions on every page reload. This was
+   caused by a mismatch between the loading skeleton layout and the real sidebar,
+   plus Material Symbols icon ligatures not being reserved space before the font
+   loaded. Both root causes are fixed — the sidebar now renders in one smooth paint
+   with zero cumulative layout shift (CLS).
+
+🎨 Icon Rendering Polish
+   Navigation icons now have fixed 22×22 px containers with proper flexbox
+   centering and font-feature-settings for ligature glyph reservation, so they
+   never flash or shift surrounding text during font load.
+
+🔌 Extension v1.1.0
+   - Manifest version bumped to 1.1.0
+   - ESLint fixes in background.js and download.js

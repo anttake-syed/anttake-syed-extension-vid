@@ -129,6 +129,7 @@ canvas {
   .sidebar .nav-lock,
   .sidebar .nav-divider-label,
   .sidebar .sidebar-upgrade,
+  .sidebar .sidebar-git-info,
   .sidebar .btn-label {
     display: none;
   }

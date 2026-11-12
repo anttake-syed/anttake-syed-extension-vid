@@ -178,6 +178,7 @@ async function calculateUserStats(userRecord, req = {}) {
     combinedTotalBytesFormatted: formatBytes(combinedTotalBytes),
 
     // Global Drive Info
+    driveConnected: Boolean(userRecord.access_token || userRecord.refresh_token),
     driveUsageBytes: driveUsage,
     driveUsageFormatted: formatBytes(driveUsage),
     driveLimitBytes: driveLimit,

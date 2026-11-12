@@ -196,6 +196,7 @@ export default function Sidebar({ activeNav, isAuthenticated, hasCloudAccess = t
             Security & Privacy: Only visible to authenticated admins. Hidden from public, normal users, and crawlers. */}
         {isAdmin && typeof __GIT_COMMIT_INFO__ !== 'undefined' && (
           <div
+            className="sidebar-git-info"
             onClick={() => {
               onNavClick('Diagnostics');
             }}

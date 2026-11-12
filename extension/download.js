@@ -52,7 +52,9 @@ async function downloadMedia() {
     else if (mimeStr.includes('jpeg') || mimeStr.includes('jpg')) {ext = 'jpg';}
     const customName = urlParams.get('filename');
     let filename = customName ? customName : `capture-[AntCapture]-${Date.now()}`;
-    if (!filename.endsWith(`.${ext}`)) filename += `.${ext}`;
+    if (!filename.endsWith(`.${ext}`)) {
+      filename += `.${ext}`;
+    }
 
     // Wire up the manual fallback button
     manualBtn.href = objectUrl;

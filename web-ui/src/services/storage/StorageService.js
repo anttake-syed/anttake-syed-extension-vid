@@ -61,18 +61,37 @@ export function parseStorageState(dbStats, isLocalMode) {
 }
 
 export function parseDriveState(dbStats) {
-  if (!dbStats || dbStats.driveLimitBytes <= 0) {
-    return null; // Not connected or no quota info
+  if (!dbStats) {
+    return null;
   }
-  
-  const percentage = Math.min(100, Math.round((dbStats.driveUsageBytes / dbStats.driveLimitBytes) * 100));
-  return {
-    status: percentage >= 100 ? 'full' : percentage >= 85 ? 'near_limit' : 'normal',
-    usedBytes: dbStats.driveUsageBytes,
-    totalBytes: dbStats.driveLimitBytes,
-    usedFormatted: dbStats.driveUsageFormatted,
-    totalFormatted: dbStats.driveLimitFormatted,
-    percentage,
-    label: 'Google Drive Used',
-  };
+
+  // Case 1: Standard Google Drive quota available
+  if (dbStats.driveLimitBytes > 0) {
+    const percentage = Math.min(100, Math.round((dbStats.driveUsageBytes / dbStats.driveLimitBytes) * 100));
+    return {
+      status: percentage >= 100 ? 'full' : percentage >= 85 ? 'near_limit' : 'normal',
+      usedBytes: dbStats.driveUsageBytes,
+      totalBytes: dbStats.driveLimitBytes,
+      usedFormatted: dbStats.driveUsageFormatted,
+      totalFormatted: dbStats.driveLimitFormatted,
+      percentage,
+      label: 'Google Drive Used',
+    };
+  }
+
+  // Case 2: Drive is connected or user has Drive captures, but Drive quota API returned unknown/unlimited
+  if (dbStats.driveConnected || dbStats.driveCount > 0 || (dbStats.appDriveBytes && dbStats.appDriveBytes > 0)) {
+    return {
+      status: 'normal',
+      hasNoLimit: true,
+      usedBytes: dbStats.appDriveBytes || dbStats.driveUsageBytes || 0,
+      totalBytes: 0,
+      usedFormatted: dbStats.appDriveFormatted || dbStats.driveUsageFormatted || '0 B',
+      totalFormatted: 'Connected',
+      percentage: dbStats.driveCount > 0 ? 10 : 0,
+      label: 'Google Drive Sync',
+    };
+  }
+
+  return null;
 }

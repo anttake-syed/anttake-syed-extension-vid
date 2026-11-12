@@ -633,13 +633,29 @@ export default function App() {
 
     return (
       <div className="layout">
-        <aside className="sidebar" style={{ pointerEvents: 'none' }}>
-          <div className="logo" style={{ marginBottom: '32px' }}>
-            <div className="skeleton-box" style={{ width: '22px', height: '22px', borderRadius: '50%' }}></div>
-            <div className="skeleton-box" style={{ width: '120px', height: '20px', borderRadius: '4px' }}></div>
+        <aside className="sidebar" style={{ pointerEvents: 'none' }} aria-label="Loading navigation">
+          <div className="logo">
+            <div className="skeleton-box" style={{ width: '24px', height: '24px', borderRadius: '50%', flexShrink: 0 }}></div>
+            <div className="logo-text skeleton-box" style={{ width: '105px', height: '22px', borderRadius: '6px' }}></div>
           </div>
-          <nav style={{ display: 'flex', flexDirection: 'column', flex: 1, gap: '12px' }}>
-            {[1, 2, 3, 4].map(i => <div key={i} className="skeleton-box" style={{ width: '100%', height: '40px', borderRadius: '10px' }}></div>)}
+          <nav style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+            <ul className="nav-list" style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              {[1, 2, 3, 4, 5].map(i => (
+                <li key={i} className="nav-item" style={{ padding: '11px 14px', gap: '10px' }}>
+                  <div className="skeleton-box nav-icon" style={{ width: '20px', height: '20px', borderRadius: '4px', flexShrink: 0 }}></div>
+                  <div className="skeleton-box nav-label" style={{ height: '14px', width: `${60 + (i % 3) * 20}%`, borderRadius: '4px' }}></div>
+                </li>
+              ))}
+            </ul>
+            <div className="nav-divider" style={{ margin: '10px 16px 6px', borderTop: '1px solid rgba(255, 255, 255, 0.06)' }}></div>
+            <ul className="nav-list" style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '4px' }}>
+              {[1, 2, 3].map(i => (
+                <li key={i} className="nav-item nav-item-secondary" style={{ padding: '8px 14px', gap: '10px' }}>
+                  <div className="skeleton-box nav-icon" style={{ width: '18px', height: '18px', borderRadius: '4px', flexShrink: 0 }}></div>
+                  <div className="skeleton-box nav-label" style={{ height: '13px', width: `${50 + (i % 2) * 25}%`, borderRadius: '4px' }}></div>
+                </li>
+              ))}
+            </ul>
           </nav>
         </aside>
         <main className="main-content">

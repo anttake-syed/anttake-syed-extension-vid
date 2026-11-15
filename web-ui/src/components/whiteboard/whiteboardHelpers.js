@@ -25,8 +25,13 @@ export function getElementBounds(el) {
     minX = Math.min(el.x, el.x2); maxX = Math.max(el.x, el.x2);
     minY = Math.min(el.y, el.y2); maxY = Math.max(el.y, el.y2);
   } else if (el.type === 'text') {
-    minX = el.x; maxX = el.x + 160;
-    minY = el.y - (el.fontSize || 20); maxY = el.y;
+    const lines = String(el.text || '').split('\n');
+    const maxLineLen = Math.max(...lines.map(l => l.length), 1);
+    const fontSize = el.fontSize || 20;
+    const tw = el.w || Math.max(60, Math.round(maxLineLen * fontSize * 0.58));
+    const th = el.h || Math.max(fontSize * 1.3, Math.round(lines.length * fontSize * 1.25));
+    minX = el.x; maxX = el.x + tw;
+    minY = el.y - fontSize; maxY = minY + th;
   } else if (el.type === 'path' && el.points?.length) {
     minX = Math.min(...el.points.map(p => p.x));
     maxX = Math.max(...el.points.map(p => p.x));

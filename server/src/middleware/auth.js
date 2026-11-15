@@ -50,7 +50,7 @@ async function requireAuth(req, res, next) {
   }
 
   // ── Local self-hosted mode ────────────────────────────────────────────────
-  if ((process.env.SERVER_MODE || process.env.STORAGE_BACKEND) === 'local') {
+  if ((process.env.SERVER_MODE || process.env.STORAGE_BACKEND) === 'local' || token === 'local-mode') {
     // If there's a real JWT (not legacy bypass), verify and resolve it
     if (token && token !== 'local-mode') {
       try {

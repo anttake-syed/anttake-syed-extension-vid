@@ -773,6 +773,7 @@ export default function App() {
             }}
             hasCloudAccess={hasCloudAccess}
             entitlements={entitlements}
+            captures={captures}
           />
         ) : activeNav === 'Settings' && isAuthenticated ? (
           <Settings user={user} captures={captures} dbStats={dbStats} onNameUpdate={handleNameUpdate} onDeleteAllCaptures={handleDeleteAllCaptures} onDeleteAccount={handleDeleteAccount} storagePreference={storagePreference} saveStoragePreference={saveStoragePreference} savingPref={savingPref} onManageSubscription={() => setActiveNav('Subscription')} />

@@ -10,7 +10,7 @@ import WhiteboardLibraryPicker from './whiteboard/WhiteboardLibraryPicker.jsx';
 import WhiteboardShareModal from './whiteboard/WhiteboardShareModal.jsx';
 import WhiteboardContextMenu from './whiteboard/WhiteboardContextMenu.jsx';
 import WhiteboardExitModal from './whiteboard/WhiteboardExitModal.jsx';
-import WhiteboardTextPromptModal from './whiteboard/WhiteboardTextPromptModal.jsx';
+import WhiteboardInlineTextEditor from './whiteboard/WhiteboardInlineTextEditor.jsx';
 import WhiteboardShortcutsModal from './whiteboard/WhiteboardShortcutsModal.jsx';
 import WhiteboardStatusBar from './whiteboard/WhiteboardStatusBar.jsx';
 import WhiteboardEmbedLayer from './whiteboard/WhiteboardEmbedLayer.jsx';
@@ -46,6 +46,7 @@ export default function WhiteboardEditor({
   onUpgrade,
   hasCloudAccess,
   entitlements,
+  captures,
 }) {
   const [boardOwnerId, setBoardOwnerId]   = useState(board?.userId || null);
   const [isCopying, setIsCopying]         = useState(false);
@@ -80,8 +81,9 @@ export default function WhiteboardEditor({
   const [panOffset, setPanOffset]         = useState({ x: 0, y: 0 });
   const [boardStateItemId, setBoardStateItemId] = useState(null);
   const [contextMenu, setContextMenu]     = useState(null);
-  const [textPrompt, setTextPrompt]       = useState(null);
-  const [textPromptValue, setTextPromptValue] = useState('');
+  const [inlineEditingText, setInlineEditingText] = useState(null);
+  const inlineEditingTextRef              = useRef(null);
+  inlineEditingTextRef.current            = inlineEditingText;
   const [mediaLoadError, setMediaLoadError] = useState(null);
   const [activeVideoEmbedId, setActiveVideoEmbedId] = useState(null);
   const [isDragging, setIsDragging]               = useState(false); // true while dragging embed/element
@@ -388,6 +390,7 @@ export default function WhiteboardEditor({
       marquee: marqueeRef.current,
       drawing: drawing.current,
       infiniteCanvas: infiniteCanvasRef.current,
+      editingTextIndex: inlineEditingTextRef.current?.elementIndex,
     });
   }, []);
 
@@ -401,7 +404,7 @@ export default function WhiteboardEditor({
 
   useEffect(() => {
     drawCanvasNow();
-  }, [elements, color, strokeSize, tool, selectedId, selectedIds, drawCanvasNow]);
+  }, [elements, color, strokeSize, tool, selectedId, selectedIds, inlineEditingText, drawCanvasNow]);
 
   // Video animation loop
   useEffect(() => {
@@ -626,6 +629,9 @@ export default function WhiteboardEditor({
     }
 
     if (e.button !== 0 || isReadOnly) return;
+    if (inlineEditingTextRef.current) {
+      commitInlineText();
+    }
     const pos = screenToWorld(e.clientX, e.clientY);
 
     if (tool === 'select') {
@@ -790,8 +796,14 @@ export default function WhiteboardEditor({
     }
 
     if (tool === 'text') {
-      setTextPromptValue('');
-      setTextPrompt({ x: pos.x, y: pos.y });
+      setInlineEditingText({
+        x: Math.round(pos.x),
+        y: Math.round(pos.y),
+        value: '',
+        color,
+        fontSize: 20 + strokeSize * 2,
+        elementIndex: null,
+      });
       return;
     }
 
@@ -1544,9 +1556,28 @@ export default function WhiteboardEditor({
     openContextMenuAt(e.clientX, e.clientY);
   };
 
-  // Double click (or double tap on touchpad) to trigger context menu on canvas/elements
+  // Double click (or double tap on touchpad) to trigger inline text edit or context menu
   const onDoubleClick = (e) => {
     if (e.button === 0) {
+      const pos = screenToWorld(e.clientX, e.clientY);
+      // Check top-most element under cursor
+      const rev = elements.slice().reverse();
+      const hitRev = rev.findIndex(el => hitTestElement(pos, el));
+      if (hitRev !== -1) {
+        const targetIdx = elements.length - 1 - hitRev;
+        if (elements[targetIdx]?.type === 'text') {
+          const el = elements[targetIdx];
+          setInlineEditingText({
+            x: el.x,
+            y: el.y,
+            value: el.text || '',
+            color: el.color || color,
+            fontSize: el.fontSize || (20 + strokeSize * 2),
+            elementIndex: targetIdx,
+          });
+          return;
+        }
+      }
       openContextMenuAt(e.clientX, e.clientY);
     }
   };
@@ -2013,13 +2044,51 @@ export default function WhiteboardEditor({
     setPanOffset(newPan);
   };
 
-  const commitTextPrompt = () => {
-    const text = textPromptValue.trim();
-    if (text && textPrompt) {
-      const next = [...elements, { type: 'text', text, x: textPrompt.x, y: textPrompt.y, color, fontSize: 20 + strokeSize * 2 }];
-      setElements(next); commitToHistory(next);
+  const commitInlineText = (val) => {
+    const current = inlineEditingTextRef.current;
+    if (!current) return;
+    const text = (val !== undefined ? val : current.value).trim();
+    const { x, y, color: textColor, fontSize, elementIndex } = current;
+
+    if (elementIndex !== null && elementIndex !== undefined) {
+      if (text) {
+        const next = elements.map((el, i) => i === elementIndex ? { ...el, text } : el);
+        setElements(next);
+        commitToHistory(next);
+        setSelectedId(elementIndex);
+        setSelectedIds([elementIndex]);
+      } else {
+        const next = elements.filter((_, i) => i !== elementIndex);
+        setElements(next);
+        commitToHistory(next);
+        setSelectedId(null);
+        setSelectedIds([]);
+      }
+    } else {
+      if (text) {
+        const newEl = {
+          type: 'text',
+          text,
+          x,
+          y,
+          color: textColor,
+          fontSize: fontSize || (20 + strokeSize * 2),
+        };
+        const next = [...elements, newEl];
+        setElements(next);
+        commitToHistory(next);
+        const newIdx = next.length - 1;
+        setSelectedId(newIdx);
+        setSelectedIds([newIdx]);
+      }
     }
-    setTextPrompt(null);
+    setInlineEditingText(null);
+    setTool('select');
+  };
+
+  const cancelInlineText = () => {
+    setInlineEditingText(null);
+    setTool('select');
   };
 
   const handleNameCommit = () => {
@@ -2159,7 +2228,7 @@ export default function WhiteboardEditor({
     setShowShortcutsModal,
     setShowTemplateModal,
     setShowLibrary,
-    setTextPrompt,
+    setTextPrompt: () => setInlineEditingText(null),
     setContextMenu,
     handleUndo,
     handleRedo,
@@ -2357,6 +2426,21 @@ export default function WhiteboardEditor({
             }}
           />
 
+          {/* Direct Inline Canvas Text Editor */}
+          {inlineEditingText && (
+            <WhiteboardInlineTextEditor
+              initialText={inlineEditingText.value}
+              x={inlineEditingText.x}
+              y={inlineEditingText.y}
+              color={inlineEditingText.color}
+              fontSize={inlineEditingText.fontSize}
+              zoom={zoom}
+              panOffset={panOffset}
+              onCommit={commitInlineText}
+              onCancel={cancelInlineText}
+            />
+          )}
+
 
 
           {/* ── View-Only / Cloud Upgrade Gate Modal ── */}
@@ -2437,6 +2521,7 @@ export default function WhiteboardEditor({
       {showLibrary !== 'none' && (
         <WhiteboardLibraryPicker
           user={user}
+          captures={captures}
           onSelect={handleImageInsert}
           onClose={() => setShowLibrary('none')}
           initialTab={showLibrary}
@@ -2629,14 +2714,6 @@ export default function WhiteboardEditor({
         </div>
       )}
 
-      {/* Add Text Modal */}
-      <WhiteboardTextPromptModal
-        isOpen={Boolean(textPrompt)}
-        value={textPromptValue}
-        onChange={setTextPromptValue}
-        onCommit={commitTextPrompt}
-        onClose={() => setTextPrompt(null)}
-      />
 
       {/* Embed Frame URL Prompt Modal */}
       {showEmbedFrameModal && (

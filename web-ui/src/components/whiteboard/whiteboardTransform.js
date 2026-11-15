@@ -44,10 +44,13 @@ export function getElementTransformBox(el) {
     w = Math.abs(el.w || 0);
     h = Math.abs(el.h || 0);
   } else if (el.type === 'text') {
-    w = el.w || 140;
-    h = el.h || (el.fontSize ? el.fontSize * 1.3 : 26);
+    const lines = String(el.text || '').split('\n');
+    const maxLineLen = Math.max(...lines.map(l => l.length), 1);
+    const fontSize = el.fontSize || 20;
+    w = el.w || Math.max(60, Math.round(maxLineLen * fontSize * 0.58));
+    h = el.h || Math.max(fontSize * 1.3, Math.round(lines.length * fontSize * 1.25));
     // for text, baseline y is adjusted to top-left
-    y = el.y - (el.fontSize || 20);
+    y = el.y - fontSize;
   } else if (el.type === 'icon') {
     const s = el.size || el.w || 48;
     w = s;

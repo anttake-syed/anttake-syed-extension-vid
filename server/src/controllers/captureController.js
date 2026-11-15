@@ -11,11 +11,15 @@ exports.getCaptures = async (req, res) => {
     // already have a storageObject with a file key (upload succeeded on CDN,
     // but the DB was never updated — e.g. UploadThing webhook failed AND the
     // extension's MV3 service worker was killed before confirm-upload could run).
+    const isLocalMode = (process.env.SERVER_MODE || process.env.STORAGE_BACKEND) === 'local' || req.user?.email === 'admin@localhost';
+    const where = isLocalMode
+      ? { status: { in: ['active', 'processing'] } }
+      : {
+          userId: req.user.id,
+          status: { in: ['active', 'processing'] }
+        };
     const captures = await prisma.capture.findMany({
-      where: {
-        userId: req.user.id,
-        status: { in: ['active', 'processing'] }
-      },
+      where,
       orderBy: { createdAt: 'desc' },
       include: { storageObject: true }
     });

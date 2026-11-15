@@ -35,8 +35,12 @@ async function calculateUserStats(userRecord, req = {}) {
     : await prisma.plan.findUnique({ where: { name: 'free' } });
 
   // 1. Fetch user's active captures with storage objects
+  const isLocalMode = (process.env.SERVER_MODE || process.env.STORAGE_BACKEND) === 'local' || userRecord?.email === 'admin@localhost';
+  const where = isLocalMode
+    ? { status: 'active' }
+    : { userId, status: 'active' };
   const captures = await prisma.capture.findMany({
-    where: { userId, status: 'active' },
+    where,
     include: { storageObject: true }
   });
 

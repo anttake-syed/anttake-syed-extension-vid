@@ -256,6 +256,20 @@ function makeModel(tableName) {
       return rows[0] || null;
     },
 
+    async findFirst({ where = {}, orderBy = {}, include } = {}) {
+      const { clause, params } = buildWhere(where);
+      const orderKeys = Object.keys(orderBy);
+      const orderClause = orderKeys.length
+        ? 'ORDER BY ' + orderKeys.map(k => `"${k}" ${orderBy[k] === 'desc' ? 'DESC' : 'ASC'}`).join(', ')
+        : '';
+      let rows = await query(`SELECT * FROM "${tableName}" ${clause} ${orderClause} LIMIT 1`.trim(), params);
+      rows = rows.map(coerceRow);
+      if (include && rows.length > 0) {
+        rows = await resolveIncludes(tableName, rows, include);
+      }
+      return rows[0] || null;
+    },
+
     async findMany({ where = {}, orderBy = {}, include, select, take, skip } = {}) {
       const { clause, params } = buildWhere(where);
       const orderKeys = Object.keys(orderBy);

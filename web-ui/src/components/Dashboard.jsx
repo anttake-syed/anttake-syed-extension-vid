@@ -70,7 +70,14 @@ function GetExtensionBanner() {
       </div>
     </div>
   );
-}
+const getFullSrc = (src) => {
+  if (!src) return '';
+  const url = src.startsWith('/') ? `${SERVER_URL}${src}` : src;
+  const userStr = localStorage.getItem('user');
+  const token = userStr ? JSON.parse(userStr).jwt : '';
+  if (!token) return url;
+  return url.includes('?') ? `${url}&token=${token}` : `${url}?token=${token}`;
+};
 
 const ThumbnailVideo = ({ item }) => {
   const [videoHovered, setVideoHovered] = useState(false);
@@ -97,7 +104,8 @@ const ThumbnailVideo = ({ item }) => {
 
       {/* Video Element */}
       <video
-        src={item.src}
+        src={`${getFullSrc(item.src)}#t=0.5`}
+        preload="metadata"
         style={{
           width: '100%', height: '100%', objectFit: 'cover',
           opacity: isLoaded ? 1 : 0, transition: 'opacity 0.3s ease'
@@ -218,7 +226,7 @@ function MediaThumb({ item, onOpen }) {
         <ImagePreviewFallback item={item} />
       ) : item.type === 'image' && item.src && !imgError ? (
         <img
-          src={item.src}
+          src={getFullSrc(item.src)}
           alt={item.title}
           style={{ width: '100%', height: '100%', objectFit: 'cover' }}
           onError={() => setImgError(true)}

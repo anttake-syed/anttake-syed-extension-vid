@@ -1224,3 +1224,8 @@
   border-color: rgba(56, 189, 248, 0.4);
   color: #7dd3fc;
 }
+
+@keyframes wbSlideInLeft {
+  from { opacity: 0; transform: translateY(-50%) translateX(-18px); }
+  to   { opacity: 1; transform: translateY(-50%) translateX(0); }
+}

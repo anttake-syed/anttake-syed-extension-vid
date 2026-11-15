@@ -5,6 +5,7 @@ import React, { useState, useEffect, useRef } from 'react';
  * Modern inline canvas text editor placed directly at the click location.
  * Auto-expands as user types, supports Shift+Enter for multiline,
  * and commits on Enter, Escape, or when focus truly leaves the editor.
+ * Supports centered mode for shapes/rects/circles/frames.
  */
 export default function WhiteboardInlineTextEditor({
   initialText = '',
@@ -14,6 +15,9 @@ export default function WhiteboardInlineTextEditor({
   fontSize = 24,
   zoom = 1,
   panOffset = { x: 0, y: 0 },
+  centered = false,
+  minWidth = 120,
+  placeholder = 'Type text…',
   onCommit,
   onCancel,
 }) {
@@ -22,9 +26,9 @@ export default function WhiteboardInlineTextEditor({
   const containerRef         = useRef(null);
   const committedRef         = useRef(false);
 
-  // World → screen position
+  // World -> screen position
   const screenLeft     = Math.round(x * zoom + panOffset.x);
-  const screenTop      = Math.round((y - fontSize) * zoom + panOffset.y);
+  const screenTop      = centered ? Math.round(y * zoom + panOffset.y) : Math.round((y - fontSize) * zoom + panOffset.y);
   const scaledFontSize = Math.max(12, Math.round(fontSize * zoom));
 
   const adjustSize = () => {
@@ -33,7 +37,7 @@ export default function WhiteboardInlineTextEditor({
     el.style.height = 'auto';
     el.style.width  = 'auto';
     el.style.height = `${Math.max(scaledFontSize * 1.35, el.scrollHeight)}px`;
-    el.style.width  = `${Math.max(120, el.scrollWidth + 16)}px`;
+    el.style.width  = `${Math.max(minWidth, el.scrollWidth + 16)}px`;
   };
 
   useEffect(() => {
@@ -67,7 +71,7 @@ export default function WhiteboardInlineTextEditor({
   // Only commit when focus truly leaves the editor container
   const handleContainerBlur = (e) => {
     if (containerRef.current && containerRef.current.contains(e.relatedTarget)) {
-      return; // focus moved within container — keep open
+      return; // focus moved within container - keep open
     }
     doCommit(value);
   };
@@ -92,6 +96,7 @@ export default function WhiteboardInlineTextEditor({
         position:      'absolute',
         left:          `${screenLeft}px`,
         top:           `${screenTop}px`,
+        transform:     centered ? 'translate(-50%, -50%)' : 'none',
         zIndex:        100,
         pointerEvents: 'auto',
       }}
@@ -104,7 +109,7 @@ export default function WhiteboardInlineTextEditor({
         value={value}
         onChange={(e) => { setValue(e.target.value); adjustSize(); }}
         onKeyDown={handleKeyDown}
-        placeholder="Type text…"
+        placeholder={placeholder}
         rows={1}
         style={{
           fontSize:     `${scaledFontSize}px`,
@@ -112,15 +117,16 @@ export default function WhiteboardInlineTextEditor({
           fontFamily:   "'Outfit', sans-serif",
           color:        color || '#f8fafc',
           caretColor:   color || '#f8fafc',
-          background:   'rgba(15, 23, 42, 0.75)',
+          background:   'rgba(15, 23, 42, 0.85)',
           border:       '1.5px dashed #6366f1',
           borderRadius: '6px',
-          padding:      '2px 8px',
+          padding:      '4px 8px',
           outline:      'none',
           boxShadow:    '0 0 0 3px rgba(99, 102, 241, 0.25), 0 4px 14px rgba(0,0,0,0.5)',
           resize:       'none',
           overflow:     'hidden',
           whiteSpace:   'pre',
+          textAlign:    centered ? 'center' : 'left',
           display:      'block',
           boxSizing:    'border-box',
           margin:       0,
@@ -130,7 +136,8 @@ export default function WhiteboardInlineTextEditor({
         style={{
           position:      'absolute',
           top:           '100%',
-          left:          0,
+          left:          centered ? '50%' : 0,
+          transform:     centered ? 'translateX(-50%)' : 'none',
           marginTop:     '4px',
           display:       'flex',
           gap:           '8px',

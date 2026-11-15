@@ -411,9 +411,18 @@ export function renderWhiteboardCanvas(ctx, canvas, state) {
           strokeWidth: el.size || 2,
         });
       } else if (el.type === 'text') {
-        ctx.fillStyle = el.color || '#f8fafc';
-        ctx.font      = `${el.fontSize || 14}px 'Outfit', sans-serif`;
-        ctx.fillText(el.text || '', el.x || 0, el.y || 0);
+        if (state.editingTextIndex === i) {
+          // Skip drawing static text on canvas while user is actively typing in inline editor
+        } else {
+          ctx.fillStyle = el.color || '#f8fafc';
+          const fontSize = el.fontSize || 14;
+          ctx.font      = `${fontSize}px 'Outfit', sans-serif`;
+          const lines = String(el.text || '').split('\n');
+          const lineHeight = fontSize * 1.25;
+          lines.forEach((line, lineIdx) => {
+            ctx.fillText(line, el.x || 0, (el.y || 0) + lineIdx * lineHeight);
+          });
+        }
       } else if (el.type === 'image') {
         if (el.img) {
           try {

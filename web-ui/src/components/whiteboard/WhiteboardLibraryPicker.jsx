@@ -1,30 +1,72 @@
-import React, { useState, useEffect } from 'react';
-import { SERVER_URL } from '../../config.js';
+import React, { useState, useEffect, useRef } from 'react';
+import { SERVER_URL, IS_LOCAL_MODE } from '../../config.js';
 import { getFullSrc } from './whiteboardHelpers.js';
 
-export default function WhiteboardLibraryPicker({ user, onSelect, onClose, initialTab }) {
-  const [captures, setCaptures] = useState([]);
-  const [loading, setLoading]   = useState(true);
+export default function WhiteboardLibraryPicker({
+  user,
+  captures: initialCaptures,
+  onSelect,
+  onClose,
+  initialTab,
+}) {
+  const [captures, setCaptures] = useState(() => initialCaptures || []);
+  const [loading, setLoading]   = useState(() => !initialCaptures || initialCaptures.length === 0);
   const [search, setSearch]     = useState('');
   const [tab, setTab]           = useState(initialTab || 'all'); // 'all' | 'images' | 'videos'
+  const fileInputRef            = useRef(null);
 
   useEffect(() => {
+    if (initialCaptures && initialCaptures.length > 0) {
+      setCaptures(initialCaptures);
+      setLoading(false);
+      return;
+    }
+
     async function load() {
       try {
-        const res = await fetch(`${SERVER_URL}/captures`, {
-          headers: { Authorization: `Bearer ${user?.jwt}` },
-        });
+        let token = user?.jwt;
+        if (!token) {
+          try {
+            const raw = localStorage.getItem('antcapture_user') || localStorage.getItem('user');
+            if (raw) {
+              const parsed = JSON.parse(raw);
+              token = parsed?.jwt;
+            }
+          } catch (_) {}
+        }
+        if (!token && IS_LOCAL_MODE) {
+          token = 'local-mode';
+        }
+
+        const headers = token ? { Authorization: `Bearer ${token}` } : {};
+        const res = await fetch(`${SERVER_URL}/captures`, { headers });
         if (!res.ok) throw new Error('fetch failed');
         const data = await res.json();
-        setCaptures(data.captures || []);
+        const loaded = (data.captures || []).map(c => {
+          let src = c.fileUrl || c.src;
+          if (src && src.startsWith('/')) {
+            src = `${SERVER_URL}${src}`;
+          }
+          return { ...c, src };
+        });
+        setCaptures(loaded);
       } catch {
-        setCaptures([]);
+        setCaptures(initialCaptures || []);
       } finally {
         setLoading(false);
       }
     }
     load();
-  }, [user]);
+  }, [user, initialCaptures]);
+
+  const handleFileUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const isVideo = file.type.startsWith('video');
+    const objectUrl = URL.createObjectURL(file);
+    onSelect(objectUrl, isVideo, file.name);
+    onClose();
+  };
 
   const filtered = captures.filter(c => {
     const matchSearch = !search || (c.title || '').toLowerCase().includes(search.toLowerCase());
@@ -45,6 +87,15 @@ export default function WhiteboardLibraryPicker({ user, onSelect, onClose, initi
   return (
     <div className="wb-overlay" style={{ zIndex: 2000 }} onClick={onClose}>
       <div className="wb-library" onClick={e => e.stopPropagation()}>
+        {/* Hidden File Input for Device Upload */}
+        <input
+          type="file"
+          ref={fileInputRef}
+          style={{ display: 'none' }}
+          accept="image/*,video/*"
+          onChange={handleFileUpload}
+        />
+
         {/* Header */}
         <div className="wb-library-head">
           <div className="wb-library-title">
@@ -52,20 +103,50 @@ export default function WhiteboardLibraryPicker({ user, onSelect, onClose, initi
               <span className="material-symbols-rounded" style={{ fontSize: '22px', color: '#a5b4fc' }}>photo_library</span>
             </div>
             <div className="min-w-0">
-              <h3 style={{ color: 'var(--text-main)', fontSize: '18px', fontWeight: 700, margin: 0, letterSpacing: '-0.02em' }}>Import from Library</h3>
-              <p style={{ color: 'var(--text-dim)', fontSize: '13px', margin: '3px 0 0' }}>Click any capture to add it to your board</p>
+              <h3 style={{ color: 'var(--text-main)', fontSize: '18px', fontWeight: 700, margin: 0, letterSpacing: '-0.02em' }}>Import Media</h3>
+              <p style={{ color: 'var(--text-dim)', fontSize: '13px', margin: '3px 0 0' }}>Select from your captures or upload from your computer</p>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="wb-library-close"
-            aria-label="Close"
-            style={{ background: 'rgba(255,255,255,0.05)', border: 'none', color: '#94a3b8', cursor: 'pointer', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.15)'; e.currentTarget.style.color = '#f87171'; }}
-            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.color = '#94a3b8'; }}
-          >
-            <span className="material-symbols-rounded" style={{ fontSize: '20px' }}>close</span>
-          </button>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="wb-library-upload-btn"
+              title="Upload image or video file from your computer"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                background: 'linear-gradient(135deg, #6366f1, #4f46e5)',
+                color: '#ffffff',
+                border: 'none',
+                borderRadius: '9px',
+                padding: '8px 14px',
+                fontSize: '13px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                fontFamily: "'Outfit', sans-serif",
+                boxShadow: '0 2px 8px rgba(99,102,241,0.35)',
+                transition: 'all 0.15s ease',
+              }}
+              onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-1px)'}
+              onMouseLeave={e => e.currentTarget.style.transform = 'none'}
+            >
+              <span className="material-symbols-rounded" style={{ fontSize: '18px' }}>upload_file</span>
+              Upload from Computer
+            </button>
+
+            <button
+              onClick={onClose}
+              className="wb-library-close"
+              aria-label="Close"
+              style={{ background: 'rgba(255,255,255,0.05)', border: 'none', color: '#94a3b8', cursor: 'pointer', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '36px', height: '36px' }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.15)'; e.currentTarget.style.color = '#f87171'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.color = '#94a3b8'; }}
+            >
+              <span className="material-symbols-rounded" style={{ fontSize: '20px' }}>close</span>
+            </button>
+          </div>
         </div>
 
         {/* Filter + Search bar */}
@@ -103,17 +184,45 @@ export default function WhiteboardLibraryPicker({ user, onSelect, onClose, initi
               <p style={{ fontSize: '15px', fontWeight: 500 }}>Loading your captures…</p>
             </div>
           ) : filtered.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '80px 0', color: '#475569' }}>
+            <div style={{ textAlign: 'center', padding: '60px 20px', color: '#475569' }}>
               <div style={{ width: '80px', height: '80px', borderRadius: '24px', background: 'rgba(255,255,255,0.02)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
-                <span className="material-symbols-rounded" style={{ fontSize: '40px', color: '#334155' }}>search_off</span>
+                <span className="material-symbols-rounded" style={{ fontSize: '40px', color: '#334155' }}>photo_library</span>
               </div>
               <p style={{ fontSize: '16px', fontWeight: 600, color: '#e2e8f0', margin: '0 0 6px' }}>No captures found</p>
-              <p style={{ margin: 0, fontSize: '14px' }}>Try adjusting your search terms.</p>
+              <p style={{ margin: '0 0 16px', fontSize: '14px', color: '#94a3b8' }}>
+                {search ? 'Try adjusting your search terms, or' : 'Upload an image or video directly from your device:'}
+              </p>
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  background: 'rgba(99,102,241,0.15)',
+                  color: '#a5b4fc',
+                  border: '1px solid rgba(99,102,241,0.3)',
+                  borderRadius: '8px',
+                  padding: '8px 16px',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  fontFamily: "'Outfit', sans-serif"
+                }}
+              >
+                <span className="material-symbols-rounded" style={{ fontSize: '18px' }}>upload_file</span>
+                Choose File from Computer
+              </button>
             </div>
           ) : (
             <div className="wb-library-grid">
               {filtered.map(cap => {
-                const src = getFullSrc(cap.src, user?.jwt);
+                const token = user?.jwt || (() => {
+                  try {
+                    const raw = localStorage.getItem('antcapture_user') || localStorage.getItem('user');
+                    return raw ? JSON.parse(raw)?.jwt : '';
+                  } catch (_) { return ''; }
+                })();
+                const src = getFullSrc(cap.src, token);
                 const isVideo = cap.type === 'video';
 
                 return (
@@ -153,8 +262,8 @@ export default function WhiteboardLibraryPicker({ user, onSelect, onClose, initi
                         {cap.title || 'Untitled'}
                       </div>
                       <div style={{ fontSize: '12px', color: 'var(--text-muted)', display: 'flex', justifyContent: 'space-between', gap: '8px' }}>
-                        <span>{new Date(cap.date).toLocaleDateString()}</span>
-                        <span>{cap.size || ''}</span>
+                        <span>{new Date(cap.date || cap.createdAt || Date.now()).toLocaleDateString()}</span>
+                        <span>{cap.size ? (typeof cap.size === 'number' ? `${Math.round(cap.size / 1024)} KB` : cap.size) : ''}</span>
                       </div>
                     </div>
                   </div>

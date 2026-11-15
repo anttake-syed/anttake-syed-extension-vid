@@ -218,7 +218,7 @@ export default function WhiteboardContextBar({
       )}
 
       {/* ── Fill Texture Mode (Outline only vs Textured semi-fill vs Hatch) ── */}
-      {showShapeStyles && ['rect', 'circle'].includes(targetType) && (
+      {showShapeStyles && ['rect', 'circle', 'shape'].includes(targetType) && (
         <>
           <div className="wb-context-divider" />
           <div className="wb-context-section">

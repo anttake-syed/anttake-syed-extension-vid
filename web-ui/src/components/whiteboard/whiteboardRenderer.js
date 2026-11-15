@@ -346,51 +346,58 @@ export function renderWhiteboardCanvas(ctx, canvas, state) {
         const cw = el.w || 380;
         const ch = el.h || 220;
 
-        // Container background
+        // Container background (Terminal dark styling)
+        ctx.fillStyle = '#0a0f1d';
+        ctx.beginPath();
+        ctx.roundRect(el.x, el.y, cw, ch, 8);
+        ctx.fill();
+
+        // Terminal Titlebar Header
         ctx.fillStyle = '#0f172a';
         ctx.beginPath();
-        ctx.roundRect(el.x, el.y, cw, ch, 10);
+        ctx.roundRect(el.x, el.y, cw, 30, [8, 8, 0, 0]);
         ctx.fill();
 
-        // Header
-        ctx.fillStyle = '#1e293b';
-        ctx.beginPath();
-        ctx.roundRect(el.x, el.y, cw, 32, [10, 10, 0, 0]);
-        ctx.fill();
+        // macOS / Linux Terminal Window Dots
+        ctx.fillStyle = '#f43f5e'; ctx.beginPath(); ctx.arc(el.x + 14, el.y + 15, 4, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#fbbf24'; ctx.beginPath(); ctx.arc(el.x + 26, el.y + 15, 4, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#22c55e'; ctx.beginPath(); ctx.arc(el.x + 38, el.y + 15, 4, 0, Math.PI * 2); ctx.fill();
 
-        // macOS Traffic lights
-        ctx.fillStyle = '#ef4444'; ctx.beginPath(); ctx.arc(el.x + 16, el.y + 16, 4.5, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = '#f59e0b'; ctx.beginPath(); ctx.arc(el.x + 30, el.y + 16, 4.5, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = '#10b981'; ctx.beginPath(); ctx.arc(el.x + 44, el.y + 16, 4.5, 0, Math.PI * 2); ctx.fill();
+        // Terminal Prompt Title (e.g. bash ~ or main.js)
+        ctx.fillStyle = '#64748b';
+        ctx.font = "bold 11px 'Fira Code', monospace, sans-serif";
+        ctx.fillText(`terminal — ${(el.language || 'code').toLowerCase()}`, el.x + 52, el.y + 19);
 
-        // Language tag
-        ctx.fillStyle = '#818cf8';
-        ctx.font = "bold 11px monospace";
-        ctx.fillText((el.language || 'JAVASCRIPT').toUpperCase(), el.x + cw - 80, el.y + 20);
+        // Language tag on right
+        ctx.fillStyle = '#38bdf8';
+        ctx.font = "bold 10px monospace";
+        ctx.fillText((el.language || 'JS').toUpperCase(), el.x + cw - 70, el.y + 19);
 
         // Code content line by line
         const lines = (el.code || '// Write code here\nfunction example() {\n  return "AntCapture";\n}').split('\n');
         ctx.font = "12px 'Fira Code', monospace, sans-serif";
-        const maxLines = Math.floor((ch - 46) / 20);
+        const maxLines = Math.floor((ch - 44) / 20);
 
         lines.slice(0, maxLines).forEach((line, idx) => {
-          const ly = el.y + 52 + idx * 20;
+          const ly = el.y + 50 + idx * 20;
 
-          // Line numbers
-          ctx.fillStyle = '#475569';
+          // Line numbers or terminal prompt symbol
+          ctx.fillStyle = '#334155';
           ctx.fillText(String(idx + 1).padStart(2, ' '), el.x + 14, ly);
 
           // Code text
-          ctx.fillStyle = '#e2e8f0';
+          ctx.fillStyle = '#f1f5f9';
           ctx.fillText(line, el.x + 44, ly);
         });
 
         // Border outline
-        ctx.strokeStyle = el.color || '#334155';
-        ctx.lineWidth = Math.max(1.5, el.size || 2);
+        ctx.strokeStyle = el.color || '#1e293b';
+        ctx.lineWidth = Math.max(1, el.size || 1.5);
         ctx.beginPath();
-        ctx.roundRect(el.x, el.y, cw, ch, 10);
+        ctx.roundRect(el.x, el.y, cw, ch, 8);
         ctx.stroke();
+
+
 
       } else if (el.type === 'path') {
         if (el.points && el.points.length > 0) {
@@ -565,13 +572,16 @@ export function renderWhiteboardCanvas(ctx, canvas, state) {
     ctx.lineJoin    = 'round';
     ctx.setLineDash([4, 4]);
 
-    if (lt === 'rect' || lt === 'frame') {
+    if (lt === 'rect' || lt === 'frame' || lt === 'code') {
       const rx = Math.min(s.x, ep.x);
       const ry = Math.min(s.y, ep.y);
       const rw = Math.abs(ep.x - s.x);
       const rh = Math.abs(ep.y - s.y);
       if (lt === 'frame') {
         ctx.fillStyle = 'rgba(99, 102, 241, 0.08)';
+        ctx.fillRect(rx, ry, rw, rh);
+      } else if (lt === 'code') {
+        ctx.fillStyle = 'rgba(10, 15, 29, 0.65)';
         ctx.fillRect(rx, ry, rw, rh);
       }
       ctx.strokeRect(rx, ry, rw, rh);

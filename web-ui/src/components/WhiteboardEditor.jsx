@@ -766,6 +766,7 @@ export default function WhiteboardEditor({
               x: el.x, y: el.y,
               w: el.w, h: el.h,
               x2: el.x2, y2: el.y2,
+              cpx: el.cpx, cpy: el.cpy,
               points: el.points ? el.points.map(p => ({ ...p })) : null,
             };
           }
@@ -815,7 +816,7 @@ export default function WhiteboardEditor({
 
     drawing.current = true;
     currentPath.current = [pos];
-    if (['rect', 'circle', 'arrow', 'frame'].includes(tool)) liveShape.current = { startPt: pos, endPt: pos, tool };
+    if (['rect', 'circle', 'arrow', 'frame', 'code'].includes(tool)) liveShape.current = { startPt: pos, endPt: pos, tool };
   };
 
   const onMouseMove = (e) => {
@@ -963,7 +964,15 @@ export default function WhiteboardEditor({
           if (el.type === 'path' && snap.points) {
             return { ...el, points: snap.points.map(p => ({ x: p.x + dx, y: p.y + dy })) };
           } else if (el.type === 'arrow') {
-            return { ...el, x: snap.x + dx, y: snap.y + dy, x2: snap.x2 + dx, y2: snap.y2 + dy };
+            const hasCp = snap.cpx !== undefined && snap.cpy !== undefined;
+            return {
+              ...el,
+              x: snap.x + dx,
+              y: snap.y + dy,
+              x2: snap.x2 + dx,
+              y2: snap.y2 + dy,
+              ...(hasCp ? { cpx: snap.cpx + dx, cpy: snap.cpy + dy } : {}),
+            };
           } else {
             return { ...el, x: snap.x + dx, y: snap.y + dy };
           }
@@ -1111,8 +1120,34 @@ export default function WhiteboardEditor({
       const w = Math.abs(endPt.x - startPt.x);
       const h = Math.abs(endPt.y - startPt.y);
       newEl = { type: 'frame', x: minX, y: minY, w, h, color: '#6366f1', size: 2, title: 'Frame' };
+    } else if (tool === 'code') {
+      const minX = Math.min(startPt.x, endPt.x);
+      const minY = Math.min(startPt.y, endPt.y);
+      const w = Math.max(160, Math.abs(endPt.x - startPt.x));
+      const h = Math.max(100, Math.abs(endPt.y - startPt.y));
+      newEl = {
+        type: 'code',
+        code: '// Write code here\nfunction example() {\n  return "AntCapture";\n}',
+        language: 'javascript',
+        x: minX,
+        y: minY,
+        w,
+        h,
+        color: '#1e293b',
+        size: 1.5,
+      };
     }
-    if (newEl) { const next = [...elements, newEl]; setElements(next); commitToHistory(next); }
+    if (newEl) {
+      const next = [...elements, newEl];
+      setElements(next);
+      commitToHistory(next);
+      if (['rect', 'circle', 'arrow', 'frame', 'code'].includes(tool)) {
+        const newIdx = next.length - 1;
+        setSelectedId(newIdx);
+        setSelectedIds([newIdx]);
+        setTool('select');
+      }
+    }
     currentPath.current = [];
     redraw();
   };
@@ -1610,6 +1645,36 @@ export default function WhiteboardEditor({
           return;
         }
 
+        if (targetEl.type === 'code') {
+          setInlineEditingText({
+            x: targetEl.x + 44,
+            y: targetEl.y + 50,
+            value: targetEl.code || '',
+            color: '#f1f5f9',
+            fontSize: 12,
+            elementIndex: targetIdx,
+            mode: 'code-content',
+            minWidth: Math.max(200, Math.round((targetEl.w || 380) - 60)),
+            placeholder: '// Paste or edit code...',
+          });
+          return;
+        }
+
+        if (targetEl.type === 'embed' || targetEl.type === 'link') {
+          setInlineEditingText({
+            x: targetEl.x + 20,
+            y: targetEl.y + 40,
+            value: targetEl.url || '',
+            color: '#38bdf8',
+            fontSize: 13,
+            elementIndex: targetIdx,
+            mode: 'embed-url',
+            minWidth: Math.max(220, Math.round((targetEl.w || 400) - 40)),
+            placeholder: 'https://youtube.com/watch?v=... or https://...',
+          });
+          return;
+        }
+
         if (targetEl.type === 'frame') {
           setInlineEditingText({
             x: targetEl.x + 14,
@@ -1805,8 +1870,31 @@ export default function WhiteboardEditor({
     if (t === 'video') { setShowLibrary('videos'); return; }
     if (t === 'shapes') { setShowShapeModal(true); return; }
     if (t === 'icon') { setShowIconModal(true); return; }
-    if (t === 'code') { setShowCodeModal(true); return; }
-    if (t === 'embed-frame') { setShowEmbedFrameModal(true); return; }
+    if (t === 'embed-frame') {
+      const canvas = canvasRef.current;
+      const cw = canvas ? canvas.width / 2 : 400;
+      const ch = canvas ? canvas.height / 2 : 300;
+      const center = screenToWorld(cw, ch);
+      const w = 480;
+      const h = 300;
+      const newEl = {
+        type: 'link',
+        url: 'https://',
+        title: 'Embed Website Frame (Double-click to set URL)',
+        x: Math.round(center.x - w / 2),
+        y: Math.round(center.y - h / 2),
+        w,
+        h,
+        rotation: 0,
+      };
+      const next = [...elements, newEl];
+      setElements(next);
+      commitToHistory(next);
+      setSelectedId(next.length - 1);
+      setSelectedIds([next.length - 1]);
+      setTool('select');
+      return;
+    }
     setTool(t);
     setSelectedId(null);
     setSelectedIds([]);
@@ -2133,6 +2221,40 @@ export default function WhiteboardEditor({
     if (elementIndex !== null && elementIndex !== undefined) {
       if (mode === 'frame-title') {
         const next = elements.map((el, i) => i === elementIndex ? { ...el, title: text || 'FRAME' } : el);
+        setElements(next);
+        commitToHistory(next);
+        setSelectedId(elementIndex);
+        setSelectedIds([elementIndex]);
+      } else if (mode === 'code-content') {
+        const next = elements.map((el, i) => i === elementIndex ? { ...el, code: text || '// Empty code' } : el);
+        setElements(next);
+        commitToHistory(next);
+        setSelectedId(elementIndex);
+        setSelectedIds([elementIndex]);
+      } else if (mode === 'embed-url') {
+        const clean = parsePastedUrl(text);
+        const ytid = clean ? extractYouTubeVideoId(clean) : null;
+        let title = text;
+        try { if (clean) title = new URL(clean).hostname; } catch (_) {}
+        const next = elements.map((el, i) => {
+          if (i !== elementIndex) return el;
+          if (ytid) {
+            return {
+              ...el,
+              type: 'embed',
+              embedType: 'youtube',
+              videoId: ytid,
+              url: clean,
+              title: 'YouTube Video',
+            };
+          }
+          return {
+            ...el,
+            type: 'link',
+            url: clean || text,
+            title: title || 'Embed Frame',
+          };
+        });
         setElements(next);
         commitToHistory(next);
         setSelectedId(elementIndex);

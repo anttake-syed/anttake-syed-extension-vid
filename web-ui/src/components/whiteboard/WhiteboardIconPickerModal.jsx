@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 
 const ICON_CATEGORIES = [
   {
@@ -36,6 +36,10 @@ const ICON_CATEGORIES = [
   }
 ];
 
+/**
+ * WhiteboardIconPickerModal
+ * Converted to a clean side flyout panel anchored adjacent to the whiteboard toolbar.
+ */
 export default function WhiteboardIconPickerModal({
   isOpen,
   onSelectIcon,
@@ -43,6 +47,18 @@ export default function WhiteboardIconPickerModal({
 }) {
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [search, setSearch] = useState('');
+  const panelRef = useRef(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handler = (e) => {
+      if (panelRef.current && !panelRef.current.contains(e.target)) {
+        onClose();
+      }
+    };
+    const tid = setTimeout(() => document.addEventListener('mousedown', handler), 100);
+    return () => { clearTimeout(tid); document.removeEventListener('mousedown', handler); };
+  }, [isOpen, onClose]);
 
   if (!isOpen) return null;
 
@@ -52,139 +68,127 @@ export default function WhiteboardIconPickerModal({
   );
 
   return (
-    <div className="wb-overlay" style={{ zIndex: 4000 }} onClick={onClose}>
-      <div
-        className="wb-dialog"
-        role="dialog"
-        aria-modal="true"
-        style={{ maxWidth: '620px', width: '92%' }}
-        onClick={e => e.stopPropagation()}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
-          <div>
-            <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: '#f8fafc' }}>
-              Icon Library
-            </h3>
-            <p style={{ margin: '4px 0 0', fontSize: '13px', color: '#94a3b8' }}>
-              Select an icon to add directly to your whiteboard
-            </p>
-          </div>
-          <button
-            onClick={onClose}
-            style={{
-              background: 'transparent',
-              border: 'none',
-              color: '#94a3b8',
-              cursor: 'pointer',
-              padding: '6px',
-              borderRadius: '8px',
-            }}
-          >
-            <span className="material-symbols-rounded">close</span>
-          </button>
+    <div
+      ref={panelRef}
+      style={{
+        position:      'absolute',
+        left:          '72px',
+        top:           '50%',
+        transform:     'translateY(-50%)',
+        zIndex:        3000,
+        width:         '320px',
+        maxHeight:     'calc(100vh - 120px)',
+        background:    'linear-gradient(180deg, #1e293b 0%, #0f172a 100%)',
+        border:        '1px solid rgba(56, 189, 248, 0.3)',
+        borderRadius:  '16px',
+        boxShadow:     '0 24px 64px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.05)',
+        display:       'flex',
+        flexDirection: 'column',
+        overflow:      'hidden',
+        animation:     'wbSlideInLeft 0.18s ease',
+      }}
+    >
+      {/* Header */}
+      <div style={{ padding: '14px 16px 10px', borderBottom: '1px solid rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+        <div>
+          <div style={{ fontSize: '14px', fontWeight: 700, color: '#f8fafc' }}>Icon Library</div>
+          <div style={{ fontSize: '11px', color: '#64748b', marginTop: '1px' }}>Click to place on canvas</div>
         </div>
+        <button
+          onClick={onClose}
+          style={{ background: 'rgba(255,255,255,0.06)', border: 'none', borderRadius: '8px', color: '#94a3b8', cursor: 'pointer', padding: '5px', display: 'flex', alignItems: 'center' }}
+        >
+          <span className="material-symbols-rounded" style={{ fontSize: '17px' }}>close</span>
+        </button>
+      </div>
 
-        {/* Search Input */}
-        <div style={{ marginBottom: '16px' }}>
+      {/* Search Input */}
+      <div style={{ padding: '10px 12px 6px', flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', background: 'rgba(15, 23, 42, 0.7)', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: '8px', padding: '0 8px' }}>
+          <span className="material-symbols-rounded" style={{ fontSize: '16px', color: '#64748b' }}>search</span>
           <input
             type="text"
+            placeholder="Search icons…"
             value={search}
             onChange={e => setSearch(e.target.value)}
-            placeholder="Search icons (e.g. cloud, database, phone, mail)..."
-            autoFocus
             style={{
               width: '100%',
-              boxSizing: 'border-box',
-              background: 'rgba(15, 23, 42, 0.8)',
-              border: '1px solid rgba(255, 255, 255, 0.12)',
-              borderRadius: '10px',
+              background: 'transparent',
+              border: 'none',
+              padding: '6px 8px',
               color: '#f8fafc',
-              padding: '10px 14px',
-              fontSize: '13px',
+              fontSize: '12px',
               outline: 'none',
               fontFamily: "'Outfit', sans-serif",
             }}
           />
-        </div>
-
-        {/* Category Pills */}
-        <div style={{ display: 'flex', gap: '6px', overflowX: 'auto', paddingBottom: '10px', marginBottom: '14px' }}>
-          {ICON_CATEGORIES.map(cat => (
+          {search && (
             <button
-              key={cat.name}
-              onClick={() => setSelectedCategory(cat.name)}
-              style={{
-                padding: '6px 14px',
-                borderRadius: '8px',
-                border: 'none',
-                background: selectedCategory === cat.name ? 'linear-gradient(135deg, #6366f1, #8b5cf6)' : 'rgba(255,255,255,0.06)',
-                color: selectedCategory === cat.name ? '#ffffff' : '#94a3b8',
-                fontSize: '12px',
-                fontWeight: 600,
-                cursor: 'pointer',
-                whiteSpace: 'nowrap',
-              }}
+              onClick={() => setSearch('')}
+              style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', padding: 0 }}
             >
-              {cat.name}
+              <span className="material-symbols-rounded" style={{ fontSize: '14px' }}>close</span>
             </button>
-          ))}
+          )}
         </div>
+      </div>
 
-        {/* Icons Grid */}
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(64px, 1fr))',
-            gap: '10px',
-            maxHeight: '320px',
-            overflowY: 'auto',
-            padding: '4px',
-          }}
-        >
+      {/* Categories chips */}
+      <div style={{ display: 'flex', gap: '4px', overflowX: 'auto', padding: '6px 12px 8px', flexShrink: 0 }}>
+        {ICON_CATEGORIES.map(cat => (
+          <button
+            key={cat.name}
+            onClick={() => { setSelectedCategory(cat.name); setSearch(''); }}
+            style={{
+              padding: '4px 8px',
+              borderRadius: '6px',
+              border: 'none',
+              background: selectedCategory === cat.name ? 'rgba(56, 189, 248, 0.2)' : 'rgba(255,255,255,0.04)',
+              color: selectedCategory === cat.name ? '#38bdf8' : '#64748b',
+              fontWeight: 600,
+              fontSize: '10px',
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+              transition: 'all 0.12s',
+            }}
+          >
+            {cat.name}
+          </button>
+        ))}
+      </div>
+
+      {/* Icons Grid */}
+      <div style={{ overflowY: 'auto', padding: '8px 12px 14px', flex: 1 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '6px' }}>
           {filteredIcons.map(icon => (
             <button
               key={icon}
+              onClick={() => { onSelectIcon(icon); onClose(); }}
               title={icon}
-              onClick={() => {
-                onSelectIcon(icon);
-                onClose();
-              }}
               style={{
                 display: 'flex',
-                flexDirection: 'column',
                 alignItems: 'center',
                 justifyContent: 'center',
-                padding: '14px 8px',
-                background: 'rgba(30, 41, 59, 0.5)',
-                border: '1px solid rgba(255, 255, 255, 0.08)',
-                borderRadius: '10px',
-                color: '#f8fafc',
+                padding: '10px 4px',
+                background: 'rgba(30, 41, 59, 0.6)',
+                border: '1px solid rgba(255,255,255,0.07)',
+                borderRadius: '8px',
+                color: '#38bdf8',
                 cursor: 'pointer',
-                transition: 'all 0.15s ease',
+                transition: 'all 0.12s ease',
               }}
-              onMouseEnter={e => {
-                e.currentTarget.style.borderColor = '#38bdf8';
-                e.currentTarget.style.background = 'rgba(56, 189, 248, 0.15)';
-                e.currentTarget.style.transform = 'translateY(-2px)';
-              }}
-              onMouseLeave={e => {
-                e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.08)';
-                e.currentTarget.style.background = 'rgba(30, 41, 59, 0.5)';
-                e.currentTarget.style.transform = 'translateY(0)';
-              }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = '#38bdf8'; e.currentTarget.style.background = 'rgba(56, 189, 248, 0.18)'; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.07)'; e.currentTarget.style.background = 'rgba(30,41,59,0.6)'; }}
             >
-              <span className="material-symbols-rounded" style={{ fontSize: '28px', color: '#38bdf8' }}>
-                {icon}
-              </span>
+              <span className="material-symbols-rounded" style={{ fontSize: '24px' }}>{icon}</span>
             </button>
           ))}
-
-          {filteredIcons.length === 0 && (
-            <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '30px', color: '#94a3b8', fontSize: '13px' }}>
-              No icons found matching "{search}"
-            </div>
-          )}
         </div>
+        {filteredIcons.length === 0 && (
+          <div style={{ padding: '24px 0', textAlign: 'center', color: '#64748b', fontSize: '12px' }}>
+            No icons found
+          </div>
+        )}
       </div>
     </div>
   );

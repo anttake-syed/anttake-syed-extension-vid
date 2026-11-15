@@ -70,6 +70,8 @@ function GetExtensionBanner() {
       </div>
     </div>
   );
+}
+
 const getFullSrc = (src) => {
   if (!src) return '';
   const url = src.startsWith('/') ? `${SERVER_URL}${src}` : src;

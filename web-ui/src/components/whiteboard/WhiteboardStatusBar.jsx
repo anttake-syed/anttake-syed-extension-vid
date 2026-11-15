@@ -9,6 +9,7 @@ export default function WhiteboardStatusBar({
   tool,
   zoom,
   elementsCount,
+  onZoomReset,
 }) {
   const currentTool = TOOLS.find(t => t.id === tool);
 
@@ -51,8 +52,36 @@ export default function WhiteboardStatusBar({
       </div>
 
       <div className="hide-below-md" style={{ display: 'flex', alignItems: 'center', gap: '16px', flexShrink: 0 }}>
+        {onZoomReset ? (
+          <button
+            onClick={onZoomReset}
+            title="Click to reset zoom to 100%"
+            style={{
+              background: 'rgba(255, 255, 255, 0.05)',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              borderRadius: '4px',
+              padding: '2px 8px',
+              color: '#94a3b8',
+              fontSize: '11px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              transition: 'all 0.15s ease',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.color = '#f8fafc'; e.currentTarget.style.borderColor = '#6366f1'; }}
+            onMouseLeave={e => { e.currentTarget.style.color = '#94a3b8'; e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.1)'; }}
+          >
+            <span>{Math.round(zoom * 100)}%</span>
+            <span style={{ fontSize: '10px', color: '#64748b' }}>(Reset 100%)</span>
+          </button>
+        ) : (
+          <span style={{ fontSize: '11px', color: '#475569' }}>
+            {Math.round(zoom * 100)}%
+          </span>
+        )}
         <span style={{ fontSize: '11px', color: '#475569' }}>
-          {Math.round(zoom * 100)}% · {elementsCount} element{elementsCount !== 1 ? 's' : ''}
+          {elementsCount} element{elementsCount !== 1 ? 's' : ''}
         </span>
       </div>
       <span className="wb-status-hint show-below-sm">Best on a larger screen</span>

@@ -24,6 +24,7 @@ export function renderWhiteboardCanvas(ctx, canvas, state) {
     tool = 'select',
     color = '#6366f1',
     strokeSize = 4,
+    eraserSize = 3,
     selectedId = null,
     selectedIds = [],
     currentPath = [],
@@ -312,6 +313,25 @@ export function renderWhiteboardCanvas(ctx, canvas, state) {
           ctx.fill();
           ctx.stroke();
         }
+
+        if (el.text && state.editingTextIndex !== i) {
+          ctx.save();
+          ctx.fillStyle = el.color || '#f8fafc';
+          const fontSize = el.fontSize || 15;
+          ctx.font = `${fontSize}px 'Outfit', sans-serif`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          const lines = String(el.text).split('\n');
+          const lineHeight = fontSize * 1.25;
+          const totalH = lines.length * lineHeight;
+          const cx = el.x + sw / 2;
+          const cy = el.y + sh / 2;
+          const startY = cy - totalH / 2 + lineHeight / 2;
+          lines.forEach((line, lineIdx) => {
+            ctx.fillText(line, cx, startY + lineIdx * lineHeight);
+          });
+          ctx.restore();
+        }
       } else if (el.type === 'icon') {
         const sz = el.size || el.w || 48;
         ctx.fillStyle = el.color || '#38bdf8';
@@ -326,51 +346,58 @@ export function renderWhiteboardCanvas(ctx, canvas, state) {
         const cw = el.w || 380;
         const ch = el.h || 220;
 
-        // Container background
+        // Container background (Terminal dark styling)
+        ctx.fillStyle = '#0a0f1d';
+        ctx.beginPath();
+        ctx.roundRect(el.x, el.y, cw, ch, 8);
+        ctx.fill();
+
+        // Terminal Titlebar Header
         ctx.fillStyle = '#0f172a';
         ctx.beginPath();
-        ctx.roundRect(el.x, el.y, cw, ch, 10);
+        ctx.roundRect(el.x, el.y, cw, 30, [8, 8, 0, 0]);
         ctx.fill();
 
-        // Header
-        ctx.fillStyle = '#1e293b';
-        ctx.beginPath();
-        ctx.roundRect(el.x, el.y, cw, 32, [10, 10, 0, 0]);
-        ctx.fill();
+        // macOS / Linux Terminal Window Dots
+        ctx.fillStyle = '#f43f5e'; ctx.beginPath(); ctx.arc(el.x + 14, el.y + 15, 4, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#fbbf24'; ctx.beginPath(); ctx.arc(el.x + 26, el.y + 15, 4, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#22c55e'; ctx.beginPath(); ctx.arc(el.x + 38, el.y + 15, 4, 0, Math.PI * 2); ctx.fill();
 
-        // macOS Traffic lights
-        ctx.fillStyle = '#ef4444'; ctx.beginPath(); ctx.arc(el.x + 16, el.y + 16, 4.5, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = '#f59e0b'; ctx.beginPath(); ctx.arc(el.x + 30, el.y + 16, 4.5, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = '#10b981'; ctx.beginPath(); ctx.arc(el.x + 44, el.y + 16, 4.5, 0, Math.PI * 2); ctx.fill();
+        // Terminal Prompt Title (e.g. bash ~ or main.js)
+        ctx.fillStyle = '#64748b';
+        ctx.font = "bold 11px 'Fira Code', monospace, sans-serif";
+        ctx.fillText(`terminal — ${(el.language || 'code').toLowerCase()}`, el.x + 52, el.y + 19);
 
-        // Language tag
-        ctx.fillStyle = '#818cf8';
-        ctx.font = "bold 11px monospace";
-        ctx.fillText((el.language || 'JAVASCRIPT').toUpperCase(), el.x + cw - 80, el.y + 20);
+        // Language tag on right
+        ctx.fillStyle = '#38bdf8';
+        ctx.font = "bold 10px monospace";
+        ctx.fillText((el.language || 'JS').toUpperCase(), el.x + cw - 70, el.y + 19);
 
         // Code content line by line
         const lines = (el.code || '// Write code here\nfunction example() {\n  return "AntCapture";\n}').split('\n');
         ctx.font = "12px 'Fira Code', monospace, sans-serif";
-        const maxLines = Math.floor((ch - 46) / 20);
+        const maxLines = Math.floor((ch - 44) / 20);
 
         lines.slice(0, maxLines).forEach((line, idx) => {
-          const ly = el.y + 52 + idx * 20;
+          const ly = el.y + 50 + idx * 20;
 
-          // Line numbers
-          ctx.fillStyle = '#475569';
+          // Line numbers or terminal prompt symbol
+          ctx.fillStyle = '#334155';
           ctx.fillText(String(idx + 1).padStart(2, ' '), el.x + 14, ly);
 
           // Code text
-          ctx.fillStyle = '#e2e8f0';
+          ctx.fillStyle = '#f1f5f9';
           ctx.fillText(line, el.x + 44, ly);
         });
 
         // Border outline
-        ctx.strokeStyle = el.color || '#334155';
-        ctx.lineWidth = Math.max(1.5, el.size || 2);
+        ctx.strokeStyle = el.color || '#1e293b';
+        ctx.lineWidth = Math.max(1, el.size || 1.5);
         ctx.beginPath();
-        ctx.roundRect(el.x, el.y, cw, ch, 10);
+        ctx.roundRect(el.x, el.y, cw, ch, 8);
         ctx.stroke();
+
+
 
       } else if (el.type === 'path') {
         if (el.points && el.points.length > 0) {
@@ -391,6 +418,22 @@ export function renderWhiteboardCanvas(ctx, canvas, state) {
           strokeWidth: el.size || 2,
           radius: el.radius !== undefined ? el.radius : 12,
         });
+        if (el.text && state.editingTextIndex !== i) {
+          ctx.save();
+          ctx.fillStyle = el.color || '#f8fafc';
+          const fontSize = el.fontSize || 16;
+          ctx.font = `${fontSize}px 'Outfit', sans-serif`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          const lines = String(el.text).split('\n');
+          const lineHeight = fontSize * 1.25;
+          const totalH = lines.length * lineHeight;
+          const startY = el.y + el.h / 2 - totalH / 2 + lineHeight / 2;
+          lines.forEach((line, lineIdx) => {
+            ctx.fillText(line, el.x + el.w / 2, startY + lineIdx * lineHeight);
+          });
+          ctx.restore();
+        }
       } else if (el.type === 'circle') {
         const fill = el.fillStyle === 'none' ? 'transparent' : (el.fill || getFillColor(el.color, 0.16));
         const w = el.w || 0;
@@ -405,6 +448,22 @@ export function renderWhiteboardCanvas(ctx, canvas, state) {
           fillStyle: el.fillStyle || 'solid',
           strokeWidth: el.size || 2,
         });
+        if (el.text && state.editingTextIndex !== i) {
+          ctx.save();
+          ctx.fillStyle = el.color || '#f8fafc';
+          const fontSize = el.fontSize || 16;
+          ctx.font = `${fontSize}px 'Outfit', sans-serif`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          const lines = String(el.text).split('\n');
+          const lineHeight = fontSize * 1.25;
+          const totalH = lines.length * lineHeight;
+          const startY = cy - totalH / 2 + lineHeight / 2;
+          lines.forEach((line, lineIdx) => {
+            ctx.fillText(line, cx, startY + lineIdx * lineHeight);
+          });
+          ctx.restore();
+        }
       } else if (el.type === 'arrow') {
         drawHandDrawnArrow(ctx, el.x || 0, el.y || 0, el.x2 || 0, el.y2 || 0, el.cpx, el.cpy, {
           stroke: el.color || '#6366f1',
@@ -431,15 +490,34 @@ export function renderWhiteboardCanvas(ctx, canvas, state) {
             console.warn('Canvas drawImage error for element:', e);
           }
         } else {
-          ctx.fillStyle = '#0f172a';
+          const isDrive = String(el.src || '').includes('drive.google.com') || String(el.title || '').toLowerCase().includes('drive');
+          const hasError = el.loadError || !el.img;
+
+          ctx.fillStyle = hasError ? 'rgba(30, 41, 59, 0.85)' : '#0f172a';
           ctx.fillRect(el.x, el.y, el.w || 300, el.h || 200);
-          ctx.strokeStyle = '#334155';
-          ctx.lineWidth = 1;
+          ctx.strokeStyle = hasError ? (isDrive ? '#eab308' : '#ef4444') : '#334155';
+          ctx.lineWidth = 1.5;
           ctx.strokeRect(el.x, el.y, el.w || 300, el.h || 200);
 
-          ctx.fillStyle = '#94a3b8';
-          ctx.font = "14px 'Outfit', sans-serif";
-          ctx.fillText(el.title || (el.isVideo ? 'Video Preview' : 'Image Preview'), el.x + 16, el.y + (el.h ? el.h / 2 : 100));
+          ctx.save();
+          if (hasError) {
+            ctx.fillStyle = isDrive ? '#fef08a' : '#fca5a5';
+            ctx.font = "bold 13px 'Outfit', sans-serif";
+            const mainMsg = isDrive ? 'Google Drive Media' : 'Could not load media';
+            ctx.fillText(mainMsg, el.x + 16, el.y + (el.h ? el.h / 2 - 10 : 85));
+
+            ctx.fillStyle = '#94a3b8';
+            ctx.font = "11px 'Outfit', sans-serif";
+            const subMsg = isDrive
+              ? 'Private / view-only Drive media may require sign-in'
+              : (el.title || (el.isVideo ? 'Video preview unavailable' : 'Image preview unavailable'));
+            ctx.fillText(subMsg, el.x + 16, el.y + (el.h ? el.h / 2 + 12 : 110));
+          } else {
+            ctx.fillStyle = '#94a3b8';
+            ctx.font = "14px 'Outfit', sans-serif";
+            ctx.fillText(el.title || (el.isVideo ? 'Video Preview' : 'Image Preview'), el.x + 16, el.y + (el.h ? el.h / 2 : 100));
+          }
+          ctx.restore();
         }
 
         if (el.title) {
@@ -475,7 +553,7 @@ export function renderWhiteboardCanvas(ctx, canvas, state) {
   if (drawing && currentPath.length > 1 && (tool === 'pen' || tool === 'eraser')) {
     ctx.save();
     ctx.strokeStyle = tool === 'eraser' ? '#020617' : color;
-    ctx.lineWidth   = tool === 'eraser' ? strokeSize * 5 : strokeSize;
+    ctx.lineWidth   = tool === 'eraser' ? eraserSize * 5 : strokeSize;
     ctx.lineCap     = 'round';
     ctx.lineJoin    = 'round';
     ctx.beginPath();
@@ -494,13 +572,16 @@ export function renderWhiteboardCanvas(ctx, canvas, state) {
     ctx.lineJoin    = 'round';
     ctx.setLineDash([4, 4]);
 
-    if (lt === 'rect' || lt === 'frame') {
+    if (lt === 'rect' || lt === 'frame' || lt === 'code') {
       const rx = Math.min(s.x, ep.x);
       const ry = Math.min(s.y, ep.y);
       const rw = Math.abs(ep.x - s.x);
       const rh = Math.abs(ep.y - s.y);
       if (lt === 'frame') {
         ctx.fillStyle = 'rgba(99, 102, 241, 0.08)';
+        ctx.fillRect(rx, ry, rw, rh);
+      } else if (lt === 'code') {
+        ctx.fillStyle = 'rgba(10, 15, 29, 0.65)';
         ctx.fillRect(rx, ry, rw, rh);
       }
       ctx.strokeRect(rx, ry, rw, rh);

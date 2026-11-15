@@ -16,11 +16,14 @@ export default function WhiteboardContextBar({
   selectedCount = 0,
   color,
   strokeSize,
+  eraserSize = 3,
   setColor,
   setStrokeSize,
+  setEraserSize,
   onOpenTemplates,
   onUpdateSelectedElement,
   onDeleteSelected,
+  onUnframe,
 }) {
   // Determine contextual mode:
   // 1. If an element is selected, format context based on element type
@@ -117,6 +120,25 @@ export default function WhiteboardContextBar({
             </button>
           )}
 
+          {/* Unframe action if a frame container is selected */}
+          {selectedElement.type === 'frame' && onUnframe && (
+            <button
+              onClick={onUnframe}
+              className="wb-context-btn"
+              title="Unframe (dissolve frame border while keeping contents inside)"
+              style={{
+                padding: '3px 8px',
+                fontSize: '11px',
+                background: 'rgba(99, 102, 241, 0.2)',
+                color: '#a5b4fc',
+                border: '1px solid rgba(99, 102, 241, 0.4)',
+              }}
+            >
+              <span className="material-symbols-rounded" style={{ fontSize: '15px' }}>crop_free</span>
+              <span>Unframe</span>
+            </button>
+          )}
+
           {onDeleteSelected && (
             <button
               onClick={onDeleteSelected}
@@ -127,6 +149,41 @@ export default function WhiteboardContextBar({
               <span className="material-symbols-rounded" style={{ fontSize: '16px' }}>delete</span>
             </button>
           )}
+        </div>
+      )}
+
+      {/* ── Dedicated Eraser Size Section ── */}
+      {!isSelected && tool === 'eraser' && (
+        <div className="wb-context-section">
+          <span className="wb-context-label">Eraser Size</span>
+          <div className="wb-context-sizes">
+            {[
+              { id: 1, label: 'S', px: 12 },
+              { id: 2, label: 'M', px: 20 },
+              { id: 4, label: 'L', px: 32 },
+              { id: 6, label: 'XL', px: 48 },
+            ].map(ez => {
+              const isActive = (eraserSize || 3) === ez.id || (ez.id === 2 && eraserSize === 3);
+              return (
+                <button
+                  key={ez.id}
+                  onClick={() => setEraserSize && setEraserSize(ez.id)}
+                  title={`Eraser ${ez.label} (${ez.px}px)`}
+                  className={`wb-context-size-btn ${isActive ? 'is-active' : ''}`}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '10px',
+                    fontWeight: 700,
+                    color: isActive ? '#f8fafc' : '#94a3b8',
+                  }}
+                >
+                  {ez.label}
+                </button>
+              );
+            })}
+          </div>
         </div>
       )}
 
@@ -161,7 +218,7 @@ export default function WhiteboardContextBar({
       )}
 
       {/* ── Fill Texture Mode (Outline only vs Textured semi-fill vs Hatch) ── */}
-      {showShapeStyles && ['rect', 'circle'].includes(targetType) && (
+      {showShapeStyles && ['rect', 'circle', 'shape'].includes(targetType) && (
         <>
           <div className="wb-context-divider" />
           <div className="wb-context-section">

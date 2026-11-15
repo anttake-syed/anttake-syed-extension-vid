@@ -106,7 +106,7 @@ export default function WhiteboardTopbar({
           <button onClick={onZoomOut} className="wb-zoom-btn" aria-label="Zoom out" title="Zoom out (or Ctrl+Scroll)">-</button>
           <span className="wb-zoom-label">{Math.round(zoom * 100)}%</span>
           <button onClick={onZoomIn} className="wb-zoom-btn" aria-label="Zoom in" title="Zoom in (or Ctrl+Scroll)">+</button>
-          <button onClick={onZoomReset} className="wb-zoom-reset" title="Reset zoom and pan">Reset</button>
+          <button onClick={onZoomReset} className="wb-zoom-reset" title="Reset zoom and pan to 100%">100%</button>
         </div>
 
         {/* Right */}

@@ -59,6 +59,7 @@ export default function WhiteboardEditor({
   const [tool, setTool]                   = useState('select');
   const [color, setColor]                 = useState('#f8fafc');
   const [strokeSize, setStrokeSize]       = useState(4);
+  const [eraserSize, setEraserSize]       = useState(3);
   const [showLibrary, setShowLibrary]     = useState('none'); // 'none', 'images', 'videos'
   const [showTemplateModal, setShowTemplateModal] = useState(false);
   const [showShapeModal, setShowShapeModal]       = useState(false);
@@ -361,6 +362,7 @@ export default function WhiteboardEditor({
   const toolRef           = useRef(tool);
   const colorRef          = useRef(color);
   const strokeSizeRef     = useRef(strokeSize);
+  const eraserSizeRef     = useRef(eraserSize);
 
   useEffect(() => { elementsRef.current = elements; }, [elements]);
   useEffect(() => { selectedIdRef.current = selectedId; }, [selectedId]);
@@ -368,6 +370,7 @@ export default function WhiteboardEditor({
   useEffect(() => { toolRef.current = tool; }, [tool]);
   useEffect(() => { colorRef.current = color; }, [color]);
   useEffect(() => { strokeSizeRef.current = strokeSize; }, [strokeSize]);
+  useEffect(() => { eraserSizeRef.current = eraserSize; }, [eraserSize]);
 
   // ── Canvas draw (double-buffered drawing) ──────────────────────────────────
   const drawCanvasNow = useCallback(() => {
@@ -383,6 +386,7 @@ export default function WhiteboardEditor({
       tool: toolRef.current,
       color: colorRef.current,
       strokeSize: strokeSizeRef.current,
+      eraserSize: eraserSizeRef.current,
       selectedId: selectedIdRef.current,
       selectedIds: selectedIdsRef.current,
       currentPath: currentPath.current,
@@ -404,7 +408,7 @@ export default function WhiteboardEditor({
 
   useEffect(() => {
     drawCanvasNow();
-  }, [elements, color, strokeSize, tool, selectedId, selectedIds, inlineEditingText, drawCanvasNow]);
+  }, [elements, color, strokeSize, eraserSize, tool, selectedId, selectedIds, inlineEditingText, drawCanvasNow]);
 
   // Video animation loop
   useEffect(() => {
@@ -483,7 +487,7 @@ export default function WhiteboardEditor({
                           video.src = el.src;
                           video.load();
                         } else {
-                          resolve(el);
+                          resolve({ ...el, loadError: true });
                         }
                       };
                     } else {
@@ -495,7 +499,7 @@ export default function WhiteboardEditor({
                           img.crossOrigin = null;
                           img.src = el.src;
                         } else {
-                          resolve(el);
+                          resolve({ ...el, loadError: true });
                         }
                       };
                       img.src = el.src;
@@ -762,6 +766,7 @@ export default function WhiteboardEditor({
               x: el.x, y: el.y,
               w: el.w, h: el.h,
               x2: el.x2, y2: el.y2,
+              cpx: el.cpx, cpy: el.cpy,
               points: el.points ? el.points.map(p => ({ ...p })) : null,
             };
           }
@@ -811,7 +816,7 @@ export default function WhiteboardEditor({
 
     drawing.current = true;
     currentPath.current = [pos];
-    if (['rect', 'circle', 'arrow', 'frame'].includes(tool)) liveShape.current = { startPt: pos, endPt: pos, tool };
+    if (['rect', 'circle', 'arrow', 'frame', 'code'].includes(tool)) liveShape.current = { startPt: pos, endPt: pos, tool };
   };
 
   const onMouseMove = (e) => {
@@ -959,7 +964,15 @@ export default function WhiteboardEditor({
           if (el.type === 'path' && snap.points) {
             return { ...el, points: snap.points.map(p => ({ x: p.x + dx, y: p.y + dy })) };
           } else if (el.type === 'arrow') {
-            return { ...el, x: snap.x + dx, y: snap.y + dy, x2: snap.x2 + dx, y2: snap.y2 + dy };
+            const hasCp = snap.cpx !== undefined && snap.cpy !== undefined;
+            return {
+              ...el,
+              x: snap.x + dx,
+              y: snap.y + dy,
+              x2: snap.x2 + dx,
+              y2: snap.y2 + dy,
+              ...(hasCp ? { cpx: snap.cpx + dx, cpy: snap.cpy + dy } : {}),
+            };
           } else {
             return { ...el, x: snap.x + dx, y: snap.y + dy };
           }
@@ -1056,7 +1069,12 @@ export default function WhiteboardEditor({
 
     let newEl = null;
     if (tool === 'pen' || tool === 'eraser') {
-      newEl = { type: 'path', points: pts, color: tool === 'eraser' ? '#020617' : color, size: tool === 'eraser' ? strokeSize * 5 : strokeSize };
+      newEl = {
+        type: 'path',
+        points: pts,
+        color: tool === 'eraser' ? '#020617' : color,
+        size: tool === 'eraser' ? (eraserSizeRef.current || 3) * 5 : strokeSize,
+      };
     } else if (tool === 'rect') {
       newEl = {
         type: 'rect',
@@ -1102,8 +1120,34 @@ export default function WhiteboardEditor({
       const w = Math.abs(endPt.x - startPt.x);
       const h = Math.abs(endPt.y - startPt.y);
       newEl = { type: 'frame', x: minX, y: minY, w, h, color: '#6366f1', size: 2, title: 'Frame' };
+    } else if (tool === 'code') {
+      const minX = Math.min(startPt.x, endPt.x);
+      const minY = Math.min(startPt.y, endPt.y);
+      const w = Math.max(160, Math.abs(endPt.x - startPt.x));
+      const h = Math.max(100, Math.abs(endPt.y - startPt.y));
+      newEl = {
+        type: 'code',
+        code: '// Write code here\nfunction example() {\n  return "AntCapture";\n}',
+        language: 'javascript',
+        x: minX,
+        y: minY,
+        w,
+        h,
+        color: '#1e293b',
+        size: 1.5,
+      };
     }
-    if (newEl) { const next = [...elements, newEl]; setElements(next); commitToHistory(next); }
+    if (newEl) {
+      const next = [...elements, newEl];
+      setElements(next);
+      commitToHistory(next);
+      if (['rect', 'circle', 'arrow', 'frame', 'code'].includes(tool)) {
+        const newIdx = next.length - 1;
+        setSelectedId(newIdx);
+        setSelectedIds([newIdx]);
+        setTool('select');
+      }
+    }
     currentPath.current = [];
     redraw();
   };
@@ -1567,15 +1611,81 @@ export default function WhiteboardEditor({
       const hitRev = rev.findIndex(el => hitTestElement(pos, el));
       if (hitRev !== -1) {
         const targetIdx = elements.length - 1 - hitRev;
-        if (elements[targetIdx]?.type === 'text') {
-          const el = elements[targetIdx];
+        const targetEl = elements[targetIdx];
+        if (!targetEl) return;
+
+        if (targetEl.type === 'text') {
           setInlineEditingText({
-            x: el.x,
-            y: el.y,
-            value: el.text || '',
-            color: el.color || color,
-            fontSize: el.fontSize || (20 + strokeSize * 2),
+            x: targetEl.x,
+            y: targetEl.y,
+            value: targetEl.text || '',
+            color: targetEl.color || color,
+            fontSize: targetEl.fontSize || (20 + strokeSize * 2),
             elementIndex: targetIdx,
+            mode: 'text',
+          });
+          return;
+        }
+
+        if (['rect', 'circle', 'shape'].includes(targetEl.type)) {
+          const cx = targetEl.x + (targetEl.w || 100) / 2;
+          const cy = targetEl.y + (targetEl.h || 100) / 2;
+          setInlineEditingText({
+            x: cx,
+            y: cy,
+            value: targetEl.text || '',
+            color: targetEl.color || color,
+            fontSize: targetEl.fontSize || 16,
+            elementIndex: targetIdx,
+            centered: true,
+            mode: 'shape-text',
+            minWidth: Math.max(100, Math.round((targetEl.w || 120) * 0.7)),
+            placeholder: 'Type shape text…',
+          });
+          return;
+        }
+
+        if (targetEl.type === 'code') {
+          setInlineEditingText({
+            x: targetEl.x + 44,
+            y: targetEl.y + 50,
+            value: targetEl.code || '',
+            color: '#f1f5f9',
+            fontSize: 12,
+            elementIndex: targetIdx,
+            mode: 'code-content',
+            minWidth: Math.max(200, Math.round((targetEl.w || 380) - 60)),
+            placeholder: '// Paste or edit code...',
+          });
+          return;
+        }
+
+        if (targetEl.type === 'embed' || targetEl.type === 'link') {
+          setInlineEditingText({
+            x: targetEl.x + 20,
+            y: targetEl.y + 40,
+            value: targetEl.url || '',
+            color: '#38bdf8',
+            fontSize: 13,
+            elementIndex: targetIdx,
+            mode: 'embed-url',
+            minWidth: Math.max(220, Math.round((targetEl.w || 400) - 40)),
+            placeholder: 'https://youtube.com/watch?v=... or https://...',
+          });
+          return;
+        }
+
+        if (targetEl.type === 'frame') {
+          setInlineEditingText({
+            x: targetEl.x + 14,
+            y: targetEl.y + 16,
+            value: targetEl.title || 'FRAME',
+            color: '#f8fafc',
+            fontSize: 12,
+            elementIndex: targetIdx,
+            mode: 'frame-title',
+            minWidth: 100,
+            placeholder: 'Frame name…',
           });
           return;
         }
@@ -1677,6 +1787,23 @@ export default function WhiteboardEditor({
           video.load();
         } else {
           setMediaLoadError('Could not load video for preview.');
+          const newEl = {
+            type: 'image',
+            isVideo: true,
+            title: title || 'Video',
+            src,
+            loadError: true,
+            x: Math.round(centerX - 160),
+            y: Math.round(centerY - 100),
+            w: 320,
+            h: 200,
+          };
+          const currentEls = elementsRef.current || [];
+          const next = [...currentEls, newEl];
+          setElements(next);
+          elementsRef.current = next;
+          commitToHistory(next);
+          redraw();
         }
       };
       video.src = src;
@@ -1715,7 +1842,23 @@ export default function WhiteboardEditor({
           img.crossOrigin = null;
           img.src = src;
         } else {
-          setMediaLoadError('Could not load image.');
+          setMediaLoadError('Could not load image. If hosted on Google Drive, check link permissions.');
+          const newEl = {
+            type: 'image',
+            title: title || 'Image',
+            src,
+            loadError: true,
+            x: Math.round(centerX - 160),
+            y: Math.round(centerY - 100),
+            w: 320,
+            h: 200,
+          };
+          const currentEls = elementsRef.current || [];
+          const next = [...currentEls, newEl];
+          setElements(next);
+          elementsRef.current = next;
+          commitToHistory(next);
+          redraw();
         }
       };
       img.src = src;
@@ -1727,8 +1870,31 @@ export default function WhiteboardEditor({
     if (t === 'video') { setShowLibrary('videos'); return; }
     if (t === 'shapes') { setShowShapeModal(true); return; }
     if (t === 'icon') { setShowIconModal(true); return; }
-    if (t === 'code') { setShowCodeModal(true); return; }
-    if (t === 'embed-frame') { setShowEmbedFrameModal(true); return; }
+    if (t === 'embed-frame') {
+      const canvas = canvasRef.current;
+      const cw = canvas ? canvas.width / 2 : 400;
+      const ch = canvas ? canvas.height / 2 : 300;
+      const center = screenToWorld(cw, ch);
+      const w = 480;
+      const h = 300;
+      const newEl = {
+        type: 'link',
+        url: 'https://',
+        title: 'Embed Website Frame (Double-click to set URL)',
+        x: Math.round(center.x - w / 2),
+        y: Math.round(center.y - h / 2),
+        w,
+        h,
+        rotation: 0,
+      };
+      const next = [...elements, newEl];
+      setElements(next);
+      commitToHistory(next);
+      setSelectedId(next.length - 1);
+      setSelectedIds([next.length - 1]);
+      setTool('select');
+      return;
+    }
     setTool(t);
     setSelectedId(null);
     setSelectedIds([]);
@@ -2050,21 +2216,69 @@ export default function WhiteboardEditor({
     const current = inlineEditingTextRef.current;
     if (!current) return;
     const text = (val !== undefined ? val : current.value).trim();
-    const { x, y, color: textColor, fontSize, elementIndex } = current;
+    const { x, y, color: textColor, fontSize, elementIndex, mode } = current;
 
     if (elementIndex !== null && elementIndex !== undefined) {
-      if (text) {
+      if (mode === 'frame-title') {
+        const next = elements.map((el, i) => i === elementIndex ? { ...el, title: text || 'FRAME' } : el);
+        setElements(next);
+        commitToHistory(next);
+        setSelectedId(elementIndex);
+        setSelectedIds([elementIndex]);
+      } else if (mode === 'code-content') {
+        const next = elements.map((el, i) => i === elementIndex ? { ...el, code: text || '// Empty code' } : el);
+        setElements(next);
+        commitToHistory(next);
+        setSelectedId(elementIndex);
+        setSelectedIds([elementIndex]);
+      } else if (mode === 'embed-url') {
+        const clean = parsePastedUrl(text);
+        const ytid = clean ? extractYouTubeVideoId(clean) : null;
+        let title = text;
+        try { if (clean) title = new URL(clean).hostname; } catch (_) {}
+        const next = elements.map((el, i) => {
+          if (i !== elementIndex) return el;
+          if (ytid) {
+            return {
+              ...el,
+              type: 'embed',
+              embedType: 'youtube',
+              videoId: ytid,
+              url: clean,
+              title: 'YouTube Video',
+            };
+          }
+          return {
+            ...el,
+            type: 'link',
+            url: clean || text,
+            title: title || 'Embed Frame',
+          };
+        });
+        setElements(next);
+        commitToHistory(next);
+        setSelectedId(elementIndex);
+        setSelectedIds([elementIndex]);
+      } else if (mode === 'shape-text') {
         const next = elements.map((el, i) => i === elementIndex ? { ...el, text } : el);
         setElements(next);
         commitToHistory(next);
         setSelectedId(elementIndex);
         setSelectedIds([elementIndex]);
       } else {
-        const next = elements.filter((_, i) => i !== elementIndex);
-        setElements(next);
-        commitToHistory(next);
-        setSelectedId(null);
-        setSelectedIds([]);
+        if (text) {
+          const next = elements.map((el, i) => i === elementIndex ? { ...el, text } : el);
+          setElements(next);
+          commitToHistory(next);
+          setSelectedId(elementIndex);
+          setSelectedIds([elementIndex]);
+        } else {
+          const next = elements.filter((_, i) => i !== elementIndex);
+          setElements(next);
+          commitToHistory(next);
+          setSelectedId(null);
+          setSelectedIds([]);
+        }
       }
     } else {
       if (text) {
@@ -2091,6 +2305,21 @@ export default function WhiteboardEditor({
   const cancelInlineText = () => {
     setInlineEditingText(null);
     setTool('select');
+  };
+
+  // Unframe container: removes frame element itself, keeps all inner elements intact
+  const handleUnframe = () => {
+    const targetIdx = selectedId !== null ? selectedId : (selectedIds[0] ?? null);
+    if (targetIdx === null) return;
+    const target = elements[targetIdx];
+    if (!target || target.type !== 'frame') return;
+
+    const next = elements.filter((_, i) => i !== targetIdx);
+    setElements(next);
+    commitToHistory(next);
+    setSelectedId(null);
+    setSelectedIds([]);
+    redraw();
   };
 
   const handleNameCommit = () => {
@@ -2382,11 +2611,14 @@ export default function WhiteboardEditor({
               selectedCount={selectedIds.length > 0 ? selectedIds.length : (selectedId !== null ? 1 : 0)}
               color={color}
               strokeSize={strokeSize}
+              eraserSize={eraserSize}
               setColor={setColor}
               setStrokeSize={setStrokeSize}
+              setEraserSize={setEraserSize}
               onOpenTemplates={() => setShowTemplateModal(true)}
               onUpdateSelectedElement={handleUpdateSelectedElement}
               onDeleteSelected={handleDeleteSelected}
+              onUnframe={handleUnframe}
             />
           )}
 
@@ -2446,6 +2678,9 @@ export default function WhiteboardEditor({
               fontSize={inlineEditingText.fontSize}
               zoom={zoom}
               panOffset={panOffset}
+              centered={inlineEditingText.centered || false}
+              minWidth={inlineEditingText.minWidth || 120}
+              placeholder={inlineEditingText.placeholder || 'Type text…'}
               onCommit={commitInlineText}
               onCancel={cancelInlineText}
             />
@@ -2525,6 +2760,7 @@ export default function WhiteboardEditor({
         tool={tool}
         zoom={zoom}
         elementsCount={elements.length}
+        onZoomReset={handleZoomReset}
       />
 
       {/* Library Picker */}

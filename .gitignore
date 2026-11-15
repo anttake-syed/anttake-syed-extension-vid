@@ -5,7 +5,7 @@ skills/
 # Built extension packages — never commit these
 *.zip
 
-# Marketing screenshots — local only, never commit
+# Marketing folder — entirely local, never commit to GitHub
 marketing/
 
 # Local build planning & architecture notes — never commit

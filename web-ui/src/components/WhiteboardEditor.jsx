@@ -629,8 +629,10 @@ export default function WhiteboardEditor({
     }
 
     if (e.button !== 0 || isReadOnly) return;
+    // If inline text editor is open, block canvas interactions so user can keep typing.
+    // The editor's own blur/Enter/Escape will handle committing.
     if (inlineEditingTextRef.current) {
-      commitInlineText();
+      return;
     }
     const pos = screenToWorld(e.clientX, e.clientY);
 
@@ -2391,7 +2393,15 @@ export default function WhiteboardEditor({
           <canvas
             ref={canvasRef}
             style={{ display: 'block', width: '100%', height: '100%', cursor: getCursor(), touchAction: 'none' }}
-            onMouseDown={onMouseDown}
+            onMouseDown={(e) => {
+              // While the inline text editor is open, prevent canvas from stealing
+              // focus away from the textarea. The editor handles its own commit/cancel.
+              if (inlineEditingText) {
+                e.preventDefault();
+                return;
+              }
+              onMouseDown(e);
+            }}
             onMouseMove={onMouseMove}
             onMouseUp={onMouseUp}
             onMouseLeave={onMouseUp}

@@ -797,13 +797,15 @@ export default function WhiteboardEditor({
     }
 
     if (tool === 'text') {
+      const fs = 20 + (strokeSize || 2) * 2;
       setInlineEditingText({
         x: Math.round(pos.x),
-        y: Math.round(pos.y),
+        y: Math.round(pos.y + fs), // pos.y is click top, pos.y + fs is baseline
         value: '',
-        color,
-        fontSize: 20 + strokeSize * 2,
+        color: color || '#f8fafc',
+        fontSize: fs,
         elementIndex: null,
+        mode: 'text',
       });
       return;
     }
@@ -2333,8 +2335,8 @@ export default function WhiteboardEditor({
           text,
           x,
           y,
-          color: textColor,
-          fontSize: fontSize || (20 + strokeSize * 2),
+          color: textColor || color || '#f8fafc',
+          fontSize: fontSize || (20 + (strokeSize || 2) * 2),
         };
         const next = [...elements, newEl];
         setElements(next);
@@ -2739,6 +2741,7 @@ export default function WhiteboardEditor({
               centered={inlineEditingText.centered || false}
               minWidth={inlineEditingText.minWidth || 120}
               placeholder={inlineEditingText.placeholder || 'Type text…'}
+              mode={inlineEditingText.mode || 'text'}
               onCommit={commitInlineText}
               onCancel={cancelInlineText}
             />

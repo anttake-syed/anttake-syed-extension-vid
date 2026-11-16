@@ -5,6 +5,8 @@ export default function WhiteboardContextMenu({
   hasSelection,
   hasClipboard,
   isReadOnly = false,
+  isTextElement = false,
+  onEdit,
   onCut,
   onCopy,
   onPaste,
@@ -120,6 +122,12 @@ export default function WhiteboardContextMenu({
       ) : isElementMenu ? (
         /* ── ELEMENT SELECTED MENU ── */
         <>
+          {isTextElement && onEdit && (
+            <>
+              <MenuItem icon="edit_note" label="Edit Text" onClick={onEdit} />
+              <Divider />
+            </>
+          )}
           <MenuItem icon="content_cut" label="Cut" shortcut="Ctrl+X" onClick={onCut} />
           <MenuItem icon="content_copy" label="Copy" shortcut="Ctrl+C" onClick={onCopy} />
           <MenuItem

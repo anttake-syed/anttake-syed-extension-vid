@@ -473,14 +473,18 @@ export function renderWhiteboardCanvas(ctx, canvas, state) {
         if (state.editingTextIndex === i) {
           // Skip drawing static text on canvas while user is actively typing in inline editor
         } else {
+          ctx.save();
           ctx.fillStyle = el.color || '#f8fafc';
-          const fontSize = el.fontSize || 14;
-          ctx.font      = `${fontSize}px 'Outfit', sans-serif`;
+          const fontSize = el.fontSize || 20;
+          ctx.font = `${fontSize}px 'Outfit', sans-serif`;
+          ctx.textAlign = 'start';
+          ctx.textBaseline = 'alphabetic';
           const lines = String(el.text || '').split('\n');
           const lineHeight = fontSize * 1.25;
           lines.forEach((line, lineIdx) => {
             ctx.fillText(line, el.x || 0, (el.y || 0) + lineIdx * lineHeight);
           });
+          ctx.restore();
         }
       } else if (el.type === 'image') {
         if (el.img) {

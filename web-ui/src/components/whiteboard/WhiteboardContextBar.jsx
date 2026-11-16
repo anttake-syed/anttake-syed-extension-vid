@@ -24,6 +24,7 @@ export default function WhiteboardContextBar({
   onUpdateSelectedElement,
   onDeleteSelected,
   onUnframe,
+  onEditText,
 }) {
   // Determine contextual mode:
   // 1. If an element is selected, format context based on element type
@@ -104,8 +105,22 @@ export default function WhiteboardContextBar({
             </button>
           )}
 
+          {/* Quick Edit Text for text elements */}
+          {selectedElement.type === 'text' && onEditText && (
+            <button
+              onClick={onEditText}
+              className="wb-context-btn"
+              title="Edit text content"
+              aria-label="Edit text content"
+              style={{ padding: '3px 8px', fontSize: '11px', background: 'rgba(99, 102, 241, 0.2)', color: '#a5b4fc', border: '1px solid rgba(99, 102, 241, 0.4)' }}
+            >
+              <span className="material-symbols-rounded" style={{ fontSize: '15px' }}>edit_note</span>
+              <span>Edit Text</span>
+            </button>
+          )}
+
           {/* Quick Rotate 90 degrees */}
-          {['rect', 'circle', 'image', 'frame', 'shape', 'icon', 'code'].includes(selectedElement.type) && onUpdateSelectedElement && (
+          {['rect', 'circle', 'image', 'frame', 'shape', 'icon', 'code', 'text'].includes(selectedElement.type) && onUpdateSelectedElement && (
             <button
               onClick={() => {
                 const currentRot = selectedElement.rotation || 0;

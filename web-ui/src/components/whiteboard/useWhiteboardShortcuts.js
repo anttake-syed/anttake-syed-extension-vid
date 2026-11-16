@@ -257,11 +257,14 @@ export function useWhiteboardShortcuts({
       }
 
       const pastedText = e.clipboardData?.getData('text');
-      if (pastedText) {
+      if (pastedText && pastedText.trim()) {
         const clean = parsePastedUrl(pastedText);
         if (clean) {
           e.preventDefault();
           handleInsertUrl(clean);
+        } else if (handlePasteAt) {
+          e.preventDefault();
+          handlePasteAt(null, pastedText);
         }
       }
     };

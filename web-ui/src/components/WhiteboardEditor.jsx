@@ -633,11 +633,6 @@ export default function WhiteboardEditor({
     }
 
     if (e.button !== 0 || isReadOnly) return;
-    // If inline text editor is open, block canvas interactions so user can keep typing.
-    // The editor's own blur/Enter/Escape will handle committing.
-    if (inlineEditingTextRef.current) {
-      return;
-    }
     const pos = screenToWorld(e.clientX, e.clientY);
 
     if (tool === 'select') {
@@ -1531,7 +1526,9 @@ export default function WhiteboardEditor({
         const cw = canvas ? canvas.width : 800;
         const ch = canvas ? canvas.height : 600;
         targetX = (cw / 2 - pan.x) / z - 60;
-        targetY = (ch / 2 - pan.y) / z - 10;
+        // el.y is the text baseline; to visually center the text in the viewport
+        // the baseline must be at canvas-center + half-fontSize.
+        targetY = (ch / 2 - pan.y) / z + 11; // 11 ≈ fontSize(22)/2
       }
 
       const textEl = {
@@ -2689,12 +2686,10 @@ export default function WhiteboardEditor({
             ref={canvasRef}
             style={{ display: 'block', width: '100%', height: '100%', cursor: getCursor(), touchAction: 'none' }}
             onMouseDown={(e) => {
-              // While the inline text editor is open, prevent canvas from stealing
-              // focus away from the textarea. The editor handles its own commit/cancel.
-              if (inlineEditingText) {
-                e.preventDefault();
-                return;
-              }
+              // Note: when the inline text editor is open, clicking outside it will
+              // naturally blur the textarea → handleContainerBlur → doCommit().
+              // We do NOT preventDefault here so that the canvas click also proceeds
+              // normally (select element, start drag, etc.) — Excalidraw-like behavior.
               onMouseDown(e);
             }}
             onMouseMove={onMouseMove}

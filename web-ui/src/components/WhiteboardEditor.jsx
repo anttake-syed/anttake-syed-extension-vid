@@ -658,7 +658,7 @@ export default function WhiteboardEditor({
             movingIndices: [],
             initialSnapshots: {},
             origX: el.x, origY: el.y,
-            origW: el.w || 0, origH: el.h || 0,
+            origW: box.w, origH: box.h,
             origX2: el.x2, origY2: el.y2,
             origCpx: el.cpx !== undefined ? el.cpx : (el.x + (el.x2 || el.x)) / 2,
             origCpy: el.cpy !== undefined ? el.cpy : (el.y + (el.y2 || el.y)) / 2,
@@ -706,8 +706,7 @@ export default function WhiteboardEditor({
         } else if (el.type === 'frame') {
           if (hitTestElement(el, pos)) { hit = i; break; }
         } else if (el.type === 'text') {
-          const fontSize = el.fontSize || 20;
-          if (pos.x >= el.x - 4 && pos.x <= el.x + 240 && pos.y >= el.y - fontSize - 4 && pos.y <= el.y + 6) { hit = i; break; }
+          if (hitTestElement(el, pos)) { hit = i; break; }
         } else if (el.type === 'rect') {
           const minX = Math.min(el.x, el.x + el.w), maxX = Math.max(el.x, el.x + el.w);
           const minY = Math.min(el.y, el.y + el.h), maxY = Math.max(el.y, el.y + el.h);
@@ -941,6 +940,15 @@ export default function WhiteboardEditor({
             const s = Math.max(newW, newH);
             newW = s;
             newH = s;
+          }
+
+          // If text element, proportionally scale font size
+          if (el.type === 'text') {
+            const startFontSize = dragRef.current.startFontSize || el.fontSize || 20;
+            if (!dragRef.current.startFontSize) dragRef.current.startFontSize = startFontSize;
+            const scaleFactor = Math.max(newW / Math.max(origW, 1), newH / Math.max(origH, 1));
+            const newFontSize = Math.max(10, Math.min(180, Math.round(startFontSize * scaleFactor)));
+            return { ...el, x: newX, y: newY, w: newW, h: newH, fontSize: newFontSize };
           }
 
           return { ...el, x: newX, y: newY, w: newW, h: newH };
@@ -1421,7 +1429,7 @@ export default function WhiteboardEditor({
     setContextMenu(null);
   };
 
-  const handlePasteAt = async (worldPos = null) => {
+  const handlePasteAt = async (worldPos = null, fallbackText = null) => {
     // 1. If internal whiteboard items are copied in clipboardRef, paste them
     if (clipboardRef.current && clipboardRef.current.elements?.length) {
       const items = clipboardRef.current.elements;
@@ -1493,16 +1501,57 @@ export default function WhiteboardEditor({
       return;
     }
 
-    // 2. Otherwise try reading text from the system clipboard (external copy URL)
-    try {
-      if (navigator.clipboard?.readText) {
-        const text = await navigator.clipboard.readText();
-        if (text && parsePastedUrl(text)) {
-          handleInsertUrl(text, worldPos);
-          return;
+    // 2. Otherwise try reading text from the system clipboard or fallbackText
+    let clipText = fallbackText;
+    if (!clipText) {
+      try {
+        if (navigator.clipboard?.readText) {
+          clipText = await navigator.clipboard.readText();
         }
+      } catch (_) {}
+    }
+
+    if (clipText && clipText.trim()) {
+      const cleanUrl = parsePastedUrl(clipText);
+      if (cleanUrl) {
+        handleInsertUrl(cleanUrl, worldPos);
+        setContextMenu(null);
+        return;
       }
-    } catch (_) {}
+
+      // Paste external plain text as a text element
+      let targetX, targetY;
+      if (worldPos) {
+        targetX = worldPos.x;
+        targetY = worldPos.y;
+      } else {
+        const canvas = canvasRef.current;
+        const z = zoomRef.current || 1;
+        const pan = panOffsetRef.current || { x: 0, y: 0 };
+        const cw = canvas ? canvas.width : 800;
+        const ch = canvas ? canvas.height : 600;
+        targetX = (cw / 2 - pan.x) / z - 60;
+        targetY = (ch / 2 - pan.y) / z - 10;
+      }
+
+      const textEl = {
+        type: 'text',
+        text: clipText.trim(),
+        x: Math.round(targetX),
+        y: Math.round(targetY),
+        color: color || '#f8fafc',
+        fontSize: 22,
+        rotation: 0,
+      };
+
+      const next = [...elements, textEl];
+      setElements(next);
+      commitToHistory(next);
+      const newIdx = next.length - 1;
+      setSelectedIds([newIdx]);
+      setSelectedId(newIdx);
+      setTool('select');
+    }
 
     setContextMenu(null);
   };
@@ -1608,7 +1657,7 @@ export default function WhiteboardEditor({
       const pos = screenToWorld(e.clientX, e.clientY);
       // Check top-most element under cursor
       const rev = elements.slice().reverse();
-      const hitRev = rev.findIndex(el => hitTestElement(pos, el));
+      const hitRev = rev.findIndex(el => hitTestElement(el, pos));
       if (hitRev !== -1) {
         const targetIdx = elements.length - 1 - hitRev;
         const targetEl = elements[targetIdx];
@@ -2619,6 +2668,20 @@ export default function WhiteboardEditor({
               onUpdateSelectedElement={handleUpdateSelectedElement}
               onDeleteSelected={handleDeleteSelected}
               onUnframe={handleUnframe}
+              onEditText={() => {
+                if (selectedId !== null && elements[selectedId]?.type === 'text') {
+                  const targetEl = elements[selectedId];
+                  setInlineEditingText({
+                    x: targetEl.x,
+                    y: targetEl.y,
+                    value: targetEl.text || '',
+                    color: targetEl.color || color,
+                    fontSize: targetEl.fontSize || (20 + strokeSize * 2),
+                    elementIndex: selectedId,
+                    mode: 'text',
+                  });
+                }
+              }}
             />
           )}
 
@@ -2827,6 +2890,26 @@ export default function WhiteboardEditor({
         hasSelection={selectedIds.length > 0 || selectedId !== null}
         hasClipboard={Boolean(clipboardRef.current?.elements?.length)}
         isReadOnly={isReadOnly}
+        isTextElement={Boolean(
+          (contextMenu?.elIdx !== null && contextMenu?.elIdx !== undefined && elements[contextMenu.elIdx]?.type === 'text') ||
+          (selectedId !== null && elements[selectedId]?.type === 'text')
+        )}
+        onEdit={() => {
+          const targetIdx = (contextMenu?.elIdx !== null && contextMenu?.elIdx !== undefined) ? contextMenu.elIdx : selectedId;
+          if (targetIdx !== null && elements[targetIdx]?.type === 'text') {
+            const targetEl = elements[targetIdx];
+            setInlineEditingText({
+              x: targetEl.x,
+              y: targetEl.y,
+              value: targetEl.text || '',
+              color: targetEl.color || color,
+              fontSize: targetEl.fontSize || (20 + strokeSize * 2),
+              elementIndex: targetIdx,
+              mode: 'text',
+            });
+          }
+          setContextMenu(null);
+        }}
         onCut={handleCutSelected}
         onCopy={handleCopySelected}
         onPaste={() => handlePasteAt(contextMenu?.worldPos)}

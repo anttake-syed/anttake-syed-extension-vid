@@ -2338,12 +2338,14 @@ export default function WhiteboardEditor({
           color: textColor || color || '#f8fafc',
           fontSize: fontSize || (20 + (strokeSize || 2) * 2),
         };
-        const next = [...elements, newEl];
-        setElements(next);
-        commitToHistory(next);
-        const newIdx = next.length - 1;
-        setSelectedId(newIdx);
-        setSelectedIds([newIdx]);
+        setElements(prev => {
+          const next = [...prev, newEl];
+          commitToHistory(next);
+          const newIdx = next.length - 1;
+          setSelectedId(newIdx);
+          setSelectedIds([newIdx]);
+          return next;
+        });
       }
     }
     setInlineEditingText(null);
@@ -2737,7 +2739,7 @@ export default function WhiteboardEditor({
               color={inlineEditingText.color}
               fontSize={inlineEditingText.fontSize}
               zoom={zoom}
-              panOffset={panOffset}
+              panOffset={panOffsetRef.current}
               centered={inlineEditingText.centered || false}
               minWidth={inlineEditingText.minWidth || 120}
               placeholder={inlineEditingText.placeholder || 'Type text…'}

@@ -2,10 +2,13 @@ import React, { useState, useEffect, useRef } from 'react';
 
 /**
  * WhiteboardInlineTextEditor
- * Modern inline canvas text editor placed directly at the click location.
- * Auto-expands as user types, supports Shift+Enter for multiline,
- * and commits on Enter, Escape, or when focus truly leaves the editor.
- * Supports centered mode for shapes/rects/circles/frames.
+ * Seamless, distraction-free inline canvas text editor placed directly at the click location.
+ * Provides a natural Google Docs / Excalidraw-like writing experience:
+ * - Clean, transparent background matching canvas text
+ * - Auto-expands smoothly as the user types
+ * - Allows multiline editing (Enter adds new line in paragraphs/code)
+ * - Clean commit on outside click or blur
+ * - No annoying "Enter to save" popups or jarring dashed borders
  */
 export default function WhiteboardInlineTextEditor({
   initialText = '',
@@ -16,8 +19,9 @@ export default function WhiteboardInlineTextEditor({
   zoom = 1,
   panOffset = { x: 0, y: 0 },
   centered = false,
-  minWidth = 120,
-  placeholder = 'Type text…',
+  minWidth = 140,
+  placeholder = 'Type something…',
+  mode = 'text',
   onCommit,
   onCancel,
 }) {
@@ -29,15 +33,15 @@ export default function WhiteboardInlineTextEditor({
   // World -> screen position
   const screenLeft     = Math.round(x * zoom + panOffset.x);
   const screenTop      = centered ? Math.round(y * zoom + panOffset.y) : Math.round((y - fontSize) * zoom + panOffset.y);
-  const scaledFontSize = Math.max(12, Math.round(fontSize * zoom));
+  const scaledFontSize = Math.max(13, Math.round(fontSize * zoom));
 
   const adjustSize = () => {
     const el = textareaRef.current;
     if (!el) return;
     el.style.height = 'auto';
     el.style.width  = 'auto';
-    el.style.height = `${Math.max(scaledFontSize * 1.35, el.scrollHeight)}px`;
-    el.style.width  = `${Math.max(minWidth, el.scrollWidth + 16)}px`;
+    el.style.height = `${Math.max(scaledFontSize * 1.3, el.scrollHeight)}px`;
+    el.style.width  = `${Math.max(minWidth, el.scrollWidth + 12)}px`;
   };
 
   useEffect(() => {
@@ -68,26 +72,35 @@ export default function WhiteboardInlineTextEditor({
     }
   };
 
-  // Only commit when focus truly leaves the editor container
+  // Commit naturally when focus leaves the editor
   const handleContainerBlur = (e) => {
     if (containerRef.current && containerRef.current.contains(e.relatedTarget)) {
-      return; // focus moved within container - keep open
+      return;
     }
     doCommit(value);
   };
 
   const handleKeyDown = (e) => {
-    e.stopPropagation(); // prevent whiteboard shortcuts from firing while typing
+    e.stopPropagation(); // Stop whiteboard shortcuts (like delete, space, v) while typing
+
     if (e.key === 'Escape') {
       e.preventDefault();
-      doCancel();
+      doCommit(value);
       return;
     }
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      doCommit(value);
+
+    // In single-line prompt modes (embed url / frame title), Enter commits immediately.
+    // In normal text or code mode, Enter inserts a new line naturally like a document!
+    if (e.key === 'Enter') {
+      if (mode === 'embed-url' || mode === 'frame-title') {
+        e.preventDefault();
+        doCommit(value);
+      }
+      // For normal text, code, or shape-text, Enter naturally inserts a new line
     }
   };
+
+  const isCode = mode === 'code-content';
 
   return (
     <div
@@ -97,7 +110,7 @@ export default function WhiteboardInlineTextEditor({
         left:          `${screenLeft}px`,
         top:           `${screenTop}px`,
         transform:     centered ? 'translate(-50%, -50%)' : 'none',
-        zIndex:        100,
+        zIndex:        120,
         pointerEvents: 'auto',
       }}
       onMouseDown={(e) => e.stopPropagation()}
@@ -111,52 +124,28 @@ export default function WhiteboardInlineTextEditor({
         onKeyDown={handleKeyDown}
         placeholder={placeholder}
         rows={1}
+        spellCheck={false}
         style={{
-          fontSize:     `${scaledFontSize}px`,
-          lineHeight:   1.25,
-          fontFamily:   "'Outfit', sans-serif",
-          color:        color || '#f8fafc',
-          caretColor:   color || '#f8fafc',
-          background:   'rgba(15, 23, 42, 0.85)',
-          border:       '1.5px dashed #6366f1',
-          borderRadius: '6px',
-          padding:      '4px 8px',
-          outline:      'none',
-          boxShadow:    '0 0 0 3px rgba(99, 102, 241, 0.25), 0 4px 14px rgba(0,0,0,0.5)',
-          resize:       'none',
-          overflow:     'hidden',
-          whiteSpace:   'pre',
-          textAlign:    centered ? 'center' : 'left',
-          display:      'block',
-          boxSizing:    'border-box',
-          margin:       0,
+          fontSize:       `${scaledFontSize}px`,
+          lineHeight:     isCode ? 1.4 : 1.25,
+          fontFamily:     isCode ? "'Fira Code', monospace, sans-serif" : "'Outfit', -apple-system, BlinkMacSystemFont, sans-serif",
+          color:          color || '#f8fafc',
+          caretColor:     color || '#f8fafc',
+          background:     isCode ? 'rgba(10, 15, 29, 0.95)' : 'rgba(2, 6, 23, 0.45)',
+          border:         '1px solid rgba(99, 102, 241, 0.4)',
+          borderRadius:   isCode ? '6px' : '4px',
+          padding:        '2px 6px',
+          outline:        'none',
+          boxShadow:      '0 0 0 1px rgba(99, 102, 241, 0.3), 0 2px 8px rgba(0,0,0,0.4)',
+          resize:         'none',
+          overflow:       'hidden',
+          whiteSpace:     'pre',
+          textAlign:      centered ? 'center' : 'left',
+          display:        'block',
+          boxSizing:      'border-box',
+          margin:         0,
         }}
       />
-      <div
-        style={{
-          position:      'absolute',
-          top:           '100%',
-          left:          centered ? '50%' : 0,
-          transform:     centered ? 'translateX(-50%)' : 'none',
-          marginTop:     '4px',
-          display:       'flex',
-          gap:           '8px',
-          fontSize:      '10px',
-          color:         '#94a3b8',
-          background:    'rgba(15, 23, 42, 0.9)',
-          padding:       '2px 6px',
-          borderRadius:  '4px',
-          whiteSpace:    'nowrap',
-          pointerEvents: 'none',
-          border:        '1px solid rgba(255, 255, 255, 0.1)',
-        }}
-      >
-        <span>↵ Enter to save</span>
-        <span>·</span>
-        <span>Shift+↵ for new line</span>
-        <span>·</span>
-        <span>Esc to cancel</span>
-      </div>
     </div>
   );
 }

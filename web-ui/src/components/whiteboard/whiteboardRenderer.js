@@ -373,22 +373,24 @@ export function renderWhiteboardCanvas(ctx, canvas, state) {
         ctx.font = "bold 10px monospace";
         ctx.fillText((el.language || 'JS').toUpperCase(), el.x + cw - 70, el.y + 19);
 
-        // Code content line by line
-        const lines = (el.code || '// Write code here\nfunction example() {\n  return "AntCapture";\n}').split('\n');
-        ctx.font = "12px 'Fira Code', monospace, sans-serif";
-        const maxLines = Math.floor((ch - 44) / 20);
+        // Code content line by line (skip if actively being edited in inline editor)
+        if (state.editingTextIndex !== i) {
+          const lines = (el.code || '// Write code here\nfunction example() {\n  return "AntCapture";\n}').split('\n');
+          ctx.font = "12px 'Fira Code', monospace, sans-serif";
+          const maxLines = Math.floor((ch - 44) / 20);
 
-        lines.slice(0, maxLines).forEach((line, idx) => {
-          const ly = el.y + 50 + idx * 20;
+          lines.slice(0, maxLines).forEach((line, idx) => {
+            const ly = el.y + 50 + idx * 20;
 
-          // Line numbers or terminal prompt symbol
-          ctx.fillStyle = '#334155';
-          ctx.fillText(String(idx + 1).padStart(2, ' '), el.x + 14, ly);
+            // Line numbers or terminal prompt symbol
+            ctx.fillStyle = '#334155';
+            ctx.fillText(String(idx + 1).padStart(2, ' '), el.x + 14, ly);
 
-          // Code text
-          ctx.fillStyle = '#f1f5f9';
-          ctx.fillText(line, el.x + 44, ly);
-        });
+            // Code text
+            ctx.fillStyle = '#f1f5f9';
+            ctx.fillText(line, el.x + 44, ly);
+          });
+        }
 
         // Border outline
         ctx.strokeStyle = el.color || '#1e293b';
